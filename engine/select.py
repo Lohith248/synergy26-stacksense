@@ -280,5 +280,13 @@ def mobile_candidates(ctx, web_choice):
             c.add("shared_lang", 2, "project.platforms", "shares TypeScript code and skills with the web app")
         if len(targets) == 2 and len(m["targets"]) == 2:
             c.add("one_codebase", 2, "project.platforms", "one codebase for Android and iOS")
+        if len(targets) == 1:
+            only = next(iter(targets))
+            if len(m["targets"]) == 1:
+                c.add("native_single", 3, "project.platforms",
+                      f"{'iOS' if only == 'ios' else only.capitalize()} is the only mobile target, so the native toolkit needs no cross-platform layer")
+            elif not set(m["langs"]) & {"javascript", "typescript"}:
+                c.add("native_single", -2, "project.platforms",
+                      f"its multiplatform layer adds build complexity that a {only}-only app does not use")
         cands.append(c)
     return cands

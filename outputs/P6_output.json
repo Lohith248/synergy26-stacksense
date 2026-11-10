@@ -18,12 +18,12 @@
       ],
       "alternatives": [
         {
-          "choice": "Ionic Capacitor (web app wrapped)",
-          "why_not": "Heavier runtime on low-end phones (project.description); weaker performance (you weighted it 3/5) (priorities.performance). Overall 7.4 points behind."
+          "choice": "Kotlin + Jetpack Compose (native Android)",
+          "why_not": "Team lists javascript, python but this needs kotlin/java (team.languages). React Native (Expo) is stronger on: good fast delivery (you weighted it 4/5) (priorities.time_to_market). Overall 6.8 points behind."
         },
         {
-          "choice": "Kotlin Multiplatform + Compose Multiplatform",
-          "why_not": "Team lists javascript, python but this needs kotlin/java (team.languages). React Native (Expo) is stronger on: good fast delivery (you weighted it 4/5) (priorities.time_to_market). Overall 9.7 points behind."
+          "choice": "Ionic Capacitor (web app wrapped)",
+          "why_not": "Heavier runtime on low-end phones (project.description); weaker performance (you weighted it 3/5) (priorities.performance). Overall 7.4 points behind."
         }
       ],
       "tradeoffs": [

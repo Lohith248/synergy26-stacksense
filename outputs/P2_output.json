@@ -31,8 +31,8 @@
           "why_not": "Weaker performance (you weighted it 3/5) (priorities.performance). React Native (Expo) is stronger on: good scalability (you weighted it 3/5) (priorities.scalability). Overall 4.0 points behind."
         },
         {
-          "choice": "Flutter",
-          "why_not": "Team lists javascript, python, typescript but this needs dart (team.languages). React Native (Expo) is stronger on: good fast delivery (you weighted it 5/5) (priorities.time_to_market). Overall 20.6 points behind."
+          "choice": "Kotlin + Jetpack Compose (native Android)",
+          "why_not": "Team lists javascript, python, typescript but this needs kotlin/java (team.languages). React Native (Expo) is stronger on: good fast delivery (you weighted it 5/5) (priorities.time_to_market). Overall 19.2 points behind."
         }
       ],
       "tradeoffs": [
