@@ -7,7 +7,8 @@ StackSense reads a project scenario in the official StackSense JSON format and r
 - real alternatives and the reason each lost;
 - trade-offs;
 - an order-of-magnitude monthly cost band with its assumptions;
-- severity-coded warnings for conflicts and risks.
+- severity-coded warnings for conflicts and risks;
+- for each core layer, the score margin over the runner-up and **what would change the choice**: single-field edits, found by re-running the engine, that would flip that layer.
 
 Hard constraints (cloud preference, deployment model, data residency, compliance) filter candidates before any scoring, so they are never broken silently. Selection is done entirely by rules and weighted scoring over a cited knowledge base. **No LLM is used anywhere.** The engine is pure Python standard library, so there is nothing to install beyond Python.
 
@@ -35,7 +36,9 @@ Hard constraints (cloud preference, deployment model, data residency, compliance
         ├─ engine/services.py supporting services inside the same constraint envelope
         ├─ cost band, contradiction/compliance/lifecycle warnings, architecture style, summary
         ▼
- Section 4 JSON  ──►  outputs/<scenario_id>_output.json   (+ optional readable --explain view)
+ engine/counterfactual.py  re-runs the engine on a fixed list of one-field edits → what_would_change per layer
+        ▼
+ Section 4 JSON  ──►  outputs/<scenario_id>_output.json   (+ --explain view, or the optional web UI)
 
  kb/technologies.json  products, ratings, regions, cost bands, lifecycle table, existing-system patterns
  kb/sources.json       every cited source (official URL, status, research claim ids)
@@ -50,13 +53,16 @@ Hard constraints (cloud preference, deployment model, data residency, compliance
 | `engine/select.py` | Hard filtering and explained scoring for the core layers; ties broken by product id |
 | `engine/services.py` | Supporting services (auth, storage, search, realtime, cache, queue, payments, CDN, ML, CI/CD, observability, offline sync, integrations) |
 | `engine/recommend.py` | Orchestration, conflicts, warnings, cost band, architecture style, summary |
+| `engine/counterfactual.py` | Per-layer `what_would_change`: ordered one-field probes (priorities, soft requirements, numbers, constraints), measured by re-running the engine |
+| `engine/web.py`, `web/index.html` | Optional local web UI (`serve`): standard-library HTTP server on 127.0.0.1 and one self-contained page |
 | `engine/kb.py` | Loads the knowledge base; an unknown source id fails loudly |
 | `tools/check_contract.py` | Independent checker of the Section 4 output contract |
-| `tests/` | 41 stdlib `unittest` tests: boundary set B01-B34, KB lint, deprecated-product guard, 96 hard-constraint mutations, interactive mode |
+| `tools/perturb.py` | Robustness sweep: 877 one-field edits across P1-P6; reports crashes, contract/hard-constraint violations and which layers move |
+| `tests/` | 66 stdlib `unittest` tests: boundary set B01-B34, KB lint, deprecated-product guard, 96 hard-constraint mutations, interactive mode, improvement acceptance tests (language fit, serverless fit, static hosts, native mobile, low budget, relaxed labelling, explanations, KB breadth, counterfactuals, web UI) |
 
 ## Technology used
 
-- Python 3.10+, standard library only: `json`, `argparse`, `re`, `unittest`. Tested on CPython 3.10.11 and 3.13.3 on Windows 11. Python 3.10 reached end of life on 2026-10-01, so **3.11 or newer is recommended**.
+- Python 3.10+, standard library only: `json`, `argparse`, `re`, `http.server` (optional UI), `unittest`. Tested on CPython 3.10.11 and 3.13.3 on Windows 11. Python 3.10 reached end of life on 2026-10-01, so **3.11 or newer is recommended**.
 - No third-party packages, no network access, no API keys.
 
 ## Prerequisites
@@ -96,6 +102,14 @@ To enter a scenario by answering prompts for every standard field, use interacti
 python stacksense.py interactive --out outputs
 ```
 
+### Optional web UI
+
+```bash
+python stacksense.py serve
+```
+
+Open http://127.0.0.1:8765/ in a browser. The page has a form for every standard field (required ones marked), a JSON tab, a sample loader (P1-P6 and E1-E9), file import, a Recommend button and export of the input and output JSON. It calls the same engine as the CLI, binds to 127.0.0.1 only, loads nothing from the internet and uses no LLM. Use `--port` to change the port; stop it with Ctrl+C.
+
 Edge-case examples for every Section 6 category are in `scenarios/edge_cases/` (E1-E9):
 
 ```bash
@@ -122,6 +136,12 @@ python -I -m unittest discover -s tests -v
 python tools/check_contract.py outputs/P1_output.json outputs/P2_output.json outputs/P3_output.json outputs/P4_output.json outputs/P5_output.json outputs/P6_output.json
 ```
 
+Optional robustness sweep (about 10 s):
+
+```bash
+python tools/perturb.py
+```
+
 ## Output conventions (documented interpretations)
 
 - **`invalid_input`:** every detected problem is listed. `stack` is `null` and the cost band is `null/null`, so it cannot be mistaken for a free stack.
@@ -129,6 +149,8 @@ python tools/check_contract.py outputs/P1_output.json outputs/P2_output.json out
 - **Soft conflicts:** budget, timeline and team conflicts give `ok_with_warnings` with a full stack and named warnings, never a silent violation.
 - **`cloud_preference: none`** means no public cloud.
 - **`on_premise` and `air_gapped`** both allow only self-hostable components, with no SaaS or CDN. Unavoidable external dependencies (a payment gateway, an existing cloud identity provider, an SMS carrier link) are kept only with an explicit warning.
+- **Extra output fields** (Section 4 allows them): each core component has `kb_id`, `score_margin` (gap to the runner-up; small means a near-tie) and `what_would_change` (up to three distinct outcomes, each with the first one-field edit that causes it and up to three other edits that lead there; `none in the probe set` when nothing tried flips it). Components also carry `deployment`, `provider`, `data_bearing`, `data_location` and `sources`.
+- **Relaxed recommendations:** when a critical conflict remains (for example a huge scale on a $0 budget), the summary starts with "Relaxed recommendation" and one `Relaxed:` assumption names each relaxed field.
 - **Description rules:** fixed, deterministic keyword rules on `project.description` shape supporting services and warnings only, for example UPI, EMI, payouts, ledger, KYC, offline sync and Microsoft 365. Core layers come from structured fields.
 
 ## Project structure
@@ -141,7 +163,9 @@ source/
 ├── kb/sources.json          cited sources with verification status
 ├── scenarios/               official public scenarios + edge_cases/E1-E9
 ├── outputs/                 P1-P6 outputs produced by this engine
+├── web/index.html           optional local UI page (served by `serve`)
 ├── tools/check_contract.py  output contract checker
+├── tools/perturb.py         one-field robustness sweep
 ├── tests/                   boundary, KB and interactive tests
 ├── DECISIONS.md             participant-owned design decisions
 └── README.md
