@@ -28,16 +28,17 @@ def samples():
     with open(os.path.join(ROOT, "scenarios", "stacksense_public_scenarios.json"), encoding="utf-8") as f:
         for s in json.load(f):
             out.append({"id": s["scenario_id"], "label": f"{s['scenario_id']} {s['project']['name']}", "scenario": s})
-    edir = os.path.join(ROOT, "scenarios", "edge_cases")
-    for name in sorted(os.listdir(edir)):
-        if name.endswith(".json"):
-            with open(os.path.join(edir, name), encoding="utf-8") as f:
-                text = f.read()
-            try:
-                data = json.loads(text)
-            except ValueError:
-                data = text  # malformed on purpose (an edge case); sent as raw text
-            out.append({"id": name[:-5], "label": name[:-5].replace("_", " "), "scenario": data})
+    for sub in ("edge_cases", "extras", "hidden_like"):
+        edir = os.path.join(ROOT, "scenarios", sub)
+        for name in sorted(os.listdir(edir)) if os.path.isdir(edir) else []:
+            if name.endswith(".json"):
+                with open(os.path.join(edir, name), encoding="utf-8") as f:
+                    text = f.read()
+                try:
+                    data = json.loads(text)
+                except ValueError:
+                    data = text  # malformed on purpose (an edge case); sent as raw text
+                out.append({"id": name[:-5], "label": name[:-5].replace("_", " "), "scenario": data})
     return out
 
 
