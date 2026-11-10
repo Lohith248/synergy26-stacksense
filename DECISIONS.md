@@ -1,6 +1,6 @@
 # Design decisions
 
-The participant owns these decisions (FAQ p15: "The design decisions, knowledge base and reasoning must be your own"). Claude proposed each one in the 10 November review. On 10 November the user told Claude to start Phase B and to "make those changes". **Each row still needs the participant to confirm it, in their own words, before submission.**
+The participant owns these decisions (FAQ p15: "The design decisions, knowledge base and reasoning must be your own"). Claude proposed each one in the 10 November review. On 10 November the user told Claude to start Phase B and to "make those changes". The participant accepted all ten on 10 November 2026. Any later change needs a new row with its reason.
 
 | id | Decision | Why | Participant confirmation |
 |---|---|---|---|
