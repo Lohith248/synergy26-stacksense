@@ -61,9 +61,17 @@ def build(req):
         tier = 2
     else:
         tier = 3
+    rps = req["scale.peak_rps"]
+    c["rps_tier"] = None
+    if rps is not None:  # an explicit request rate is better evidence than people counts
+        c["rps_tier"] = 0 if rps <= 20 else 1 if rps <= 200 else 2 if rps <= 2000 else 3
+        tier = max(tier, c["rps_tier"])
     c["tier"] = tier
     c["data_gb"] = req["scale.data_volume_gb_12_months"] if req["scale.data_volume_gb_12_months"] is not None else 5
     c["langs"] = lang_norm(req["team.languages"])
+    c["hiring"] = [x for x in lang_norm(req["team.hiring_languages"]) if x not in c["langs"]]
+    c["geo"] = req["scale.geo_spread"]
+    c["lock"] = req["infrastructure.lock_in_tolerance"]
     c["exp"] = req["team.experience"]
     c["xf"] = EXP_FACTOR[c["exp"]]
     c["lf"] = LANG_FACTOR[c["exp"]]

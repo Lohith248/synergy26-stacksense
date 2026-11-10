@@ -20,6 +20,8 @@ ENUMS = {
     "infrastructure.cloud_preference": ["any", "aws", "gcp", "azure"],
     "infrastructure.data_residency": ["none", "india", "eu", "us"],
     "infrastructure.deployment_model": ["managed_cloud", "self_hosted_cloud_vm", "on_premise", "air_gapped"],
+    "infrastructure.lock_in_tolerance": ["low", "medium", "high"],  # optional extra inputs
+    "scale.geo_spread": ["single_region", "multi_region", "global"],
 }
 
 
@@ -47,6 +49,8 @@ def probes(req):
 
 
 def fmt(v):
+    if v is None:
+        return "unset"
     if isinstance(v, bool):
         return "true" if v else "false"
     if isinstance(v, float) and v.is_integer():

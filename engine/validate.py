@@ -45,6 +45,17 @@ FIELDS = [
     ("compliance", "enum_list0", False, [], ["gdpr", "dpdp", "hipaa", "pci_dss", "rbi_localisation", "soc2", "iso27001"]),
 ] + [(f"priorities.{k}", "prio", False, 3, None) for k in PRIORITY_KEYS]
 
+# Optional extra inputs (statement p5 encourages more than the standard fields). Absent = not used, no assumption
+# recorded, so files with only the standard fields behave exactly as before. Each one changes a decision; see README.
+EXTRA_FIELDS = [
+    ("scale.peak_rps", "xint", False, None, 0),
+    ("scale.geo_spread", "xenum", False, None, ["single_region", "multi_region", "global"]),
+    ("team.hiring_languages", "xlist", False, [], None),
+    ("infrastructure.lock_in_tolerance", "xenum", False, None, ["low", "medium", "high"]),
+]
+EXTRA_PATHS = {f[0] for f in EXTRA_FIELDS}
+FIELDS = FIELDS + EXTRA_FIELDS
+
 GROUPS = {"project", "scale", "team", "budget", "timeline", "infrastructure", "requirements", "priorities"}
 UNSPECIFIED_NOTE = {
     "project.name": "project.name absent: treated as unnamed; names never affect choices.",
@@ -85,6 +96,9 @@ def validate(raw):
                 present = False
                 break
         val = node if present else None
+        if not present and path in EXTRA_PATHS:
+            req[path] = list(default) if isinstance(default, list) else default
+            continue
         if not present:
             if required:
                 errors.append({"field": path, "message": "Required field is missing."})
@@ -99,7 +113,7 @@ def validate(raw):
         if kind == "str":
             if not isinstance(val, str):
                 msg = "Must be a string."
-        elif kind == "enum":
+        elif kind in ("enum", "xenum"):
             if not isinstance(val, str) or val not in extra:
                 msg = f"Must be one of {', '.join(extra)} (got {_fmt(val)})."
         elif kind in ("enum_list", "enum_list0"):
@@ -114,7 +128,7 @@ def validate(raw):
                 elif len(set(val)) != len(val):
                     assumptions.append(f"{path}: duplicate values ignored.")
                     val = sorted(set(val), key=val.index)
-        elif kind == "int":
+        elif kind in ("int", "xint"):
             if not _is_int(val):
                 msg = "Must be an integer (JSON number without fraction)."
             elif val < extra:
@@ -137,13 +151,13 @@ def validate(raw):
         elif kind == "prio":
             if not _is_int(val) or not 1 <= val <= 5:
                 msg = f"Must be an integer from 1 to 5 (got {_fmt(val)})."
-        elif kind == "str_list":
+        elif kind in ("str_list", "xlist"):
             if not isinstance(val, list) or not all(isinstance(x, str) for x in val):
                 msg = "Must be a list of strings."
-            elif path == "team.languages":
+            elif path in ("team.languages", "team.hiring_languages"):
                 norm = [x.strip().lower() for x in val if x.strip()]
                 if norm != val:
-                    assumptions.append("team.languages normalised to lower-case trimmed names.")
+                    assumptions.append(f"{path} normalised to lower-case trimmed names.")
                 val = sorted(set(norm), key=norm.index)
         if msg:
             errors.append({"field": path, "message": msg})

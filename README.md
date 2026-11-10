@@ -53,12 +53,13 @@ Hard constraints (cloud preference, deployment model, data residency, compliance
 | `engine/select.py` | Hard filtering and explained scoring for the core layers; ties broken by product id |
 | `engine/services.py` | Supporting services (auth, storage, search, realtime, cache, queue, payments, CDN, ML, CI/CD, observability, offline sync, integrations) |
 | `engine/recommend.py` | Orchestration, conflicts, warnings, cost band, architecture style, summary |
+| `engine/domains.py` | Project-type rules: dedicated game servers, IoT ingestion and time-series storage, analytics warehouse + BI, API gateways |
 | `engine/counterfactual.py` | Per-layer `what_would_change`: ordered one-field probes (priorities, soft requirements, numbers, constraints), measured by re-running the engine |
 | `engine/web.py`, `web/index.html` | Optional local web UI (`serve`): standard-library HTTP server on 127.0.0.1 and one self-contained page |
 | `engine/kb.py` | Loads the knowledge base; an unknown source id fails loudly |
 | `tools/check_contract.py` | Independent checker of the Section 4 output contract |
-| `tools/perturb.py` | Robustness sweep: 877 one-field edits across P1-P6; reports crashes, contract/hard-constraint violations and which layers move |
-| `tests/` | 66 stdlib `unittest` tests: boundary set B01-B34, KB lint, deprecated-product guard, 96 hard-constraint mutations, interactive mode, improvement acceptance tests (language fit, serverless fit, static hosts, native mobile, low budget, relaxed labelling, explanations, KB breadth, counterfactuals, web UI) |
+| `tools/perturb.py` | Robustness sweep: 943 one-field edits across P1-P6; reports crashes, contract/hard-constraint violations and which layers move |
+| `tests/` | 87 stdlib `unittest` tests: boundary set B01-B34, KB lint, deprecated-product guard, 96 hard-constraint mutations, interactive mode, improvement acceptance tests (language fit, serverless fit, static hosts, native mobile, low budget, relaxed labelling, explanations, KB breadth, counterfactuals, web UI, traffic shape, domain rules for games/IoT/analytics/API/B2B SSO, extra inputs) |
 
 ## Technology used
 
@@ -110,6 +111,8 @@ python stacksense.py serve
 
 Open http://127.0.0.1:8765/ in a browser. The page has a form for every standard field (required ones marked), a JSON tab, a sample loader (P1-P6 and E1-E9), file import, a Recommend button and export of the input and output JSON. It calls the same engine as the CLI, binds to 127.0.0.1 only, loads nothing from the internet and uses no LLM. Use `--port` to change the port; stop it with Ctrl+C.
 
+Twelve more author-made probes for project types the public set does not cover (gaming, IoT, analytics, AI/RAG, healthtech, API platform, B2B SaaS, seasonal e-commerce, zero-budget students, social, desktop, seasonal content) are in `scenarios/hidden_like/` (regenerate with `python tools/make_hidden_like.py`).
+
 Edge-case examples for every Section 6 category are in `scenarios/edge_cases/` (E1-E9):
 
 ```bash
@@ -141,6 +144,19 @@ Optional robustness sweep (about 10 s):
 ```bash
 python tools/perturb.py
 ```
+
+## Extra inputs (optional)
+
+The engine accepts every standard field and works on files that contain only those. Four optional extra fields can be added inside the usual groups; when absent they are ignored and nothing is assumed. Invalid values are reported in `validation_errors` like any other field. Interactive mode and the web UI ask for them as optional.
+
+| Field | Values | What it changes |
+|---|---|---|
+| `scale.peak_rps` | integer ≥ 0 | Request rate is better sizing evidence than people counts. The scale tier becomes the higher of the people-based and rate-based tiers (≤20, ≤200, ≤2,000, more requests/s), which moves plans, caches and the cost band. |
+| `scale.geo_spread` | `single_region`, `multi_region`, `global` | Distant users: adds a CDN even for small apps and a `GLOBAL_USERS_ONE_REGION` warning with the latency cost and what to do within the residency constraint. |
+| `team.hiring_languages` | list of strings | Languages the team will hire for count at half the weight of languages it already writes (for example, hiring Kotlin developers moves P6's Android app to native Kotlin). |
+| `infrastructure.lock_in_tolerance` | `low`, `medium`, `high` | `low` penalises provider-specific runtimes and data stores (Lambda, DynamoDB, Firestore, Cosmos DB, Cognito) and favours portable containers and open engines. |
+
+Example: `scenarios/extras/X1_p6_with_extras.json` (P6 plus all four). The counterfactual probes include `lock_in_tolerance` and `geo_spread`, so `what_would_change` shows when they matter.
 
 ## Output conventions (documented interpretations)
 

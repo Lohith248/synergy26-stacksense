@@ -98,7 +98,7 @@ function buildForm() {
     if (!groups[g]) { groups[g] = el("fieldset", {}, el("legend", {text: g})); f.append(groups[g]); }
     const id = "fld-" + fd.path;
     const name = fd.path.includes(".") ? fd.path.split(".").slice(1).join(".") : fd.path;
-    const lab = el("span", {}, name, fd.required ? el("b", {text: " *"}) : null);
+    const lab = el("span", {}, name, fd.required ? el("b", {text: " *"}) : null, fd.extra ? el("i", {text: " (extra)"}) : null);
     let input;
     const dflt = fd.default === null || fd.default === undefined ? "" : ` (default ${JSON.stringify(fd.default)})`;
     if (fd.kind === "enum" || fd.kind === "bool" || fd.kind === "prio") {
@@ -229,7 +229,7 @@ async function run() {
 }
 
 (async function init() {
-  SCHEMA = await (await fetch("/api/schema")).json();
+  SCHEMA = (await (await fetch("/api/schema")).json()).map(f => ({...f, kind: {xint: "int", xenum: "enum", xlist: "str_list"}[f.kind] || f.kind}));
   buildForm();
   const samples = await (await fetch("/api/samples")).json();
   samples.forEach((s, i) => $("sample").append(el("option", {value: String(i), text: s.label})));

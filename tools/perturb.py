@@ -90,6 +90,12 @@ def hard_violations(doc, sc):
 
 
 def variants(path, kind, cur, extra):
+    if kind == "xenum":
+        return list(extra)
+    if kind == "xint":
+        return [10, 500, 5000]
+    if kind == "xlist":
+        return [["kotlin"], ["typescript"]]
     if kind == "enum":
         return [v for v in extra if v != cur]
     if kind == "bool":

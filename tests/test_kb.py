@@ -123,6 +123,7 @@ class Interactive(unittest.TestCase):
         answers += [yn(r[k]) for k in ("realtime", "offline_support", "full_text_search", "file_media_storage", "payments", "multi_tenant", "seo_critical")]
         answers += [r["auth"], r["ml_features"], r["availability"], str(r["p95_latency_ms"]), ",".join(p["compliance"])]
         answers += [str(p["priorities"][k]) for k in ("cost", "time_to_market", "scalability", "performance", "maintainability", "security")]
+        answers += ["n"]  # no optional extra inputs (prompt added with the extra fields)
         import tempfile
         d = tempfile.mkdtemp()
         with mock.patch("builtins.input", side_effect=answers), mock.patch("sys.stdout", new=io.StringIO()):

@@ -61,8 +61,11 @@ def lang_term(c, ctx, langs, weight, what):
     if not team:
         return
     hit = sorted(set(langs) & set(team))
+    hire = sorted(set(langs) & set(ctx["hiring"]))
     if hit:
         c.add("lang", weight * ctx["lf"], "team.languages", f"team already writes {', '.join(hit)} for {what}")
+    elif hire:
+        c.add("lang", weight * ctx["lf"] * 0.5, "team.hiring_languages", f"the team plans to hire {', '.join(hire)} developers for {what}")
     else:
         c.add("lang", -weight * ctx["lf"], "team.languages",
               f"team lists {', '.join(team)} but this needs {'/'.join(langs[:2])}")
@@ -155,6 +158,11 @@ def hosting_candidates(ctx):
                       f"scales out with requests for {burst} and back down (to zero) afterwards, so idle periods cost little")
             elif sc == "fixed":
                 c.add("traffic", -2, "scale.traffic_pattern", f"fixed capacity must be sized and paid for at the level of the {burst}")
+        if ctx["lock"] == "low":
+            if h.get("lock_in") == "high":
+                c.add("lock_in", -4, "infrastructure.lock_in_tolerance", "code is written against a provider-specific runtime, costly to move")
+            elif kind in ("containers", "vm", "onprem"):
+                c.add("lock_in", 1, "infrastructure.lock_in_tolerance", "standard containers move to another cloud or on-prem unchanged")
         if req["requirements.realtime"] and h.get("ws_timeout"):
             c.add("realtime", -1.5, "requirements.realtime", "WebSocket connections end at the request timeout, so clients must reconnect")
         lat = req["requirements.p95_latency_ms"]
@@ -296,6 +304,8 @@ def database_candidates(ctx, host, backend):
         ed = ctx["existing_db"]
         if ed and ed["pattern"].get("engine") == d["id"]:
             c.add("existing", 9, "infrastructure.existing_systems", f"matches the existing {ed['raw']} the team already runs")
+        if ctx["lock"] == "low" and d.get("lock_in") == "high":
+            c.add("lock_in", -5, "infrastructure.lock_in_tolerance", "proprietary data model and API; leaving means rewriting data access")
         if "sql" in ctx["langs"] and d["family"] == "relational":
             c.add("sqlskill", 1.5, "team.languages", "team knows SQL")
         if backend["id"] == "dotnet-aspnet" and d["id"] == "sqlserver":

@@ -166,7 +166,14 @@ def _recommend(req, assumptions, sid):
     if not ctx["langs"]:
         assumptions.append("team.languages is empty: no language preference applied; mainstream options ranked on other factors.")
     assumptions.append(f"Scale tier '{cx.TIER_NAMES[ctx['tier']]}' from {ctx['users']:,} users and ~{ctx['peak']:,} peak concurrent users "
-                       "(people, not requests per second; used only for sizing and cost).")
+                       + (f"and scale.peak_rps {req['scale.peak_rps']:,} requests/s (the higher of the two tiers is used)."
+                          if ctx["rps_tier"] is not None else "(people, not requests per second; used only for sizing and cost)."))
+    if ctx["hiring"]:
+        assumptions.append(f"team.hiring_languages {', '.join(ctx['hiring'])}: counted at half the weight of languages the team already writes.")
+    if ctx["lock"]:
+        assumptions.append(f"infrastructure.lock_in_tolerance '{ctx['lock']}'" + (
+            ": provider-specific runtimes and data stores are penalised; portable containers and open engines preferred." if ctx["lock"] == "low"
+            else ": no portability penalty applied."))
 
     # ---- backend
     backend_c = None
@@ -231,6 +238,8 @@ def _recommend(req, assumptions, sid):
             assumptions.append("No data_residency given: deploy in the provider region closest to most users (not specified in the input).")
     ctx["res_key"] = loc
     host_extra_paths = [p for p in HARD_PATHS if any(c.excluded and c.excluded[1] == p for c in h_out)]
+    if any(c.term("lock_in") for c in h_ok if c is not host_c) or host_c.term("lock_in"):
+        host_extra_paths.append("infrastructure.lock_in_tolerance")
     plan = ""
     if host.get("plans"):
         ha_need = req["requirements.availability"] in ("99.95", "99.99")
@@ -451,6 +460,13 @@ def contradictions(ctx, W, assumptions, host, backend):
           ["requirements.auth", "infrastructure.deployment_model"])
     if ctx["no_internet"] and req["requirements.ml_features"] in ("llm_rag", "inference_api"):
         assumptions.append("air_gapped: models and package mirrors must be imported into the network manually.")
+    if ctx["geo"] in ("multi_region", "global") and ctx["needs_backend"]:
+        res = ctx["req"]["infrastructure.data_residency"]
+        W("GLOBAL_USERS_ONE_REGION", "info",
+          f"scale.geo_spread '{ctx['geo']}': the API and database run in one region ({host['name']}), so distant users add roughly 100-250 ms per round trip. "
+          "Static assets go through the CDN; " + ("data stays in the residency region, so keep APIs chatty-free and cache public responses at the edge."
+                                                 if res in ("india", "eu", "us") else "add a read replica or a second region when distant traffic grows."),
+          ["scale.geo_spread"] + (["infrastructure.data_residency"] if res in ("india", "eu", "us") else []))
     lat = req["requirements.p95_latency_ms"]
     if lat is not None and lat <= 100:
         W("LATENCY_TARGET_UNMEASURED", "info", f"p95 {lat} ms is achievable only with users near the {host['name']} region and no cross-region calls; the engine cannot measure it — load-test before launch.",

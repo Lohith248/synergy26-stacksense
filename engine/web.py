@@ -12,14 +12,14 @@ import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from .load import parse_text
-from .validate import FIELDS
+from .validate import EXTRA_PATHS, FIELDS
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MAX_BODY = 2_000_000
 
 
 def schema():
-    return [{"path": p, "kind": k, "required": r, "default": d, "choices": e if isinstance(e, list) else None}
+    return [{"path": p, "kind": k, "required": r, "default": d, "choices": e if isinstance(e, list) else None, "extra": p in EXTRA_PATHS}
             for p, k, r, d, e in FIELDS]
 
 

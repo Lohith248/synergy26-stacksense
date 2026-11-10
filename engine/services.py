@@ -133,7 +133,7 @@ def build(ctx, host, backend, db, mobile, warn):
                                 ("Auth0 / Clerk (SaaS)", "another vendor and per-user pricing on a near-zero budget")],
                                ["Ties identity to the Supabase project; migrating users later needs a password-hash export"],
                                "saas", "supabase", True, Z, ["supabase-pricing"], loc))
-            elif p == "aws" and not selfh:
+            elif p == "aws" and not selfh and ctx["lock"] != "low":
                 choice = f"Amazon Cognito user pool{rtxt}" + (" with Google/Apple/Microsoft social sign-in" if social else "")
                 out.append(svc("auth", choice, f"{auth} login on AWS: managed user pool with MFA and hosted UI{rtxt}.",
                                dp + ["infrastructure.cloud_preference"],
@@ -378,10 +378,11 @@ def build(ctx, host, backend, db, mobile, warn):
 
     # ---------------- cdn
     if (ctx["web"] and ctx["needs_backend"] and not selfh and not d["internal_only"]
-            and (req["requirements.seo_critical"] or ctx["tier"] >= 1)):
+            and (req["requirements.seo_critical"] or ctx["tier"] >= 1 or ctx["geo"] in ("multi_region", "global"))):
         name = {"aws": "Amazon CloudFront", "azure": "Azure Front Door", "gcp": "Cloud CDN"}.get(p, "Cloudflare (free plan)")
         out.append(svc("cdn", name, "Caches public pages and static assets near users; only public, non-personal content is cached at the edge.",
-                       ["project.platforms"] + (["requirements.seo_critical"] if req["requirements.seo_critical"] else ["scale.users_12_months"]),
+                       ["project.platforms"] + (["requirements.seo_critical"] if req["requirements.seo_critical"] else ["scale.users_12_months"])
+                       + (["scale.geo_spread"] if ctx["geo"] in ("multi_region", "global") else []),
                        [("No CDN", "every asset request hits the origin; slower for distant users")],
                        ["Cache invalidation on deploys"], "managed", p if hyper else "cloudflare", False,
                        [[0, 1], [1, 15], [15, 120], [120, 800]], ["aws-regional"]))
