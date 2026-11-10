@@ -310,6 +310,13 @@ def recommend(req, assumptions, sid):
     sev = {w["severity"] for w in W.items}
     status = "ok_with_warnings" if sev & {"warning", "critical"} else "ok"
     summary = make_summary(ctx, style, fe_cmp, backend_cmp, db_cmp, host_name, cost, status)
+    crit = [w for w in W.items if w["severity"] == "critical"]
+    if crit:  # statement p8: a reduced/relaxed stack must say exactly which constraints were relaxed
+        for w in crit:
+            assumptions.append(f"Relaxed: {', '.join(w['fields'])} — {w['message'].split('. ')[0].rstrip('.')}. "
+                               "The stack above does not satisfy this as stated; see the matching critical warning.")
+        summary = (f"Relaxed recommendation ({len(crit)} critical conflict{'s' if len(crit) > 1 else ''}: "
+                   + ", ".join(w["code"] for w in crit) + "). " + summary)
     return {"scenario_id": sid, "engine_version": ENGINE_VERSION, "status": status, "summary": summary,
             "architecture_style": style, "stack": stack, "estimated_monthly_cost_usd": cost,
             "warnings": W.items, "assumptions": assumptions, "validation_errors": []}

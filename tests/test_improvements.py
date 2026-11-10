@@ -120,5 +120,21 @@ class LowBudget(unittest.TestCase):  # item 5
             self.assertNotIn("Supabase", core(run(s), "database"), cloud)
 
 
+class RelaxedLabel(unittest.TestCase):  # item 6
+    def test_contradiction_names_relaxed_constraint(self):
+        with open(os.path.join(ROOT, "scenarios", "edge_cases", "E3_contradictions.json"), encoding="utf-8") as f:
+            out = run(json.load(f))
+        self.assertEqual(out["status"], "ok_with_warnings")
+        self.assertTrue(out["summary"].startswith("Relaxed recommendation"), out["summary"])
+        relaxed = [a for a in out["assumptions"] if a.startswith("Relaxed:")]
+        self.assertTrue(any("budget.monthly_infra_usd" in a for a in relaxed), relaxed)
+
+    def test_no_label_without_critical(self):
+        for i in range(1, 7):
+            out = run(P(i))
+            self.assertFalse(out["summary"].startswith("Relaxed"), i)
+            self.assertFalse([a for a in out["assumptions"] if a.startswith("Relaxed:")], i)
+
+
 if __name__ == "__main__":
     unittest.main()
