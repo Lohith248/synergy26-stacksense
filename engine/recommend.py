@@ -6,6 +6,7 @@ from . import services as sv
 from .kb import AS_OF, TECH, cite
 
 FIELD_ORDER = [f[0] for f in __import__("engine.validate", fromlist=["FIELDS"]).FIELDS]
+SKILL_BAND = 5  # a mismatched backend must beat the best skill-matched one by more than this to be chosen
 HARD_PATHS = ("infrastructure.cloud_preference", "infrastructure.deployment_model", "infrastructure.data_residency")
 
 
@@ -60,7 +61,7 @@ def component(cand, ranked_ok, ranked_out, extra_paths, extras, name=None, base_
         alts.append({"choice": a.item["name"], "why_not": why_not(cand, a)})
     # excluded options are shown when a hard constraint removed them (that teaches the reader something);
     # options excluded only for not fitting the project shape are used just to reach the required minimum
-    hard = [a for a in ranked_out if a.excluded[1] in HARD_PATHS + ("compliance",)]
+    hard = [a for a in ranked_out if all(r[1] in HARD_PATHS + ("compliance",) for r in a.reasons)]
     shape = [a for a in ranked_out if a not in hard]
     for a in hard + (shape if len(alts) < 2 else []):
         if len(alts) >= 3 or (a in shape and len(alts) >= 2):
@@ -173,6 +174,16 @@ def _recommend(req, assumptions, sid):
         bs = sl.backend_candidates(ctx, None)
         b_ok, b_out = sl.rank(bs)
         backend_c = b_ok[0]
+        team = set(ctx["langs"])
+        if team and not set(backend_c.item["langs"]) & team:
+            fit = next((c for c in b_ok if set(c.item["langs"]) & team), None)
+            if fit and backend_c.score - fit.score <= SKILL_BAND:
+                # switching language has costs the scores do not capture (ramp-up, hiring, review quality)
+                assumptions.append(f"{fit.item['name']} uses the team's language and is within {SKILL_BAND:g} points of "
+                                   f"{backend_c.item['name']} ({fit.score} vs {backend_c.score}); team skill is preferred inside that band.")
+                b_ok.remove(fit)
+                b_ok.insert(0, fit)
+                backend_c = fit
     backend = backend_c.item if backend_c else None
 
     if backend and ctx["langs"] and not set(backend["langs"]) & set(ctx["langs"]):
@@ -258,6 +269,10 @@ def _recommend(req, assumptions, sid):
         db_cmp = component(db_c, d_ok, d_out, [], {"deployment": "self_hosted" if db_c.vkey == "self" else "managed",
                                                    "provider": host["provider"] if db_c.vkey not in ("any", "self") else (db_c.id if db_c.vkey == "any" else "neutral"),
                                                    "data_bearing": True, "data_location": loc}, name=vname)
+        if ctx["data_gb"] >= 1000 and db_c.item.get("family") == "relational":
+            db_cmp["justification"] += (f" At ~{ctx['data_gb']:,.0f} GB in year one, partition the largest tables by time and move cold rows or blobs "
+                                        "to object storage so backups and index maintenance stay manageable.")
+            db_cmp["driven_by"] = order_paths(db_cmp["driven_by"] + ["scale.data_volume_gb_12_months"])
         if ctx["existing_db"] and ctx["existing_db"]["pattern"].get("engine") == db_c.id and ctx["existing_db"]["onprem"] and not ctx["self_host_only"]:
             db_cmp["justification"] += " New application data lives in the cloud database; the on-prem server is integrated, not migrated (see supporting 'other')."
     else:
@@ -298,9 +313,25 @@ def _recommend(req, assumptions, sid):
             fe_why.append("Desktop: the web app is installable as a PWA, avoiding a separate desktop codebase.")
             fe_alts.append({"choice": "Tauri desktop app", "why_not": "a second codebase before desktop-specific features are needed"})
         else:
-            parts.append("Tauri (desktop)")
-            fe_why.append("Desktop: Tauri wraps a web UI in a small native shell.")
-            fe_alts.append({"choice": "Electron", "why_not": "much larger memory footprint than Tauri"})
+            langs = set(ctx["langs"])
+            if "csharp" in langs:
+                dname, dwhy, dalts, dsrc = ("WPF on .NET 10", "Desktop for a C# team: WPF is the mature Windows desktop framework on supported .NET 10, with direct access to Windows authentication and devices.",
+                                            [("Avalonia UI", "MIT-licensed and cross-platform (Windows/macOS/Linux); choose it if non-Windows desktops matter"),
+                                             (".NET MAUI", "also targets mobile, which this project does not need")], ["wpf", "avalonia", "dotnet-maui"])
+            elif langs & {"kotlin", "java"}:
+                dname, dwhy, dalts, dsrc = ("Compose Multiplatform (desktop)", "Desktop for a Kotlin/Java team: Compose Multiplatform runs on the JVM on Windows, macOS and Linux.",
+                                            [("Electron", "would add a JavaScript stack the team does not use")], ["kotlin"])
+            elif langs & {"javascript", "typescript"}:
+                dname, dwhy, dalts, dsrc = ("Electron", "Desktop for a JavaScript/TypeScript team: Electron runs the same web UI and Node APIs everywhere.",
+                                            [("Tauri 2", "smaller and lighter, but native code is written in Rust")], ["electron-tauri"])
+            else:
+                dname, dwhy, dalts, dsrc = ("Tauri 2", "Desktop: Tauri wraps a web UI in a small native shell with a low memory footprint.",
+                                            [("Electron", "much larger memory footprint than Tauri")], ["electron-tauri"])
+            parts.append(f"{dname} (desktop)")
+            fe_why.append(dwhy)
+            fe_paths.append("team.languages")
+            fe_src += cite(dsrc)
+            fe_alts += [{"choice": c, "why_not": w} for c, w in dalts]
     if parts:
         fe_cmp = {"choice": " + ".join(parts), "justification": " ".join(fe_why), "driven_by": order_paths(fe_paths),
                   "alternatives": fe_alts[:4], "tradeoffs": fe_trade[:4], "deployment": "client", "provider": "neutral",

@@ -4,6 +4,7 @@ Each entry is a complete component object plus extra fields (deployment, provide
 cost per tier, sources). Choices respect the same envelope as the core layers.
 """
 import re
+from . import domains
 from .kb import cite
 
 Z = [[0, 0], [0, 0], [0, 0], [0, 0]]
@@ -52,6 +53,19 @@ def build(ctx, host, backend, db, mobile, warn):
                                 ("Amazon Cognito federation", "extra hop and a second directory to administer")],
                                ["Depends on the customer's Entra tenant admins for app registration and consent"],
                                "saas", "azure", False, Z, ["entra-sso"]))
+            elif (req["requirements.multi_tenant"] or ctx["type"] == "saas_b2b") and not selfh:
+                name, prov, src = {"aws": (f"Amazon Cognito user pool{rtxt} with per-customer SAML/OIDC federation", "aws", ["cognito-federation"]),
+                                   "gcp": ("Google Cloud Identity Platform multi-tenancy (per-tenant SAML/OIDC providers)", "gcp", ["gcp-identity-multitenancy"])
+                                   }.get(p, ("Keycloak 26 identity brokering (one SAML/OIDC provider per customer org)", "neutral", ["keycloak-brokering"]))
+                out.append(svc("auth", name,
+                               "B2B SaaS with enterprise_sso: each customer organisation signs in through its own IdP (Okta, Entra ID, Google Workspace…), "
+                               "so the app federates one SAML/OIDC connection per tenant and maps the IdP to the tenant id; no passwords are stored.",
+                               dp + ["requirements.multi_tenant", "project.type"],
+                               [("A single corporate identity tenant", "fits one company's staff, not many customer organisations with their own IdPs"),
+                                ("WorkOS / Auth0 (SaaS)", "fastest per-customer SSO setup, but per-connection pricing and another processor")],
+                               ["Each customer connection needs metadata exchange and claim mapping", "Just-in-time provisioning or SCIM must be decided"],
+                               "managed" if prov in ("aws", "gcp") else "self_hosted", prov, True,
+                               [[0, 0], [0, 20], [20, 150], [150, 800]], src, loc))
             elif selfh:
                 out.append(svc("auth", "Keycloak 26 (self-hosted, OIDC/SAML)",
                                "enterprise_sso on self-hosted infrastructure: Keycloak federates with the corporate directory (LDAP/AD or SAML) and runs on the same servers.",
@@ -197,7 +211,7 @@ def build(ctx, host, backend, db, mobile, warn):
 
     # ---------------- realtime
     collab = ctx["type"] == "realtime_collab" or d["collab"]
-    if req["requirements.realtime"]:
+    if req["requirements.realtime"] and ctx["type"] != "gaming":  # games: dedicated game servers (domains.py)
         dp = ["requirements.realtime"]
         if collab:
             out.append(svc("realtime", "Yjs CRDT documents + Hocuspocus WebSocket server",
@@ -248,6 +262,8 @@ def build(ctx, host, backend, db, mobile, warn):
             why.append("performance priority 5")
         if read_hot:
             why.append("read-heavy workload: hot pages and lookups served from memory instead of the database")
+        if ctx["type"] == "gaming":
+            why.append("leaderboards and matchmaking queues on sorted sets")
         out.append(svc("cache", c, "Cache and pub/sub layer: " + "; ".join(why) + ".",
                        ["scale.peak_concurrent_users"] + (["scale.workload"] if read_hot else []) + (["requirements.realtime"] if req["requirements.realtime"] else []) + (["priorities.performance"] if ctx["prio"]["performance"] >= 5 else []),
                        [("Redis (7.4+)", "now source-available (RSALv2/SSPL); Valkey keeps the BSD licence"),
@@ -291,7 +307,23 @@ def build(ctx, host, backend, db, mobile, warn):
             india = ctx["residency"] == "india" or d["upi"] or "rbi_localisation" in ctx["compliance"]
             pci = "pci_dss" in ctx["compliance"]
             feats, extra_src = [], []
-            if india:
+            store = bool(ctx["mobile"]) and (ctx["type"] == "gaming" or d["digital_goods"]) and ctx["type"] not in ("marketplace", "ecommerce", "fintech")
+            if store:
+                stores = [x for x in ("Google Play Billing" if "android" in ctx["mobile"] else None,
+                                      "Apple In-App Purchase (StoreKit)" if "ios" in ctx["mobile"] else None) if x]
+                web_gw = ("Razorpay" if india else "Stripe") if ctx["web"] else None
+                out.append(svc("payments", " + ".join(stores) + (f" (+ {web_gw} for web purchases)" if web_gw else ""),
+                               "In-app digital goods (items, currency, premium content, subscriptions) sold inside a mobile app must use the store's "
+                               "billing: Google Play's payments policy and App Store guideline 3.1.1. Purchases are confirmed by server-side receipt "
+                               "validation before items are granted." + (f" Web purchases outside the apps can use {web_gw}." if web_gw else ""),
+                               dp + ["project.type", "project.platforms"] + (["project.description"] if d["digital_goods"] else []),
+                               [("Stripe/Razorpay checkout inside the app", "violates store policy for digital goods and risks removal from the stores"),
+                                ("RevenueCat (SaaS wrapper)", "simplifies receipts across stores, but adds a vendor and a revenue-based fee")],
+                               ["Store commission on digital sales", "Refunds and chargebacks arrive as store notifications, not gateway webhooks"],
+                               "saas", "google" if "android" in ctx["mobile"] else "apple", True, Z, ["play-billing", "apple-iap"]))
+            if store:
+                name, prov, src, alts = out[-1]["choice"], out[-1]["provider"], [], []
+            elif india:
                 name = "Razorpay (UPI, cards, netbanking)"
                 if d["payouts"] or ctx["type"] == "marketplace":
                     lend = ctx["type"] == "fintech" or bool(re.search(r"loan|disburs|lend", (req["project.description"] or "").lower()))
@@ -326,19 +358,23 @@ def build(ctx, host, backend, db, mobile, warn):
             if pci:
                 why += " pci_dss: the gateway is PCI DSS Level 1; your scope still covers the pages that embed checkout."
                 src += ["pci-saq-a", "pci-v4"]
-            if ctx["self_host_only"]:
+            if ctx["self_host_only"] and not store:
                 warn("EXTERNAL_PAYMENT_GATEWAY", "warning",
                      f"Payments cannot be self-hosted: {name.split(' (')[0]} is the single external SaaS dependency kept on {ctx['deploy']} (card/UPI networks are external by nature). Card data never touches your servers.",
                      ["requirements.payments", "infrastructure.deployment_model"])
-            if not india and ctx["res_key"] in ("eu", "us") and ctx["req"]["infrastructure.data_residency"] in ("eu", "us"):
+            if not store and not india and ctx["res_key"] in ("eu", "us") and ctx["req"]["infrastructure.data_residency"] in ("eu", "us"):
                 warn("PAYMENT_DATA_LOCATION", "warning",
                      f"{name.split(' (')[0]} processes payer data; its storage location for {ctx['residency'].upper()} residency is not verified in the knowledge base — confirm the data-processing terms.",
                      ["requirements.payments", "infrastructure.data_residency"])
-            out.append(svc("payments", name + (" — " + "; ".join(feats) if feats else ""), why,
-                           dp + (["project.description"] if (feats or d["upi"]) else []) + (["compliance"] if pci else []) + res_path,
-                           alts, ["Per-transaction fees (~2% domestic cards) are charged on revenue, not in the infrastructure band",
-                                  "Webhook handling must be idempotent"],
-                           "saas", prov, True, Z, src, "india" if india else None))
+            if not store and ctx["type"] == "api_platform" and not india:
+                feats.append("usage-based (metered) billing from API-gateway usage records")
+                src = src + ["stripe-usage-billing"]
+            if not store:
+                out.append(svc("payments", name + (" — " + "; ".join(feats) if feats else ""), why,
+                               dp + (["project.description"] if (feats or d["upi"]) else []) + (["compliance"] if pci else []) + res_path,
+                               alts, ["Per-transaction fees (~2% domestic cards) are charged on revenue, not in the infrastructure band",
+                                      "Webhook handling must be idempotent"],
+                               "saas", prov, True, Z, src, "india" if india else None))
 
     # ---------------- cdn
     if (ctx["web"] and ctx["needs_backend"] and not selfh and not d["internal_only"]
@@ -436,12 +472,17 @@ def build(ctx, host, backend, db, mobile, warn):
                         ("Online-only app", "fails the stated offline requirement")],
                        ["Conflict resolution rules must be agreed with field teams", "Device storage limits on low-end phones"],
                        "client", "neutral", True, Z, ["android-offline-first", "workmanager"], "device"))
+    if ctx["mobile"] and (d["jobs_dispatch"] or d["notifications"] or d["chat"]) and not ctx["self_host_only"] and "hipaa" in ctx["compliance"]:
+        warn("PHI_IN_PUSH", "warning",
+             "Firebase Cloud Messaging is not on Google Cloud's HIPAA covered-products list: push payloads must carry no PHI (send an opaque id; "
+             "the app fetches details after sign-in).", ["compliance", "project.platforms"])
     if ctx["mobile"] and (d["jobs_dispatch"] or d["notifications"] or d["chat"]) and not ctx["self_host_only"]:
         out.append(svc("other", "Firebase Cloud Messaging (push notifications)",
                        "Mobile users must hear about new jobs/messages immediately; FCM is no-cost and also relays to iOS via APNs. Payloads carry only an ID, never personal data.",
                        ["project.platforms", "project.description"],
                        [("Polling from the app", "drains battery and misses events when the app is closed")],
-                       ["Delivery is best-effort; critical updates also appear in-app"], "saas", "google", False, Z, ["firebase-pricing"]))
+                       ["Delivery is best-effort; critical updates also appear in-app"], "saas", "google", False, Z,
+                       ["firebase-pricing"] + (["gcp-hipaa-products"] if "hipaa" in ctx["compliance"] else [])))
     if (ctx["existing_m365"] or (d["approvals"] and ctx["existing_idp"])) and ctx["no_internet"]:
         out.append(svc("other", "Approval notifications through the on-premises SMTP relay",
                        "Approvals must notify managers, but an air-gapped network cannot reach Microsoft 365; the internal mail relay carries notifications.",
@@ -494,4 +535,5 @@ def build(ctx, host, backend, db, mobile, warn):
         elif pat and pat["kind"] in ("erp", "crm", "legacy_app", "payments"):
             out.append(svc("other", f"Integration with existing {e['raw']}", pat["how"], ["infrastructure.existing_systems"],
                            [("Replacing it", "outside MVP scope")], ["Depends on the existing system's API limits"], "library", "neutral", False, Z, pat["src"]))
+    domains.build(ctx, host, backend, db, svc, warn, Z, out)
     return out

@@ -30,6 +30,9 @@ DESC_RULES = [
     ("jobs_dispatch", r"accept jobs|book |booking|dispatch|assign"),
     ("scoring_model", r"scoring model|credit scor|risk model|fraud model"),
     ("notifications", r"notif|alert|remind"),
+    ("iot", r"\bsensors?\b|\biot\b|telemetry|\bdevices? (?:send|report|publish)|smart meters?|trackers? send"),
+    ("digital_goods", r"in-app purchase|in-game|\bcoins\b|\bgems\b|unlock|premium (?:features|content|tier)|loot|battle pass"),
+    ("analytics", r"dashboards?|\breports?\b|analysts?|\bbi\b|ad-hoc (?:sql|quer)|data warehouse"),
 ]
 
 

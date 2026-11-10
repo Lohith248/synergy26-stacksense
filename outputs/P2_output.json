@@ -28,11 +28,11 @@
         },
         {
           "choice": "Ionic Capacitor (web app wrapped)",
-          "why_not": "Weaker performance (priority 3/5) (priorities.performance). React Native (Expo) is stronger on: good scalability (priority 3/5) (priorities.scalability). Overall 4.0 points behind. Known limit of Ionic Capacitor: webView performance on low-end devices."
+          "why_not": "Weaker performance (priority 3/5) (priorities.performance). React Native (Expo) is stronger on: good security (priority 3/5) (priorities.security). Overall 2.8 points behind. Known limit of Ionic Capacitor: webView performance on low-end devices."
         },
         {
           "choice": "Kotlin + Jetpack Compose (native Android)",
-          "why_not": "Team lists javascript, python, typescript but this needs kotlin/java (team.languages). React Native (Expo) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market). Overall 19.2 points behind. Known limit of Kotlin + Jetpack Compose: android only; iOS needs a second codebase."
+          "why_not": "Team lists javascript, python, typescript but this needs kotlin/java (team.languages). React Native (Expo) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market). Overall 18.0 points behind. Known limit of Kotlin + Jetpack Compose: android only; iOS needs a second codebase."
         }
       ],
       "tradeoffs": [
@@ -73,18 +73,18 @@
       "alternatives": [
         {
           "choice": "Python 3.13 + Django 5.2 LTS",
-          "why_not": "Node.js 24 LTS + NestJS (TypeScript) is stronger on: native WebSocket support (requirements.realtime); good performance (priority 3/5) (priorities.performance). Overall 2.0 points behind. Known limit of Python 3.13 + Django 5.2 LTS: webSockets need Django Channels."
+          "why_not": "Node.js 24 LTS + NestJS (TypeScript) is stronger on: native WebSocket support (requirements.realtime); good performance (priority 3/5) (priorities.performance). Overall 0.8 points behind. Known limit of Python 3.13 + Django 5.2 LTS: webSockets need Django Channels."
         },
         {
           "choice": "Node.js 24 LTS + Express 5",
-          "why_not": "Node.js 24 LTS + NestJS (TypeScript) is stronger on: good maintainability (priority 3/5) (priorities.maintainability); good scalability (priority 3/5) (priorities.scalability). Overall 4.2 points behind. Known limit of Node.js 24 LTS + Express 5: little structure; large codebases need discipline."
+          "why_not": "Node.js 24 LTS + NestJS (TypeScript) is stronger on: good maintainability (priority 3/5) (priorities.maintainability); good security (priority 3/5) (priorities.security). Overall 3.0 points behind. Known limit of Node.js 24 LTS + Express 5: little structure; large codebases need discipline."
         }
       ],
       "tradeoffs": [
         "More boilerplate than Express"
       ],
       "kb_id": "node-nestjs",
-      "score_margin": 2.0,
+      "score_margin": 0.8,
       "deployment": "library",
       "provider": "neutral",
       "data_bearing": false,
@@ -95,15 +95,22 @@
       ],
       "what_would_change": [
         {
-          "edit": "requirements.realtime: true -> false",
-          "path": "requirements.realtime",
-          "value": false,
+          "edit": "priorities.performance: 3 -> 2",
+          "path": "priorities.performance",
+          "value": 2,
           "new_choice": "Python 3.13 + Django 5.2 LTS",
           "also_by": [
-            "requirements.ml_features: none -> inference_api",
-            "requirements.ml_features: none -> llm_rag",
-            "requirements.ml_features: none -> training"
+            "priorities.security: 3 -> 4",
+            "requirements.realtime: true -> false",
+            "priorities.scalability: 3 -> 1"
           ]
+        },
+        {
+          "edit": "priorities.maintainability: 3 -> 1",
+          "path": "priorities.maintainability",
+          "value": 1,
+          "new_choice": "Node.js 24 LTS + Express 5",
+          "also_by": []
         }
       ]
     },
@@ -169,11 +176,11 @@
       "alternatives": [
         {
           "choice": "Google Cloud Run",
-          "why_not": "Azure App Service (Linux, Basic B2 / Standard S1) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market); good maintainability (priority 3/5) (priorities.maintainability). Overall 2.3 points behind. Known limit of Google Cloud Run: cold starts unless min instances are paid for."
+          "why_not": "Azure App Service (Linux, Basic B2 / Standard S1) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market); good maintainability (priority 3/5) (priorities.maintainability). Overall 3.0 points behind. Known limit of Google Cloud Run: cold starts unless min instances are paid for."
         },
         {
           "choice": "Azure Container Apps",
-          "why_not": "Operations burden 2/5 with no dedicated DevOps person (team.has_devops). Azure App Service (Linux, Basic B2 / Standard S1) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market). Overall 9.1 points behind. Known limit of Azure Container Apps: more moving parts than App Service for a single web app."
+          "why_not": "Operations burden 2/5 with no dedicated DevOps person (team.has_devops). Azure App Service (Linux, Basic B2 / Standard S1) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market). Overall 10.1 points behind. Known limit of Azure Container Apps: more moving parts than App Service for a single web app."
         },
         {
           "choice": "Render (web service + workers)",
@@ -184,7 +191,7 @@
         "Less control than containers for unusual runtimes"
       ],
       "kb_id": "azure-app-service",
-      "score_margin": 2.3,
+      "score_margin": 3.0,
       "deployment": "managed",
       "provider": "azure",
       "data_bearing": true,

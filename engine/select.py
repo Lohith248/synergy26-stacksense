@@ -15,13 +15,15 @@ class Cand:
         self.item = item
         self.id = item["id"]
         self.terms = []  # (key, points, path, text)
-        self.excluded = None  # (reason, path)
+        self.excluded = None  # (reason, path): the first hard reason, shown to the user
+        self.reasons = []  # every hard reason, used to pick informative alternatives
 
     def add(self, key, pts, path, text):
         if pts:
             self.terms.append((key, round(pts, 2), path, text))
 
     def exclude(self, reason, path):
+        self.reasons.append((reason, path))
         if self.excluded is None:
             self.excluded = (reason, path)
 
@@ -42,7 +44,12 @@ def rank(cands):
 def prio_terms(c, ctx, r):
     for i, k in enumerate(PRIO_KEYS):
         w = ctx["prio"][k]
-        delta = r[i] - 3
+        rating = r[i]
+        if k == "scalability":  # headroom beyond what the expected scale tier needs counts half
+            need = ctx["tier"] + 2
+            if rating > need:
+                rating = need + (rating - need) / 2
+        delta = rating - 3
         if delta:
             word = "good" if delta > 0 else "weaker"
             c.add(f"prio_{k}", w * delta * 0.8, f"priorities.{k}",
@@ -122,6 +129,9 @@ def hosting_candidates(ctx):
                   f"entry cost about ${lo}/month exceeds the ${ctx['budget']:g} budget")
         elif ctx["budget"] == 0 and lo == 0:
             c.add("budget", 3, "budget.monthly_infra_usd", "fits a zero budget on its free plan")
+        elif lo > 0:  # inside budget, a cheaper entry point still matters in proportion to the cost priority
+            c.add("budget_share", -min(3, 3 * lo / max(ctx["budget"], 20)) * ctx["prio"]["cost"] / 3, "budget.monthly_infra_usd",
+                  f"entry cost about ${lo}/month uses {round(100 * lo / max(ctx['budget'], 1))}% of the budget")
         if ctx["weeks"] <= 6 and h["r"][1] >= 4:
             c.add("timeline", 1.5, "timeline.mvp_weeks", f"quick to set up for a {ctx['weeks']}-week MVP")
         avail = req["requirements.availability"]
@@ -181,6 +191,9 @@ def backend_candidates(ctx, host):
         if ctx["existing_db"] and ctx["existing_db"]["pattern"].get("engine") == "sqlserver":
             c.add("existing", (b["sqlserver"] - 3) * 2, "infrastructure.existing_systems",
                   "first-class SQL Server driver/ORM" if b["sqlserver"] >= 4 else "weaker SQL Server tooling")
+        if ctx["langs"] and ctx["web"] and not set(ctx["langs"]) & {"javascript", "typescript"} and set(b["langs"]) & {"javascript", "typescript"}:
+            c.add("one_new_language", 3, "team.languages",
+                  "the web UI needs JavaScript/TypeScript anyway, so the team learns one new language instead of two")
         js_team = set(ctx["langs"]) & {"javascript", "typescript"}
         if js_team and (ctx["web"] or ctx["mobile"]) and set(b["langs"]) & {"javascript", "typescript"}:
             c.add("one_language", 2, "team.languages", "one language (TypeScript/JavaScript) across clients and server")
@@ -323,6 +336,12 @@ def mobile_candidates(ctx, web_choice):
         c = Cand(m)
         if not targets <= set(m["targets"]):
             c.exclude(f"does not target {', '.join(sorted(targets - set(m['targets'])))}", "project.platforms")
+        game = m.get("kind") == "game"
+        if game and ctx["type"] != "gaming":
+            c.exclude("a game engine, and this is not a game", "project.type")
+        if ctx["type"] == "gaming":
+            c.add("game", 8 if game else -4, "project.type",
+                  "game engine: rendering, physics, input, audio and asset pipeline built in" if game else "an app UI toolkit, not a game engine")
         prio_terms(c, ctx, m["r"])
         lang_term(c, ctx, m["langs"], 6, "the mobile app")
         learn_term(c, ctx, m["learning"])

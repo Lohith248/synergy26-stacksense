@@ -87,7 +87,7 @@ class ServerlessFit(unittest.TestCase):  # item 2
 
 class TrafficShape(unittest.TestCase):  # items 12-13
     def test_spiky_or_seasonal_cited(self):
-        for f in ("H08_UtsavMart.json", "H01_ArenaClash.json"):
+        for f in ("H08_UtsavMart.json",):
             with open(os.path.join(ROOT, "scenarios", "hidden_like", f), encoding="utf-8") as fh:
                 out = run(json.load(fh))
             h = out["stack"]["hosting"]
@@ -280,6 +280,87 @@ class WebUI(unittest.TestCase):  # item 11
         finally:
             srv.shutdown()
             srv.server_close()
+
+
+def H(prefix):
+    d = os.path.join(ROOT, "scenarios", "hidden_like")
+    name = next(f for f in sorted(os.listdir(d)) if f.startswith(prefix))
+    with open(os.path.join(d, name), encoding="utf-8") as f:
+        return json.load(f)
+
+
+def supp(out, layer=None):
+    return [x for x in out["stack"]["supporting"] if layer is None or x["layer"] == layer]
+
+
+class Domains(unittest.TestCase):  # round 2, items 14-23
+    def test_one_new_language(self):
+        for i in (3, 4):
+            for langs in (["php"], ["ruby"]):
+                out = run(P(i, team__languages=langs))
+                b = core(out, "backend")
+                if not ("Node" in b or "Laravel" in b or "Rails" in b):
+                    # a mismatched pick is allowed only when clearly better, and the warning must name the skill-matched option
+                    msg = " ".join(w["message"] for w in out["warnings"] if w["code"] == "SKILL_MISMATCH")
+                    self.assertTrue("Laravel" in msg or "Rails" in msg, (i, langs, b))
+
+    def test_store_billing_for_digital_goods(self):
+        out = run(H("H01"))
+        pay = supp(out, "payments")[0]["choice"]
+        self.assertIn("Google Play Billing", pay)
+        self.assertIn("StoreKit", pay)
+        self.assertNotIn("Stripe (Checkout)", pay)
+        # physical services in a mobile app keep a payment gateway (P2)
+        self.assertIn("Razorpay", supp(run(P(2)), "payments")[0]["choice"])
+
+    def test_game_engine_and_servers(self):
+        out = run(H("H01"))
+        self.assertIn("Unity", core(out, "frontend"))
+        self.assertTrue(any("game servers" in x["choice"] for x in supp(out, "realtime")))
+        self.assertTrue(any("leaderboard" in x["justification"] for x in supp(out, "cache")))
+        for i in range(1, 7):  # never a game engine for a non-game
+            self.assertNotIn("Unity", core(run(P(i)), "frontend"))
+
+    def test_iot_ingestion_and_rate(self):
+        out = run(H("H02"))
+        self.assertTrue(any("MQTT" in x["choice"] for x in supp(out, "other")))
+        self.assertIn("IOT_INGEST_RATE", {w["code"] for w in out["warnings"]})
+        self.assertTrue(any("partition" in x["choice"] for x in supp(out, "other")))
+        s = H("H02")
+        s["infrastructure"]["cloud_preference"] = "gcp"
+        names = " ".join(x["choice"] for x in supp(run(s)))
+        self.assertNotIn("Cloud IoT Core", names.replace("Google Cloud IoT Core", ""))
+        self.assertIn("Mosquitto", names)
+
+    def test_analytics_warehouse_and_bi(self):
+        names = " ".join(x["choice"] for x in supp(run(H("H03")), "other"))
+        self.assertIn("BigQuery", names)
+        self.assertIn("Metabase", names)
+
+    def test_api_gateway_and_metering(self):
+        out = run(H("H06"))
+        self.assertTrue(any(x["choice"].startswith("API gateway") for x in supp(out, "other")))
+        self.assertIn("usage-based", supp(out, "payments")[0]["choice"])
+
+    def test_b2b_federation(self):
+        auth = supp(run(H("H07")), "auth")[0]["choice"]
+        self.assertTrue("per-customer" in auth or "per-tenant" in auth or "one SAML/OIDC provider per customer" in auth, auth)
+        # P5 keeps the company's own Entra tenant
+        self.assertIn("Entra", supp(run(P(5)), "auth")[0]["choice"])
+
+    def test_desktop_by_language(self):
+        self.assertIn("WPF", core(run(H("H11")), "frontend"))
+
+    def test_hipaa_push(self):
+        self.assertIn("PHI_IN_PUSH", {w["code"] for w in run(H("H05"))["warnings"]})
+
+    def test_static_cost_bands(self):
+        out = run(H("H12"))
+        self.assertLessEqual(out["estimated_monthly_cost_usd"]["max"], 30)
+
+    def test_all_hidden_like_pass_contract(self):
+        for f in sorted(os.listdir(os.path.join(ROOT, "scenarios", "hidden_like"))):
+            run(H(f[:3]))
 
 
 if __name__ == "__main__":

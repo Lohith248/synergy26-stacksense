@@ -94,7 +94,7 @@
       "alternatives": [
         {
           "choice": "Node.js 24 LTS + NestJS (TypeScript)",
-          "why_not": "Java 21/25 LTS + Spring Boot is stronger on: good security (priority 5/5) (priorities.security); good scalability (priority 4/5) (priorities.scalability). Overall 5.6 points behind. Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
+          "why_not": "Java 21/25 LTS + Spring Boot is stronger on: good security (priority 5/5) (priorities.security); mature security/audit tooling (compliance). Overall 4.0 points behind. Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
         },
         {
           "choice": ".NET 10 LTS + ASP.NET Core",
@@ -105,7 +105,7 @@
         "Heavier runtime and slower iteration than Node/Python"
       ],
       "kb_id": "java-spring",
-      "score_margin": 5.6,
+      "score_margin": 4.0,
       "deployment": "library",
       "provider": "neutral",
       "data_bearing": false,
@@ -139,8 +139,8 @@
           "why_not": "Amazon RDS for PostgreSQL 17 is stronger on: good low running cost (priority 2/5) (priorities.cost). Overall 3.2 points behind. Known limit of Amazon RDS for SQL Server: licence cost outside Azure SQL; Windows-centric tooling."
         },
         {
-          "choice": "Amazon DynamoDB (on-demand)",
-          "why_not": "Amazon RDS for PostgreSQL 17 is stronger on: good maintainability (priority 4/5) (priorities.maintainability); strict ACID transactions for money and bookings (requirements.payments). Overall 8.2 points behind. Known limit of Amazon DynamoDB: access patterns must be designed up front; ad-hoc queries and joins are hard."
+          "choice": "Amazon RDS for MySQL 8.4",
+          "why_not": "Amazon RDS for PostgreSQL 17 is stronger on: good security (priority 5/5) (priorities.security); good maintainability (priority 4/5) (priorities.maintainability). Overall 9.7 points behind. Known limit of Amazon RDS for MySQL 8.4: 8.0 moved to Sustaining Support (Apr 2026); no row-level security."
         },
         {
           "choice": "Supabase Postgres",
@@ -187,11 +187,11 @@
       "alternatives": [
         {
           "choice": "AWS Elastic Beanstalk (managed platform on EC2)",
-          "why_not": "AWS ECS on Fargate (+ Application Load Balancer) is stronger on: good security (priority 5/5) (priorities.security); good scalability (priority 4/5) (priorities.scalability). Overall 1.8 points behind. Known limit of AWS Elastic Beanstalk: you still pay for and size the EC2 instances underneath."
+          "why_not": "AWS ECS on Fargate (+ Application Load Balancer) is stronger on: good security (priority 5/5) (priorities.security); good scalability (priority 4/5) (priorities.scalability). Overall 0.1 points behind. Known limit of AWS Elastic Beanstalk: you still pay for and size the EC2 instances underneath."
         },
         {
           "choice": "AWS Lambda + API Gateway",
-          "why_not": "Spring Boot is a long-running JVM/.NET server: slow cold starts and per-invocation connection pools on functions (team.languages); ~10,000 concurrent users would open relational connections per function instance; needs a connection proxy (scale.peak_concurrent_users). Overall 7.9 points behind. Known limit of AWS Lambda + API Gateway: cold starts hurt tight p95 targets."
+          "why_not": "Spring Boot is a long-running JVM/.NET server: slow cold starts and per-invocation connection pools on functions (team.languages); ~10,000 concurrent users would open relational connections per function instance; needs a connection proxy (scale.peak_concurrent_users). Overall 7.8 points behind. Known limit of AWS Lambda + API Gateway: cold starts hurt tight p95 targets."
         },
         {
           "choice": "Google Cloud Run",
@@ -203,7 +203,7 @@
         "More AWS concepts (VPC, IAM, task definitions) than a PaaS"
       ],
       "kb_id": "aws-ecs-fargate",
-      "score_margin": 1.8,
+      "score_margin": 0.1,
       "deployment": "managed",
       "provider": "aws",
       "data_bearing": true,
@@ -216,6 +216,17 @@
         "https://aws.amazon.com/compliance/programs/"
       ],
       "what_would_change": [
+        {
+          "edit": "priorities.cost: 2 -> 3",
+          "path": "priorities.cost",
+          "value": 3,
+          "new_choice": "AWS Elastic Beanstalk (managed platform on EC2) — ap-south-1 (Mumbai)",
+          "also_by": [
+            "priorities.time_to_market: 3 -> 4",
+            "priorities.scalability: 4 -> 3",
+            "priorities.security: 5 -> 4"
+          ]
+        },
         {
           "edit": "infrastructure.cloud_preference: aws -> any",
           "path": "infrastructure.cloud_preference",
@@ -230,13 +241,6 @@
           "path": "infrastructure.cloud_preference",
           "value": "azure",
           "new_choice": "Azure App Service (Linux, Premium v3, 2+ instances) — Central India (Pune)",
-          "also_by": []
-        },
-        {
-          "edit": "infrastructure.deployment_model: managed_cloud -> self_hosted_cloud_vm",
-          "path": "infrastructure.deployment_model",
-          "value": "self_hosted_cloud_vm",
-          "new_choice": "Amazon EC2 VM (Docker Compose) — ap-south-1 (Mumbai)",
           "also_by": []
         }
       ]

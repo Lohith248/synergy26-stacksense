@@ -146,7 +146,7 @@
       "alternatives": [
         {
           "choice": "Firebase Hosting (Google Cloud)",
-          "why_not": "Cloudflare Pages is stronger on: good scalability (priority 1/5) (priorities.scalability). Overall 0.8 points behind. Known limit of Firebase Hosting: spark plan: 10 GB storage and 10 GB/month transfer, site disabled when exceeded unless upgraded to Blaze."
+          "why_not": "Close runner-up (score 33.2 vs 33.6); a stable id-based tie-break keeps the result deterministic. Known limit of Firebase Hosting: spark plan: 10 GB storage and 10 GB/month transfer, site disabled when exceeded unless upgraded to Blaze."
         },
         {
           "choice": "Amazon S3 + CloudFront (static site)",
@@ -162,14 +162,15 @@
         "No regional pinning of edge-cached content"
       ],
       "kb_id": "cloudflare-pages",
-      "score_margin": 0.8,
+      "score_margin": 0.4,
       "deployment": "saas",
       "provider": "cloudflare",
       "data_bearing": false,
       "data_location": null,
       "region": "Cloudflare edge network",
       "sources": [
-        "https://developers.cloudflare.com/pages/platform/limits/"
+        "https://developers.cloudflare.com/pages/platform/limits/",
+        "https://developers.cloudflare.com/pages/functions/pricing/"
       ],
       "what_would_change": [
         {

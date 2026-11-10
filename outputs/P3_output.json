@@ -71,7 +71,7 @@
       "alternatives": [
         {
           "choice": "Node.js 24 LTS + NestJS (TypeScript)",
-          "why_not": "Go 1.27 (net/http + chi) is stronger on: good performance (priority 5/5) (priorities.performance); good scalability (priority 5/5) (priorities.scalability). Overall 2.8 points behind. Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
+          "why_not": "Go 1.27 (net/http + chi) is stronger on: good performance (priority 5/5) (priorities.performance); good security (priority 3/5) (priorities.security). Overall 0.8 points behind. Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
         },
         {
           "choice": ".NET 10 LTS + ASP.NET Core",
@@ -82,7 +82,7 @@
         "More hand-written code than batteries-included frameworks"
       ],
       "kb_id": "go-chi",
-      "score_margin": 2.8,
+      "score_margin": 0.8,
       "deployment": "library",
       "provider": "neutral",
       "data_bearing": false,
@@ -92,11 +92,15 @@
       ],
       "what_would_change": [
         {
-          "edit": "none in the probe set",
-          "path": null,
-          "value": null,
-          "also_by": [],
-          "new_choice": "No single-field edit among the probed priorities, requirements, numbers and constraints changes this choice."
+          "edit": "priorities.time_to_market: 3 -> 5",
+          "path": "priorities.time_to_market",
+          "value": 5,
+          "new_choice": "Node.js 24 LTS + NestJS (TypeScript)",
+          "also_by": [
+            "priorities.performance: 5 -> 3",
+            "priorities.security: 3 -> 1",
+            "requirements.auth: social -> enterprise_sso"
+          ]
         }
       ]
     },
@@ -163,11 +167,11 @@
       "alternatives": [
         {
           "choice": "Google Cloud Run",
-          "why_not": "Azure App Service (Linux, Premium v3, 2+ instances) is stronger on: good maintainability (priority 4/5) (priorities.maintainability); good fast delivery (priority 3/5) (priorities.time_to_market). Overall 0.5 points behind. Known limit of Google Cloud Run: cold starts unless min instances are paid for."
+          "why_not": "Azure App Service (Linux, Premium v3, 2+ instances) is stronger on: good maintainability (priority 4/5) (priorities.maintainability); good fast delivery (priority 3/5) (priorities.time_to_market). Overall 2.4 points behind. Known limit of Google Cloud Run: cold starts unless min instances are paid for."
         },
         {
           "choice": "Azure Container Apps",
-          "why_not": "Azure App Service (Linux, Premium v3, 2+ instances) is stronger on: good maintainability (priority 4/5) (priorities.maintainability); good fast delivery (priority 3/5) (priorities.time_to_market). Overall 2.0 points behind. Known limit of Azure Container Apps: more moving parts than App Service for a single web app."
+          "why_not": "Azure App Service (Linux, Premium v3, 2+ instances) is stronger on: good maintainability (priority 4/5) (priorities.maintainability); good fast delivery (priority 3/5) (priorities.time_to_market). Overall 4.0 points behind. Known limit of Azure Container Apps: more moving parts than App Service for a single web app."
         },
         {
           "choice": "On-premises Kubernetes (k3s / RKE2)",
@@ -178,7 +182,7 @@
         "Less control than containers for unusual runtimes"
       ],
       "kb_id": "azure-app-service",
-      "score_margin": 0.5,
+      "score_margin": 2.4,
       "deployment": "managed",
       "provider": "azure",
       "data_bearing": true,
@@ -193,21 +197,19 @@
       ],
       "what_would_change": [
         {
-          "edit": "priorities.cost: 2 -> 3",
-          "path": "priorities.cost",
-          "value": 3,
+          "edit": "requirements.realtime: true -> false",
+          "path": "requirements.realtime",
+          "value": false,
           "new_choice": "Google Cloud Run — europe-west1 (Belgium)",
           "also_by": [
-            "priorities.time_to_market: 3 -> 2",
-            "priorities.maintainability: 4 -> 3",
-            "requirements.realtime: true -> false"
+            "infrastructure.cloud_preference: any -> gcp"
           ]
         },
         {
           "edit": "infrastructure.cloud_preference: any -> aws",
           "path": "infrastructure.cloud_preference",
           "value": "aws",
-          "new_choice": "AWS ECS on Fargate (+ Application Load Balancer) — eu-central-1 (Frankfurt)",
+          "new_choice": "AWS Elastic Beanstalk (managed platform on EC2) — eu-central-1 (Frankfurt)",
           "also_by": []
         },
         {

@@ -19,11 +19,11 @@
       "alternatives": [
         {
           "choice": "Kotlin + Jetpack Compose (native Android)",
-          "why_not": "Team lists javascript, python but this needs kotlin/java (team.languages). React Native (Expo) is stronger on: good fast delivery (priority 4/5) (priorities.time_to_market). Overall 6.8 points behind. Known limit of Kotlin + Jetpack Compose: android only; iOS needs a second codebase."
+          "why_not": "Team lists javascript, python but this needs kotlin/java (team.languages). React Native (Expo) is stronger on: good fast delivery (priority 4/5) (priorities.time_to_market). Overall 6.0 points behind. Known limit of Kotlin + Jetpack Compose: android only; iOS needs a second codebase."
         },
         {
           "choice": "Ionic Capacitor (web app wrapped)",
-          "why_not": "Heavier runtime on low-end phones (project.description); weaker performance (priority 3/5) (priorities.performance). Overall 7.4 points behind. Known limit of Ionic Capacitor: webView performance on low-end devices."
+          "why_not": "Heavier runtime on low-end phones (project.description); weaker performance (priority 3/5) (priorities.performance). Overall 6.6 points behind. Known limit of Ionic Capacitor: webView performance on low-end devices."
         }
       ],
       "tradeoffs": [
@@ -61,18 +61,18 @@
       "alternatives": [
         {
           "choice": "Node.js 24 LTS + NestJS (TypeScript)",
-          "why_not": "Python 3.13 + Django 5.2 LTS is stronger on: good fast delivery (priority 4/5) (priorities.time_to_market); good security (priority 3/5) (priorities.security). Overall 1.0 points behind. Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
+          "why_not": "Python 3.13 + Django 5.2 LTS is stronger on: good fast delivery (priority 4/5) (priorities.time_to_market); good security (priority 3/5) (priorities.security). Overall 1.8 points behind. Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
         },
         {
           "choice": "Python 3.13 + FastAPI",
-          "why_not": "Python 3.13 + Django 5.2 LTS is stronger on: good maintainability (priority 4/5) (priorities.maintainability); good fast delivery (priority 4/5) (priorities.time_to_market). Overall 4.8 points behind. Known limit of Python 3.13 + FastAPI: bring-your-own admin/auth pieces."
+          "why_not": "Python 3.13 + Django 5.2 LTS is stronger on: good maintainability (priority 4/5) (priorities.maintainability); good fast delivery (priority 4/5) (priorities.time_to_market). Overall 5.6 points behind. Known limit of Python 3.13 + FastAPI: bring-your-own admin/auth pieces."
         }
       ],
       "tradeoffs": [
         "WebSockets need Django Channels"
       ],
       "kb_id": "python-django",
-      "score_margin": 1.0,
+      "score_margin": 1.8,
       "deployment": "library",
       "provider": "neutral",
       "data_bearing": false,
@@ -87,11 +87,7 @@
           "path": "requirements.realtime",
           "value": true,
           "new_choice": "Node.js 24 LTS + NestJS (TypeScript)",
-          "also_by": [
-            "priorities.time_to_market: 4 -> 2",
-            "priorities.scalability: 2 -> 4",
-            "priorities.performance: 3 -> 5"
-          ]
+          "also_by": []
         }
       ]
     },
@@ -151,14 +147,13 @@
         "infrastructure.data_residency",
         "priorities.cost",
         "priorities.time_to_market",
-        "priorities.scalability",
         "priorities.maintainability",
         "priorities.security"
       ],
       "alternatives": [
         {
           "choice": "Azure App Service (Linux)",
-          "why_not": "Google Cloud Run is stronger on: good low running cost (priority 5/5) (priorities.cost); scales out with requests for traffic bursts and back down (to zero) afterwards, so idle periods cost little (scale.traffic_pattern). Overall 1.7 points behind. Known limit of Azure App Service: hybrid Connections limited to 5 per Basic plan."
+          "why_not": "Google Cloud Run is stronger on: good low running cost (priority 5/5) (priorities.cost); scales out with requests for traffic bursts and back down (to zero) afterwards, so idle periods cost little (scale.traffic_pattern). Overall 1.5 points behind. Known limit of Azure App Service: hybrid Connections limited to 5 per Basic plan."
         },
         {
           "choice": "Azure Container Apps",
@@ -174,7 +169,7 @@
         "Per-request timeout bounds long jobs and WebSocket connections (clients must reconnect)"
       ],
       "kb_id": "gcp-cloud-run",
-      "score_margin": 1.7,
+      "score_margin": 1.5,
       "deployment": "managed",
       "provider": "gcp",
       "data_bearing": true,
@@ -192,6 +187,7 @@
           "value": true,
           "new_choice": "Azure App Service (Linux, Basic B1) — Central India (Pune)",
           "also_by": [
+            "priorities.cost: 5 -> 3",
             "infrastructure.cloud_preference: any -> azure"
           ]
         },

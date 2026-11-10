@@ -65,18 +65,18 @@
       "alternatives": [
         {
           "choice": "Node.js 24 LTS + NestJS (TypeScript)",
-          "why_not": ".NET 10 LTS + ASP.NET Core is stronger on: first-class SQL Server driver/ORM (infrastructure.existing_systems); good security (priority 4/5) (priorities.security). Overall 9.6 points behind. Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
+          "why_not": ".NET 10 LTS + ASP.NET Core is stronger on: first-class SQL Server driver/ORM (infrastructure.existing_systems); good security (priority 4/5) (priorities.security). Overall 9.2 points behind. Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
         },
         {
           "choice": "Node.js 24 LTS + Express 5",
-          "why_not": ".NET 10 LTS + ASP.NET Core is stronger on: good maintainability (priority 5/5) (priorities.maintainability); good security (priority 4/5) (priorities.security). Overall 17.4 points behind. Known limit of Node.js 24 LTS + Express 5: little structure; large codebases need discipline."
+          "why_not": ".NET 10 LTS + ASP.NET Core is stronger on: good maintainability (priority 5/5) (priorities.maintainability); good security (priority 4/5) (priorities.security). Overall 16.6 points behind. Known limit of Node.js 24 LTS + Express 5: little structure; large codebases need discipline."
         }
       ],
       "tradeoffs": [
         "Smaller open-source hosting choice outside Azure"
       ],
       "kb_id": "dotnet-aspnet",
-      "score_margin": 9.6,
+      "score_margin": 9.2,
       "deployment": "library",
       "provider": "neutral",
       "data_bearing": false,
@@ -157,15 +157,15 @@
       "alternatives": [
         {
           "choice": "Azure Container Apps",
-          "why_not": "Azure App Service (Linux, Basic B2 / Standard S1) is stronger on: good maintainability (priority 5/5) (priorities.maintainability); good fast delivery (priority 5/5) (priorities.time_to_market). Overall 15.3 points behind. Known limit of Azure Container Apps: more moving parts than App Service for a single web app."
+          "why_not": "Azure App Service (Linux, Basic B2 / Standard S1) is stronger on: good maintainability (priority 5/5) (priorities.maintainability); good fast delivery (priority 5/5) (priorities.time_to_market). Overall 15.6 points behind. Known limit of Azure Container Apps: more moving parts than App Service for a single web app."
         },
         {
-          "choice": "Cloudflare Pages",
-          "why_not": "Excluded: runs on cloudflare, but cloud_preference is azure (infrastructure.cloud_preference)."
+          "choice": "Google Cloud Run",
+          "why_not": "Excluded: runs on gcp, but cloud_preference is azure (infrastructure.cloud_preference)."
         },
         {
-          "choice": "Amazon S3 + CloudFront (static site)",
-          "why_not": "Excluded: runs on aws, but cloud_preference is azure (infrastructure.cloud_preference)."
+          "choice": "Render (web service + workers)",
+          "why_not": "Excluded: runs on render, but cloud_preference is azure (infrastructure.cloud_preference)."
         }
       ],
       "tradeoffs": [
@@ -173,7 +173,7 @@
         "Less control than containers for unusual runtimes"
       ],
       "kb_id": "azure-app-service",
-      "score_margin": 15.3,
+      "score_margin": 15.6,
       "deployment": "managed",
       "provider": "azure",
       "data_bearing": true,
