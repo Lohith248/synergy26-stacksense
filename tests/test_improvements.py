@@ -236,5 +236,31 @@ class Counterfactuals(unittest.TestCase):  # item 9
             self.assertGreaterEqual(st[layer]["score_margin"], 0)
 
 
+class WebUI(unittest.TestCase):  # item 11
+    def test_serve_evaluates_like_cli(self):
+        import threading
+        import urllib.request
+        from engine.web import make_server
+        srv = make_server(port=0)
+        t = threading.Thread(target=srv.serve_forever, daemon=True)
+        t.start()
+        try:
+            base = f"http://127.0.0.1:{srv.server_address[1]}"
+            page = urllib.request.urlopen(base + "/").read().decode("utf-8")
+            self.assertIn("<title>StackSense</title>", page)
+            self.assertNotIn("https://", page.split("<script>")[0])  # no external assets
+            schema = json.loads(urllib.request.urlopen(base + "/api/schema").read())
+            self.assertIn("project.type", [f["path"] for f in schema])
+            body = json.dumps(P(2)).encode("utf-8")
+            req = urllib.request.Request(base + "/api/evaluate", data=body, headers={"Content-Type": "application/json"})
+            got = json.loads(urllib.request.urlopen(req).read())
+            self.assertEqual(got, [evaluate(P(2))])
+            samples = json.loads(urllib.request.urlopen(base + "/api/samples").read())
+            self.assertGreaterEqual(len(samples), 15)
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+
 if __name__ == "__main__":
     unittest.main()

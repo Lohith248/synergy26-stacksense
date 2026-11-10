@@ -3,6 +3,7 @@
 
   python stacksense.py run <scenario.json> [--out outputs] [--no-llm] [--explain]
   python stacksense.py interactive [--out outputs]
+  python stacksense.py serve [--port 8765]     optional local web UI (http://127.0.0.1:8765/)
 
 `run` accepts a single scenario object or an array of scenarios (like stacksense_public_scenarios.json)
 and writes <scenario_id>_output.json per scenario. The engine never calls an LLM; --no-llm and
@@ -166,7 +167,13 @@ def main(argv=None):
     i = sub.add_parser("interactive", help="answer prompts for every standard field, then evaluate")
     i.add_argument("--out", default="outputs")
     i.add_argument("--no-llm", action="store_true")
+    w = sub.add_parser("serve", help="optional local web UI on 127.0.0.1 (standard library only)")
+    w.add_argument("--port", type=int, default=8765)
+    w.add_argument("--no-llm", action="store_true")
     args = ap.parse_args(argv)
+    if args.cmd == "serve":
+        from engine.web import serve
+        return serve(args.port)
     return cmd_run(args) if args.cmd == "run" else cmd_interactive(args)
 
 

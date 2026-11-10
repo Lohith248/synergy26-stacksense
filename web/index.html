@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StackSense</title>
+<style>
+:root{--bg:#f6f7f9;--panel:#fff;--ink:#1d2330;--muted:#5d6676;--line:#dde1e8;--accent:#2557d6;--ok:#1d7a46;--warn:#9a6200;--crit:#b3261e;--chip:#eef1f6}
+@media (prefers-color-scheme:dark){:root{--bg:#14171c;--panel:#1c2027;--ink:#e6e9ef;--muted:#9aa3b2;--line:#2e343e;--accent:#7aa2ff;--ok:#5cc28a;--warn:#e0a94a;--crit:#ff7a70;--chip:#262b34}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{padding:12px 16px;border-bottom:1px solid var(--line);background:var(--panel);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+header h1{font-size:17px;margin:0}
+header .note{color:var(--muted);font-size:12px}
+main{display:grid;grid-template-columns:minmax(320px,440px) 1fr;gap:16px;padding:16px}
+@media (max-width:900px){main{grid-template-columns:1fr}}
+section{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px;min-width:0}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+button,select,input,textarea{font:inherit;color:inherit;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 8px}
+button{cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.tabs button[aria-selected=true]{border-color:var(--accent);color:var(--accent)}
+fieldset{border:1px solid var(--line);border-radius:6px;margin:0 0 10px;padding:8px}
+legend{font-weight:600;padding:0 4px}
+label.f{display:grid;grid-template-columns:150px 1fr;gap:6px;align-items:center;margin:4px 0;font-size:13px}
+label.f span{color:var(--muted);overflow-wrap:anywhere}
+label.f span b{color:var(--crit);font-weight:600}
+.checks{display:flex;flex-wrap:wrap;gap:6px}
+.checks label{font-size:12px;display:flex;gap:3px;align-items:center}
+textarea#json{width:100%;min-height:480px;font:12px/1.4 ui-monospace,Consolas,monospace}
+#form{max-height:70vh;overflow:auto}
+.status{display:inline-block;padding:2px 8px;border-radius:10px;font-weight:600;font-size:12px;border:1px solid currentColor}
+.s-ok{color:var(--ok)}.s-ok_with_warnings{color:var(--warn)}.s-infeasible,.s-invalid_input{color:var(--crit)}
+.w{border-left:3px solid var(--line);padding:4px 8px;margin:4px 0}
+.w.critical{border-color:var(--crit)}.w.warning{border-color:var(--warn)}.w.info{border-color:var(--accent)}
+.w code{font-size:11px;color:var(--muted)}
+.card{border:1px solid var(--line);border-radius:6px;padding:10px;margin:8px 0}
+.card h3{margin:0 0 4px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.card .choice{font-size:15px;font-weight:600;margin-bottom:4px}
+.chips span{display:inline-block;background:var(--chip);border-radius:4px;padding:1px 6px;margin:2px 3px 0 0;font:11px ui-monospace,Consolas,monospace}
+.card ul{margin:4px 0 0;padding-left:18px}
+.muted{color:var(--muted)}
+details summary{cursor:pointer;color:var(--muted);margin-top:4px}
+table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid var(--line);padding:4px;text-align:left;vertical-align:top}
+.err{color:var(--crit)}
+</style>
+</head>
+<body>
+<header>
+  <h1>StackSense</h1>
+  <span class="note">Deterministic tech-stack recommendation engine. Runs locally; no LLM, no internet.</span>
+</header>
+<main>
+<section aria-label="Scenario input">
+  <div class="bar">
+    <select id="sample" aria-label="Load a sample scenario"><option value="">Load sample…</option></select>
+    <label><input type="file" id="file" accept=".json,application/json" hidden><button type="button" onclick="document.getElementById('file').click()">Import JSON…</button></label>
+    <button type="button" id="exportIn">Export input</button>
+  </div>
+  <div class="bar tabs" role="tablist">
+    <button type="button" role="tab" id="tabForm" aria-selected="true">Form</button>
+    <button type="button" role="tab" id="tabJson" aria-selected="false">JSON</button>
+    <button type="button" class="primary" id="run">Recommend</button>
+  </div>
+  <div id="inErr" class="err" role="alert"></div>
+  <div id="form"></div>
+  <textarea id="json" spellcheck="false" hidden aria-label="Scenario JSON"></textarea>
+</section>
+<section aria-label="Recommendation" aria-live="polite">
+  <div class="bar"><button type="button" id="exportOut" disabled>Export output JSON</button></div>
+  <div id="out" class="muted">Load a sample or fill the form, then press Recommend.</div>
+</section>
+</main>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+let SCHEMA = [], LAST = null, mode = "form";
+
+function el(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") e.className = v; else if (k === "text") e.textContent = v; else e.setAttribute(k, v);
+  }
+  for (const k of kids) if (k != null) e.append(k);
+  return e;
+}
+function getPath(o, p) { return p.split(".").reduce((a, k) => (a && typeof a === "object" && k in a) ? a[k] : undefined, o); }
+function setPath(o, p, v) { const ks = p.split("."); let a = o; ks.slice(0, -1).forEach(k => { if (typeof a[k] !== "object" || a[k] === null) a[k] = {}; a = a[k]; }); a[ks.at(-1)] = v; }
+
+function buildForm() {
+  const f = $("form"); f.textContent = "";
+  const top = el("fieldset", {}, el("legend", {text: "scenario"}));
+  top.append(el("label", {class: "f"}, el("span", {text: "scenario_id"}), el("input", {id: "fld-scenario_id", type: "text"})));
+  f.append(top);
+  const groups = {};
+  for (const fd of SCHEMA) {
+    const g = fd.path.includes(".") ? fd.path.split(".")[0] : fd.path;
+    if (!groups[g]) { groups[g] = el("fieldset", {}, el("legend", {text: g})); f.append(groups[g]); }
+    const id = "fld-" + fd.path;
+    const name = fd.path.includes(".") ? fd.path.split(".").slice(1).join(".") : fd.path;
+    const lab = el("span", {}, name, fd.required ? el("b", {text: " *"}) : null);
+    let input;
+    const dflt = fd.default === null || fd.default === undefined ? "" : ` (default ${JSON.stringify(fd.default)})`;
+    if (fd.kind === "enum" || fd.kind === "bool" || fd.kind === "prio") {
+      const opts = fd.kind === "bool" ? ["true", "false"] : fd.kind === "prio" ? ["1", "2", "3", "4", "5"] : fd.choices;
+      input = el("select", {id}, el("option", {value: "", text: fd.required ? "— choose —" : "unset" + dflt}));
+      opts.forEach(o => input.append(el("option", {value: o, text: o})));
+    } else if (fd.kind === "enum_list" || fd.kind === "enum_list0") {
+      input = el("div", {class: "checks", id});
+      fd.choices.forEach(o => input.append(el("label", {}, el("input", {type: "checkbox", value: o}), o)));
+    } else if (fd.kind === "int" || fd.kind === "num" || fd.kind === "opt_int") {
+      input = el("input", {id, type: "number", min: "0", step: fd.kind === "num" ? "any" : "1", placeholder: fd.kind === "opt_int" ? "empty = no target" : ""});
+    } else if (fd.kind === "str_list") {
+      input = el("input", {id, type: "text", placeholder: "comma separated"});
+    } else {
+      input = fd.path === "project.description" ? el("textarea", {id, rows: "3"}) : el("input", {id, type: "text"});
+    }
+    groups[g].append(el("label", {class: "f"}, lab, input));
+  }
+}
+
+function formToObj() {
+  const o = {};
+  const sid = $("fld-scenario_id").value.trim(); if (sid) o.scenario_id = sid;
+  for (const fd of SCHEMA) {
+    const n = $("fld-" + fd.path); let v;
+    if (fd.kind === "enum_list" || fd.kind === "enum_list0") {
+      v = [...n.querySelectorAll("input:checked")].map(c => c.value);
+      if (!v.length && fd.kind === "enum_list0") continue;
+    } else {
+      const raw = n.value.trim(); if (raw === "") continue;
+      if (fd.kind === "bool") v = raw === "true";
+      else if (fd.kind === "prio" || fd.kind === "int" || fd.kind === "opt_int") v = Number(raw);
+      else if (fd.kind === "num") v = Number(raw);
+      else if (fd.kind === "str_list") v = raw.split(",").map(s => s.trim()).filter(Boolean);
+      else v = raw;
+    }
+    setPath(o, fd.path, v);
+  }
+  return o;
+}
+
+function objToForm(o) {
+  $("fld-scenario_id").value = o.scenario_id || "";
+  for (const fd of SCHEMA) {
+    const n = $("fld-" + fd.path), v = getPath(o, fd.path);
+    if (fd.kind === "enum_list" || fd.kind === "enum_list0") {
+      n.querySelectorAll("input").forEach(c => { c.checked = Array.isArray(v) && v.includes(c.value); });
+    } else if (fd.kind === "str_list") n.value = Array.isArray(v) ? v.join(", ") : "";
+    else n.value = v === undefined || v === null ? "" : String(v);
+  }
+}
+
+function setMode(m) {
+  $("inErr").textContent = "";
+  if (m === "json" && mode === "form") $("json").value = JSON.stringify(formToObj(), null, 2);
+  if (m === "form" && mode === "json") {
+    try { const o = JSON.parse($("json").value); if (Array.isArray(o) || typeof o !== "object" || !o) throw new Error("the form edits one scenario object"); objToForm(o); }
+    catch (e) { $("inErr").textContent = "Cannot show in form: " + e.message + ". Fix the JSON or run it directly."; return; }
+  }
+  show(m);
+}
+
+function show(m) {
+  mode = m;
+  $("form").hidden = m !== "form"; $("json").hidden = m !== "json";
+  $("tabForm").setAttribute("aria-selected", m === "form"); $("tabJson").setAttribute("aria-selected", m === "json");
+}
+
+function currentText() { return mode === "form" ? JSON.stringify(formToObj(), null, 2) : $("json").value; }
+
+function load(scn) {
+  if (typeof scn === "string") { $("json").value = scn; show("json"); return; }  // deliberately malformed sample
+  objToForm(scn); $("json").value = JSON.stringify(scn, null, 2);
+}
+
+function download(name, text) {
+  const a = el("a", {href: URL.createObjectURL(new Blob([text], {type: "application/json"})), download: name});
+  document.body.append(a); a.click(); a.remove();
+}
+
+function chips(list) { return el("div", {class: "chips"}, ...(list || []).map(p => el("span", {text: p}))); }
+
+function card(title, c) {
+  const d = el("div", {class: "card"}, el("h3", {text: title}), el("div", {class: "choice", text: c.choice}),
+    el("div", {text: c.justification}), chips(c.driven_by));
+  if (c.score_margin !== undefined) d.append(el("div", {class: "muted", text: `Score margin over runner-up: ${c.score_margin}`}));
+  if (c.alternatives && c.alternatives.length) d.append(el("details", {open: ""}, el("summary", {text: "Alternatives and why not"}),
+    el("ul", {}, ...c.alternatives.map(a => el("li", {}, el("b", {text: a.choice + ": "}), a.why_not)))));
+  if (c.tradeoffs && c.tradeoffs.length) d.append(el("details", {}, el("summary", {text: "Trade-offs"}), el("ul", {}, ...c.tradeoffs.map(t => el("li", {text: t})))));
+  if (c.what_would_change) d.append(el("details", {}, el("summary", {text: "What would change this choice"}),
+    el("ul", {}, ...c.what_would_change.map(e => el("li", {}, e.path ? el("code", {text: e.edit}) : "", e.path ? " → " + e.new_choice : e.new_choice,
+      e.also_by && e.also_by.length ? el("div", {class: "muted", text: "also: " + e.also_by.join("; ")}) : null)))));
+  return d;
+}
+
+function render(docs) {
+  const o = $("out"); o.textContent = ""; o.className = "";
+  for (const d of docs) {
+    o.append(el("div", {class: "bar"}, el("span", {class: "status s-" + d.status, text: d.status}),
+      el("b", {text: d.scenario_id || "scenario"}), el("span", {class: "muted", text: "architecture: " + d.architecture_style})));
+    o.append(el("p", {text: d.summary}));
+    const c = d.estimated_monthly_cost_usd;
+    o.append(el("div", {}, el("b", {text: "Estimated monthly cost: "}), c.min === null ? "not estimated" : `$${c.min} – $${c.max} (order of magnitude)`));
+    o.append(el("details", {}, el("summary", {text: "Cost assumptions"}), el("ul", {}, ...c.assumptions.map(a => el("li", {text: a})))));
+    if (d.validation_errors.length) o.append(el("h4", {text: "Validation errors"}),
+      el("ul", {}, ...d.validation_errors.map(e => el("li", {class: "err"}, el("code", {text: e.field}), " " + e.message))));
+    if (d.warnings.length) { o.append(el("h4", {text: "Warnings"})); d.warnings.forEach(w => o.append(el("div", {class: "w " + w.severity},
+      el("b", {text: w.severity.toUpperCase() + " "}), el("code", {text: w.code}), el("div", {text: w.message})))); }
+    if (d.stack) {
+      ["frontend", "backend", "database", "hosting"].forEach(k => o.append(card(k, d.stack[k])));
+      if (d.stack.supporting && d.stack.supporting.length) {
+        o.append(el("h4", {text: "Supporting services"}));
+        o.append(el("table", {}, el("tr", {}, el("th", {text: "layer"}), el("th", {text: "choice"}), el("th", {text: "why"})),
+          ...d.stack.supporting.map(s => el("tr", {}, el("td", {text: s.layer}), el("td", {text: s.choice}),
+            el("td", {}, s.justification, chips(s.driven_by))))));
+      }
+    }
+    o.append(el("details", {}, el("summary", {text: `Assumptions (${d.assumptions.length})`}), el("ul", {}, ...d.assumptions.map(a => el("li", {text: a})))));
+  }
+}
+
+async function run() {
+  $("inErr").textContent = "";
+  const r = await fetch("/api/evaluate", {method: "POST", headers: {"Content-Type": "application/json"}, body: currentText()});
+  const body = await r.json();
+  if (!r.ok) { $("inErr").textContent = body.error || ("HTTP " + r.status); return; }
+  LAST = body; render(body); $("exportOut").disabled = false;
+}
+
+(async function init() {
+  SCHEMA = await (await fetch("/api/schema")).json();
+  buildForm();
+  const samples = await (await fetch("/api/samples")).json();
+  samples.forEach((s, i) => $("sample").append(el("option", {value: String(i), text: s.label})));
+  $("sample").onchange = e => { if (e.target.value !== "") load(samples[Number(e.target.value)].scenario); };
+  $("file").onchange = async e => { const f = e.target.files[0]; if (!f) return; const t = await f.text();
+    let o = null; try { o = JSON.parse(t); } catch { /* shown as text; the engine reports the JSON error */ }
+    if (o && typeof o === "object" && !Array.isArray(o)) load(o); else load(t); };
+  $("tabForm").onclick = () => setMode("form"); $("tabJson").onclick = () => setMode("json");
+  $("run").onclick = run;
+  $("exportIn").onclick = () => download("scenario.json", currentText());
+  $("exportOut").onclick = () => { if (!LAST) return; LAST.forEach(d => download(`${d.scenario_id || "scenario"}_output.json`, JSON.stringify(d, null, 2) + "\n")); };
+})();
+</script>
+</body>
+</html>
