@@ -192,6 +192,33 @@ def db_variant(db, host):
     return None, None
 
 
+DB_COST = {
+    "managed": [[15, 35], [30, 120], [150, 700], [700, 4000]],
+    "aws": [[15, 35], [30, 120], [150, 700], [700, 4000]],
+    "azure": [[13, 30], [30, 120], [150, 700], [700, 4000]],
+    "gcp": [[10, 30], [30, 120], [150, 700], [700, 4000]],
+    "vercel": [[0, 25], [25, 60], [100, 400], [400, 2000]],
+    "render": [[6, 20], [20, 100], [100, 500], [500, 2000]],
+    "railway": [[5, 20], [20, 100], [100, 500], [500, 2000]],
+    "atlas": [[0, 60], [57, 150], [200, 800], [800, 4000]],
+    "azure_sql": [[5, 15], [15, 80], [150, 700], [700, 4000]],
+    "sqlserver": [[30, 80], [80, 250], [250, 1200], [1200, 6000]],
+}
+
+
+def db_cost(item, vkey):
+    """Monthly [low, high] per tier for a database offering; self-hosted runs on the app servers."""
+    if vkey == "self":
+        return [[0, 0]] * 4
+    if "cost" in item:
+        return item["cost"]
+    if item["id"] == "mongodb":
+        return DB_COST["atlas"]
+    if item["id"] == "sqlserver":
+        return DB_COST["azure_sql" if vkey == "azure" else "sqlserver"]
+    return DB_COST.get(vkey, DB_COST["managed"])
+
+
 def database_candidates(ctx, host, backend):
     req = ctx["req"]
     cands = []
@@ -203,6 +230,19 @@ def database_candidates(ctx, host, backend):
             c.exclude("single-file database: only for one self-hosted server at tiny scale", "scale.users_12_months")
         if name is None:
             c.exclude(f"no managed offering on {host.item['name']}", "infrastructure.cloud_preference")
+        if vkey == "any" and ctx["cloud"] in ("aws", "azure", "gcp") and d["id"] != "mongodb":
+            c.exclude(f"a separate vendor outside the explicit cloud_preference {ctx['cloud']}", "infrastructure.cloud_preference")
+        if vkey == "any" and ctx["res_key"] and "regions" in d and ctx["res_key"] not in d["regions"]:
+            c.exclude(f"no {ctx['res_key'].upper()} region", "infrastructure.data_residency")
+        if name is not None:
+            lo = db_cost(d, vkey)[ctx["tier"]][0]
+            left = max(0, ctx["budget"] - host.item["cost"][ctx["tier"]][0])
+            if lo > left:
+                over = (lo - left) / max(left, 10)
+                c.add("budget", -(3 + min(6, over * 3)), "budget.monthly_infra_usd",
+                      f"entry cost about ${lo}/month leaves no room in the ${ctx['budget']:g} budget after hosting")
+            elif lo == 0 and ctx["budget"] < 25:
+                c.add("budget", 2, "budget.monthly_infra_usd", f"has a free plan that fits the ${ctx['budget']:g} budget")
         prio_terms(c, ctx, d["r"])
         learn_term(c, ctx, d["learning"])
         tier_term(c, ctx, d["max_tier"], d["name"])
@@ -223,7 +263,7 @@ def database_candidates(ctx, host, backend):
             c.add("sqlskill", 1.5, "team.languages", "team knows SQL")
         if backend["id"] == "dotnet-aspnet" and d["id"] == "sqlserver":
             c.add("synergy", 2.5, "team.languages", "EF Core + SQL Server is the default .NET pairing")
-        if ctx["res_key"] and vkey == "any" and d["id"] == "mongodb":
+        if ctx["res_key"] and vkey == "any":
             c.add("vendor", -2, "infrastructure.data_residency", "adds a separate vendor whose region must also be pinned")
         cands.append(c)
     return cands

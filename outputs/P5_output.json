@@ -93,8 +93,8 @@
           "why_not": "Azure SQL Database (serverless/General Purpose) is stronger on: matches the existing On-prem SQL Server 2019 the team already runs (infrastructure.existing_systems); good maintainability (you weighted it 5/5) (priorities.maintainability). Overall 13.9 points behind."
         },
         {
-          "choice": "SQLite",
-          "why_not": "Excluded: single-file database: only for one self-hosted server at tiny scale (scale.users_12_months)."
+          "choice": "Supabase Postgres",
+          "why_not": "Excluded: a separate vendor outside the explicit cloud_preference azure (infrastructure.cloud_preference)."
         }
       ],
       "tradeoffs": [

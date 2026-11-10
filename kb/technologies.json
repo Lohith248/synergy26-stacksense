@@ -198,6 +198,12 @@
     {"id": "mongodb", "name": "MongoDB (Atlas)", "family": "document", "r": [3, 5, 5, 4, 3, 4], "learning": 2, "max_tier": 3, "fts": true, "rls": false, "acid": 3, "write": 5,
      "variants": {"aws": "MongoDB Atlas on AWS", "azure": "MongoDB Atlas on Azure", "gcp": "MongoDB Atlas on Google Cloud", "any": "MongoDB Atlas", "self": "MongoDB Community (self-hosted)"},
      "strengths": ["Flexible documents, Atlas Search, horizontal scaling"], "limits": ["Multi-document transactions are costlier; schema discipline needed", "Atlas is a separate vendor contract"], "src": ["atlas-regions", "mongodb-lifecycle"]},
+    {"id": "supabase", "name": "Supabase (managed PostgreSQL + auth + storage)", "family": "relational", "r": [4, 5, 4, 4, 4, 4], "learning": 2, "max_tier": 3, "fts": true, "rls": true, "acid": 5, "write": 4,
+     "variants": {"any": "Supabase Postgres"}, "regions": {"india": "ap-south-1 (Mumbai)", "eu": "eu-central-1 (Frankfurt)", "us": "us-east-1 (N. Virginia)"},
+     "cost": [[0, 25], [25, 60], [60, 400], [400, 2000]],
+     "strengths": ["Free plan (500 MB database) for prototypes; Pro from $25/month", "Plain PostgreSQL with row-level security, plus built-in auth and file storage", "Mumbai, Frankfurt and US regions"],
+     "limits": ["Free projects pause after 1 week of inactivity; production needs Pro", "A separate vendor next to your cloud host (second bill, second data processor)"],
+     "src": ["supabase-pricing", "supabase-regions"]},
     {"id": "sqlite", "name": "SQLite", "family": "embedded", "r": [5, 5, 1, 4, 4, 4], "learning": 1, "max_tier": 0, "fts": true, "rls": false, "acid": 4, "write": 2,
      "variants": {"self": "SQLite (single file on the app server)"},
      "strengths": ["Zero-ops embedded database", "Long-term supported file format"], "limits": ["Single writer; one server only"], "src": ["sqlite"]}

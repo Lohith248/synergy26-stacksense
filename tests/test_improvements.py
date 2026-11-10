@@ -103,5 +103,22 @@ class NativeSinglePlatform(unittest.TestCase):  # item 4
             self.assertNotIn("Multiplatform", core(out, "frontend"), langs)
 
 
+class LowBudget(unittest.TestCase):  # item 5
+    def test_zero_budget_dynamic_app_fits(self):
+        s = P(1, project__type="web_app", requirements__auth="email_password")
+        out = run(s)
+        self.assertEqual(out["estimated_monthly_cost_usd"]["min"], 0, out["estimated_monthly_cost_usd"])
+        self.assertNotIn("BUDGET_EXCEEDED", {w["code"] for w in out["warnings"]})
+
+    def test_funded_scenarios_keep_cloud_database(self):
+        for i in (2, 3, 4, 5, 6):
+            self.assertNotIn("Supabase", core(run(P(i)), "database"), i)
+
+    def test_third_party_db_excluded_under_explicit_cloud(self):
+        for cloud in ("aws", "azure", "gcp"):
+            s = P(1, project__type="web_app", requirements__auth="email_password", infrastructure__cloud_preference=cloud)
+            self.assertNotIn("Supabase", core(run(s), "database"), cloud)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -95,12 +95,12 @@
       ],
       "alternatives": [
         {
-          "choice": "Azure SQL Database (serverless/General Purpose)",
-          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 is stronger on: good low running cost (you weighted it 4/5) (priorities.cost). Overall 6.4 points behind."
+          "choice": "Supabase Postgres",
+          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 is stronger on: good low running cost (you weighted it 4/5) (priorities.cost); good maintainability (you weighted it 3/5) (priorities.maintainability). Overall 6.0 points behind."
         },
         {
-          "choice": "Azure Database for MySQL – Flexible Server 8.4",
-          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 is stronger on: strict ACID transactions for money and bookings (requirements.payments); good maintainability (you weighted it 3/5) (priorities.maintainability). Overall 7.3 points behind."
+          "choice": "Azure SQL Database (serverless/General Purpose)",
+          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 is stronger on: good low running cost (you weighted it 4/5) (priorities.cost). Overall 6.4 points behind."
         },
         {
           "choice": "SQLite",

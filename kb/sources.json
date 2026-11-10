@@ -38,6 +38,8 @@
   "aws-cloudfront-global": {"url": "https://docs.aws.amazon.com/general/latest/gr/cf_region.html", "title": "Amazon CloudFront endpoints (global service)", "status": "verified", "claims": ["R5:1-CloudFront"]},
   "azure-swa-plans": {"url": "https://learn.microsoft.com/en-us/azure/static-web-apps/plans", "title": "Azure Static Web Apps hosting plans (Free, Standard)", "status": "verified", "claims": ["R5:5a", "R5:5b", "R5:5d"]},
   "firebase-hosting-quotas": {"url": "https://firebase.google.com/docs/hosting/usage-quotas-pricing", "title": "Firebase Hosting usage, quotas and pricing", "status": "verified", "claims": ["R5:9a-Hosting-free", "R5:9b-Hosting-CDN"]},
+  "supabase-pricing": {"url": "https://supabase.com/pricing", "title": "Supabase pricing (Free 500 MB, pauses after 1 week inactive; Pro from $25/month)", "status": "verified", "claims": ["R5:12a-Supabase-free", "R5:12b-Supabase-pro"]},
+  "supabase-regions": {"url": "https://supabase.com/docs/guides/platform/regions", "title": "Supabase regions (Mumbai ap-south-1, Frankfurt, N. Virginia)", "status": "verified", "claims": ["R5:11a-Supabase-Mumbai", "R5:11b-Supabase-Frankfurt"]},
   "netlify-pricing": {"url": "https://www.netlify.com/pricing/", "title": "Netlify pricing (credits)", "status": "verified", "claims": ["R2:1.9"]},
   "vercel-limits": {"url": "https://vercel.com/docs/limits", "title": "Vercel plans: Hobby non-commercial; bom1 Mumbai region", "status": "verified", "claims": ["R2:1.12", "R2:1.18"]},
   "render-regions": {"url": "https://render.com/docs/regions", "title": "Render regions (no India)", "status": "verified", "claims": ["R2:2.1", "R2:2.2"]},

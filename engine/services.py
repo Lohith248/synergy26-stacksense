@@ -106,7 +106,15 @@ def build(ctx, host, backend, db, mobile, warn):
                                ["Per-verification fee (~$0.05) plus SMS"], "saas", "twilio", False, Z, ["twilio-verify", "firebase-pricing"]))
         else:  # email_password / social
             social = auth == "social"
-            if p == "aws" and not selfh:
+            if db and db["id"] == "supabase":
+                out.append(svc("auth", "Supabase Auth" + (" with Google/GitHub/Apple social sign-in" if social else ""),
+                               f"{auth} login from the same Supabase project as the database: users sit next to the data and row-level security policies can use the signed-in user id; free plan covers this scale.",
+                               dp + ["budget.monthly_infra_usd"],
+                               [("Framework built-in auth", "you would own password storage, reset e-mails and MFA"),
+                                ("Auth0 / Clerk (SaaS)", "another vendor and per-user pricing on a near-zero budget")],
+                               ["Ties identity to the Supabase project; migrating users later needs a password-hash export"],
+                               "saas", "supabase", True, Z, ["supabase-pricing"], loc))
+            elif p == "aws" and not selfh:
                 choice = f"Amazon Cognito user pool{rtxt}" + (" with Google/Apple/Microsoft social sign-in" if social else "")
                 out.append(svc("auth", choice, f"{auth} login on AWS: managed user pool with MFA and hosted UI{rtxt}.",
                                dp + ["infrastructure.cloud_preference"],

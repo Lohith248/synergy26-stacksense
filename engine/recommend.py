@@ -217,11 +217,12 @@ def recommend(req, assumptions, sid):
         db_c = d_ok[0]
         db_item = dict(db_c.item, _variant=db_c.variant)
         ha = req["requirements.availability"] in ("99.95", "99.99")
-        vname = db_c.variant + (f" — {region}" if region and db_c.vkey not in ("self",) else "") + (" (multi-AZ / zone-redundant HA)" if ha and db_c.vkey != "self" else "")
+        db_region = db_c.item.get("regions", {}).get(loc) if db_c.vkey == "any" else region
+        vname = db_c.variant + (f" — {db_region}" if db_region and db_c.vkey not in ("self",) else "") + (" (multi-AZ / zone-redundant HA)" if ha and db_c.vkey != "self" else "")
         for c in d_ok + d_out:
             c.item = dict(c.item, name=c.variant or c.item["name"])
         db_cmp = component(db_c, d_ok, d_out, [], {"deployment": "self_hosted" if db_c.vkey == "self" else "managed",
-                                                   "provider": host["provider"] if db_c.vkey not in ("any", "self") else ("mongodb" if db_c.vkey == "any" else "neutral"),
+                                                   "provider": host["provider"] if db_c.vkey not in ("any", "self") else (db_c.id if db_c.vkey == "any" else "neutral"),
                                                    "data_bearing": True, "data_location": loc}, name=vname)
         if ctx["existing_db"] and ctx["existing_db"]["pattern"].get("engine") == db_c.id and ctx["existing_db"]["onprem"] and not ctx["self_host_only"]:
             db_cmp["justification"] += " New application data lives in the cloud database; the on-prem server is integrated, not migrated (see supporting 'other')."
@@ -409,9 +410,7 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
     lines = [f"Hosting {host['name']}: ${host['cost'][t][0]}-{host['cost'][t][1]}/month at the '{cx.TIER_NAMES[t]}' tier."]
     ha = ctx["req"]["requirements.availability"] in ("99.95", "99.99")
     if db_item and db_c and db_c.vkey != "self":
-        dc = DB_COST.get(db_c.vkey, DB_COST["managed"]) if db_c.id != "sqlserver" else DB_COST["azure_sql" if db_c.vkey == "azure" else "sqlserver"]
-        if db_c.id == "mongodb":
-            dc = DB_COST["atlas"]
+        dc = sl.db_cost(db_c.item, db_c.vkey)
         dlo, dhi = dc[t]
         if ha:
             dlo, dhi = round(dlo * 1.8), round(dhi * 2)
@@ -460,18 +459,6 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
     return {"min": lo, "max": hi, "currency": "USD", "assumptions": lines}
 
 
-DB_COST = {
-    "managed": [[15, 35], [30, 120], [150, 700], [700, 4000]],
-    "aws": [[15, 35], [30, 120], [150, 700], [700, 4000]],
-    "azure": [[13, 30], [30, 120], [150, 700], [700, 4000]],
-    "gcp": [[10, 30], [30, 120], [150, 700], [700, 4000]],
-    "vercel": [[0, 25], [25, 60], [100, 400], [400, 2000]],
-    "render": [[6, 20], [20, 100], [100, 500], [500, 2000]],
-    "railway": [[5, 20], [20, 100], [100, 500], [500, 2000]],
-    "atlas": [[0, 60], [57, 150], [200, 800], [800, 4000]],
-    "azure_sql": [[5, 15], [15, 80], [150, 700], [700, 4000]],
-    "sqlserver": [[30, 80], [80, 250], [250, 1200], [1200, 6000]],
-}
 
 
 def architecture_style(ctx, host, backend, supporting):
