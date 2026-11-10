@@ -5,6 +5,8 @@ from .kb import TECH
 
 TIER_NAMES = ["tiny", "small", "medium", "large"]
 EXP_FACTOR = {"beginner": 1.6, "intermediate": 1.2, "mixed": 1.2, "senior": 0.7}
+# Language fit: switching language costs every team real time; seniors ramp faster but never for free.
+LANG_FACTOR = {"beginner": 1.6, "intermediate": 1.3, "mixed": 1.3, "senior": 1.0}
 DYNAMIC_TYPES = {"web_app", "saas_b2b", "ecommerce", "marketplace", "social", "realtime_collab", "fintech",
                  "healthtech", "data_analytics", "iot", "ai_ml_product", "internal_tool", "gaming", "api_platform"}
 LANG_ALIASES = {"js": "javascript", "ts": "typescript", "c#": "csharp", "golang": "go", "py": "python",
@@ -61,6 +63,7 @@ def build(req):
     c["langs"] = lang_norm(req["team.languages"])
     c["exp"] = req["team.experience"]
     c["xf"] = EXP_FACTOR[c["exp"]]
+    c["lf"] = LANG_FACTOR[c["exp"]]
     c["devops"] = req["team.has_devops"]
     c["size"] = req["team.size"]
     c["weeks"] = req["timeline.mvp_weeks"]

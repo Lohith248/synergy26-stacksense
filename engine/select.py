@@ -55,9 +55,9 @@ def lang_term(c, ctx, langs, weight, what):
         return
     hit = sorted(set(langs) & set(team))
     if hit:
-        c.add("lang", weight * ctx["xf"], "team.languages", f"team already writes {', '.join(hit)} for {what}")
+        c.add("lang", weight * ctx["lf"], "team.languages", f"team already writes {', '.join(hit)} for {what}")
     else:
-        c.add("lang", -weight * 0.7 * ctx["xf"], "team.languages",
+        c.add("lang", -weight * ctx["lf"], "team.languages",
               f"team lists {', '.join(team)} but this needs {'/'.join(langs[:2])}")
 
 
