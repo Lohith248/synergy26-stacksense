@@ -225,7 +225,8 @@ def build(ctx, host, backend, db, mobile, warn):
                            ["Scale-out needs a pub/sub backplane (Redis/Valkey)"], "library", "neutral", False, Z, ["ably-pricing"]))
 
     # ---------------- cache
-    need_cache = ctx["tier"] >= 2 or (req["requirements.realtime"] and ctx["tier"] >= 1 and collab) or (
+    read_hot = req["scale.workload"] == "read_heavy" and ctx["peak"] >= 1000
+    need_cache = ctx["tier"] >= 2 or read_hot or (req["requirements.realtime"] and ctx["tier"] >= 1 and collab) or (
         ctx["prio"]["performance"] >= 5 and ctx["tier"] >= 1)
     if need_cache and ctx["needs_backend"]:
         if selfh:
@@ -245,8 +246,10 @@ def build(ctx, host, backend, db, mobile, warn):
             why.append("pub/sub backplane so WebSocket messages reach users on every instance")
         if ctx["prio"]["performance"] >= 5:
             why.append("performance priority 5")
+        if read_hot:
+            why.append("read-heavy workload: hot pages and lookups served from memory instead of the database")
         out.append(svc("cache", c, "Cache and pub/sub layer: " + "; ".join(why) + ".",
-                       ["scale.peak_concurrent_users"] + (["requirements.realtime"] if req["requirements.realtime"] else []) + (["priorities.performance"] if ctx["prio"]["performance"] >= 5 else []),
+                       ["scale.peak_concurrent_users"] + (["scale.workload"] if read_hot else []) + (["requirements.realtime"] if req["requirements.realtime"] else []) + (["priorities.performance"] if ctx["prio"]["performance"] >= 5 else []),
                        [("Redis (7.4+)", "now source-available (RSALv2/SSPL); Valkey keeps the BSD licence"),
                         ("Azure Cache for Redis", "being retired (Sept 2028); Azure Managed Redis is the replacement") if p == "azure" else ("No cache", "database absorbs every hot read and no cross-instance pub/sub")],
                        ["Another stateful component to size and monitor"], "managed" if prov in ("aws", "azure", "gcp") else "self_hosted", prov, False, cost, src))

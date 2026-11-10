@@ -1,0 +1,61 @@
+{
+  "scenario_id": "H06",
+  "project": {
+    "name": "GeoAPI",
+    "type": "api_platform",
+    "description": "Public REST API for address geocoding with API keys, usage metering and rate limits.",
+    "platforms": [
+      "api_only"
+    ]
+  },
+  "scale": {
+    "traffic_pattern": "spiky",
+    "workload": "read_heavy",
+    "users_at_launch": 200,
+    "users_12_months": 3000,
+    "peak_concurrent_users": 1000,
+    "data_volume_gb_12_months": 150
+  },
+  "team": {
+    "has_devops": true,
+    "size": 3,
+    "experience": "senior",
+    "languages": [
+      "go"
+    ]
+  },
+  "budget": {
+    "monthly_infra_usd": 700
+  },
+  "timeline": {
+    "mvp_weeks": 10
+  },
+  "infrastructure": {
+    "cloud_preference": "any",
+    "deployment_model": "managed_cloud",
+    "data_residency": "none",
+    "existing_systems": []
+  },
+  "requirements": {
+    "realtime": false,
+    "offline_support": false,
+    "full_text_search": false,
+    "file_media_storage": false,
+    "payments": true,
+    "auth": "none",
+    "multi_tenant": false,
+    "ml_features": "none",
+    "seo_critical": false,
+    "availability": "99.9",
+    "p95_latency_ms": 100
+  },
+  "compliance": [],
+  "priorities": {
+    "cost": 4,
+    "time_to_market": 3,
+    "scalability": 3,
+    "performance": 5,
+    "maintainability": 3,
+    "security": 3
+  }
+}

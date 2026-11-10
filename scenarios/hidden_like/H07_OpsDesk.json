@@ -1,0 +1,63 @@
+{
+  "scenario_id": "H07",
+  "project": {
+    "name": "OpsDesk",
+    "type": "saas_b2b",
+    "description": "Helpdesk SaaS for mid-size companies; each customer org connects its own Okta or Entra login. Teams pay per seat.",
+    "platforms": [
+      "web"
+    ]
+  },
+  "scale": {
+    "traffic_pattern": "steady",
+    "workload": "balanced",
+    "users_at_launch": 2000,
+    "users_12_months": 40000,
+    "peak_concurrent_users": 2000,
+    "data_volume_gb_12_months": 300
+  },
+  "team": {
+    "has_devops": true,
+    "size": 5,
+    "experience": "senior",
+    "languages": [
+      "typescript"
+    ]
+  },
+  "budget": {
+    "monthly_infra_usd": 2500
+  },
+  "timeline": {
+    "mvp_weeks": 10
+  },
+  "infrastructure": {
+    "cloud_preference": "any",
+    "deployment_model": "managed_cloud",
+    "data_residency": "us",
+    "existing_systems": []
+  },
+  "requirements": {
+    "realtime": false,
+    "offline_support": false,
+    "full_text_search": true,
+    "file_media_storage": true,
+    "payments": true,
+    "auth": "enterprise_sso",
+    "multi_tenant": true,
+    "ml_features": "none",
+    "seo_critical": false,
+    "availability": "99.95",
+    "p95_latency_ms": null
+  },
+  "compliance": [
+    "soc2"
+  ],
+  "priorities": {
+    "cost": 3,
+    "time_to_market": 3,
+    "scalability": 3,
+    "performance": 3,
+    "maintainability": 3,
+    "security": 3
+  }
+}

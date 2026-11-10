@@ -130,6 +130,15 @@ def hosting_candidates(ctx):
         if req["requirements.realtime"] and kind == "serverless":
             c.add("realtime", -10, "requirements.realtime",
                   "functions cannot hold long-lived WebSocket connections; realtime would need a separate connection gateway")
+        tp, sc = req["scale.traffic_pattern"], h.get("scaling")
+        if tp in ("spiky", "seasonal") and sc:
+            burst = "seasonal peaks" if tp == "seasonal" else "traffic bursts"
+            if sc == "request":
+                # persistent WebSocket connections keep instances busy, so pay-per-request elasticity helps less
+                c.add("traffic", 1.0 if req["requirements.realtime"] else 2.5, "scale.traffic_pattern",
+                      f"scales out with requests for {burst} and back down (to zero) afterwards, so idle periods cost little")
+            elif sc == "fixed":
+                c.add("traffic", -2, "scale.traffic_pattern", f"fixed capacity must be sized and paid for at the level of the {burst}")
         if req["requirements.realtime"] and h.get("ws_timeout"):
             c.add("realtime", -1.5, "requirements.realtime", "WebSocket connections end at the request timeout, so clients must reconnect")
         lat = req["requirements.p95_latency_ms"]

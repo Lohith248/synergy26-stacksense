@@ -1,0 +1,64 @@
+{
+  "scenario_id": "H04",
+  "project": {
+    "name": "DocAsk",
+    "type": "ai_ml_product",
+    "description": "Teams upload PDFs and policies and ask questions in chat; answers cite the source passages.",
+    "platforms": [
+      "web"
+    ]
+  },
+  "scale": {
+    "traffic_pattern": "steady",
+    "workload": "balanced",
+    "users_at_launch": 500,
+    "users_12_months": 20000,
+    "peak_concurrent_users": 1000,
+    "data_volume_gb_12_months": 300
+  },
+  "team": {
+    "has_devops": true,
+    "size": 4,
+    "experience": "senior",
+    "languages": [
+      "python",
+      "typescript"
+    ]
+  },
+  "budget": {
+    "monthly_infra_usd": 2000
+  },
+  "timeline": {
+    "mvp_weeks": 10
+  },
+  "infrastructure": {
+    "cloud_preference": "any",
+    "deployment_model": "managed_cloud",
+    "data_residency": "eu",
+    "existing_systems": []
+  },
+  "requirements": {
+    "realtime": false,
+    "offline_support": false,
+    "full_text_search": false,
+    "file_media_storage": true,
+    "payments": true,
+    "auth": "social",
+    "multi_tenant": true,
+    "ml_features": "llm_rag",
+    "seo_critical": false,
+    "availability": "99.9",
+    "p95_latency_ms": null
+  },
+  "compliance": [
+    "gdpr"
+  ],
+  "priorities": {
+    "cost": 3,
+    "time_to_market": 3,
+    "scalability": 3,
+    "performance": 3,
+    "maintainability": 3,
+    "security": 3
+  }
+}

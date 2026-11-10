@@ -1,0 +1,62 @@
+{
+  "scenario_id": "H09",
+  "project": {
+    "name": "CampusSwap",
+    "type": "web_app",
+    "description": "Three students build a marketplace for second-hand textbooks within their college.",
+    "platforms": [
+      "web"
+    ]
+  },
+  "scale": {
+    "traffic_pattern": "steady",
+    "workload": "balanced",
+    "users_at_launch": 200,
+    "users_12_months": 2000,
+    "peak_concurrent_users": 50,
+    "data_volume_gb_12_months": 2
+  },
+  "team": {
+    "has_devops": false,
+    "size": 3,
+    "experience": "beginner",
+    "languages": [
+      "javascript",
+      "python"
+    ]
+  },
+  "budget": {
+    "monthly_infra_usd": 0
+  },
+  "timeline": {
+    "mvp_weeks": 4
+  },
+  "infrastructure": {
+    "cloud_preference": "any",
+    "deployment_model": "managed_cloud",
+    "data_residency": "none",
+    "existing_systems": []
+  },
+  "requirements": {
+    "realtime": false,
+    "offline_support": false,
+    "full_text_search": false,
+    "file_media_storage": true,
+    "payments": false,
+    "auth": "social",
+    "multi_tenant": false,
+    "ml_features": "none",
+    "seo_critical": false,
+    "availability": "99.9",
+    "p95_latency_ms": null
+  },
+  "compliance": [],
+  "priorities": {
+    "cost": 5,
+    "time_to_market": 4,
+    "scalability": 3,
+    "performance": 3,
+    "maintainability": 3,
+    "security": 3
+  }
+}

@@ -85,6 +85,26 @@ class ServerlessFit(unittest.TestCase):  # item 2
             self.assertIn("API Gateway WebSocket", rt[0]["choice"])
 
 
+class TrafficShape(unittest.TestCase):  # items 12-13
+    def test_spiky_or_seasonal_cited(self):
+        for f in ("H08_UtsavMart.json", "H01_ArenaClash.json"):
+            with open(os.path.join(ROOT, "scenarios", "hidden_like", f), encoding="utf-8") as fh:
+                out = run(json.load(fh))
+            h = out["stack"]["hosting"]
+            self.assertIn("scale.traffic_pattern", h["driven_by"] + [p for a in h["alternatives"] for p in [a["why_not"]]], f)
+
+    def test_fintech_python_go_not_on_functions(self):
+        for langs in (["python"], ["go"]):
+            out = run(P(4, team__languages=langs))
+            self.assertNotIn("Lambda", core(out, "hosting"), langs)
+
+    def test_read_heavy_cache(self):
+        s = P(5, scale__peak_concurrent_users=1500)
+        layers = [x["layer"] for x in run(s)["stack"]["supporting"]]
+        self.assertIn("cache", layers)
+        self.assertNotIn("cache", [x["layer"] for x in run(P(5))["stack"]["supporting"]])
+
+
 class StaticHosts(unittest.TestCase):  # item 3
     def test_static_site_on_explicit_cloud(self):
         want = {"aws": "S3", "azure": "Static Web Apps", "gcp": "Firebase Hosting"}
@@ -185,7 +205,7 @@ PUBLIC_CORES = {  # regression guard: public-scenario cores after items 1-7 (cha
     3: ("React (Vite SPA)", "Go", "PostgreSQL", "Azure App Service"),
     4: ("React (Vite SPA)", "Spring Boot", "Amazon RDS for PostgreSQL", "ECS on Fargate"),
     5: ("React (Vite SPA)", ".NET", "Azure SQL", "Azure App Service"),
-    6: ("React Native", "Django", "PostgreSQL", "Azure App Service"),
+    6: ("React Native", "Django", "PostgreSQL", "Cloud Run"),  # round 2: spiky traffic + cost 5 favour scale-to-zero
 }
 
 

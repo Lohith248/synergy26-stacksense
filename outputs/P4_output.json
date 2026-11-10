@@ -191,11 +191,11 @@
         },
         {
           "choice": "AWS Lambda + API Gateway",
-          "why_not": "Spring Boot is a long-running JVM/.NET server: slow cold starts and per-invocation connection pools on functions (team.languages). AWS ECS on Fargate (+ Application Load Balancer) is stronger on: good maintainability (priority 4/5) (priorities.maintainability). Overall 6.4 points behind. Known limit of AWS Lambda + API Gateway: cold starts hurt tight p95 targets."
+          "why_not": "Spring Boot is a long-running JVM/.NET server: slow cold starts and per-invocation connection pools on functions (team.languages); ~10,000 concurrent users would open relational connections per function instance; needs a connection proxy (scale.peak_concurrent_users). Overall 7.9 points behind. Known limit of AWS Lambda + API Gateway: cold starts hurt tight p95 targets."
         },
         {
-          "choice": "Azure App Service (Linux)",
-          "why_not": "Excluded: runs on azure, but cloud_preference is aws (infrastructure.cloud_preference)."
+          "choice": "Google Cloud Run",
+          "why_not": "Excluded: runs on gcp, but cloud_preference is aws (infrastructure.cloud_preference)."
         }
       ],
       "tradeoffs": [
@@ -220,16 +220,16 @@
           "edit": "infrastructure.cloud_preference: aws -> any",
           "path": "infrastructure.cloud_preference",
           "value": "any",
-          "new_choice": "Azure App Service (Linux, Premium v3, 2+ instances) — Central India (Pune)",
+          "new_choice": "Google Cloud Run — asia-south1 (Mumbai)",
           "also_by": [
-            "infrastructure.cloud_preference: aws -> azure"
+            "infrastructure.cloud_preference: aws -> gcp"
           ]
         },
         {
-          "edit": "infrastructure.cloud_preference: aws -> gcp",
+          "edit": "infrastructure.cloud_preference: aws -> azure",
           "path": "infrastructure.cloud_preference",
-          "value": "gcp",
-          "new_choice": "Google Cloud Run — asia-south1 (Mumbai)",
+          "value": "azure",
+          "new_choice": "Azure App Service (Linux, Premium v3, 2+ instances) — Central India (Pune)",
           "also_by": []
         },
         {
@@ -573,6 +573,7 @@
       "observability: Amazon CloudWatch in ap-south-1 (Mumbai) (logs, metrics, alarms) $30-200/month.",
       "Stored data ~500 GB after 12 months at ~$0.02-0.035/GB-month (year-end volume used as an upper bound, not an average).",
       "Phone OTP: 300,000 users x 0.3-1.0 OTP logins/month at SNS India SMS rate band per SMS = $270-1,800/month (long-lived sessions keep OTPs rare).",
+      "Spiky traffic: the upper bound is a peak month; with autoscaling, quiet months run near the lower bound.",
       "Excluded: payment gateway fees (~2% per transaction) are a share of revenue, not infrastructure.",
       "Excluded: taxes, domain names, paid support plans and data-egress spikes. Order-of-magnitude band, not a quote."
     ]

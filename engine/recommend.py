@@ -186,11 +186,18 @@ def _recommend(req, assumptions, sid):
 
     # ---- hosting
     hs = sl.hosting_candidates(ctx)
-    if backend and backend["id"] in ("java-spring", "dotnet-aspnet"):
-        for c in hs:
-            if c.item["kind"] == "serverless":
-                c.add("runtime", -7, "team.languages",
-                      f"{backend['name'].split(' + ')[-1]} is a long-running JVM/.NET server: slow cold starts and per-invocation connection pools on functions")
+    for c in hs:
+        if c.item["kind"] != "serverless" or not backend:
+            continue
+        if backend["id"] in ("java-spring", "dotnet-aspnet"):
+            c.add("runtime", -7, "team.languages",
+                  f"{backend['name'].split(' + ')[-1]} is a long-running JVM/.NET server: slow cold starts and per-invocation connection pools on functions")
+        elif backend["id"] in ("python-django", "ruby-rails", "php-laravel", "node-nestjs"):
+            c.add("runtime", -3, "team.languages",
+                  f"{backend['name'].split(' + ')[-1]} is a full-stack framework built to run as a long-lived server, not per-invocation functions")
+        if ctx["needs_db"] and ctx["tier"] >= 2:
+            c.add("db_conn", -4, "scale.peak_concurrent_users",
+                  f"~{ctx['peak']:,} concurrent users would open relational connections per function instance; needs a connection proxy")
     h_ok, h_out = sl.rank(hs)
     if not h_ok:  # should be prevented by hard_conflicts; keep a safe answer
         W("NO_COMPLIANT_HOSTING", "critical", "No hosting option in the knowledge base satisfies the hard constraints.", list(HARD_PATHS))
@@ -483,6 +490,12 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         lo += olo
         hi += ohi
         lines.append(f"Phone OTP: {logins:,} users x 0.3-1.0 OTP logins/month at {txt} per SMS = ${olo:,.0f}-{ohi:,.0f}/month (long-lived sessions keep OTPs rare).")
+    tp = ctx["req"]["scale.traffic_pattern"]
+    if tp in ("spiky", "seasonal") and host.get("scaling") in ("request", "instances"):
+        lines.append(f"{'Seasonal' if tp == 'seasonal' else 'Spiky'} traffic: the upper bound is a peak month; with autoscaling, "
+                     "quiet months run near the lower bound.")
+    elif tp in ("spiky", "seasonal") and host.get("scaling") == "fixed":
+        lines.append("Fixed-capacity servers are sized for the peak, so quiet months cost the same as peak months.")
     if ctx["req"]["requirements.payments"]:
         lines.append("Excluded: payment gateway fees (~2% per transaction) are a share of revenue, not infrastructure.")
     if host["kind"] == "onprem":

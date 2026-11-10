@@ -1,0 +1,62 @@
+{
+  "scenario_id": "H01",
+  "project": {
+    "name": "ArenaClash",
+    "type": "gaming",
+    "description": "Real-time 4-player mobile battle game with matchmaking, leaderboards and in-app purchases. Players expect under 60 ms latency.",
+    "platforms": [
+      "android",
+      "ios"
+    ]
+  },
+  "scale": {
+    "traffic_pattern": "spiky",
+    "workload": "write_heavy",
+    "users_at_launch": 20000,
+    "users_12_months": 300000,
+    "peak_concurrent_users": 20000,
+    "data_volume_gb_12_months": 100
+  },
+  "team": {
+    "has_devops": true,
+    "size": 6,
+    "experience": "senior",
+    "languages": [
+      "csharp"
+    ]
+  },
+  "budget": {
+    "monthly_infra_usd": 4000
+  },
+  "timeline": {
+    "mvp_weeks": 20
+  },
+  "infrastructure": {
+    "cloud_preference": "any",
+    "deployment_model": "managed_cloud",
+    "data_residency": "none",
+    "existing_systems": []
+  },
+  "requirements": {
+    "realtime": true,
+    "offline_support": false,
+    "full_text_search": false,
+    "file_media_storage": false,
+    "payments": true,
+    "auth": "social",
+    "multi_tenant": false,
+    "ml_features": "none",
+    "seo_critical": false,
+    "availability": "99.9",
+    "p95_latency_ms": 60
+  },
+  "compliance": [],
+  "priorities": {
+    "cost": 3,
+    "time_to_market": 3,
+    "scalability": 5,
+    "performance": 5,
+    "maintainability": 3,
+    "security": 3
+  }
+}

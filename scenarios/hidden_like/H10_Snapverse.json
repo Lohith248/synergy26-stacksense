@@ -1,0 +1,65 @@
+{
+  "scenario_id": "H10",
+  "project": {
+    "name": "Snapverse",
+    "type": "social",
+    "description": "Photo-sharing social network with follows, feeds, likes, comments and push notifications.",
+    "platforms": [
+      "android",
+      "ios",
+      "web"
+    ]
+  },
+  "scale": {
+    "traffic_pattern": "spiky",
+    "workload": "read_heavy",
+    "users_at_launch": 50000,
+    "users_12_months": 1000000,
+    "peak_concurrent_users": 60000,
+    "data_volume_gb_12_months": 20000
+  },
+  "team": {
+    "has_devops": true,
+    "size": 10,
+    "experience": "senior",
+    "languages": [
+      "kotlin",
+      "swift",
+      "typescript"
+    ]
+  },
+  "budget": {
+    "monthly_infra_usd": 15000
+  },
+  "timeline": {
+    "mvp_weeks": 24
+  },
+  "infrastructure": {
+    "cloud_preference": "any",
+    "deployment_model": "managed_cloud",
+    "data_residency": "none",
+    "existing_systems": []
+  },
+  "requirements": {
+    "realtime": true,
+    "offline_support": false,
+    "full_text_search": true,
+    "file_media_storage": true,
+    "payments": false,
+    "auth": "social",
+    "multi_tenant": false,
+    "ml_features": "inference_api",
+    "seo_critical": false,
+    "availability": "99.95",
+    "p95_latency_ms": null
+  },
+  "compliance": [],
+  "priorities": {
+    "cost": 3,
+    "time_to_market": 3,
+    "scalability": 5,
+    "performance": 4,
+    "maintainability": 3,
+    "security": 3
+  }
+}

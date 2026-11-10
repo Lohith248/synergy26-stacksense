@@ -1,0 +1,67 @@
+{
+  "scenario_id": "H05",
+  "project": {
+    "name": "CareLink",
+    "type": "healthtech",
+    "description": "Telehealth app: patients book visits, chat with doctors and upload lab reports. US clinics only.",
+    "platforms": [
+      "web",
+      "ios",
+      "android"
+    ]
+  },
+  "scale": {
+    "traffic_pattern": "steady",
+    "workload": "balanced",
+    "users_at_launch": 3000,
+    "users_12_months": 60000,
+    "peak_concurrent_users": 1500,
+    "data_volume_gb_12_months": 400
+  },
+  "team": {
+    "has_devops": true,
+    "size": 6,
+    "experience": "mixed",
+    "languages": [
+      "typescript",
+      "java"
+    ]
+  },
+  "budget": {
+    "monthly_infra_usd": 3000
+  },
+  "timeline": {
+    "mvp_weeks": 10
+  },
+  "infrastructure": {
+    "cloud_preference": "any",
+    "deployment_model": "managed_cloud",
+    "data_residency": "us",
+    "existing_systems": []
+  },
+  "requirements": {
+    "realtime": true,
+    "offline_support": false,
+    "full_text_search": false,
+    "file_media_storage": true,
+    "payments": true,
+    "auth": "email_password",
+    "multi_tenant": false,
+    "ml_features": "none",
+    "seo_critical": false,
+    "availability": "99.95",
+    "p95_latency_ms": null
+  },
+  "compliance": [
+    "hipaa",
+    "soc2"
+  ],
+  "priorities": {
+    "cost": 3,
+    "time_to_market": 3,
+    "scalability": 3,
+    "performance": 3,
+    "maintainability": 3,
+    "security": 5
+  }
+}

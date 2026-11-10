@@ -1,0 +1,62 @@
+{
+  "scenario_id": "H02",
+  "project": {
+    "name": "FieldPulse",
+    "type": "iot",
+    "description": "50,000 soil sensors send readings every 30 seconds; farmers see dashboards and get alerts when moisture drops.",
+    "platforms": [
+      "web"
+    ]
+  },
+  "scale": {
+    "traffic_pattern": "steady",
+    "workload": "write_heavy",
+    "users_at_launch": 500,
+    "users_12_months": 5000,
+    "peak_concurrent_users": 400,
+    "data_volume_gb_12_months": 2000
+  },
+  "team": {
+    "has_devops": false,
+    "size": 4,
+    "experience": "intermediate",
+    "languages": [
+      "python",
+      "typescript"
+    ]
+  },
+  "budget": {
+    "monthly_infra_usd": 1500
+  },
+  "timeline": {
+    "mvp_weeks": 10
+  },
+  "infrastructure": {
+    "cloud_preference": "aws",
+    "deployment_model": "managed_cloud",
+    "data_residency": "none",
+    "existing_systems": []
+  },
+  "requirements": {
+    "realtime": true,
+    "offline_support": false,
+    "full_text_search": false,
+    "file_media_storage": false,
+    "payments": false,
+    "auth": "email_password",
+    "multi_tenant": false,
+    "ml_features": "none",
+    "seo_critical": false,
+    "availability": "99.9",
+    "p95_latency_ms": null
+  },
+  "compliance": [],
+  "priorities": {
+    "cost": 3,
+    "time_to_market": 3,
+    "scalability": 3,
+    "performance": 3,
+    "maintainability": 3,
+    "security": 3
+  }
+}
