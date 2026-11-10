@@ -271,7 +271,7 @@
         "data_location": "india",
         "sources": [
           "https://aws.amazon.com/cognito/pricing/",
-          "https://docs.aws.amazon.com/sns/latest/dg/sns-supported-regions-countries.html",
+          "https://docs.aws.amazon.com/sms-voice/latest/userguide/phone-numbers-sms-by-country.html",
           "https://www.trai.gov.in/"
         ]
       },

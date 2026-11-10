@@ -186,7 +186,7 @@
       "region": "West Europe (Netherlands)",
       "sources": [
         "https://learn.microsoft.com/en-us/azure/reliability/regions-list",
-        "https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/",
+        "https://learn.microsoft.com/en-us/azure/reliability/regions-list",
         "https://azure.microsoft.com/en-us/pricing/details/app-service/linux/",
         "https://learn.microsoft.com/en-us/azure/app-service/app-service-hybrid-connections",
         "https://learn.microsoft.com/en-us/azure/compliance/"
@@ -364,7 +364,7 @@
         "data_bearing": true,
         "data_location": "eu",
         "sources": [
-          "https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/"
+          "https://learn.microsoft.com/en-us/azure/reliability/regions-list"
         ]
       },
       {
