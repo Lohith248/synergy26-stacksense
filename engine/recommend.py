@@ -70,6 +70,9 @@ def component(cand, ranked_ok, ranked_out, extra_paths, extras, name=None, base_
     out = {"choice": name or item["name"], "justification": why.strip() or "Best overall fit for the stated inputs.",
            "driven_by": order_paths(driven) or ["project.type"], "alternatives": alts,
            "tradeoffs": list(item.get("limits", []))}
+    out["kb_id"] = item["id"]
+    if len(ranked_ok) > 1:  # score gap to the runner-up: small margins are near-ties (see what_would_change)
+        out["score_margin"] = round(cand.score - ranked_ok[1].score, 1)
     out.update(extras)
     out["sources"] = cite(item.get("src", []))
     return out
@@ -127,10 +130,18 @@ def envelope_text(ctx, region):
 def none_component(layer, why, paths, alts):
     return {"choice": "None", "justification": why, "driven_by": order_paths(paths),
             "alternatives": [{"choice": c, "why_not": w} for c, w in alts], "tradeoffs": [],
-            "deployment": "none", "provider": None, "data_bearing": False, "data_location": None, "sources": []}
+            "deployment": "none", "provider": None, "data_bearing": False, "data_location": None, "sources": [], "kb_id": "none"}
 
 
-def recommend(req, assumptions, sid):
+def recommend(req, assumptions, sid, probe=False):
+    doc = _recommend(req, assumptions, sid)
+    if not probe and doc["stack"]:
+        from .counterfactual import annotate
+        annotate(doc, req, lambda r: _recommend(r, [], sid))
+    return doc
+
+
+def _recommend(req, assumptions, sid):
     ctx = cx.build(req)
     W = Warnings()
     assumptions = list(assumptions)
@@ -287,7 +298,9 @@ def recommend(req, assumptions, sid):
         fe_cmp = {"choice": " + ".join(parts), "justification": " ".join(fe_why), "driven_by": order_paths(fe_paths),
                   "alternatives": fe_alts[:4], "tradeoffs": fe_trade[:4], "deployment": "client", "provider": "neutral",
                   "data_bearing": bool(req["requirements.offline_support"]), "data_location": "device" if req["requirements.offline_support"] else None,
-                  "sources": sorted(set(fe_src))}
+                  "sources": sorted(set(fe_src)),
+                  "kb_id": "+".join([web.item["id"]] if web else []) + ("+" if web and mob else "") + (mob.item["id"] if mob else "")
+                  + ("+desktop" if ctx["desktop"] else "")}
         if web and not ctx["needs_backend"]:
             fe_cmp["deployment"] = "client"
     else:

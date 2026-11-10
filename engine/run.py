@@ -19,10 +19,10 @@ def invalid_output(errors, scenario_id, assumptions=()):
     }
 
 
-def evaluate(raw):
+def evaluate(raw, counterfactuals=True):
     sid = raw.get("scenario_id") if isinstance(raw, dict) and isinstance(raw.get("scenario_id"), str) else None
     req, errors, assumptions = validate(raw)
     if errors:
         return invalid_output(errors, sid, assumptions)
     from .recommend import recommend
-    return recommend(req, assumptions, sid)
+    return recommend(req, assumptions, sid, probe=not counterfactuals)

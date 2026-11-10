@@ -139,7 +139,7 @@ def main(argv):
                 s2 = copy.deepcopy(sc)
                 put(s2, fpath, v)
                 try:
-                    doc = evaluate(s2)
+                    doc = evaluate(s2, counterfactuals=False)
                 except Exception as e:  # noqa: BLE001
                     crashes.append((sid, fpath, v, repr(e)))
                     continue

@@ -37,6 +37,16 @@
       "data_location": null,
       "sources": [
         "https://react.dev/blog/2025/02/14/sunsetting-create-react-app"
+      ],
+      "kb_id": "react-vite",
+      "what_would_change": [
+        {
+          "edit": "requirements.seo_critical: false -> true",
+          "path": "requirements.seo_critical",
+          "value": true,
+          "new_choice": "Next.js (web)",
+          "also_by": []
+        }
       ]
     },
     "backend": {
@@ -65,12 +75,23 @@
       "tradeoffs": [
         "Smaller open-source hosting choice outside Azure"
       ],
+      "kb_id": "dotnet-aspnet",
+      "score_margin": 9.6,
       "deployment": "library",
       "provider": "neutral",
       "data_bearing": false,
       "data_location": null,
       "sources": [
         "https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core"
+      ],
+      "what_would_change": [
+        {
+          "edit": "none in the probe set",
+          "path": null,
+          "value": null,
+          "also_by": [],
+          "new_choice": "No single-field edit among the probed priorities, requirements, numbers and constraints changes this choice."
+        }
       ]
     },
     "database": {
@@ -100,6 +121,8 @@
       "tradeoffs": [
         "Licence cost outside Azure SQL; Windows-centric tooling"
       ],
+      "kb_id": "sqlserver",
+      "score_margin": 6.7,
       "deployment": "managed",
       "provider": "azure",
       "data_bearing": true,
@@ -107,6 +130,15 @@
       "sources": [
         "https://azure.microsoft.com/en-us/pricing/details/azure-sql-database/single/",
         "https://learn.microsoft.com/en-us/lifecycle/products/sql-server-2022"
+      ],
+      "what_would_change": [
+        {
+          "edit": "none in the probe set",
+          "path": null,
+          "value": null,
+          "also_by": [],
+          "new_choice": "No single-field edit among the probed priorities, requirements, numbers and constraints changes this choice (the managed provider still follows the hosting choice)."
+        }
       ]
     },
     "hosting": {
@@ -140,6 +172,8 @@
         "Hybrid Connections limited to 5 per Basic plan",
         "Less control than containers for unusual runtimes"
       ],
+      "kb_id": "azure-app-service",
+      "score_margin": 15.3,
       "deployment": "managed",
       "provider": "azure",
       "data_bearing": true,
@@ -151,6 +185,29 @@
         "https://azure.microsoft.com/en-us/pricing/details/app-service/linux/",
         "https://learn.microsoft.com/en-us/azure/app-service/app-service-hybrid-connections",
         "https://learn.microsoft.com/en-us/azure/compliance/"
+      ],
+      "what_would_change": [
+        {
+          "edit": "infrastructure.cloud_preference: azure -> aws",
+          "path": "infrastructure.cloud_preference",
+          "value": "aws",
+          "new_choice": "AWS Elastic Beanstalk (managed platform on EC2) — ap-south-1 (Mumbai)",
+          "also_by": []
+        },
+        {
+          "edit": "infrastructure.cloud_preference: azure -> gcp",
+          "path": "infrastructure.cloud_preference",
+          "value": "gcp",
+          "new_choice": "Google Cloud Run — asia-south1 (Mumbai)",
+          "also_by": []
+        },
+        {
+          "edit": "infrastructure.deployment_model: managed_cloud -> self_hosted_cloud_vm",
+          "path": "infrastructure.deployment_model",
+          "value": "self_hosted_cloud_vm",
+          "new_choice": "Azure Virtual Machine (Docker Compose) — Central India (Pune)",
+          "also_by": []
+        }
       ]
     },
     "supporting": [

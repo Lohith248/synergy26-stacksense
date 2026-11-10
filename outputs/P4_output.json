@@ -49,6 +49,34 @@
       "sources": [
         "https://kotlinlang.org/docs/releases.html",
         "https://react.dev/blog/2025/02/14/sunsetting-create-react-app"
+      ],
+      "kb_id": "react-vite+kmp-compose",
+      "what_would_change": [
+        {
+          "edit": "priorities.time_to_market: 3 -> 4",
+          "path": "priorities.time_to_market",
+          "value": 4,
+          "new_choice": "React (Vite SPA) (web) + React Native (Expo) (Android + iOS)",
+          "also_by": [
+            "priorities.performance: 3 -> 2",
+            "priorities.security: 5 -> 4",
+            "priorities.time_to_market: 3 -> 5"
+          ]
+        },
+        {
+          "edit": "requirements.seo_critical: false -> true",
+          "path": "requirements.seo_critical",
+          "value": true,
+          "new_choice": "Next.js (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS)",
+          "also_by": []
+        },
+        {
+          "edit": "priorities.time_to_market: 3 -> 1",
+          "path": "priorities.time_to_market",
+          "value": 1,
+          "new_choice": "Angular (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS)",
+          "also_by": []
+        }
       ]
     },
     "backend": {
@@ -76,12 +104,23 @@
       "tradeoffs": [
         "Heavier runtime and slower iteration than Node/Python"
       ],
+      "kb_id": "java-spring",
+      "score_margin": 5.6,
       "deployment": "library",
       "provider": "neutral",
       "data_bearing": false,
       "data_location": null,
       "sources": [
         "https://spring.io/projects/spring-boot"
+      ],
+      "what_would_change": [
+        {
+          "edit": "none in the probe set",
+          "path": null,
+          "value": null,
+          "also_by": [],
+          "new_choice": "No single-field edit among the probed priorities, requirements, numbers and constraints changes this choice."
+        }
       ]
     },
     "database": {
@@ -111,6 +150,8 @@
       "tradeoffs": [
         "Vertical write scaling; sharding needs extensions"
       ],
+      "kb_id": "postgresql",
+      "score_margin": 3.2,
       "deployment": "managed",
       "provider": "aws",
       "data_bearing": true,
@@ -121,6 +162,15 @@
         "https://www.postgresql.org/docs/current/ddl-rowsecurity.html",
         "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html",
         "https://supabase.com/docs/guides/platform/regions"
+      ],
+      "what_would_change": [
+        {
+          "edit": "none in the probe set",
+          "path": null,
+          "value": null,
+          "also_by": [],
+          "new_choice": "No single-field edit among the probed priorities, requirements, numbers and constraints changes this choice (the managed provider still follows the hosting choice)."
+        }
       ]
     },
     "hosting": {
@@ -152,6 +202,8 @@
         "Load balancer and NAT add fixed monthly cost",
         "More AWS concepts (VPC, IAM, task definitions) than a PaaS"
       ],
+      "kb_id": "aws-ecs-fargate",
+      "score_margin": 1.8,
       "deployment": "managed",
       "provider": "aws",
       "data_bearing": true,
@@ -162,6 +214,31 @@
         "https://aws.amazon.com/fargate/pricing/",
         "https://docs.aws.amazon.com/apprunner/latest/dg/apprunner-availability-change.html",
         "https://aws.amazon.com/compliance/programs/"
+      ],
+      "what_would_change": [
+        {
+          "edit": "infrastructure.cloud_preference: aws -> any",
+          "path": "infrastructure.cloud_preference",
+          "value": "any",
+          "new_choice": "Azure App Service (Linux, Premium v3, 2+ instances) — Central India (Pune)",
+          "also_by": [
+            "infrastructure.cloud_preference: aws -> azure"
+          ]
+        },
+        {
+          "edit": "infrastructure.cloud_preference: aws -> gcp",
+          "path": "infrastructure.cloud_preference",
+          "value": "gcp",
+          "new_choice": "Google Cloud Run — asia-south1 (Mumbai)",
+          "also_by": []
+        },
+        {
+          "edit": "infrastructure.deployment_model: managed_cloud -> self_hosted_cloud_vm",
+          "path": "infrastructure.deployment_model",
+          "value": "self_hosted_cloud_vm",
+          "new_choice": "Amazon EC2 VM (Docker Compose) — ap-south-1 (Mumbai)",
+          "also_by": []
+        }
       ]
     },
     "supporting": [

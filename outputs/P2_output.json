@@ -47,6 +47,16 @@
         "https://expo.dev/changelog",
         "https://nextjs.org/blog",
         "https://reactnative.dev/blog"
+      ],
+      "kb_id": "nextjs+react-native-expo",
+      "what_would_change": [
+        {
+          "edit": "requirements.seo_critical: true -> false",
+          "path": "requirements.seo_critical",
+          "value": false,
+          "new_choice": "React (Vite SPA) (web) + React Native (Expo) (Android)",
+          "also_by": []
+        }
       ]
     },
     "backend": {
@@ -73,6 +83,8 @@
       "tradeoffs": [
         "More boilerplate than Express"
       ],
+      "kb_id": "node-nestjs",
+      "score_margin": 2.0,
       "deployment": "library",
       "provider": "neutral",
       "data_bearing": false,
@@ -80,6 +92,19 @@
       "sources": [
         "https://github.com/nodejs/release#release-schedule",
         "https://docs.nestjs.com/"
+      ],
+      "what_would_change": [
+        {
+          "edit": "requirements.realtime: true -> false",
+          "path": "requirements.realtime",
+          "value": false,
+          "new_choice": "Python 3.13 + Django 5.2 LTS",
+          "also_by": [
+            "requirements.ml_features: none -> inference_api",
+            "requirements.ml_features: none -> llm_rag",
+            "requirements.ml_features: none -> training"
+          ]
+        }
       ]
     },
     "database": {
@@ -106,6 +131,8 @@
       "tradeoffs": [
         "Vertical write scaling; sharding needs extensions"
       ],
+      "kb_id": "postgresql",
+      "score_margin": 6.0,
       "deployment": "managed",
       "provider": "azure",
       "data_bearing": true,
@@ -116,6 +143,15 @@
         "https://www.postgresql.org/docs/current/ddl-rowsecurity.html",
         "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html",
         "https://supabase.com/docs/guides/platform/regions"
+      ],
+      "what_would_change": [
+        {
+          "edit": "none in the probe set",
+          "path": null,
+          "value": null,
+          "also_by": [],
+          "new_choice": "No single-field edit among the probed priorities, requirements, numbers and constraints changes this choice (the managed provider still follows the hosting choice)."
+        }
       ]
     },
     "hosting": {
@@ -147,6 +183,8 @@
       "tradeoffs": [
         "Less control than containers for unusual runtimes"
       ],
+      "kb_id": "azure-app-service",
+      "score_margin": 2.3,
       "deployment": "managed",
       "provider": "azure",
       "data_bearing": true,
@@ -158,6 +196,31 @@
         "https://azure.microsoft.com/en-us/pricing/details/app-service/linux/",
         "https://learn.microsoft.com/en-us/azure/app-service/app-service-hybrid-connections",
         "https://learn.microsoft.com/en-us/azure/compliance/"
+      ],
+      "what_would_change": [
+        {
+          "edit": "infrastructure.cloud_preference: any -> aws",
+          "path": "infrastructure.cloud_preference",
+          "value": "aws",
+          "new_choice": "AWS Elastic Beanstalk (managed platform on EC2) — ap-south-1 (Mumbai)",
+          "also_by": []
+        },
+        {
+          "edit": "infrastructure.cloud_preference: any -> gcp",
+          "path": "infrastructure.cloud_preference",
+          "value": "gcp",
+          "new_choice": "Google Cloud Run — asia-south1 (Mumbai)",
+          "also_by": [
+            "budget.monthly_infra_usd: 150 -> 0"
+          ]
+        },
+        {
+          "edit": "infrastructure.deployment_model: managed_cloud -> self_hosted_cloud_vm",
+          "path": "infrastructure.deployment_model",
+          "value": "self_hosted_cloud_vm",
+          "new_choice": "DigitalOcean Droplet (Docker Compose) — BLR1 (Bangalore)",
+          "also_by": []
+        }
       ]
     },
     "supporting": [

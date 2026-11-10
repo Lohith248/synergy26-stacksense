@@ -209,5 +209,32 @@ class Breadth(unittest.TestCase):  # item 8
         self.assertIn("Nuxt", core(out, "frontend"))
 
 
+class Counterfactuals(unittest.TestCase):  # item 9
+    def test_each_listed_edit_really_flips_the_layer(self):
+        from engine.validate import validate
+        from engine.recommend import recommend
+        for i in range(1, 7):
+            out = run(P(i))
+            req, errs, _ = validate(P(i))
+            self.assertFalse(errs)
+            for layer in ("frontend", "backend", "database", "hosting"):
+                wwc = out["stack"][layer]["what_would_change"]
+                self.assertTrue(1 <= len(wwc) <= 3, (i, layer))
+                for e in wwc:
+                    if e["path"] is None:
+                        continue
+                    r2 = dict(req)
+                    r2[e["path"]] = e["value"]
+                    alt = recommend(r2, [], None, probe=True)
+                    self.assertNotEqual(alt["stack"][layer]["kb_id"], out["stack"][layer]["kb_id"], (i, layer, e))
+                    self.assertEqual(alt["stack"][layer]["choice"], e["new_choice"])
+
+    def test_margin_reported(self):
+        st = run(P(2))["stack"]
+        for layer in ("backend", "database", "hosting"):
+            self.assertIsInstance(st[layer]["score_margin"], (int, float))
+            self.assertGreaterEqual(st[layer]["score_margin"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

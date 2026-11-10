@@ -37,6 +37,20 @@
       "data_location": null,
       "sources": [
         "https://docs.astro.build/"
+      ],
+      "kb_id": "astro",
+      "what_would_change": [
+        {
+          "edit": "requirements.realtime: false -> true",
+          "path": "requirements.realtime",
+          "value": true,
+          "new_choice": "Next.js (web)",
+          "also_by": [
+            "requirements.offline_support: false -> true",
+            "requirements.file_media_storage: false -> true",
+            "requirements.payments: false -> true"
+          ]
+        }
       ]
     },
     "backend": {
@@ -62,7 +76,21 @@
       "provider": null,
       "data_bearing": false,
       "data_location": null,
-      "sources": []
+      "sources": [],
+      "kb_id": "none",
+      "what_would_change": [
+        {
+          "edit": "requirements.realtime: false -> true",
+          "path": "requirements.realtime",
+          "value": true,
+          "new_choice": "Node.js 24 LTS + NestJS (TypeScript)",
+          "also_by": [
+            "requirements.offline_support: false -> true",
+            "requirements.file_media_storage: false -> true",
+            "requirements.payments: false -> true"
+          ]
+        }
+      ]
     },
     "database": {
       "choice": "None",
@@ -86,7 +114,21 @@
       "provider": null,
       "data_bearing": false,
       "data_location": null,
-      "sources": []
+      "sources": [],
+      "kb_id": "none",
+      "what_would_change": [
+        {
+          "edit": "requirements.realtime: false -> true",
+          "path": "requirements.realtime",
+          "value": true,
+          "new_choice": "Supabase Postgres",
+          "also_by": [
+            "requirements.offline_support: false -> true",
+            "requirements.file_media_storage: false -> true",
+            "requirements.payments: false -> true"
+          ]
+        }
+      ]
     },
     "hosting": {
       "choice": "Cloudflare Pages — Cloudflare edge network",
@@ -119,6 +161,8 @@
         "500 builds/month and 20,000 files per site on Free",
         "No regional pinning of edge-cached content"
       ],
+      "kb_id": "cloudflare-pages",
+      "score_margin": 0.8,
       "deployment": "saas",
       "provider": "cloudflare",
       "data_bearing": false,
@@ -126,6 +170,37 @@
       "region": "Cloudflare edge network",
       "sources": [
         "https://developers.cloudflare.com/pages/platform/limits/"
+      ],
+      "what_would_change": [
+        {
+          "edit": "requirements.realtime: false -> true",
+          "path": "requirements.realtime",
+          "value": true,
+          "new_choice": "Google Cloud Run",
+          "also_by": [
+            "requirements.offline_support: false -> true",
+            "requirements.file_media_storage: false -> true",
+            "requirements.payments: false -> true"
+          ]
+        },
+        {
+          "edit": "priorities.time_to_market: 4 -> 2",
+          "path": "priorities.time_to_market",
+          "value": 2,
+          "new_choice": "Amazon S3 + CloudFront (static site) — CloudFront edge (S3 origin bucket in your chosen region)",
+          "also_by": [
+            "priorities.security: 2 -> 4",
+            "requirements.availability: 99 -> 99.95",
+            "requirements.availability: 99 -> 99.99"
+          ]
+        },
+        {
+          "edit": "infrastructure.cloud_preference: any -> gcp",
+          "path": "infrastructure.cloud_preference",
+          "value": "gcp",
+          "new_choice": "Firebase Hosting (Google Cloud) — Firebase global CDN",
+          "also_by": []
+        }
       ]
     },
     "supporting": [

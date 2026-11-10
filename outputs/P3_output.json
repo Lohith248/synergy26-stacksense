@@ -37,6 +37,23 @@
       "data_location": null,
       "sources": [
         "https://react.dev/blog/2025/02/14/sunsetting-create-react-app"
+      ],
+      "kb_id": "react-vite",
+      "what_would_change": [
+        {
+          "edit": "requirements.seo_critical: false -> true",
+          "path": "requirements.seo_critical",
+          "value": true,
+          "new_choice": "Next.js (web)",
+          "also_by": []
+        },
+        {
+          "edit": "priorities.time_to_market: 3 -> 1",
+          "path": "priorities.time_to_market",
+          "value": 1,
+          "new_choice": "Angular (web)",
+          "also_by": []
+        }
       ]
     },
     "backend": {
@@ -64,12 +81,23 @@
       "tradeoffs": [
         "More hand-written code than batteries-included frameworks"
       ],
+      "kb_id": "go-chi",
+      "score_margin": 2.8,
       "deployment": "library",
       "provider": "neutral",
       "data_bearing": false,
       "data_location": null,
       "sources": [
         "https://go.dev/doc/devel/release"
+      ],
+      "what_would_change": [
+        {
+          "edit": "none in the probe set",
+          "path": null,
+          "value": null,
+          "also_by": [],
+          "new_choice": "No single-field edit among the probed priorities, requirements, numbers and constraints changes this choice."
+        }
       ]
     },
     "database": {
@@ -98,6 +126,8 @@
       "tradeoffs": [
         "Vertical write scaling; sharding needs extensions"
       ],
+      "kb_id": "postgresql",
+      "score_margin": 3.2,
       "deployment": "managed",
       "provider": "azure",
       "data_bearing": true,
@@ -108,6 +138,15 @@
         "https://www.postgresql.org/docs/current/ddl-rowsecurity.html",
         "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html",
         "https://supabase.com/docs/guides/platform/regions"
+      ],
+      "what_would_change": [
+        {
+          "edit": "none in the probe set",
+          "path": null,
+          "value": null,
+          "also_by": [],
+          "new_choice": "No single-field edit among the probed priorities, requirements, numbers and constraints changes this choice (the managed provider still follows the hosting choice)."
+        }
       ]
     },
     "hosting": {
@@ -138,6 +177,8 @@
       "tradeoffs": [
         "Less control than containers for unusual runtimes"
       ],
+      "kb_id": "azure-app-service",
+      "score_margin": 1.5,
       "deployment": "managed",
       "provider": "azure",
       "data_bearing": true,
@@ -149,6 +190,33 @@
         "https://azure.microsoft.com/en-us/pricing/details/app-service/linux/",
         "https://learn.microsoft.com/en-us/azure/app-service/app-service-hybrid-connections",
         "https://learn.microsoft.com/en-us/azure/compliance/"
+      ],
+      "what_would_change": [
+        {
+          "edit": "priorities.cost: 2 -> 4",
+          "path": "priorities.cost",
+          "value": 4,
+          "new_choice": "Google Cloud Run — europe-west1 (Belgium)",
+          "also_by": [
+            "priorities.time_to_market: 3 -> 1",
+            "priorities.maintainability: 4 -> 2",
+            "infrastructure.cloud_preference: any -> gcp"
+          ]
+        },
+        {
+          "edit": "infrastructure.cloud_preference: any -> aws",
+          "path": "infrastructure.cloud_preference",
+          "value": "aws",
+          "new_choice": "AWS ECS on Fargate (+ Application Load Balancer) — eu-central-1 (Frankfurt)",
+          "also_by": []
+        },
+        {
+          "edit": "infrastructure.deployment_model: managed_cloud -> self_hosted_cloud_vm",
+          "path": "infrastructure.deployment_model",
+          "value": "self_hosted_cloud_vm",
+          "new_choice": "DigitalOcean Droplet (Docker Compose) — FRA1 (Frankfurt)",
+          "also_by": []
+        }
       ]
     },
     "supporting": [

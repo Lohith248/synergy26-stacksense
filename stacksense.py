@@ -44,6 +44,9 @@ def explain(doc):
             lines.append(f"\n[{layer}] {c['choice']}\n  why: {c['justification']}\n  driven_by: {', '.join(c['driven_by'])}")
             for a in c["alternatives"][:2]:
                 lines.append(f"  instead of {a['choice']}: {a['why_not']}")
+            for e in c.get("what_would_change", [])[:2]:
+                if e["path"]:
+                    lines.append(f"  would change if {e['edit']} -> {e['new_choice']}")
         for s in doc["stack"].get("supporting", []):
             lines.append(f"\n[{s['layer']}] {s['choice']}\n  why: {s['justification']}")
     c = doc["estimated_monthly_cost_usd"]
