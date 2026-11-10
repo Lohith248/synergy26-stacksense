@@ -65,12 +65,12 @@
       ],
       "alternatives": [
         {
-          "choice": ".NET 10 LTS + ASP.NET Core",
-          "why_not": "Team lists java, kotlin, typescript but this needs csharp (team.languages). Overall 2.7 points behind."
-        },
-        {
           "choice": "Node.js 24 LTS + NestJS (TypeScript)",
           "why_not": "Java 21/25 LTS + Spring Boot is stronger on: good security (you weighted it 5/5) (priorities.security); good scalability (you weighted it 4/5) (priorities.scalability). Overall 5.6 points behind."
+        },
+        {
+          "choice": ".NET 10 LTS + ASP.NET Core",
+          "why_not": "Team lists java, kotlin, typescript but this needs csharp (team.languages). Overall 8.4 points behind."
         }
       ],
       "tradeoffs": [
@@ -137,7 +137,7 @@
       "alternatives": [
         {
           "choice": "AWS Lambda + API Gateway",
-          "why_not": "Java 21/25 LTS + Spring Boot cold starts on functions (team.languages). AWS ECS on Fargate (+ Application Load Balancer) is stronger on: good maintainability (you weighted it 4/5) (priorities.maintainability). Overall 2.4 points behind."
+          "why_not": "Spring Boot is a long-running JVM/.NET server: slow cold starts and per-invocation connection pools on functions (team.languages). AWS ECS on Fargate (+ Application Load Balancer) is stronger on: good maintainability (you weighted it 4/5) (priorities.maintainability). Overall 6.4 points behind."
         },
         {
           "choice": "Azure App Service (Linux, Basic B1 and up)",

@@ -169,7 +169,8 @@ def recommend(req, assumptions, sid):
     if backend and backend["id"] in ("java-spring", "dotnet-aspnet"):
         for c in hs:
             if c.item["kind"] == "serverless":
-                c.add("runtime", -3, "team.languages", f"{backend['name']} cold starts on functions")
+                c.add("runtime", -7, "team.languages",
+                      f"{backend['name'].split(' + ')[-1]} is a long-running JVM/.NET server: slow cold starts and per-invocation connection pools on functions")
     h_ok, h_out = sl.rank(hs)
     if not h_ok:  # should be prevented by hard_conflicts; keep a safe answer
         W("NO_COMPLIANT_HOSTING", "critical", "No hosting option in the knowledge base satisfies the hard constraints.", list(HARD_PATHS))

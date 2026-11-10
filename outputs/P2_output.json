@@ -32,7 +32,7 @@
         },
         {
           "choice": "Flutter",
-          "why_not": "Team lists javascript, python, typescript but this needs dart (team.languages). React Native (Expo) is stronger on: good fast delivery (you weighted it 5/5) (priorities.time_to_market). Overall 17.3 points behind."
+          "why_not": "Team lists javascript, python, typescript but this needs dart (team.languages). React Native (Expo) is stronger on: good fast delivery (you weighted it 5/5) (priorities.time_to_market). Overall 20.6 points behind."
         }
       ],
       "tradeoffs": [

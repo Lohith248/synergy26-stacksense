@@ -58,7 +58,7 @@
         },
         {
           "choice": ".NET 10 LTS + ASP.NET Core",
-          "why_not": "Team lists go, typescript but this needs csharp (team.languages). Go 1.27 (net/http + chi) is stronger on: good low running cost (you weighted it 2/5) (priorities.cost). Overall 4.3 points behind."
+          "why_not": "Team lists go, typescript but this needs csharp (team.languages). Go 1.27 (net/http + chi) is stronger on: good low running cost (you weighted it 2/5) (priorities.cost). Overall 10.0 points behind."
         }
       ],
       "tradeoffs": [

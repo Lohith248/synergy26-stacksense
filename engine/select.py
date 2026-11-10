@@ -126,7 +126,8 @@ def hosting_candidates(ctx):
         if avail in ("99.95", "99.99") and (h["sla"] is None or "single" in str(h["sla"])):
             c.add("availability", -6, "requirements.availability", f"no multi-zone SLA for a {avail}% target")
         if req["requirements.realtime"] and kind == "serverless":
-            c.add("realtime", -4, "requirements.realtime", "long-lived WebSocket connections are awkward on functions")
+            c.add("realtime", -10, "requirements.realtime",
+                  "functions cannot hold long-lived WebSocket connections; realtime would need a separate connection gateway")
         lat = req["requirements.p95_latency_ms"]
         if lat is not None and lat <= 150 and kind == "serverless":
             c.add("latency", -3, "requirements.p95_latency_ms", f"cold starts threaten a {lat} ms p95")

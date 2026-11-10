@@ -202,6 +202,8 @@ def build(ctx, host, backend, db, mobile, warn):
                       "ruby-rails": "Rails Action Cable"}.get(bid, "Socket.IO on the Node API")
             if p == "azure" and ctx["tier"] >= 2:
                 native = "Azure SignalR Service (managed)"
+            if kind == "serverless" and p == "aws":
+                native = f"Amazon API Gateway WebSocket APIs{rtxt} (gateway holds connections; Lambda handles messages)"
             out.append(svc("realtime", native,
                            f"Live updates{' and chat' if d['chat'] else ''} over WebSockets from the same backend, so authorisation and data stay in one place.",
                            dp + (["project.description"] if d["chat"] else []),
