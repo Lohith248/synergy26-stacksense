@@ -52,14 +52,18 @@ def component(cand, ranked_ok, ranked_out, extra_paths, extras, name=None, base_
     item = cand.item
     pos = sorted([t for t in cand.terms if t[1] > 0], key=lambda t: (t[0].startswith("prio_"), -t[1], t[0]))
     domain = [t for t in pos if not t[0].startswith("prio_")][:3]
-    prios = [t for t in pos if t[0].startswith("prio_")][:2]
+    prios = [t for t in pos if t[0].startswith("prio_") and "(priority 3/5)" not in t[3]][:2]
     reasons = [t[3] for t in domain + prios]
     why = base_why + (cap("; ".join(reasons)) + "." if reasons else "")
     alts = []
     for a in ranked_ok[1:3]:
         alts.append({"choice": a.item["name"], "why_not": why_not(cand, a)})
-    for a in ranked_out[:2]:
-        if len(alts) >= 3:
+    # excluded options are shown when a hard constraint removed them (that teaches the reader something);
+    # options excluded only for not fitting the project shape are used just to reach the required minimum
+    hard = [a for a in ranked_out if a.excluded[1] in HARD_PATHS + ("compliance",)]
+    shape = [a for a in ranked_out if a not in hard]
+    for a in hard + (shape if len(alts) < 2 else []):
+        if len(alts) >= 3 or (a in shape and len(alts) >= 2):
             break
         alts.append({"choice": a.item["name"], "why_not": f"Excluded: {a.excluded[0]} ({a.excluded[1]})."})
     driven = [t[2] for t in cand.terms if abs(t[1]) >= (2.5 if t[0].startswith("prio_") else 1)] + list(extra_paths)
@@ -88,14 +92,19 @@ def why_not(win, alt):
         elif pos:
             strong.append(f"{pos[0][3]} ({pos[0][2]})")
     total = round(win.score - alt.score, 1)
+    lim = alt.item.get("limits") or []
+    tail = f" Known limit of {alt.item['name'].split(' (')[0]}: {lim[0][:1].lower() + lim[0][1:]}." if lim else ""
+    if total < 0.1:
+        return (f"Tied on score ({alt.score}) with {win.item['name'].split(' (')[0]}; the stable id-based tie-break keeps the result "
+                "deterministic, so either is a defensible choice." + tail)
     if not weak and not strong:
-        return f"Close runner-up (score {alt.score} vs {win.score}); a stable id-based tie-break keeps the result deterministic."
+        return f"Close runner-up (score {alt.score} vs {win.score}); a stable id-based tie-break keeps the result deterministic." + tail
     parts = []
     if weak:
         parts.append(cap("; ".join(weak)))
     if strong:
         parts.append(f"{win.item['name'].split(' — ')[0]} is stronger on: " + "; ".join(strong))
-    return ". ".join(parts) + f". Overall {total} points behind."
+    return ". ".join(parts) + f". Overall {total} points behind." + tail
 
 
 def cap(s):
@@ -193,7 +202,14 @@ def recommend(req, assumptions, sid):
             assumptions.append("No data_residency given: deploy in the provider region closest to most users (not specified in the input).")
     ctx["res_key"] = loc
     host_extra_paths = [p for p in HARD_PATHS if any(c.excluded and c.excluded[1] == p for c in h_out)]
+    plan = ""
+    if host.get("plans"):
+        ha_need = req["requirements.availability"] in ("99.95", "99.99")
+        plan = host["plan_ha"] if ha_need and ctx["tier"] <= 1 else host["plans"][ctx["tier"]]
+        host_c.item = host = dict(host, name=f"{host['name'][:-1]}, {plan})")
     host_name = host["name"] + (f" — {region}" if region else "")
+    if not any(e["onprem"] for e in ctx["existing"]):
+        host_c.item = host = dict(host, limits=[x for x in host.get("limits", []) if "Hybrid Connection" not in x])
     hosting = component(host_c, h_ok, h_out, host_extra_paths,
                         {"deployment": host["deploy"], "provider": host["provider"], "data_bearing": ctx["needs_backend"],
                          "data_location": loc if ctx["needs_backend"] else None, "region": region}, name=host_name,

@@ -70,7 +70,8 @@ def hard_violations(doc, sc):
         if c["choice"] == "None":
             continue
         name = f"{c.get('layer', '?')}:{c['choice']}"
-        if cloud in HYPER and c.get("provider") in HYPER and c["provider"] != cloud:
+        reuse = c.get("layer") in ("auth", "other") and "EXISTING_CROSS_CLOUD_SERVICE" in codes
+        if cloud in HYPER and c.get("provider") in HYPER and c["provider"] != cloud and not reuse:
             out.append(f"{name} on {c['provider']} breaks cloud_preference {cloud}")
         if dep in ("on_premise", "air_gapped") and c.get("deployment") not in ("self_hosted", "client", "none", "library"):
             ok = (c.get("layer") == "payments" and "EXTERNAL_PAYMENT_GATEWAY" in codes) or (

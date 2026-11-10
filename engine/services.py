@@ -3,6 +3,7 @@
 Each entry is a complete component object plus extra fields (deployment, provider, data_bearing, data_location,
 cost per tier, sources). Choices respect the same envelope as the core layers.
 """
+import re
 from .kb import cite
 
 Z = [[0, 0], [0, 0], [0, 0], [0, 0]]
@@ -39,6 +40,10 @@ def build(ctx, host, backend, db, mobile, warn):
                     warn("EXTERNAL_IDENTITY_PROVIDER", "warning",
                          "The company's existing identity provider (Microsoft Entra ID) is a cloud service; reusing it is kept as the one external dependency of an otherwise on-premises stack. Use Keycloak federated to on-prem AD if no cloud dependency is acceptable.",
                          ["infrastructure.existing_systems", "infrastructure.deployment_model"])
+                if p in ("aws", "gcp"):
+                    warn("EXISTING_CROSS_CLOUD_SERVICE", "info",
+                         f"The existing Microsoft Entra ID tenant (and Microsoft 365 if used) stays in Microsoft's cloud while the application runs on {p.upper()}: this reuses an existing system rather than adding a second cloud. Only sign-in tokens and notifications cross over; application data stays on {p.upper()}.",
+                         ["infrastructure.existing_systems", "infrastructure.cloud_preference"])
                 out.append(svc("auth", "Microsoft Entra ID (existing tenant) via OpenID Connect",
                                f"enterprise_sso is required and '{idp['raw']}' already exists: reuse it so employees keep one login; "
                                "app roles/groups in the token drive approvals and admin rights.",
@@ -286,7 +291,8 @@ def build(ctx, host, backend, db, mobile, warn):
             if india:
                 name = "Razorpay (UPI, cards, netbanking)"
                 if d["payouts"] or ctx["type"] == "marketplace":
-                    feats.append("Route/RazorpayX Payouts to pay service providers")
+                    lend = ctx["type"] == "fintech" or bool(re.search(r"loan|disburs|lend", (req["project.description"] or "").lower()))
+                    feats.append("RazorpayX Payouts for UPI loan disbursals to borrowers" if lend else "Route/RazorpayX Payouts to pay service providers")
                     extra_src += ["razorpay-route", "razorpayx-payouts"]
                 if d["recurring"]:
                     feats.append("Subscriptions with UPI AutoPay / e-mandate for recurring collections")
@@ -393,10 +399,11 @@ def build(ctx, host, backend, db, mobile, warn):
                        [("Sentry / Datadog", "SaaS services, not allowed here")], ["Retention and alerting are yours to run"],
                        "self_hosted", "neutral", True, Z, ["grafana-stack"], loc))
     else:
+        ci_cost = [0, 4] if ctx["size"] <= 3 else ([0, 20] if ctx["size"] <= 8 else [20, 100])  # minutes scale with engineers, not users
         out.append(svc("ci_cd", "GitHub Actions", f"Automated tests and deploys on every push{' to ' + host['name'] if host else ''}; free minutes cover a team of {ctx['size']}.",
                        ["team.size", "team.has_devops"], [("GitLab CI", "equivalent; GitHub chosen for its marketplace of deploy actions")],
                        ["Secrets must be stored as encrypted environment secrets"], "saas", "github", False,
-                       [[0, 0], [0, 4], [4, 21], [21, 100]], ["gha-billing"]))
+                       [ci_cost] * 4, ["gha-billing"]))
         ob = {"aws": (f"Amazon CloudWatch{rtxt} (logs, metrics, alarms)", "aws"),
               "azure": (f"Azure Monitor + Application Insights{rtxt}", "azure"),
               "gcp": (f"Cloud Logging + Cloud Monitoring{rtxt}", "gcp")}.get(p, ("Platform logs/metrics + Prometheus/Grafana on the VM" if kind == "vm" else "Platform logs and metrics + uptime checks", p))

@@ -2,12 +2,12 @@
   "scenario_id": "P2",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Modular monolith: Next.js (web) + React Native (Expo) (Android) on Node.js 24 LTS + NestJS (TypeScript) with Azure Database for PostgreSQL – Flexible Server 17 — Central India (Pune), hosted on Azure App Service (Linux, Basic B1 and up) — Central India (Pune). Estimated $89-467/month.",
+  "summary": "Modular monolith: Next.js (web) + React Native (Expo) (Android) on Node.js 24 LTS + NestJS (TypeScript) with Azure Database for PostgreSQL – Flexible Server 17 — Central India (Pune), hosted on Azure App Service (Linux, Basic B2 / Standard S1) — Central India (Pune). Estimated $89-467/month.",
   "architecture_style": "modular_monolith",
   "stack": {
     "frontend": {
       "choice": "Next.js (web) + React Native (Expo) (Android)",
-      "justification": "Web: Next.js — Rich interactive app screens; team already writes javascript, typescript for the UI; server-rendered/static HTML that search engines index; good fast delivery (you weighted it 5/5); good low running cost (you weighted it 4/5). Mobile: React Native (Expo) — Team already writes javascript, typescript for the mobile app; shares TypeScript code and skills with the web app; good fast delivery (you weighted it 5/5); good low running cost (you weighted it 4/5).",
+      "justification": "Web: Next.js — Rich interactive app screens; team already writes javascript, typescript for the UI; server-rendered/static HTML that search engines index; good fast delivery (priority 5/5); good low running cost (priority 4/5). Mobile: React Native (Expo) — Team already writes javascript, typescript for the mobile app; shares TypeScript code and skills with the web app; good fast delivery (priority 5/5); good low running cost (priority 4/5).",
       "driven_by": [
         "project.type",
         "project.platforms",
@@ -20,19 +20,19 @@
       "alternatives": [
         {
           "choice": "SvelteKit",
-          "why_not": "Next.js is stronger on: good fast delivery (you weighted it 5/5) (priorities.time_to_market); rich interactive app screens (project.type). Overall 3.7 points behind."
+          "why_not": "Next.js is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market); rich interactive app screens (project.type). Overall 3.7 points behind. Known limit of SvelteKit: smaller hiring pool than React."
         },
         {
           "choice": "Astro",
-          "why_not": "Suited to content pages, not app screens (project.type); a static-site generator for a dynamic application (project.type). Overall 5.5 points behind."
+          "why_not": "Suited to content pages, not app screens (project.type); a static-site generator for a dynamic application (project.type). Overall 5.5 points behind. Known limit of Astro: interactive widgets need islands."
         },
         {
           "choice": "Ionic Capacitor (web app wrapped)",
-          "why_not": "Weaker performance (you weighted it 3/5) (priorities.performance). React Native (Expo) is stronger on: good scalability (you weighted it 3/5) (priorities.scalability). Overall 4.0 points behind."
+          "why_not": "Weaker performance (priority 3/5) (priorities.performance). React Native (Expo) is stronger on: good scalability (priority 3/5) (priorities.scalability). Overall 4.0 points behind. Known limit of Ionic Capacitor: webView performance on low-end devices."
         },
         {
           "choice": "Kotlin + Jetpack Compose (native Android)",
-          "why_not": "Team lists javascript, python, typescript but this needs kotlin/java (team.languages). React Native (Expo) is stronger on: good fast delivery (you weighted it 5/5) (priorities.time_to_market). Overall 19.2 points behind."
+          "why_not": "Team lists javascript, python, typescript but this needs kotlin/java (team.languages). React Native (Expo) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market). Overall 19.2 points behind. Known limit of Kotlin + Jetpack Compose: android only; iOS needs a second codebase."
         }
       ],
       "tradeoffs": [
@@ -51,7 +51,7 @@
     },
     "backend": {
       "choice": "Node.js 24 LTS + NestJS (TypeScript)",
-      "justification": "Team already writes javascript, typescript for the API; native WebSocket support; one language (TypeScript/JavaScript) across clients and server; good low running cost (you weighted it 4/5); good maintainability (you weighted it 3/5).",
+      "justification": "Team already writes javascript, typescript for the API; native WebSocket support; one language (TypeScript/JavaScript) across clients and server; good low running cost (priority 4/5); good fast delivery (priority 5/5).",
       "driven_by": [
         "team.experience",
         "team.languages",
@@ -63,11 +63,11 @@
       "alternatives": [
         {
           "choice": "Python 3.13 + Django 5.2 LTS",
-          "why_not": "Node.js 24 LTS + NestJS (TypeScript) is stronger on: native WebSocket support (requirements.realtime); good performance (you weighted it 3/5) (priorities.performance). Overall 2.0 points behind."
+          "why_not": "Node.js 24 LTS + NestJS (TypeScript) is stronger on: native WebSocket support (requirements.realtime); good performance (priority 3/5) (priorities.performance). Overall 2.0 points behind. Known limit of Python 3.13 + Django 5.2 LTS: webSockets need Django Channels."
         },
         {
           "choice": "Node.js 24 LTS + Express 5",
-          "why_not": "Node.js 24 LTS + NestJS (TypeScript) is stronger on: good maintainability (you weighted it 3/5) (priorities.maintainability); good scalability (you weighted it 3/5) (priorities.scalability). Overall 4.2 points behind."
+          "why_not": "Node.js 24 LTS + NestJS (TypeScript) is stronger on: good maintainability (priority 3/5) (priorities.maintainability); good scalability (priority 3/5) (priorities.scalability). Overall 4.2 points behind. Known limit of Node.js 24 LTS + Express 5: little structure; large codebases need discipline."
         }
       ],
       "tradeoffs": [
@@ -84,7 +84,7 @@
     },
     "database": {
       "choice": "Azure Database for PostgreSQL – Flexible Server 17 — Central India (Pune)",
-      "justification": "Strict ACID transactions for money and bookings; built-in full-text search avoids a separate search service; good low running cost (you weighted it 4/5); good maintainability (you weighted it 3/5).",
+      "justification": "Strict ACID transactions for money and bookings; built-in full-text search avoids a separate search service; good low running cost (priority 4/5); good fast delivery (priority 5/5).",
       "driven_by": [
         "requirements.full_text_search",
         "requirements.payments",
@@ -96,15 +96,11 @@
       "alternatives": [
         {
           "choice": "Supabase Postgres",
-          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 is stronger on: good low running cost (you weighted it 4/5) (priorities.cost); good maintainability (you weighted it 3/5) (priorities.maintainability). Overall 6.0 points behind."
+          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 is stronger on: good low running cost (priority 4/5) (priorities.cost); good maintainability (priority 3/5) (priorities.maintainability). Overall 6.0 points behind. Known limit of Supabase Postgres: free projects pause after 1 week of inactivity; production needs Pro."
         },
         {
           "choice": "Azure SQL Database (serverless/General Purpose)",
-          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 is stronger on: good low running cost (you weighted it 4/5) (priorities.cost). Overall 6.4 points behind."
-        },
-        {
-          "choice": "SQLite",
-          "why_not": "Excluded: single-file database: only for one self-hosted server at tiny scale (scale.users_12_months)."
+          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 is stronger on: good low running cost (priority 4/5) (priorities.cost). Overall 6.4 points behind. Known limit of Azure SQL Database: licence cost outside Azure SQL; Windows-centric tooling."
         }
       ],
       "tradeoffs": [
@@ -123,9 +119,10 @@
       ]
     },
     "hosting": {
-      "choice": "Azure App Service (Linux, Basic B1 and up) — Central India (Pune)",
-      "justification": "Satisfies the hard constraints (managed_cloud (no servers to patch), data_residency india -> Central India (Pune)). Good fast delivery (you weighted it 5/5); good maintainability (you weighted it 3/5).",
+      "choice": "Azure App Service (Linux, Basic B2 / Standard S1) — Central India (Pune)",
+      "justification": "Satisfies the hard constraints (managed_cloud (no servers to patch), data_residency india -> Central India (Pune)). Fully managed runtime (patching, TLS, scaling handled) for a team without a DevOps person; good fast delivery (priority 5/5); good low running cost (priority 4/5).",
       "driven_by": [
+        "team.has_devops",
         "infrastructure.deployment_model",
         "infrastructure.data_residency",
         "priorities.cost",
@@ -136,19 +133,18 @@
       "alternatives": [
         {
           "choice": "Google Cloud Run",
-          "why_not": "Azure App Service (Linux, Basic B1 and up) is stronger on: good fast delivery (you weighted it 5/5) (priorities.time_to_market); good maintainability (you weighted it 3/5) (priorities.maintainability). Overall 0.8 points behind."
+          "why_not": "Azure App Service (Linux, Basic B2 / Standard S1) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market); good maintainability (priority 3/5) (priorities.maintainability). Overall 2.3 points behind. Known limit of Google Cloud Run: cold starts unless min instances are paid for."
         },
         {
           "choice": "Azure Container Apps",
-          "why_not": "Azure App Service (Linux, Basic B1 and up) is stronger on: good fast delivery (you weighted it 5/5) (priorities.time_to_market); good maintainability (you weighted it 3/5) (priorities.maintainability). Overall 7.6 points behind."
+          "why_not": "Operations burden 2/5 with no dedicated DevOps person (team.has_devops). Azure App Service (Linux, Basic B2 / Standard S1) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market). Overall 9.1 points behind. Known limit of Azure Container Apps: more moving parts than App Service for a single web app."
         },
         {
-          "choice": "Cloudflare Pages",
-          "why_not": "Excluded: serves static/edge pages only; this project needs an application backend (project.type)."
+          "choice": "Render (web service + workers)",
+          "why_not": "Excluded: no INDIA region for application data (infrastructure.data_residency)."
         }
       ],
       "tradeoffs": [
-        "Hybrid Connections limited to 5 per Basic plan",
         "Less control than containers for unusual runtimes"
       ],
       "deployment": "managed",
@@ -347,7 +343,7 @@
       {
         "layer": "ci_cd",
         "choice": "GitHub Actions",
-        "justification": "Automated tests and deploys on every push to Azure App Service (Linux, Basic B1 and up); free minutes cover a team of 3.",
+        "justification": "Automated tests and deploys on every push to Azure App Service (Linux, Basic B2 / Standard S1); free minutes cover a team of 3.",
         "driven_by": [
           "team.size",
           "team.has_devops"
@@ -427,7 +423,7 @@
     "max": 467,
     "currency": "USD",
     "assumptions": [
-      "Hosting Azure App Service (Linux, Basic B1 and up): $30-150/month at the 'small' tier.",
+      "Hosting Azure App Service (Linux, Basic B2 / Standard S1): $30-150/month at the 'small' tier.",
       "Database Azure Database for PostgreSQL – Flexible Server 17: $30-120/month.",
       "storage: Azure Blob Storage (Central India (Pune)) $1-10/month.",
       "cdn: Azure Front Door $1-15/month.",

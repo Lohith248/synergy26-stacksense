@@ -2,12 +2,12 @@
   "scenario_id": "P3",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Modular monolith: React (Vite SPA) (web) on Go 1.27 (net/http + chi) with Azure Database for PostgreSQL – Flexible Server 17 — West Europe (Netherlands), hosted on Azure App Service (Linux, Basic B1 and up) — West Europe (Netherlands). Estimated $428-2309/month.",
+  "summary": "Modular monolith: React (Vite SPA) (web) on Go 1.27 (net/http + chi) with Azure Database for PostgreSQL – Flexible Server 17 — West Europe (Netherlands), hosted on Azure App Service (Linux, Premium v3, 2+ instances) — West Europe (Netherlands). Estimated $424-2308/month.",
   "architecture_style": "modular_monolith",
   "stack": {
     "frontend": {
       "choice": "React (Vite SPA) (web)",
-      "justification": "Web: React (Vite SPA) — Rich interactive app screens; team already writes typescript for the UI; good fast delivery (you weighted it 3/5); good performance (you weighted it 5/5).",
+      "justification": "Web: React (Vite SPA) — Rich interactive app screens; team already writes typescript for the UI; good performance (priority 5/5); good scalability (priority 5/5).",
       "driven_by": [
         "project.type",
         "project.platforms",
@@ -21,11 +21,11 @@
       "alternatives": [
         {
           "choice": "Next.js",
-          "why_not": "Learning curve 3/5 for a senior team (team.experience). React (Vite SPA) is stronger on: good low running cost (you weighted it 2/5) (priorities.cost). Overall 2.4 points behind."
+          "why_not": "Learning curve 3/5 for a senior team (team.experience). React (Vite SPA) is stronger on: good low running cost (priority 2/5) (priorities.cost). Overall 2.4 points behind. Known limit of Next.js: server runtime needed for SSR; more moving parts than a static site."
         },
         {
           "choice": "Angular",
-          "why_not": "Learning curve 4/5 for a senior team (team.experience). React (Vite SPA) is stronger on: good fast delivery (you weighted it 3/5) (priorities.time_to_market). Overall 2.5 points behind."
+          "why_not": "Learning curve 4/5 for a senior team (team.experience). React (Vite SPA) is stronger on: good fast delivery (priority 3/5) (priorities.time_to_market). Overall 2.5 points behind. Known limit of Angular: steeper learning curve; 24-month support per major."
         }
       ],
       "tradeoffs": [
@@ -41,7 +41,7 @@
     },
     "backend": {
       "choice": "Go 1.27 (net/http + chi)",
-      "justification": "Team already writes go for the API; native WebSocket support; good performance (you weighted it 5/5); good scalability (you weighted it 5/5).",
+      "justification": "Team already writes go for the API; native WebSocket support; good performance (priority 5/5); good scalability (priority 5/5).",
       "driven_by": [
         "team.languages",
         "requirements.realtime",
@@ -54,11 +54,11 @@
       "alternatives": [
         {
           "choice": "Node.js 24 LTS + NestJS (TypeScript)",
-          "why_not": "Go 1.27 (net/http + chi) is stronger on: good performance (you weighted it 5/5) (priorities.performance); good scalability (you weighted it 5/5) (priorities.scalability). Overall 2.8 points behind."
+          "why_not": "Go 1.27 (net/http + chi) is stronger on: good performance (priority 5/5) (priorities.performance); good scalability (priority 5/5) (priorities.scalability). Overall 2.8 points behind. Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
         },
         {
           "choice": ".NET 10 LTS + ASP.NET Core",
-          "why_not": "Team lists go, typescript but this needs csharp (team.languages). Go 1.27 (net/http + chi) is stronger on: good low running cost (you weighted it 2/5) (priorities.cost). Overall 10.0 points behind."
+          "why_not": "Team lists go, typescript but this needs csharp (team.languages). Go 1.27 (net/http + chi) is stronger on: good low running cost (priority 2/5) (priorities.cost). Overall 10.0 points behind. Known limit of .NET 10 LTS + ASP.NET Core: smaller open-source hosting choice outside Azure."
         }
       ],
       "tradeoffs": [
@@ -74,7 +74,7 @@
     },
     "database": {
       "choice": "Azure Database for PostgreSQL – Flexible Server 17 — West Europe (Netherlands)",
-      "justification": "Strict ACID transactions for money and bookings; row-level security enforces tenant isolation in the database; handles write-heavy load; good maintainability (you weighted it 4/5); good security (you weighted it 3/5).",
+      "justification": "Strict ACID transactions for money and bookings; row-level security enforces tenant isolation in the database; handles write-heavy load; good maintainability (priority 4/5); good performance (priority 5/5).",
       "driven_by": [
         "scale.workload",
         "requirements.payments",
@@ -88,15 +88,11 @@
       "alternatives": [
         {
           "choice": "Azure SQL Database (serverless/General Purpose)",
-          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 is stronger on: good low running cost (you weighted it 2/5) (priorities.cost). Overall 3.2 points behind."
+          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 is stronger on: good low running cost (priority 2/5) (priorities.cost). Overall 3.2 points behind. Known limit of Azure SQL Database: licence cost outside Azure SQL; Windows-centric tooling."
         },
         {
           "choice": "Supabase Postgres",
-          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 is stronger on: good maintainability (you weighted it 4/5) (priorities.maintainability); good security (you weighted it 3/5) (priorities.security). Overall 6.8 points behind."
-        },
-        {
-          "choice": "SQLite",
-          "why_not": "Excluded: single-file database: only for one self-hosted server at tiny scale (scale.users_12_months)."
+          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 is stronger on: good maintainability (priority 4/5) (priorities.maintainability); good security (priority 3/5) (priorities.security). Overall 6.8 points behind. Known limit of Supabase Postgres: free projects pause after 1 week of inactivity; production needs Pro."
         }
       ],
       "tradeoffs": [
@@ -115,8 +111,8 @@
       ]
     },
     "hosting": {
-      "choice": "Azure App Service (Linux, Basic B1 and up) — West Europe (Netherlands)",
-      "justification": "Satisfies the hard constraints (managed_cloud (no servers to patch)). Good maintainability (you weighted it 4/5); good security (you weighted it 3/5).",
+      "choice": "Azure App Service (Linux, Premium v3, 2+ instances) — West Europe (Netherlands)",
+      "justification": "Satisfies the hard constraints (managed_cloud (no servers to patch)). Good maintainability (priority 4/5); good performance (priority 5/5).",
       "driven_by": [
         "infrastructure.deployment_model",
         "priorities.time_to_market",
@@ -128,19 +124,18 @@
       "alternatives": [
         {
           "choice": "Google Cloud Run",
-          "why_not": "Azure App Service (Linux, Basic B1 and up) is stronger on: good maintainability (you weighted it 4/5) (priorities.maintainability); good fast delivery (you weighted it 3/5) (priorities.time_to_market). Overall 0.0 points behind."
+          "why_not": "Azure App Service (Linux, Premium v3, 2+ instances) is stronger on: good maintainability (priority 4/5) (priorities.maintainability); good fast delivery (priority 3/5) (priorities.time_to_market). Overall 1.5 points behind. Known limit of Google Cloud Run: cold starts unless min instances are paid for."
         },
         {
           "choice": "Azure Container Apps",
-          "why_not": "Azure App Service (Linux, Basic B1 and up) is stronger on: good maintainability (you weighted it 4/5) (priorities.maintainability); good fast delivery (you weighted it 3/5) (priorities.time_to_market). Overall 3.0 points behind."
+          "why_not": "Azure App Service (Linux, Premium v3, 2+ instances) is stronger on: good maintainability (priority 4/5) (priorities.maintainability); good fast delivery (priority 3/5) (priorities.time_to_market). Overall 3.0 points behind. Known limit of Azure Container Apps: more moving parts than App Service for a single web app."
         },
         {
-          "choice": "Amazon S3 + CloudFront (static site)",
-          "why_not": "Excluded: serves static/edge pages only; this project needs an application backend (project.type)."
+          "choice": "On-premises Kubernetes (k3s / RKE2)",
+          "why_not": "Excluded: self-managed infrastructure, but deployment_model is managed_cloud (infrastructure.deployment_model)."
         }
       ],
       "tradeoffs": [
-        "Hybrid Connections limited to 5 per Basic plan",
         "Less control than containers for unusual runtimes"
       ],
       "deployment": "managed",
@@ -365,7 +360,7 @@
       {
         "layer": "ci_cd",
         "choice": "GitHub Actions",
-        "justification": "Automated tests and deploys on every push to Azure App Service (Linux, Basic B1 and up); free minutes cover a team of 5.",
+        "justification": "Automated tests and deploys on every push to Azure App Service (Linux, Premium v3, 2+ instances); free minutes cover a team of 5.",
         "driven_by": [
           "team.size",
           "team.has_devops"
@@ -440,17 +435,17 @@
     ]
   },
   "estimated_monthly_cost_usd": {
-    "min": 428,
-    "max": 2309,
+    "min": 424,
+    "max": 2308,
     "currency": "USD",
     "assumptions": [
-      "Hosting Azure App Service (Linux, Basic B1 and up): $150-800/month at the 'medium' tier.",
+      "Hosting Azure App Service (Linux, Premium v3, 2+ instances): $150-800/month at the 'medium' tier.",
       "Database Azure Database for PostgreSQL – Flexible Server 17: $150-700/month.",
       "storage: Azure Blob Storage (West Europe (Netherlands)) $10-80/month.",
       "cache: Azure Managed Redis in West Europe (Netherlands) $60-350/month.",
       "queue: Azure Service Bus in West Europe (Netherlands) $5-30/month.",
       "cdn: Azure Front Door $15-120/month.",
-      "ci_cd: GitHub Actions $4-21/month.",
+      "ci_cd: GitHub Actions $0-20/month.",
       "observability: Azure Monitor + Application Insights in West Europe (Netherlands) $30-200/month.",
       "Stored data ~200 GB after 12 months at ~$0.02-0.035/GB-month (year-end volume used as an upper bound, not an average).",
       "Excluded: payment gateway fees (~2% per transaction) are a share of revenue, not infrastructure.",
@@ -470,7 +465,7 @@
     {
       "code": "LATENCY_TARGET_UNMEASURED",
       "severity": "info",
-      "message": "p95 100 ms is achievable only with users near the Azure App Service (Linux, Basic B1 and up) region and no cross-region calls; the engine cannot measure it — load-test before launch.",
+      "message": "p95 100 ms is achievable only with users near the Azure App Service (Linux, Premium v3, 2+ instances) region and no cross-region calls; the engine cannot measure it — load-test before launch.",
       "fields": [
         "requirements.p95_latency_ms"
       ]
@@ -486,7 +481,7 @@
     {
       "code": "BUDGET_AT_RISK",
       "severity": "info",
-      "message": "Upper estimate $2309/month can exceed the $1500 budget at peak usage.",
+      "message": "Upper estimate $2308/month can exceed the $1500 budget at peak usage.",
       "fields": [
         "budget.monthly_infra_usd"
       ]

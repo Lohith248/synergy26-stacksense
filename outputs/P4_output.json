@@ -2,12 +2,12 @@
   "scenario_id": "P4",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Small set of services: React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) on Java 21/25 LTS + Spring Boot with Amazon RDS for PostgreSQL 17 — ap-south-1 (Mumbai) (multi-AZ / zone-redundant HA), hosted on AWS ECS on Fargate (+ Application Load Balancer) — ap-south-1 (Mumbai). Estimated $1134-6220/month.",
+  "summary": "Small set of services: React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) on Java 21/25 LTS + Spring Boot with Amazon RDS for PostgreSQL 17 — ap-south-1 (Mumbai) (multi-AZ / zone-redundant HA), hosted on AWS ECS on Fargate (+ Application Load Balancer) — ap-south-1 (Mumbai). Estimated $1130-6219/month.",
   "architecture_style": "service_oriented",
   "stack": {
     "frontend": {
       "choice": "React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS)",
-      "justification": "Web: React (Vite SPA) — Rich interactive app screens; team already writes typescript for the UI; good fast delivery (you weighted it 3/5); good security (you weighted it 5/5). Mobile: Kotlin Multiplatform + Compose Multiplatform — Team already writes java, kotlin for the mobile app; one codebase for Android and iOS; good security (you weighted it 5/5); good performance (you weighted it 3/5).",
+      "justification": "Web: React (Vite SPA) — Rich interactive app screens; team already writes typescript for the UI; good security (priority 5/5); good low running cost (priority 2/5). Mobile: Kotlin Multiplatform + Compose Multiplatform — Team already writes java, kotlin for the mobile app; one codebase for Android and iOS; good security (priority 5/5); good maintainability (priority 4/5).",
       "driven_by": [
         "project.type",
         "project.platforms",
@@ -23,19 +23,19 @@
       "alternatives": [
         {
           "choice": "Angular",
-          "why_not": "Learning curve 4/5 for a senior team (team.experience). React (Vite SPA) is stronger on: good fast delivery (you weighted it 3/5) (priorities.time_to_market). Overall 0.9 points behind."
+          "why_not": "Learning curve 4/5 for a senior team (team.experience). React (Vite SPA) is stronger on: good fast delivery (priority 3/5) (priorities.time_to_market). Overall 0.9 points behind. Known limit of Angular: steeper learning curve; 24-month support per major."
         },
         {
           "choice": "Next.js",
-          "why_not": "Learning curve 3/5 for a senior team (team.experience). React (Vite SPA) is stronger on: good low running cost (you weighted it 2/5) (priorities.cost). Overall 2.4 points behind."
+          "why_not": "Learning curve 3/5 for a senior team (team.experience). React (Vite SPA) is stronger on: good low running cost (priority 2/5) (priorities.cost). Overall 2.4 points behind. Known limit of Next.js: server runtime needed for SSR; more moving parts than a static site."
         },
         {
           "choice": "React Native (Expo)",
-          "why_not": "Kotlin Multiplatform + Compose Multiplatform is stronger on: good performance (you weighted it 3/5) (priorities.performance); good security (you weighted it 5/5) (priorities.security). Overall 0.3 points behind."
+          "why_not": "Kotlin Multiplatform + Compose Multiplatform is stronger on: good performance (priority 3/5) (priorities.performance); good security (priority 5/5) (priorities.security). Overall 0.3 points behind. Known limit of React Native: jS runtime overhead on very low-end phones."
         },
         {
           "choice": "Ionic Capacitor (web app wrapped)",
-          "why_not": "Weaker performance (you weighted it 3/5) (priorities.performance). Kotlin Multiplatform + Compose Multiplatform is stronger on: good security (you weighted it 5/5) (priorities.security). Overall 8.3 points behind."
+          "why_not": "Weaker performance (priority 3/5) (priorities.performance). Kotlin Multiplatform + Compose Multiplatform is stronger on: good security (priority 5/5) (priorities.security). Overall 8.3 points behind. Known limit of Ionic Capacitor: webView performance on low-end devices."
         }
       ],
       "tradeoffs": [
@@ -53,7 +53,7 @@
     },
     "backend": {
       "choice": "Java 21/25 LTS + Spring Boot",
-      "justification": "Team already writes java, kotlin for the API; mature security/audit tooling; strong transactional frameworks for money movement; good security (you weighted it 5/5); good maintainability (you weighted it 4/5).",
+      "justification": "Team already writes java, kotlin for the API; mature security/audit tooling; strong transactional frameworks for money movement; good security (priority 5/5); good maintainability (priority 4/5).",
       "driven_by": [
         "project.type",
         "team.experience",
@@ -66,11 +66,11 @@
       "alternatives": [
         {
           "choice": "Node.js 24 LTS + NestJS (TypeScript)",
-          "why_not": "Java 21/25 LTS + Spring Boot is stronger on: good security (you weighted it 5/5) (priorities.security); good scalability (you weighted it 4/5) (priorities.scalability). Overall 5.6 points behind."
+          "why_not": "Java 21/25 LTS + Spring Boot is stronger on: good security (priority 5/5) (priorities.security); good scalability (priority 4/5) (priorities.scalability). Overall 5.6 points behind. Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
         },
         {
           "choice": ".NET 10 LTS + ASP.NET Core",
-          "why_not": "Team lists java, kotlin, typescript but this needs csharp (team.languages). Overall 8.4 points behind."
+          "why_not": "Team lists java, kotlin, typescript but this needs csharp (team.languages). Overall 8.4 points behind. Known limit of .NET 10 LTS + ASP.NET Core: smaller open-source hosting choice outside Azure."
         }
       ],
       "tradeoffs": [
@@ -86,7 +86,7 @@
     },
     "database": {
       "choice": "Amazon RDS for PostgreSQL 17 — ap-south-1 (Mumbai) (multi-AZ / zone-redundant HA)",
-      "justification": "Strict ACID transactions for money and bookings; good security (you weighted it 5/5); good maintainability (you weighted it 4/5).",
+      "justification": "Strict ACID transactions for money and bookings; good security (priority 5/5); good maintainability (priority 4/5).",
       "driven_by": [
         "requirements.payments",
         "priorities.cost",
@@ -97,11 +97,11 @@
       "alternatives": [
         {
           "choice": "Amazon RDS for SQL Server",
-          "why_not": "Amazon RDS for PostgreSQL 17 is stronger on: good low running cost (you weighted it 2/5) (priorities.cost). Overall 3.2 points behind."
+          "why_not": "Amazon RDS for PostgreSQL 17 is stronger on: good low running cost (priority 2/5) (priorities.cost). Overall 3.2 points behind. Known limit of Amazon RDS for SQL Server: licence cost outside Azure SQL; Windows-centric tooling."
         },
         {
           "choice": "Amazon RDS for MySQL 8.4",
-          "why_not": "Amazon RDS for PostgreSQL 17 is stronger on: good security (you weighted it 5/5) (priorities.security); good maintainability (you weighted it 4/5) (priorities.maintainability). Overall 9.7 points behind."
+          "why_not": "Amazon RDS for PostgreSQL 17 is stronger on: good security (priority 5/5) (priorities.security); good maintainability (priority 4/5) (priorities.maintainability). Overall 9.7 points behind. Known limit of Amazon RDS for MySQL 8.4: 8.0 moved to Sustaining Support (Apr 2026); no row-level security."
         },
         {
           "choice": "Supabase Postgres",
@@ -125,7 +125,7 @@
     },
     "hosting": {
       "choice": "AWS ECS on Fargate (+ Application Load Balancer) — ap-south-1 (Mumbai)",
-      "justification": "Satisfies the hard constraints (cloud_preference aws, managed_cloud (no servers to patch), data_residency india -> ap-south-1 (Mumbai)). Good security (you weighted it 5/5); good scalability (you weighted it 4/5).",
+      "justification": "Satisfies the hard constraints (cloud_preference aws, managed_cloud (no servers to patch), data_residency india -> ap-south-1 (Mumbai)). Good security (priority 5/5); good scalability (priority 4/5).",
       "driven_by": [
         "team.has_devops",
         "infrastructure.cloud_preference",
@@ -137,15 +137,15 @@
       "alternatives": [
         {
           "choice": "AWS Lambda + API Gateway",
-          "why_not": "Spring Boot is a long-running JVM/.NET server: slow cold starts and per-invocation connection pools on functions (team.languages). AWS ECS on Fargate (+ Application Load Balancer) is stronger on: good maintainability (you weighted it 4/5) (priorities.maintainability). Overall 6.4 points behind."
+          "why_not": "Spring Boot is a long-running JVM/.NET server: slow cold starts and per-invocation connection pools on functions (team.languages). AWS ECS on Fargate (+ Application Load Balancer) is stronger on: good maintainability (priority 4/5) (priorities.maintainability). Overall 6.4 points behind. Known limit of AWS Lambda + API Gateway: cold starts hurt tight p95 targets."
         },
         {
-          "choice": "Amazon S3 + CloudFront (static site)",
-          "why_not": "Excluded: serves static/edge pages only; this project needs an application backend (project.type)."
-        },
-        {
-          "choice": "Azure App Service (Linux, Basic B1 and up)",
+          "choice": "Azure App Service (Linux)",
           "why_not": "Excluded: runs on azure, but cloud_preference is aws (infrastructure.cloud_preference)."
+        },
+        {
+          "choice": "Google Cloud Run",
+          "why_not": "Excluded: runs on gcp, but cloud_preference is aws (infrastructure.cloud_preference)."
         }
       ],
       "tradeoffs": [
@@ -284,7 +284,7 @@
       },
       {
         "layer": "payments",
-        "choice": "Razorpay (UPI, cards, netbanking) — Route/RazorpayX Payouts to pay service providers; Subscriptions with UPI AutoPay / e-mandate for recurring collections",
+        "choice": "Razorpay (UPI, cards, netbanking) — RazorpayX Payouts for UPI loan disbursals to borrowers; Subscriptions with UPI AutoPay / e-mandate for recurring collections",
         "justification": "The description requires UPI. Hosted checkout keeps card data off your servers (PCI DSS SAQ A scope when fully outsourced). Payment confirmation is trusted only from signed server-side webhooks. For lending, disburse straight to the borrower's bank account and collect repayments directly into the lender's (regulated entity's) account — no pooled pass-through accounts (RBI Digital Lending Directions 2025). pci_dss: the gateway is PCI DSS Level 1; your scope still covers the pages that embed checkout.",
         "driven_by": [
           "requirements.payments",
@@ -479,8 +479,8 @@
     ]
   },
   "estimated_monthly_cost_usd": {
-    "min": 1134,
-    "max": 6220,
+    "min": 1130,
+    "max": 6219,
     "currency": "USD",
     "assumptions": [
       "Hosting AWS ECS on Fargate (+ Application Load Balancer): $200-900/month at the 'medium' tier.",
@@ -492,7 +492,7 @@
       "queue: Amazon SQS in ap-south-1 (Mumbai) $5-30/month.",
       "cdn: Amazon CloudFront $15-120/month.",
       "ml: Separate Python inference service (FastAPI + ONNX Runtime) in the same private network $40-200/month.",
-      "ci_cd: GitHub Actions $4-21/month.",
+      "ci_cd: GitHub Actions $0-20/month.",
       "observability: Amazon CloudWatch in ap-south-1 (Mumbai) (logs, metrics, alarms) $30-200/month.",
       "Stored data ~500 GB after 12 months at ~$0.02-0.035/GB-month (year-end volume used as an upper bound, not an average).",
       "Phone OTP: 300,000 users x 0.3-1.0 OTP logins/month at SNS India SMS rate band per SMS = $270-1,800/month (long-lived sessions keep OTPs rare).",
@@ -546,7 +546,7 @@
     {
       "code": "BUDGET_AT_RISK",
       "severity": "info",
-      "message": "Upper estimate $6220/month can exceed the $6000 budget at peak usage.",
+      "message": "Upper estimate $6219/month can exceed the $6000 budget at peak usage.",
       "fields": [
         "budget.monthly_infra_usd"
       ]

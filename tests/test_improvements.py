@@ -136,5 +136,48 @@ class RelaxedLabel(unittest.TestCase):  # item 6
             self.assertFalse([a for a in out["assumptions"] if a.startswith("Relaxed:")], i)
 
 
+class Explanations(unittest.TestCase):  # item 7
+    NOISE = ("(project.type)", "(scale.users_12_months)", "(project.platforms)")
+
+    def test_alternatives_are_real_options(self):
+        for i in range(1, 7):
+            out = run(P(i))
+            for layer in ("backend", "database", "hosting"):
+                alts = out["stack"][layer]["alternatives"]
+                viable = [a for a in alts if not a["why_not"].startswith("Excluded")]
+                self.assertGreaterEqual(len(alts), 1)
+                if len(viable) >= 2:
+                    for a in alts:
+                        if a["why_not"].startswith("Excluded"):
+                            self.assertFalse(any(n in a["why_not"] for n in self.NOISE), (i, layer, a))
+
+    def test_justification_skips_neutral_priorities(self):
+        for i in range(1, 7):
+            st = run(P(i))["stack"]
+            for layer in ("backend", "database", "hosting"):
+                self.assertNotIn("(priority 3/5)", st[layer]["justification"], (i, layer))
+
+    def test_disbursal_wording(self):
+        pay = [s for s in run(P(4))["stack"]["supporting"] if s["layer"] == "payments"][0]
+        self.assertIn("disburs", pay["choice"].lower())
+        self.assertNotIn("service providers", pay["choice"])
+
+    def test_cross_cloud_existing_service_flagged(self):
+        for cloud in ("aws", "gcp"):
+            out = run(P(5, infrastructure__cloud_preference=cloud))
+            self.assertIn("EXISTING_CROSS_CLOUD_SERVICE", {w["code"] for w in out["warnings"]}, cloud)
+
+    def test_ci_cost_follows_team_size(self):
+        with open(os.path.join(ROOT, "scenarios", "edge_cases", "E4_overengineering_trap.json"), encoding="utf-8") as f:
+            out = run(json.load(f))
+        ci = [a for a in out["estimated_monthly_cost_usd"]["assumptions"] if a.startswith("ci_cd")]
+        self.assertTrue(all("$0-4" in a or "$0-0" in a for a in ci), ci)
+
+    def test_hosting_plan_sized_to_scale(self):
+        self.assertNotIn("and up", core(run(P(3)), "hosting"))
+        self.assertIn("Premium", core(run(P(3)), "hosting"))
+        self.assertIn("Basic", core(run(P(5)), "hosting"))
+
+
 if __name__ == "__main__":
     unittest.main()

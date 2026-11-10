@@ -2,12 +2,12 @@
   "scenario_id": "P1",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Static site: Astro (web), hosted on Cloudflare Pages — Cloudflare edge network. Estimated $0-0/month.",
+  "summary": "Static site: Astro (web), hosted on Cloudflare Pages — Cloudflare edge network. Estimated $0-5/month.",
   "architecture_style": "static",
   "stack": {
     "frontend": {
       "choice": "Astro (web)",
-      "justification": "Web: Astro — Team already writes css, html, javascript for the UI; server-rendered/static HTML that search engines index; pre-built static pages, no server needed; good low running cost (you weighted it 5/5); good fast delivery (you weighted it 4/5).",
+      "justification": "Web: Astro — Team already writes css, html, javascript for the UI; server-rendered/static HTML that search engines index; pre-built static pages, no server needed; good low running cost (priority 5/5); good fast delivery (priority 4/5).",
       "driven_by": [
         "project.type",
         "project.description",
@@ -21,11 +21,11 @@
       "alternatives": [
         {
           "choice": "Hugo",
-          "why_not": "Astro is stronger on: good fast delivery (you weighted it 4/5) (priorities.time_to_market). Overall 1.6 points behind."
+          "why_not": "Astro is stronger on: good fast delivery (priority 4/5) (priorities.time_to_market). Overall 1.6 points behind. Known limit of Hugo: go templating is unfamiliar to JS developers."
         },
         {
           "choice": "SvelteKit",
-          "why_not": "Needs a server runtime for a site that does not (project.type). Astro is stronger on: good low running cost (you weighted it 5/5) (priorities.cost). Overall 17.2 points behind."
+          "why_not": "Needs a server runtime for a site that does not (project.type). Astro is stronger on: good low running cost (priority 5/5) (priorities.cost). Overall 17.2 points behind. Known limit of SvelteKit: smaller hiring pool than React."
         }
       ],
       "tradeoffs": [
@@ -90,9 +90,10 @@
     },
     "hosting": {
       "choice": "Cloudflare Pages — Cloudflare edge network",
-      "justification": "A static site needs nothing more than a CDN host; fits a zero budget on its free plan; quick to set up for a 2-week MVP; good low running cost (you weighted it 5/5); good fast delivery (you weighted it 4/5).",
+      "justification": "A static site needs nothing more than a CDN host; fits a zero budget on its free plan; fully managed runtime (patching, TLS, scaling handled) for a team without a DevOps person; good low running cost (priority 5/5); good fast delivery (priority 4/5).",
       "driven_by": [
         "project.type",
+        "team.has_devops",
         "budget.monthly_infra_usd",
         "timeline.mvp_weeks",
         "infrastructure.deployment_model",
@@ -103,11 +104,11 @@
       "alternatives": [
         {
           "choice": "Firebase Hosting (Google Cloud)",
-          "why_not": "Cloudflare Pages is stronger on: good scalability (you weighted it 1/5) (priorities.scalability). Overall 0.8 points behind."
+          "why_not": "Cloudflare Pages is stronger on: good scalability (priority 1/5) (priorities.scalability). Overall 0.8 points behind. Known limit of Firebase Hosting: spark plan: 10 GB storage and 10 GB/month transfer, site disabled when exceeded unless upgraded to Blaze."
         },
         {
           "choice": "Amazon S3 + CloudFront (static site)",
-          "why_not": "Cloudflare Pages is stronger on: good fast delivery (you weighted it 4/5) (priorities.time_to_market). Overall 1.6 points behind."
+          "why_not": "Cloudflare Pages is stronger on: good fast delivery (priority 4/5) (priorities.time_to_market). Overall 1.6 points behind. Known limit of Amazon S3 + CloudFront: more setup than a git-push host (bucket policy, distribution, cache invalidation)."
         },
         {
           "choice": "On-premises Linux servers (Docker Compose)",
@@ -181,10 +182,11 @@
   },
   "estimated_monthly_cost_usd": {
     "min": 0,
-    "max": 0,
+    "max": 5,
     "currency": "USD",
     "assumptions": [
       "Hosting Cloudflare Pages: $0-0/month at the 'tiny' tier.",
+      "ci_cd: GitHub Actions $0-4/month.",
       "Excluded: taxes, domain names, paid support plans and data-egress spikes. Order-of-magnitude band, not a quote."
     ]
   },

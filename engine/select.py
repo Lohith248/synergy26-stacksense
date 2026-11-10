@@ -46,7 +46,7 @@ def prio_terms(c, ctx, r):
         if delta:
             word = "good" if delta > 0 else "weaker"
             c.add(f"prio_{k}", w * delta * 0.8, f"priorities.{k}",
-                  f"{word} {PRIO_LABEL[k]} (you weighted it {w}/5)")
+                  f"{word} {PRIO_LABEL[k]} (priority {w}/5)")
 
 
 def lang_term(c, ctx, langs, weight, what):
@@ -106,6 +106,8 @@ def hosting_candidates(ctx):
         # soft
         prio_terms(c, ctx, h["r"])
         ops = h["ops"]
+        if ops == 1 and not ctx["devops"]:
+            c.add("ops", 1.5, "team.has_devops", "fully managed runtime (patching, TLS, scaling handled) for a team without a DevOps person")
         if ops > 1:
             if ctx["devops"]:
                 c.add("ops", -(ops - 1) * 0.6, "team.has_devops", f"operations burden {ops}/5 (team has DevOps skills)")
@@ -128,6 +130,8 @@ def hosting_candidates(ctx):
         if req["requirements.realtime"] and kind == "serverless":
             c.add("realtime", -10, "requirements.realtime",
                   "functions cannot hold long-lived WebSocket connections; realtime would need a separate connection gateway")
+        if req["requirements.realtime"] and h.get("ws_timeout"):
+            c.add("realtime", -1.5, "requirements.realtime", "WebSocket connections end at the request timeout, so clients must reconnect")
         lat = req["requirements.p95_latency_ms"]
         if lat is not None and lat <= 150 and kind == "serverless":
             c.add("latency", -3, "requirements.p95_latency_ms", f"cold starts threaten a {lat} ms p95")

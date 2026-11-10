@@ -31,6 +31,7 @@
   "gcp-storage-locations": {"url": "https://docs.cloud.google.com/storage/docs/locations", "title": "Cloud Storage locations: asia-south1 Mumbai, asia-south2 Delhi", "status": "verified", "claims": ["R4:8.5"]},
   "gcp-hipaa": {"url": "https://docs.cloud.google.com/docs/security/compliance/hipaa", "title": "Google Cloud HIPAA BAA", "status": "verified", "claims": ["R4:5.5"]},
   "gcp-cloudrun-pricing": {"url": "https://cloud.google.com/run/pricing", "title": "Cloud Run pricing", "status": "official-unverified"},
+  "gcp-cloudrun-websockets": {"url": "https://cloud.google.com/run/docs/triggering/websockets", "title": "Cloud Run: using WebSockets (connections subject to the request timeout)", "status": "official-unverified"},
   "firebase-pricing": {"url": "https://firebase.google.com/pricing", "title": "Firebase pricing (phone auth billed per SMS; FCM no-cost)", "status": "verified", "claims": ["R1:GCP-08", "R1:GCP-10", "R2:9.1"]},
   "github-pages-limits": {"url": "https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits", "title": "GitHub Pages limits: 1 GB site, 100 GB/month soft bandwidth, not for commercial SaaS", "status": "verified", "claims": ["R2:1.1", "R2:1.2", "R2:1.4"]},
   "cloudflare-pages-limits": {"url": "https://developers.cloudflare.com/pages/platform/limits/", "title": "Cloudflare Pages limits: 500 builds/month free, 20,000 files", "status": "verified", "claims": ["R2:1.5", "R2:1.7"]},

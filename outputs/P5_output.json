@@ -2,12 +2,12 @@
   "scenario_id": "P5",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Hybrid cloud + on-premises integration: React (Vite SPA) (web) on .NET 10 LTS + ASP.NET Core with Azure SQL Database (serverless/General Purpose) — Central India (Pune), hosted on Azure App Service (Linux, Basic B1 and up) — Central India (Pune). Estimated $51-276/month.",
+  "summary": "Hybrid cloud + on-premises integration: React (Vite SPA) (web) on .NET 10 LTS + ASP.NET Core with Azure SQL Database (serverless/General Purpose) — Central India (Pune), hosted on Azure App Service (Linux, Basic B2 / Standard S1) — Central India (Pune). Estimated $51-276/month.",
   "architecture_style": "hybrid",
   "stack": {
     "frontend": {
       "choice": "React (Vite SPA) (web)",
-      "justification": "Web: React (Vite SPA) — Rich interactive app screens; team already writes javascript for the UI; internal app behind login needs no SEO; good fast delivery (you weighted it 5/5); good low running cost (you weighted it 3/5).",
+      "justification": "Web: React (Vite SPA) — Rich interactive app screens; team already writes javascript for the UI; internal app behind login needs no SEO; good fast delivery (priority 5/5); good maintainability (priority 5/5).",
       "driven_by": [
         "project.type",
         "project.description",
@@ -21,11 +21,11 @@
       "alternatives": [
         {
           "choice": "Blazor (ASP.NET Core 10)",
-          "why_not": "React (Vite SPA) is stronger on: good fast delivery (you weighted it 5/5) (priorities.time_to_market); rich interactive app screens (project.type). Overall 2.2 points behind."
+          "why_not": "React (Vite SPA) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market); rich interactive app screens (project.type). Overall 2.2 points behind. Known limit of Blazor: smaller component ecosystem than React."
         },
         {
           "choice": "Next.js",
-          "why_not": "Learning curve 3/5 for an intermediate team (team.experience). React (Vite SPA) is stronger on: good low running cost (you weighted it 3/5) (priorities.cost). Overall 4.8 points behind."
+          "why_not": "Learning curve 3/5 for an intermediate team (team.experience). React (Vite SPA) is stronger on: good low running cost (priority 3/5) (priorities.cost). Overall 4.8 points behind. Known limit of Next.js: server runtime needed for SSR; more moving parts than a static site."
         }
       ],
       "tradeoffs": [
@@ -41,7 +41,7 @@
     },
     "backend": {
       "choice": ".NET 10 LTS + ASP.NET Core",
-      "justification": "Team already writes csharp for the API; first-class SQL Server driver/ORM; mature security/audit tooling; good maintainability (you weighted it 5/5); good security (you weighted it 4/5).",
+      "justification": "Team already writes csharp for the API; first-class SQL Server driver/ORM; mature security/audit tooling; good maintainability (priority 5/5); good security (priority 4/5).",
       "driven_by": [
         "team.experience",
         "team.languages",
@@ -55,11 +55,11 @@
       "alternatives": [
         {
           "choice": "Node.js 24 LTS + NestJS (TypeScript)",
-          "why_not": ".NET 10 LTS + ASP.NET Core is stronger on: first-class SQL Server driver/ORM (infrastructure.existing_systems); good security (you weighted it 4/5) (priorities.security). Overall 9.6 points behind."
+          "why_not": ".NET 10 LTS + ASP.NET Core is stronger on: first-class SQL Server driver/ORM (infrastructure.existing_systems); good security (priority 4/5) (priorities.security). Overall 9.6 points behind. Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
         },
         {
           "choice": "Node.js 24 LTS + Express 5",
-          "why_not": ".NET 10 LTS + ASP.NET Core is stronger on: good maintainability (you weighted it 5/5) (priorities.maintainability); good security (you weighted it 4/5) (priorities.security). Overall 17.4 points behind."
+          "why_not": ".NET 10 LTS + ASP.NET Core is stronger on: good maintainability (priority 5/5) (priorities.maintainability); good security (priority 4/5) (priorities.security). Overall 17.4 points behind. Known limit of Node.js 24 LTS + Express 5: little structure; large codebases need discipline."
         }
       ],
       "tradeoffs": [
@@ -75,7 +75,7 @@
     },
     "database": {
       "choice": "Azure SQL Database (serverless/General Purpose) — Central India (Pune)",
-      "justification": "Matches the existing On-prem SQL Server 2019 the team already runs; EF Core + SQL Server is the default .NET pairing; team knows SQL; good maintainability (you weighted it 5/5); good security (you weighted it 4/5). New application data lives in the cloud database; the on-prem server is integrated, not migrated (see supporting 'other').",
+      "justification": "Matches the existing On-prem SQL Server 2019 the team already runs; EF Core + SQL Server is the default .NET pairing; team knows SQL; good maintainability (priority 5/5); good security (priority 4/5). New application data lives in the cloud database; the on-prem server is integrated, not migrated (see supporting 'other').",
       "driven_by": [
         "team.languages",
         "infrastructure.existing_systems",
@@ -86,11 +86,11 @@
       "alternatives": [
         {
           "choice": "Azure Database for PostgreSQL – Flexible Server 17",
-          "why_not": "Azure SQL Database (serverless/General Purpose) is stronger on: matches the existing On-prem SQL Server 2019 the team already runs (infrastructure.existing_systems); EF Core + SQL Server is the default .NET pairing (team.languages). Overall 6.7 points behind."
+          "why_not": "Azure SQL Database (serverless/General Purpose) is stronger on: matches the existing On-prem SQL Server 2019 the team already runs (infrastructure.existing_systems); EF Core + SQL Server is the default .NET pairing (team.languages). Overall 6.7 points behind. Known limit of Azure Database for PostgreSQL – Flexible Server 17: vertical write scaling; sharding needs extensions."
         },
         {
           "choice": "Azure Database for MySQL – Flexible Server 8.4",
-          "why_not": "Azure SQL Database (serverless/General Purpose) is stronger on: matches the existing On-prem SQL Server 2019 the team already runs (infrastructure.existing_systems); good maintainability (you weighted it 5/5) (priorities.maintainability). Overall 13.9 points behind."
+          "why_not": "Azure SQL Database (serverless/General Purpose) is stronger on: matches the existing On-prem SQL Server 2019 the team already runs (infrastructure.existing_systems); good maintainability (priority 5/5) (priorities.maintainability). Overall 13.9 points behind. Known limit of Azure Database for MySQL – Flexible Server 8.4: 8.0 moved to Sustaining Support (Apr 2026); no row-level security."
         },
         {
           "choice": "Supabase Postgres",
@@ -110,9 +110,10 @@
       ]
     },
     "hosting": {
-      "choice": "Azure App Service (Linux, Basic B1 and up) — Central India (Pune)",
-      "justification": "Satisfies the hard constraints (cloud_preference azure, managed_cloud (no servers to patch), data_residency india -> Central India (Pune)). Hybrid Connections reach the existing on-prem database without opening inbound ports; built-in Entra ID sign-in (Easy Auth); quick to set up for a 6-week MVP; good maintainability (you weighted it 5/5); good fast delivery (you weighted it 5/5).",
+      "choice": "Azure App Service (Linux, Basic B2 / Standard S1) — Central India (Pune)",
+      "justification": "Satisfies the hard constraints (cloud_preference azure, managed_cloud (no servers to patch), data_residency india -> Central India (Pune)). Hybrid Connections reach the existing on-prem database without opening inbound ports; built-in Entra ID sign-in (Easy Auth); fully managed runtime (patching, TLS, scaling handled) for a team without a DevOps person; good maintainability (priority 5/5); good fast delivery (priority 5/5).",
       "driven_by": [
+        "team.has_devops",
         "timeline.mvp_weeks",
         "infrastructure.cloud_preference",
         "infrastructure.deployment_model",
@@ -124,7 +125,7 @@
       "alternatives": [
         {
           "choice": "Azure Container Apps",
-          "why_not": "Azure App Service (Linux, Basic B1 and up) is stronger on: good maintainability (you weighted it 5/5) (priorities.maintainability); good fast delivery (you weighted it 5/5) (priorities.time_to_market). Overall 13.8 points behind."
+          "why_not": "Azure App Service (Linux, Basic B2 / Standard S1) is stronger on: good maintainability (priority 5/5) (priorities.maintainability); good fast delivery (priority 5/5) (priorities.time_to_market). Overall 15.3 points behind. Known limit of Azure Container Apps: more moving parts than App Service for a single web app."
         },
         {
           "choice": "Cloudflare Pages",
@@ -216,7 +217,7 @@
       {
         "layer": "ci_cd",
         "choice": "GitHub Actions",
-        "justification": "Automated tests and deploys on every push to Azure App Service (Linux, Basic B1 and up); free minutes cover a team of 2.",
+        "justification": "Automated tests and deploys on every push to Azure App Service (Linux, Basic B2 / Standard S1); free minutes cover a team of 2.",
         "driven_by": [
           "team.size",
           "team.has_devops"
@@ -326,7 +327,7 @@
     "max": 276,
     "currency": "USD",
     "assumptions": [
-      "Hosting Azure App Service (Linux, Basic B1 and up): $30-150/month at the 'small' tier.",
+      "Hosting Azure App Service (Linux, Basic B2 / Standard S1): $30-150/month at the 'small' tier.",
       "Database Azure SQL Database (serverless/General Purpose): $15-80/month.",
       "storage: Azure Blob Storage (Central India (Pune)) $1-10/month.",
       "ci_cd: GitHub Actions $0-4/month.",
