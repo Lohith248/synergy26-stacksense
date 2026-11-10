@@ -1,0 +1,465 @@
+{
+  "scenario_id": "P2",
+  "engine_version": "1.0.0",
+  "status": "ok",
+  "summary": "Modular monolith: Next.js (web) + React Native (Expo) (Android) on Node.js 24 LTS + NestJS (TypeScript) with Azure Database for PostgreSQL – Flexible Server 17 — Central India (Pune), hosted on Azure App Service (Linux, Basic B1 and up) — Central India (Pune). Estimated $89-467/month.",
+  "architecture_style": "modular_monolith",
+  "stack": {
+    "frontend": {
+      "choice": "Next.js (web) + React Native (Expo) (Android)",
+      "justification": "Web: Next.js — Rich interactive app screens; team already writes javascript, typescript for the UI; server-rendered/static HTML that search engines index; good fast delivery (you weighted it 5/5); good low running cost (you weighted it 4/5). Mobile: React Native (Expo) — Team already writes javascript, typescript for the mobile app; shares TypeScript code and skills with the web app; good fast delivery (you weighted it 5/5); good low running cost (you weighted it 4/5).",
+      "driven_by": [
+        "project.type",
+        "project.platforms",
+        "team.experience",
+        "team.languages",
+        "requirements.seo_critical",
+        "priorities.cost",
+        "priorities.time_to_market"
+      ],
+      "alternatives": [
+        {
+          "choice": "SvelteKit",
+          "why_not": "Next.js is stronger on: good fast delivery (you weighted it 5/5) (priorities.time_to_market); rich interactive app screens (project.type). Overall 3.7 points behind."
+        },
+        {
+          "choice": "Astro",
+          "why_not": "Suited to content pages, not app screens (project.type); a static-site generator for a dynamic application (project.type). Overall 5.5 points behind."
+        },
+        {
+          "choice": "Ionic Capacitor (web app wrapped)",
+          "why_not": "Weaker performance (you weighted it 3/5) (priorities.performance). React Native (Expo) is stronger on: good scalability (you weighted it 3/5) (priorities.scalability). Overall 4.0 points behind."
+        },
+        {
+          "choice": "Flutter",
+          "why_not": "Team lists javascript, python, typescript but this needs dart (team.languages). React Native (Expo) is stronger on: good fast delivery (you weighted it 5/5) (priorities.time_to_market). Overall 17.3 points behind."
+        }
+      ],
+      "tradeoffs": [
+        "Server runtime needed for SSR; more moving parts than a static site",
+        "JS runtime overhead on very low-end phones"
+      ],
+      "deployment": "client",
+      "provider": "neutral",
+      "data_bearing": false,
+      "data_location": null,
+      "sources": [
+        "https://expo.dev/changelog",
+        "https://nextjs.org/blog",
+        "https://reactnative.dev/blog"
+      ]
+    },
+    "backend": {
+      "choice": "Node.js 24 LTS + NestJS (TypeScript)",
+      "justification": "Team already writes javascript, typescript for the API; native WebSocket support; one language (TypeScript/JavaScript) across clients and server; good low running cost (you weighted it 4/5); good maintainability (you weighted it 3/5).",
+      "driven_by": [
+        "team.experience",
+        "team.languages",
+        "requirements.realtime",
+        "priorities.cost",
+        "priorities.time_to_market",
+        "priorities.maintainability"
+      ],
+      "alternatives": [
+        {
+          "choice": "Python 3.13 + Django 5.2 LTS",
+          "why_not": "Node.js 24 LTS + NestJS (TypeScript) is stronger on: native WebSocket support (requirements.realtime); good performance (you weighted it 3/5) (priorities.performance). Overall 2.0 points behind."
+        },
+        {
+          "choice": "Node.js 24 LTS + Express 5",
+          "why_not": "Node.js 24 LTS + NestJS (TypeScript) is stronger on: good maintainability (you weighted it 3/5) (priorities.maintainability); good scalability (you weighted it 3/5) (priorities.scalability). Overall 4.2 points behind."
+        }
+      ],
+      "tradeoffs": [
+        "More boilerplate than Express"
+      ],
+      "deployment": "library",
+      "provider": "neutral",
+      "data_bearing": false,
+      "data_location": null,
+      "sources": [
+        "https://github.com/nodejs/release#release-schedule",
+        "https://docs.nestjs.com/"
+      ]
+    },
+    "database": {
+      "choice": "Azure Database for PostgreSQL – Flexible Server 17 — Central India (Pune)",
+      "justification": "Strict ACID transactions for money and bookings; built-in full-text search avoids a separate search service; good low running cost (you weighted it 4/5); good maintainability (you weighted it 3/5).",
+      "driven_by": [
+        "requirements.full_text_search",
+        "requirements.payments",
+        "priorities.cost",
+        "priorities.time_to_market",
+        "priorities.maintainability",
+        "priorities.security"
+      ],
+      "alternatives": [
+        {
+          "choice": "Azure SQL Database (serverless/General Purpose)",
+          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 is stronger on: good low running cost (you weighted it 4/5) (priorities.cost). Overall 6.4 points behind."
+        },
+        {
+          "choice": "Azure Database for MySQL – Flexible Server 8.4",
+          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 is stronger on: strict ACID transactions for money and bookings (requirements.payments); good maintainability (you weighted it 3/5) (priorities.maintainability). Overall 7.3 points behind."
+        },
+        {
+          "choice": "SQLite",
+          "why_not": "Excluded: single-file database: only for one self-hosted server at tiny scale (scale.users_12_months)."
+        }
+      ],
+      "tradeoffs": [
+        "Vertical write scaling; sharding needs extensions"
+      ],
+      "deployment": "managed",
+      "provider": "azure",
+      "data_bearing": true,
+      "data_location": "india",
+      "sources": [
+        "https://www.postgresql.org/support/versioning/",
+        "https://www.postgresql.org/docs/current/textsearch.html",
+        "https://www.postgresql.org/docs/current/ddl-rowsecurity.html",
+        "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html",
+        "https://supabase.com/docs/guides/platform/regions"
+      ]
+    },
+    "hosting": {
+      "choice": "Azure App Service (Linux, Basic B1 and up) — Central India (Pune)",
+      "justification": "Satisfies the hard constraints (managed_cloud (no servers to patch), data_residency india -> Central India (Pune)). Good fast delivery (you weighted it 5/5); good maintainability (you weighted it 3/5).",
+      "driven_by": [
+        "infrastructure.deployment_model",
+        "infrastructure.data_residency",
+        "priorities.cost",
+        "priorities.time_to_market",
+        "priorities.maintainability",
+        "priorities.security"
+      ],
+      "alternatives": [
+        {
+          "choice": "Google Cloud Run",
+          "why_not": "Azure App Service (Linux, Basic B1 and up) is stronger on: good fast delivery (you weighted it 5/5) (priorities.time_to_market); good maintainability (you weighted it 3/5) (priorities.maintainability). Overall 0.8 points behind."
+        },
+        {
+          "choice": "Azure Container Apps",
+          "why_not": "Azure App Service (Linux, Basic B1 and up) is stronger on: good fast delivery (you weighted it 5/5) (priorities.time_to_market); good maintainability (you weighted it 3/5) (priorities.maintainability). Overall 7.6 points behind."
+        },
+        {
+          "choice": "Cloudflare Pages",
+          "why_not": "Excluded: serves static/edge pages only; this project needs an application backend (project.type)."
+        }
+      ],
+      "tradeoffs": [
+        "Hybrid Connections limited to 5 per Basic plan",
+        "Less control than containers for unusual runtimes"
+      ],
+      "deployment": "managed",
+      "provider": "azure",
+      "data_bearing": true,
+      "data_location": "india",
+      "region": "Central India (Pune)",
+      "sources": [
+        "https://learn.microsoft.com/en-us/azure/reliability/regions-list",
+        "https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/",
+        "https://azure.microsoft.com/en-us/pricing/details/app-service/linux/",
+        "https://learn.microsoft.com/en-us/azure/app-service/app-service-hybrid-connections",
+        "https://learn.microsoft.com/en-us/azure/compliance/"
+      ]
+    },
+    "supporting": [
+      {
+        "layer": "auth",
+        "choice": "Backend-issued sessions + MSG91 OTP API (India)",
+        "justification": "phone_otp for Indian users: an Indian SMS provider with DLT-registered templates is the cheapest reliable OTP route (about Rs 0.20 per SMS); the backend stores users and refresh tokens in the in-region database.",
+        "driven_by": [
+          "requirements.auth",
+          "infrastructure.data_residency"
+        ],
+        "alternatives": [
+          {
+            "choice": "Firebase Authentication (phone)",
+            "why_not": "stores identity data in Google's global auth service, conflicting with India residency"
+          },
+          {
+            "choice": "Twilio Verify",
+            "why_not": "about $0.05 per verification plus SMS, far above Indian SMS rates"
+          }
+        ],
+        "tradeoffs": [
+          "DLT registration of sender ID/template before launch",
+          "OTP needs network at login; sessions must stay valid offline"
+        ],
+        "deployment": "saas",
+        "provider": "msg91",
+        "data_bearing": false,
+        "data_location": null,
+        "sources": [
+          "https://msg91.com/in/pricing/otp",
+          "https://www.trai.gov.in/",
+          "https://firebase.google.com/pricing",
+          "https://www.twilio.com/en-us/verify/pricing"
+        ]
+      },
+      {
+        "layer": "storage",
+        "choice": "Azure Blob Storage (Central India (Pune))",
+        "justification": "Uploads (images, documents) go straight from clients to object storage via signed URLs. Private bucket, server-generated signed URLs, encryption with managed keys.",
+        "driven_by": [
+          "requirements.file_media_storage",
+          "infrastructure.data_residency"
+        ],
+        "alternatives": [
+          {
+            "choice": "Storing files in the database",
+            "why_not": "bloats backups and costs more per GB"
+          },
+          {
+            "choice": "Cloudflare R2",
+            "why_not": "zero egress fees, but a second vendor outside AZURE"
+          }
+        ],
+        "tradeoffs": [
+          "Egress charges for heavy downloads"
+        ],
+        "deployment": "managed",
+        "provider": "azure",
+        "data_bearing": true,
+        "data_location": "india",
+        "sources": [
+          "https://aws.amazon.com/compliance/india-data-protection/",
+          "https://docs.cloud.google.com/storage/docs/locations",
+          "https://learn.microsoft.com/en-us/azure/reliability/regions-list"
+        ]
+      },
+      {
+        "layer": "search",
+        "choice": "PostgreSQL full-text search (tsvector + GIN index)",
+        "justification": "At ~30,000 users the primary database's built-in full-text search is enough; no extra service to run or pay for.",
+        "driven_by": [
+          "requirements.full_text_search",
+          "scale.users_12_months"
+        ],
+        "alternatives": [
+          {
+            "choice": "Meilisearch / OpenSearch",
+            "why_not": "a separate cluster to operate before the data size needs it"
+          }
+        ],
+        "tradeoffs": [
+          "Typo tolerance and ranking are basic; move to a search engine if relevance becomes a product feature"
+        ],
+        "deployment": "library",
+        "provider": "neutral",
+        "data_bearing": false,
+        "data_location": null,
+        "sources": [
+          "https://www.postgresql.org/docs/current/textsearch.html"
+        ]
+      },
+      {
+        "layer": "realtime",
+        "choice": "Socket.IO on the Node API",
+        "justification": "Live updates and chat over WebSockets from the same backend, so authorisation and data stay in one place.",
+        "driven_by": [
+          "requirements.realtime",
+          "project.description"
+        ],
+        "alternatives": [
+          {
+            "choice": "Ably / Pusher",
+            "why_not": "managed fan-out, but an extra vendor and per-connection cost"
+          },
+          {
+            "choice": "Polling",
+            "why_not": "wastes requests and adds latency"
+          }
+        ],
+        "tradeoffs": [
+          "Scale-out needs a pub/sub backplane (Redis/Valkey)"
+        ],
+        "deployment": "library",
+        "provider": "neutral",
+        "data_bearing": false,
+        "data_location": null,
+        "sources": [
+          "https://ably.com/pricing"
+        ]
+      },
+      {
+        "layer": "payments",
+        "choice": "Razorpay (UPI, cards, netbanking) — Route/RazorpayX Payouts to pay service providers",
+        "justification": "Hosted checkout keeps card data off your servers (PCI DSS SAQ A scope when fully outsourced). Payment confirmation is trusted only from signed server-side webhooks.",
+        "driven_by": [
+          "requirements.payments",
+          "project.description",
+          "infrastructure.data_residency"
+        ],
+        "alternatives": [
+          {
+            "choice": "Cashfree Payments",
+            "why_not": "comparable Indian gateway; Razorpay chosen for combined UPI + payouts + subscriptions documentation"
+          },
+          {
+            "choice": "Stripe",
+            "why_not": "India accounts are invite-based and UPI coverage is narrower"
+          }
+        ],
+        "tradeoffs": [
+          "Per-transaction fees (~2% domestic cards) are charged on revenue, not in the infrastructure band",
+          "Webhook handling must be idempotent"
+        ],
+        "deployment": "saas",
+        "provider": "razorpay",
+        "data_bearing": true,
+        "data_location": "india",
+        "sources": [
+          "https://razorpay.com/upi/",
+          "https://razorpay.com/pricing/",
+          "https://razorpay.com/security/",
+          "https://stripe.com/in/pricing",
+          "https://razorpay.com/route/",
+          "https://razorpay.com/x/payouts/"
+        ]
+      },
+      {
+        "layer": "cdn",
+        "choice": "Azure Front Door",
+        "justification": "Caches public pages and static assets near users; only public, non-personal content is cached at the edge.",
+        "driven_by": [
+          "project.platforms",
+          "requirements.seo_critical"
+        ],
+        "alternatives": [
+          {
+            "choice": "No CDN",
+            "why_not": "every asset request hits the origin; slower for distant users"
+          }
+        ],
+        "tradeoffs": [
+          "Cache invalidation on deploys"
+        ],
+        "deployment": "managed",
+        "provider": "azure",
+        "data_bearing": false,
+        "data_location": null,
+        "sources": [
+          "https://aws.amazon.com/about-aws/global-infrastructure/regional-product-services/"
+        ]
+      },
+      {
+        "layer": "ci_cd",
+        "choice": "GitHub Actions",
+        "justification": "Automated tests and deploys on every push to Azure App Service (Linux, Basic B1 and up); free minutes cover a team of 3.",
+        "driven_by": [
+          "team.size",
+          "team.has_devops"
+        ],
+        "alternatives": [
+          {
+            "choice": "GitLab CI",
+            "why_not": "equivalent; GitHub chosen for its marketplace of deploy actions"
+          }
+        ],
+        "tradeoffs": [
+          "Secrets must be stored as encrypted environment secrets"
+        ],
+        "deployment": "saas",
+        "provider": "github",
+        "data_bearing": false,
+        "data_location": null,
+        "sources": [
+          "https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions"
+        ]
+      },
+      {
+        "layer": "observability",
+        "choice": "Azure Monitor + Application Insights in Central India (Pune)",
+        "justification": "Logs and metrics stay with the host provider in Central India (Pune); alerts on error rate and latency against the 500 ms p95 target.",
+        "driven_by": [
+          "requirements.availability",
+          "requirements.p95_latency_ms",
+          "infrastructure.data_residency"
+        ],
+        "alternatives": [
+          {
+            "choice": "Sentry (SaaS)",
+            "why_not": "stores data only in the US or EU"
+          }
+        ],
+        "tradeoffs": [
+          "Log retention costs grow with traffic"
+        ],
+        "deployment": "managed",
+        "provider": "azure",
+        "data_bearing": true,
+        "data_location": "india",
+        "sources": [
+          "https://docs.sentry.io/organization/data-storage-location/"
+        ]
+      },
+      {
+        "layer": "other",
+        "choice": "Firebase Cloud Messaging (push notifications)",
+        "justification": "Mobile users must hear about new jobs/messages immediately; FCM is no-cost and also relays to iOS via APNs. Payloads carry only an ID, never personal data.",
+        "driven_by": [
+          "project.platforms",
+          "project.description"
+        ],
+        "alternatives": [
+          {
+            "choice": "Polling from the app",
+            "why_not": "drains battery and misses events when the app is closed"
+          }
+        ],
+        "tradeoffs": [
+          "Delivery is best-effort; critical updates also appear in-app"
+        ],
+        "deployment": "saas",
+        "provider": "google",
+        "data_bearing": false,
+        "data_location": null,
+        "sources": [
+          "https://firebase.google.com/pricing"
+        ]
+      }
+    ]
+  },
+  "estimated_monthly_cost_usd": {
+    "min": 89,
+    "max": 467,
+    "currency": "USD",
+    "assumptions": [
+      "Hosting Azure App Service (Linux, Basic B1 and up): $30-150/month at the 'small' tier.",
+      "Database Azure Database for PostgreSQL – Flexible Server 17: $30-120/month.",
+      "storage: Azure Blob Storage (Central India (Pune)) $1-10/month.",
+      "cdn: Azure Front Door $1-15/month.",
+      "ci_cd: GitHub Actions $0-4/month.",
+      "observability: Azure Monitor + Application Insights in Central India (Pune) $5-30/month.",
+      "Stored data ~50 GB after 12 months at ~$0.02-0.035/GB-month (year-end volume used as an upper bound, not an average).",
+      "Phone OTP: 30,000 users x 0.3-1.0 OTP logins/month at India SMS ~Rs 0.20-0.25 + GST per SMS = $22-135/month (long-lived sessions keep OTPs rare).",
+      "Excluded: payment gateway fees (~2% per transaction) are a share of revenue, not infrastructure.",
+      "Excluded: taxes, domain names, paid support plans and data-egress spikes. Order-of-magnitude band, not a quote."
+    ]
+  },
+  "warnings": [
+    {
+      "code": "DPDP_OBLIGATIONS",
+      "severity": "info",
+      "message": "DPDP Act 2023: collect consent with a clear notice, support access/correction/erasure requests, keep breach-notification runbooks (72 h to the Board under the 2025 Rules) and delete data when the purpose ends. Hosting in India simplifies transfers; legal review still required.",
+      "fields": [
+        "compliance"
+      ]
+    },
+    {
+      "code": "BUDGET_AT_RISK",
+      "severity": "info",
+      "message": "Upper estimate $467/month can exceed the $150 budget at peak usage.",
+      "fields": [
+        "budget.monthly_infra_usd"
+      ]
+    }
+  ],
+  "assumptions": [
+    "Knowledge base as of 2026-11-10; lifecycle and pricing judgements use that date, not the run date.",
+    "Scale tier 'small' from 30,000 users and ~800 peak concurrent users (people, not requests per second; used only for sizing and cost)."
+  ],
+  "validation_errors": []
+}

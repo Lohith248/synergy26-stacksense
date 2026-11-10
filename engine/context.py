@@ -45,7 +45,6 @@ def build(req):
     c["api_only"] = plats == ["api_only"] or (set(plats) == {"api_only"})
     users = max(req["scale.users_12_months"], req["scale.users_at_launch"])
     peak = req["scale.peak_concurrent_users"]
-    c["peak_assumed"] = peak is None
     if peak is None:
         peak = max(1, users // 10)
     c["users"], c["peak"] = users, peak

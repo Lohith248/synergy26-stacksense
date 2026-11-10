@@ -1,0 +1,560 @@
+{
+  "scenario_id": "P4",
+  "engine_version": "1.0.0",
+  "status": "ok",
+  "summary": "Small set of services: React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) on Java 21/25 LTS + Spring Boot with Amazon RDS for PostgreSQL 17 — ap-south-1 (Mumbai) (multi-AZ / zone-redundant HA), hosted on AWS ECS on Fargate (+ Application Load Balancer) — ap-south-1 (Mumbai). Estimated $1134-6220/month.",
+  "architecture_style": "service_oriented",
+  "stack": {
+    "frontend": {
+      "choice": "React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS)",
+      "justification": "Web: React (Vite SPA) — Rich interactive app screens; team already writes typescript for the UI; good fast delivery (you weighted it 3/5); good security (you weighted it 5/5). Mobile: Kotlin Multiplatform + Compose Multiplatform — Team already writes java, kotlin for the mobile app; one codebase for Android and iOS; good security (you weighted it 5/5); good performance (you weighted it 3/5).",
+      "driven_by": [
+        "project.type",
+        "project.platforms",
+        "team.experience",
+        "team.languages",
+        "priorities.cost",
+        "priorities.time_to_market",
+        "priorities.scalability",
+        "priorities.performance",
+        "priorities.maintainability",
+        "priorities.security"
+      ],
+      "alternatives": [
+        {
+          "choice": "Angular",
+          "why_not": "Learning curve 4/5 for a senior team (team.experience). React (Vite SPA) is stronger on: good fast delivery (you weighted it 3/5) (priorities.time_to_market). Overall 0.9 points behind."
+        },
+        {
+          "choice": "Next.js",
+          "why_not": "Learning curve 3/5 for a senior team (team.experience). React (Vite SPA) is stronger on: good low running cost (you weighted it 2/5) (priorities.cost). Overall 2.4 points behind."
+        },
+        {
+          "choice": "React Native (Expo)",
+          "why_not": "Kotlin Multiplatform + Compose Multiplatform is stronger on: good performance (you weighted it 3/5) (priorities.performance); good security (you weighted it 5/5) (priorities.security). Overall 0.3 points behind."
+        },
+        {
+          "choice": "Ionic Capacitor (web app wrapped)",
+          "why_not": "Weaker performance (you weighted it 3/5) (priorities.performance). Kotlin Multiplatform + Compose Multiplatform is stronger on: good security (you weighted it 5/5) (priorities.security). Overall 8.3 points behind."
+        }
+      ],
+      "tradeoffs": [
+        "Client-rendered pages are weak for SEO",
+        "iOS tooling less mature than native Swift"
+      ],
+      "deployment": "client",
+      "provider": "neutral",
+      "data_bearing": false,
+      "data_location": null,
+      "sources": [
+        "https://kotlinlang.org/docs/releases.html",
+        "https://react.dev/blog/2025/02/14/sunsetting-create-react-app"
+      ]
+    },
+    "backend": {
+      "choice": "Java 21/25 LTS + Spring Boot",
+      "justification": "Team already writes java, kotlin for the API; mature security/audit tooling; strong transactional frameworks for money movement; good security (you weighted it 5/5); good maintainability (you weighted it 4/5).",
+      "driven_by": [
+        "project.type",
+        "team.experience",
+        "team.languages",
+        "compliance",
+        "priorities.scalability",
+        "priorities.maintainability",
+        "priorities.security"
+      ],
+      "alternatives": [
+        {
+          "choice": ".NET 10 LTS + ASP.NET Core",
+          "why_not": "Team lists java, kotlin, typescript but this needs csharp (team.languages). Overall 2.7 points behind."
+        },
+        {
+          "choice": "Node.js 24 LTS + NestJS (TypeScript)",
+          "why_not": "Java 21/25 LTS + Spring Boot is stronger on: good security (you weighted it 5/5) (priorities.security); good scalability (you weighted it 4/5) (priorities.scalability). Overall 5.6 points behind."
+        }
+      ],
+      "tradeoffs": [
+        "Heavier runtime and slower iteration than Node/Python"
+      ],
+      "deployment": "library",
+      "provider": "neutral",
+      "data_bearing": false,
+      "data_location": null,
+      "sources": [
+        "https://spring.io/projects/spring-boot"
+      ]
+    },
+    "database": {
+      "choice": "Amazon RDS for PostgreSQL 17 — ap-south-1 (Mumbai) (multi-AZ / zone-redundant HA)",
+      "justification": "Strict ACID transactions for money and bookings; good security (you weighted it 5/5); good maintainability (you weighted it 4/5).",
+      "driven_by": [
+        "requirements.payments",
+        "priorities.cost",
+        "priorities.scalability",
+        "priorities.maintainability",
+        "priorities.security"
+      ],
+      "alternatives": [
+        {
+          "choice": "Amazon RDS for SQL Server",
+          "why_not": "Amazon RDS for PostgreSQL 17 is stronger on: good low running cost (you weighted it 2/5) (priorities.cost). Overall 3.2 points behind."
+        },
+        {
+          "choice": "Amazon RDS for MySQL 8.4",
+          "why_not": "Amazon RDS for PostgreSQL 17 is stronger on: good security (you weighted it 5/5) (priorities.security); good maintainability (you weighted it 4/5) (priorities.maintainability). Overall 9.7 points behind."
+        },
+        {
+          "choice": "SQLite",
+          "why_not": "Excluded: single-file database: only for one self-hosted server at tiny scale (scale.users_12_months)."
+        }
+      ],
+      "tradeoffs": [
+        "Vertical write scaling; sharding needs extensions"
+      ],
+      "deployment": "managed",
+      "provider": "aws",
+      "data_bearing": true,
+      "data_location": "india",
+      "sources": [
+        "https://www.postgresql.org/support/versioning/",
+        "https://www.postgresql.org/docs/current/textsearch.html",
+        "https://www.postgresql.org/docs/current/ddl-rowsecurity.html",
+        "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html",
+        "https://supabase.com/docs/guides/platform/regions"
+      ]
+    },
+    "hosting": {
+      "choice": "AWS ECS on Fargate (+ Application Load Balancer) — ap-south-1 (Mumbai)",
+      "justification": "Satisfies the hard constraints (cloud_preference aws, managed_cloud (no servers to patch), data_residency india -> ap-south-1 (Mumbai)). Good security (you weighted it 5/5); good scalability (you weighted it 4/5).",
+      "driven_by": [
+        "team.has_devops",
+        "infrastructure.cloud_preference",
+        "infrastructure.deployment_model",
+        "priorities.scalability",
+        "priorities.maintainability",
+        "priorities.security"
+      ],
+      "alternatives": [
+        {
+          "choice": "AWS Lambda + API Gateway",
+          "why_not": "Java 21/25 LTS + Spring Boot cold starts on functions (team.languages). AWS ECS on Fargate (+ Application Load Balancer) is stronger on: good maintainability (you weighted it 4/5) (priorities.maintainability). Overall 2.4 points behind."
+        },
+        {
+          "choice": "Azure App Service (Linux, Basic B1 and up)",
+          "why_not": "Excluded: runs on azure, but cloud_preference is aws (infrastructure.cloud_preference)."
+        },
+        {
+          "choice": "Google Cloud Run",
+          "why_not": "Excluded: runs on gcp, but cloud_preference is aws (infrastructure.cloud_preference)."
+        }
+      ],
+      "tradeoffs": [
+        "Load balancer and NAT add fixed monthly cost",
+        "More AWS concepts (VPC, IAM, task definitions) than a PaaS"
+      ],
+      "deployment": "managed",
+      "provider": "aws",
+      "data_bearing": true,
+      "data_location": "india",
+      "region": "ap-south-1 (Mumbai)",
+      "sources": [
+        "https://aws.amazon.com/about-aws/global-infrastructure/regional-product-services/",
+        "https://aws.amazon.com/fargate/pricing/",
+        "https://docs.aws.amazon.com/apprunner/latest/dg/apprunner-availability-change.html",
+        "https://aws.amazon.com/compliance/programs/"
+      ]
+    },
+    "supporting": [
+      {
+        "layer": "auth",
+        "choice": "Amazon Cognito user pool + Amazon SNS SMS OTP in ap-south-1 (Mumbai)",
+        "justification": "phone_otp with cloud_preference aws: Cognito custom-auth issues OTP via SNS SMS inside AWS in ap-south-1 (Mumbai), keeping identity data in the chosen region.",
+        "driven_by": [
+          "requirements.auth",
+          "infrastructure.cloud_preference",
+          "infrastructure.data_residency"
+        ],
+        "alternatives": [
+          {
+            "choice": "MSG91 OTP",
+            "why_not": "cheaper Indian SMS, but a second vendor outside the requested AWS footprint"
+          },
+          {
+            "choice": "Firebase Authentication (phone)",
+            "why_not": "Google service outside the AWS preference"
+          }
+        ],
+        "tradeoffs": [
+          "India SMS needs DLT-registered sender ID and templates",
+          "SMS cost scales with logins"
+        ],
+        "deployment": "managed",
+        "provider": "aws",
+        "data_bearing": true,
+        "data_location": "india",
+        "sources": [
+          "https://aws.amazon.com/cognito/pricing/",
+          "https://docs.aws.amazon.com/sns/latest/dg/sns-supported-regions-countries.html",
+          "https://www.trai.gov.in/"
+        ]
+      },
+      {
+        "layer": "storage",
+        "choice": "Amazon S3 (ap-south-1 (Mumbai))",
+        "justification": "Uploads (images, documents) go straight from clients to object storage via signed URLs. Private bucket, server-generated signed URLs, encryption with managed keys.",
+        "driven_by": [
+          "requirements.file_media_storage",
+          "infrastructure.data_residency"
+        ],
+        "alternatives": [
+          {
+            "choice": "Storing files in the database",
+            "why_not": "bloats backups and costs more per GB"
+          },
+          {
+            "choice": "Cloudflare R2",
+            "why_not": "zero egress fees, but a second vendor outside AWS"
+          }
+        ],
+        "tradeoffs": [
+          "Egress charges for heavy downloads"
+        ],
+        "deployment": "managed",
+        "provider": "aws",
+        "data_bearing": true,
+        "data_location": "india",
+        "sources": [
+          "https://aws.amazon.com/compliance/india-data-protection/",
+          "https://docs.cloud.google.com/storage/docs/locations",
+          "https://learn.microsoft.com/en-us/azure/reliability/regions-list"
+        ]
+      },
+      {
+        "layer": "cache",
+        "choice": "Amazon ElastiCache for Valkey in ap-south-1 (Mumbai)",
+        "justification": "Cache and pub/sub layer: ~10,000 concurrent users.",
+        "driven_by": [
+          "scale.peak_concurrent_users"
+        ],
+        "alternatives": [
+          {
+            "choice": "Redis (7.4+)",
+            "why_not": "now source-available (RSALv2/SSPL); Valkey keeps the BSD licence"
+          },
+          {
+            "choice": "No cache",
+            "why_not": "database absorbs every hot read and no cross-instance pub/sub"
+          }
+        ],
+        "tradeoffs": [
+          "Another stateful component to size and monitor"
+        ],
+        "deployment": "managed",
+        "provider": "aws",
+        "data_bearing": false,
+        "data_location": null,
+        "sources": [
+          "https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/WhatIs.html",
+          "https://valkey.io/"
+        ]
+      },
+      {
+        "layer": "queue",
+        "choice": "Amazon SQS in ap-south-1 (Mumbai)",
+        "justification": "Background work: payment webhooks and ledger postings processed idempotently with retries.",
+        "driven_by": [
+          "requirements.payments"
+        ],
+        "alternatives": [
+          {
+            "choice": "Synchronous processing in the request",
+            "why_not": "slow responses and lost work when a call fails"
+          }
+        ],
+        "tradeoffs": [
+          "Consumers must be idempotent"
+        ],
+        "deployment": "managed",
+        "provider": "aws",
+        "data_bearing": true,
+        "data_location": "india",
+        "sources": [
+          "https://aws.amazon.com/about-aws/global-infrastructure/regional-product-services/"
+        ]
+      },
+      {
+        "layer": "payments",
+        "choice": "Razorpay (UPI, cards, netbanking) — Route/RazorpayX Payouts to pay service providers; Subscriptions with UPI AutoPay / e-mandate for recurring collections",
+        "justification": "The description requires UPI. Hosted checkout keeps card data off your servers (PCI DSS SAQ A scope when fully outsourced). Payment confirmation is trusted only from signed server-side webhooks. For lending, disburse straight to the borrower's bank account and collect repayments directly into the lender's (regulated entity's) account — no pooled pass-through accounts (RBI Digital Lending Directions 2025). pci_dss: the gateway is PCI DSS Level 1; your scope still covers the pages that embed checkout.",
+        "driven_by": [
+          "requirements.payments",
+          "project.description",
+          "compliance",
+          "infrastructure.data_residency"
+        ],
+        "alternatives": [
+          {
+            "choice": "Cashfree Payments",
+            "why_not": "comparable Indian gateway; Razorpay chosen for combined UPI + payouts + subscriptions documentation"
+          },
+          {
+            "choice": "Stripe",
+            "why_not": "India accounts are invite-based and UPI coverage is narrower"
+          }
+        ],
+        "tradeoffs": [
+          "Per-transaction fees (~2% domestic cards) are charged on revenue, not in the infrastructure band",
+          "Webhook handling must be idempotent"
+        ],
+        "deployment": "saas",
+        "provider": "razorpay",
+        "data_bearing": true,
+        "data_location": "india",
+        "sources": [
+          "https://razorpay.com/upi/",
+          "https://razorpay.com/pricing/",
+          "https://razorpay.com/security/",
+          "https://stripe.com/in/pricing",
+          "https://razorpay.com/route/",
+          "https://razorpay.com/x/payouts/",
+          "https://razorpay.com/subscriptions/",
+          "https://www.rbi.org.in/scripts/NotificationUser.aspx?Id=12848",
+          "https://www.pcisecuritystandards.org/faqs/",
+          "https://blog.pcisecuritystandards.org/now-is-the-time-for-organizations-to-adopt-the-future-dated-requirements-of-pci-dss-v4-x"
+        ]
+      },
+      {
+        "layer": "cdn",
+        "choice": "Amazon CloudFront",
+        "justification": "Caches public pages and static assets near users; only public, non-personal content is cached at the edge.",
+        "driven_by": [
+          "project.platforms",
+          "scale.users_12_months"
+        ],
+        "alternatives": [
+          {
+            "choice": "No CDN",
+            "why_not": "every asset request hits the origin; slower for distant users"
+          }
+        ],
+        "tradeoffs": [
+          "Cache invalidation on deploys"
+        ],
+        "deployment": "managed",
+        "provider": "aws",
+        "data_bearing": false,
+        "data_location": null,
+        "sources": [
+          "https://aws.amazon.com/about-aws/global-infrastructure/regional-product-services/"
+        ]
+      },
+      {
+        "layer": "ml",
+        "choice": "Separate Python inference service (FastAPI + ONNX Runtime) in the same private network",
+        "justification": "The core API is Java 21/25 LTS + Spring Boot; a small Python service serves the model behind an internal endpoint so data scientists keep their tooling. Credit-scoring outputs and their inputs are logged for audit and explainability.",
+        "driven_by": [
+          "requirements.ml_features",
+          "project.description",
+          "infrastructure.data_residency"
+        ],
+        "alternatives": [
+          {
+            "choice": "Amazon SageMaker AI real-time endpoint",
+            "why_not": "managed MLOps, but always-on endpoint cost before volume justifies it"
+          }
+        ],
+        "tradeoffs": [
+          "Model versioning, drift monitoring and fairness review are your responsibility"
+        ],
+        "deployment": "library",
+        "provider": "neutral",
+        "data_bearing": true,
+        "data_location": "india",
+        "sources": [
+          "https://aws.amazon.com/sagemaker/ai/pricing/"
+        ]
+      },
+      {
+        "layer": "ci_cd",
+        "choice": "GitHub Actions",
+        "justification": "Automated tests and deploys on every push to AWS ECS on Fargate (+ Application Load Balancer); free minutes cover a team of 8.",
+        "driven_by": [
+          "team.size",
+          "team.has_devops"
+        ],
+        "alternatives": [
+          {
+            "choice": "GitLab CI",
+            "why_not": "equivalent; GitHub chosen for its marketplace of deploy actions"
+          }
+        ],
+        "tradeoffs": [
+          "Secrets must be stored as encrypted environment secrets"
+        ],
+        "deployment": "saas",
+        "provider": "github",
+        "data_bearing": false,
+        "data_location": null,
+        "sources": [
+          "https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions"
+        ]
+      },
+      {
+        "layer": "observability",
+        "choice": "Amazon CloudWatch in ap-south-1 (Mumbai) (logs, metrics, alarms)",
+        "justification": "Logs and metrics stay with the host provider in ap-south-1 (Mumbai); alerts on error rate and latency against the 300 ms p95 target.",
+        "driven_by": [
+          "requirements.availability",
+          "requirements.p95_latency_ms",
+          "infrastructure.data_residency"
+        ],
+        "alternatives": [
+          {
+            "choice": "Sentry (SaaS)",
+            "why_not": "stores data only in the US or EU"
+          }
+        ],
+        "tradeoffs": [
+          "Log retention costs grow with traffic"
+        ],
+        "deployment": "managed",
+        "provider": "aws",
+        "data_bearing": true,
+        "data_location": "india",
+        "sources": [
+          "https://docs.sentry.io/organization/data-storage-location/"
+        ]
+      },
+      {
+        "layer": "other",
+        "choice": "Double-entry ledger module (append-only journal, SERIALIZABLE transactions, idempotency keys)",
+        "justification": "Loan disbursals and EMI collections post balanced debit/credit entries that are never updated in place; reconciliation compares the ledger with gateway settlement reports.",
+        "driven_by": [
+          "project.description",
+          "requirements.payments"
+        ],
+        "alternatives": [
+          {
+            "choice": "Balance columns updated in place",
+            "why_not": "no audit trail and race conditions"
+          }
+        ],
+        "tradeoffs": [
+          "Corrections are reversing entries, not edits"
+        ],
+        "deployment": "library",
+        "provider": "neutral",
+        "data_bearing": true,
+        "data_location": "india",
+        "sources": [
+          "https://www.postgresql.org/support/versioning/"
+        ]
+      },
+      {
+        "layer": "other",
+        "choice": "KYC document vault (private encrypted bucket) + regulated KYC verification partner",
+        "justification": "KYC uploads are stored encrypted with access logging and retention rules; identity checks go through a licensed verification partner chosen by the business.",
+        "driven_by": [
+          "project.description",
+          "compliance",
+          "infrastructure.data_residency"
+        ],
+        "alternatives": [
+          {
+            "choice": "Storing KYC files in the app database",
+            "why_not": "large blobs and broader access"
+          }
+        ],
+        "tradeoffs": [
+          "Verification partner contract and API not selected here"
+        ],
+        "deployment": "managed",
+        "provider": "aws",
+        "data_bearing": true,
+        "data_location": "india",
+        "sources": [
+          "https://www.rbi.org.in/scripts/NotificationUser.aspx?Id=12848"
+        ]
+      }
+    ]
+  },
+  "estimated_monthly_cost_usd": {
+    "min": 1134,
+    "max": 6220,
+    "currency": "USD",
+    "assumptions": [
+      "Hosting AWS ECS on Fargate (+ Application Load Balancer): $200-900/month at the 'medium' tier.",
+      "Database Amazon RDS for PostgreSQL 17: $270-1400/month (HA doubles instances).",
+      "Availability ≥99.95%: at least two app instances across zones.",
+      "auth: Amazon Cognito user pool + Amazon SNS SMS OTP in ap-south-1 (Mumbai) $30-250/month.",
+      "storage: Amazon S3 (ap-south-1 (Mumbai)) $10-80/month.",
+      "cache: Amazon ElastiCache for Valkey in ap-south-1 (Mumbai) $50-300/month.",
+      "queue: Amazon SQS in ap-south-1 (Mumbai) $5-30/month.",
+      "cdn: Amazon CloudFront $15-120/month.",
+      "ml: Separate Python inference service (FastAPI + ONNX Runtime) in the same private network $40-200/month.",
+      "ci_cd: GitHub Actions $4-21/month.",
+      "observability: Amazon CloudWatch in ap-south-1 (Mumbai) (logs, metrics, alarms) $30-200/month.",
+      "Stored data ~500 GB after 12 months at ~$0.02-0.035/GB-month (year-end volume used as an upper bound, not an average).",
+      "Phone OTP: 300,000 users x 0.3-1.0 OTP logins/month at SNS India SMS rate band per SMS = $270-1,800/month (long-lived sessions keep OTPs rare).",
+      "Excluded: payment gateway fees (~2% per transaction) are a share of revenue, not infrastructure.",
+      "Excluded: taxes, domain names, paid support plans and data-egress spikes. Order-of-magnitude band, not a quote."
+    ]
+  },
+  "warnings": [
+    {
+      "code": "PEAK_EQUALS_LAUNCH_USERS",
+      "severity": "info",
+      "message": "Every launch user (10,000) is assumed online at once at peak; sizing uses this conservative figure.",
+      "fields": [
+        "scale.peak_concurrent_users",
+        "scale.users_at_launch"
+      ]
+    },
+    {
+      "code": "RBI_LOCALISATION",
+      "severity": "info",
+      "message": "RBI payment-data localisation: all payment data, backups and logs stay on systems in India; anything processed abroad must be deleted there and brought back within 24 hours.",
+      "fields": [
+        "compliance",
+        "infrastructure.data_residency"
+      ]
+    },
+    {
+      "code": "PCI_SCOPE",
+      "severity": "info",
+      "message": "PCI DSS v4.0.1: card data handled only by the gateway's hosted fields/checkout keeps scope small (SAQ A when fully outsourced); still secure the pages that embed checkout.",
+      "fields": [
+        "compliance"
+      ]
+    },
+    {
+      "code": "DPDP_OBLIGATIONS",
+      "severity": "info",
+      "message": "DPDP Act 2023: collect consent with a clear notice, support access/correction/erasure requests, keep breach-notification runbooks (72 h to the Board under the 2025 Rules) and delete data when the purpose ends. Hosting in India simplifies transfers; legal review still required.",
+      "fields": [
+        "compliance"
+      ]
+    },
+    {
+      "code": "ISO27001_CONTROLS",
+      "severity": "info",
+      "message": "ISO/IEC 27001:2022 certifies your organisation's ISMS, not a cloud provider's badge: keep asset inventory, access reviews, logging and change management for this system.",
+      "fields": [
+        "compliance"
+      ]
+    },
+    {
+      "code": "BUDGET_AT_RISK",
+      "severity": "info",
+      "message": "Upper estimate $6220/month can exceed the $6000 budget at peak usage.",
+      "fields": [
+        "budget.monthly_infra_usd"
+      ]
+    }
+  ],
+  "assumptions": [
+    "Knowledge base as of 2026-11-10; lifecycle and pricing judgements use that date, not the run date.",
+    "Scale tier 'medium' from 300,000 users and ~10,000 peak concurrent users (people, not requests per second; used only for sizing and cost)."
+  ],
+  "validation_errors": []
+}

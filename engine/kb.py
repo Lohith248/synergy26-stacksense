@@ -15,13 +15,6 @@ SOURCES = _load("sources.json")
 AS_OF = TECH["as_of"]
 
 
-def by_id(group, pid):
-    for item in TECH[group]:
-        if item["id"] == pid:
-            return item
-    raise KeyError(pid)
-
-
 def cite(ids):
-    """Source ids -> list of URLs (unknown ids are a KB bug; lint test catches them)."""
-    return [SOURCES[i]["url"] for i in ids if i in SOURCES]
+    """Source ids -> list of URLs. An unknown id is a KB bug and fails loudly (exercised by the test suite)."""
+    return [SOURCES[i]["url"] for i in ids]

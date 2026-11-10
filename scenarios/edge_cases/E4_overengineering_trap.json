@@ -1,0 +1,63 @@
+{
+  "scenario_id": "E4",
+  "project": {
+    "name": "Viral launch page",
+    "type": "content_site",
+    "description": "Marketing launch page expecting a traffic spike from a TV ad.",
+    "platforms": [
+      "web"
+    ]
+  },
+  "scale": {
+    "traffic_pattern": "spiky",
+    "workload": "read_heavy",
+    "users_at_launch": 500000,
+    "users_12_months": 3000000,
+    "peak_concurrent_users": 50000,
+    "data_volume_gb_12_months": 1
+  },
+  "team": {
+    "has_devops": false,
+    "size": 1,
+    "experience": "beginner",
+    "languages": [
+      "javascript",
+      "html",
+      "css"
+    ]
+  },
+  "budget": {
+    "monthly_infra_usd": 50
+  },
+  "timeline": {
+    "mvp_weeks": 2
+  },
+  "infrastructure": {
+    "cloud_preference": "any",
+    "deployment_model": "managed_cloud",
+    "data_residency": "none",
+    "existing_systems": []
+  },
+  "requirements": {
+    "realtime": false,
+    "offline_support": false,
+    "full_text_search": false,
+    "file_media_storage": false,
+    "payments": false,
+    "auth": "none",
+    "multi_tenant": false,
+    "ml_features": "none",
+    "seo_critical": true,
+    "availability": "99",
+    "p95_latency_ms": null
+  },
+  "compliance": [],
+  "priorities": {
+    "cost": 5,
+    "time_to_market": 4,
+    "scalability": 1,
+    "performance": 3,
+    "maintainability": 3,
+    "security": 2
+  }
+}

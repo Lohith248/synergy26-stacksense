@@ -1,0 +1,501 @@
+{
+  "scenario_id": "P3",
+  "engine_version": "1.0.0",
+  "status": "ok",
+  "summary": "Modular monolith: React (Vite SPA) (web) on Go 1.27 (net/http + chi) with Azure Database for PostgreSQL – Flexible Server 17 — West Europe (Netherlands), hosted on Azure App Service (Linux, Basic B1 and up) — West Europe (Netherlands). Estimated $428-2309/month.",
+  "architecture_style": "modular_monolith",
+  "stack": {
+    "frontend": {
+      "choice": "React (Vite SPA) (web)",
+      "justification": "Web: React (Vite SPA) — Rich interactive app screens; team already writes typescript for the UI; good fast delivery (you weighted it 3/5); good performance (you weighted it 5/5).",
+      "driven_by": [
+        "project.type",
+        "project.platforms",
+        "team.languages",
+        "priorities.cost",
+        "priorities.time_to_market",
+        "priorities.scalability",
+        "priorities.performance",
+        "priorities.maintainability"
+      ],
+      "alternatives": [
+        {
+          "choice": "Next.js",
+          "why_not": "Learning curve 3/5 for a senior team (team.experience). React (Vite SPA) is stronger on: good low running cost (you weighted it 2/5) (priorities.cost). Overall 2.4 points behind."
+        },
+        {
+          "choice": "Angular",
+          "why_not": "Learning curve 4/5 for a senior team (team.experience). React (Vite SPA) is stronger on: good fast delivery (you weighted it 3/5) (priorities.time_to_market). Overall 2.5 points behind."
+        }
+      ],
+      "tradeoffs": [
+        "Client-rendered pages are weak for SEO"
+      ],
+      "deployment": "client",
+      "provider": "neutral",
+      "data_bearing": false,
+      "data_location": null,
+      "sources": [
+        "https://react.dev/blog/2025/02/14/sunsetting-create-react-app"
+      ]
+    },
+    "backend": {
+      "choice": "Go 1.27 (net/http + chi)",
+      "justification": "Team already writes go for the API; native WebSocket support; good performance (you weighted it 5/5); good scalability (you weighted it 5/5).",
+      "driven_by": [
+        "team.languages",
+        "requirements.realtime",
+        "priorities.cost",
+        "priorities.scalability",
+        "priorities.performance",
+        "priorities.maintainability",
+        "priorities.security"
+      ],
+      "alternatives": [
+        {
+          "choice": "Node.js 24 LTS + NestJS (TypeScript)",
+          "why_not": "Go 1.27 (net/http + chi) is stronger on: good performance (you weighted it 5/5) (priorities.performance); good scalability (you weighted it 5/5) (priorities.scalability). Overall 2.8 points behind."
+        },
+        {
+          "choice": ".NET 10 LTS + ASP.NET Core",
+          "why_not": "Team lists go, typescript but this needs csharp (team.languages). Go 1.27 (net/http + chi) is stronger on: good low running cost (you weighted it 2/5) (priorities.cost). Overall 4.3 points behind."
+        }
+      ],
+      "tradeoffs": [
+        "More hand-written code than batteries-included frameworks"
+      ],
+      "deployment": "library",
+      "provider": "neutral",
+      "data_bearing": false,
+      "data_location": null,
+      "sources": [
+        "https://go.dev/doc/devel/release"
+      ]
+    },
+    "database": {
+      "choice": "Azure Database for PostgreSQL – Flexible Server 17 — West Europe (Netherlands)",
+      "justification": "Strict ACID transactions for money and bookings; row-level security enforces tenant isolation in the database; handles write-heavy load; good maintainability (you weighted it 4/5); good security (you weighted it 3/5).",
+      "driven_by": [
+        "scale.workload",
+        "requirements.payments",
+        "requirements.multi_tenant",
+        "priorities.cost",
+        "priorities.scalability",
+        "priorities.performance",
+        "priorities.maintainability",
+        "priorities.security"
+      ],
+      "alternatives": [
+        {
+          "choice": "Azure SQL Database (serverless/General Purpose)",
+          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 is stronger on: good low running cost (you weighted it 2/5) (priorities.cost). Overall 3.2 points behind."
+        },
+        {
+          "choice": "Azure Database for MySQL – Flexible Server 8.4",
+          "why_not": "Tenant isolation only in app code (requirements.multi_tenant). Azure Database for PostgreSQL – Flexible Server 17 is stronger on: good maintainability (you weighted it 4/5) (priorities.maintainability). Overall 13.1 points behind."
+        },
+        {
+          "choice": "SQLite",
+          "why_not": "Excluded: single-file database: only for one self-hosted server at tiny scale (scale.users_12_months)."
+        }
+      ],
+      "tradeoffs": [
+        "Vertical write scaling; sharding needs extensions"
+      ],
+      "deployment": "managed",
+      "provider": "azure",
+      "data_bearing": true,
+      "data_location": "eu",
+      "sources": [
+        "https://www.postgresql.org/support/versioning/",
+        "https://www.postgresql.org/docs/current/textsearch.html",
+        "https://www.postgresql.org/docs/current/ddl-rowsecurity.html",
+        "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html",
+        "https://supabase.com/docs/guides/platform/regions"
+      ]
+    },
+    "hosting": {
+      "choice": "Azure App Service (Linux, Basic B1 and up) — West Europe (Netherlands)",
+      "justification": "Satisfies the hard constraints (managed_cloud (no servers to patch)). Good maintainability (you weighted it 4/5); good security (you weighted it 3/5).",
+      "driven_by": [
+        "infrastructure.deployment_model",
+        "priorities.time_to_market",
+        "priorities.scalability",
+        "priorities.performance",
+        "priorities.maintainability",
+        "priorities.security"
+      ],
+      "alternatives": [
+        {
+          "choice": "Google Cloud Run",
+          "why_not": "Azure App Service (Linux, Basic B1 and up) is stronger on: good maintainability (you weighted it 4/5) (priorities.maintainability); good fast delivery (you weighted it 3/5) (priorities.time_to_market). Overall 0.0 points behind."
+        },
+        {
+          "choice": "Azure Container Apps",
+          "why_not": "Azure App Service (Linux, Basic B1 and up) is stronger on: good maintainability (you weighted it 4/5) (priorities.maintainability); good fast delivery (you weighted it 3/5) (priorities.time_to_market). Overall 3.0 points behind."
+        },
+        {
+          "choice": "Cloudflare Pages",
+          "why_not": "Excluded: serves static/edge pages only; this project needs an application backend (project.type)."
+        }
+      ],
+      "tradeoffs": [
+        "Hybrid Connections limited to 5 per Basic plan",
+        "Less control than containers for unusual runtimes"
+      ],
+      "deployment": "managed",
+      "provider": "azure",
+      "data_bearing": true,
+      "data_location": "eu",
+      "region": "West Europe (Netherlands)",
+      "sources": [
+        "https://learn.microsoft.com/en-us/azure/reliability/regions-list",
+        "https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/",
+        "https://azure.microsoft.com/en-us/pricing/details/app-service/linux/",
+        "https://learn.microsoft.com/en-us/azure/app-service/app-service-hybrid-connections",
+        "https://learn.microsoft.com/en-us/azure/compliance/"
+      ]
+    },
+    "supporting": [
+      {
+        "layer": "auth",
+        "choice": "Keycloak 26 (container next to the API) with Google/GitHub/Microsoft OAuth",
+        "justification": "social login on a self-hosted identity server: Go has no batteries-included auth framework, so Keycloak handles passwords, MFA and social providers and keeps identities in-region.",
+        "driven_by": [
+          "requirements.auth",
+          "team.languages"
+        ],
+        "alternatives": [
+          {
+            "choice": "Auth0 / Clerk (SaaS)",
+            "why_not": "extra monthly cost per active user and identity data outside your region"
+          },
+          {
+            "choice": "Hand-written auth in Go",
+            "why_not": "security-sensitive code the team would have to maintain"
+          }
+        ],
+        "tradeoffs": [
+          "You run and upgrade Keycloak"
+        ],
+        "deployment": "self_hosted",
+        "provider": "neutral",
+        "data_bearing": true,
+        "data_location": "eu",
+        "sources": [
+          "https://www.keycloak.org/"
+        ]
+      },
+      {
+        "layer": "storage",
+        "choice": "Azure Blob Storage (West Europe (Netherlands))",
+        "justification": "Uploads (images, documents) go straight from clients to object storage via signed URLs. Private bucket, server-generated signed URLs, encryption with managed keys.",
+        "driven_by": [
+          "requirements.file_media_storage",
+          "infrastructure.data_residency"
+        ],
+        "alternatives": [
+          {
+            "choice": "Storing files in the database",
+            "why_not": "bloats backups and costs more per GB"
+          },
+          {
+            "choice": "Cloudflare R2",
+            "why_not": "zero egress fees, but a second vendor outside AZURE"
+          }
+        ],
+        "tradeoffs": [
+          "Egress charges for heavy downloads"
+        ],
+        "deployment": "managed",
+        "provider": "azure",
+        "data_bearing": true,
+        "data_location": "eu",
+        "sources": [
+          "https://aws.amazon.com/compliance/india-data-protection/",
+          "https://docs.cloud.google.com/storage/docs/locations",
+          "https://learn.microsoft.com/en-us/azure/reliability/regions-list"
+        ]
+      },
+      {
+        "layer": "realtime",
+        "choice": "Yjs CRDT documents + Hocuspocus WebSocket server",
+        "justification": "Many people edit the same board at once: CRDTs merge concurrent edits without conflicts and broadcast cursors/presence (awareness); Hocuspocus persists document updates to the database.",
+        "driven_by": [
+          "requirements.realtime",
+          "project.type",
+          "project.description"
+        ],
+        "alternatives": [
+          {
+            "choice": "Liveblocks (managed)",
+            "why_not": "fastest to start but per-room pricing and board data held by a third party"
+          },
+          {
+            "choice": "Plain WebSocket broadcast",
+            "why_not": "last-write-wins loses concurrent edits"
+          }
+        ],
+        "tradeoffs": [
+          "Stateful socket servers need sticky routing or a Redis pub/sub backplane when scaled out"
+        ],
+        "deployment": "library",
+        "provider": "neutral",
+        "data_bearing": false,
+        "data_location": null,
+        "sources": [
+          "https://docs.yjs.dev/",
+          "https://tiptap.dev/docs/hocuspocus/introduction",
+          "https://liveblocks.io/pricing"
+        ]
+      },
+      {
+        "layer": "cache",
+        "choice": "Azure Managed Redis in West Europe (Netherlands)",
+        "justification": "Cache and pub/sub layer: ~5,000 concurrent users; pub/sub backplane so WebSocket messages reach users on every instance; performance priority 5.",
+        "driven_by": [
+          "scale.peak_concurrent_users",
+          "requirements.realtime",
+          "priorities.performance"
+        ],
+        "alternatives": [
+          {
+            "choice": "Redis (7.4+)",
+            "why_not": "now source-available (RSALv2/SSPL); Valkey keeps the BSD licence"
+          },
+          {
+            "choice": "Azure Cache for Redis",
+            "why_not": "being retired (Sept 2028); Azure Managed Redis is the replacement"
+          }
+        ],
+        "tradeoffs": [
+          "Another stateful component to size and monitor"
+        ],
+        "deployment": "managed",
+        "provider": "azure",
+        "data_bearing": false,
+        "data_location": null,
+        "sources": [
+          "https://learn.microsoft.com/en-us/azure/azure-cache-for-redis/retirement-faq"
+        ]
+      },
+      {
+        "layer": "queue",
+        "choice": "Azure Service Bus in West Europe (Netherlands)",
+        "justification": "Background work: payment webhooks and ledger postings processed idempotently with retries; absorbs write bursts.",
+        "driven_by": [
+          "requirements.payments",
+          "scale.workload"
+        ],
+        "alternatives": [
+          {
+            "choice": "Synchronous processing in the request",
+            "why_not": "slow responses and lost work when a call fails"
+          }
+        ],
+        "tradeoffs": [
+          "Consumers must be idempotent"
+        ],
+        "deployment": "managed",
+        "provider": "azure",
+        "data_bearing": true,
+        "data_location": "eu",
+        "sources": [
+          "https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/"
+        ]
+      },
+      {
+        "layer": "payments",
+        "choice": "Stripe (Checkout) — Stripe Billing with per-seat subscription quantities",
+        "justification": "Hosted checkout keeps card data off your servers (PCI DSS SAQ A scope when fully outsourced). Payment confirmation is trusted only from signed server-side webhooks.",
+        "driven_by": [
+          "requirements.payments",
+          "project.description",
+          "infrastructure.data_residency"
+        ],
+        "alternatives": [
+          {
+            "choice": "Paddle (merchant of record)",
+            "why_not": "handles global tax but higher fees and less control"
+          },
+          {
+            "choice": "Adyen",
+            "why_not": "enterprise pricing/onboarding for this size"
+          }
+        ],
+        "tradeoffs": [
+          "Per-transaction fees (~2% domestic cards) are charged on revenue, not in the infrastructure band",
+          "Webhook handling must be idempotent"
+        ],
+        "deployment": "saas",
+        "provider": "stripe",
+        "data_bearing": true,
+        "data_location": null,
+        "sources": [
+          "https://stripe.com/billing/pricing",
+          "https://docs.stripe.com/billing/subscriptions/quantities",
+          "https://stripe.com/billing/pricing"
+        ]
+      },
+      {
+        "layer": "cdn",
+        "choice": "Azure Front Door",
+        "justification": "Caches public pages and static assets near users; only public, non-personal content is cached at the edge.",
+        "driven_by": [
+          "project.platforms",
+          "scale.users_12_months"
+        ],
+        "alternatives": [
+          {
+            "choice": "No CDN",
+            "why_not": "every asset request hits the origin; slower for distant users"
+          }
+        ],
+        "tradeoffs": [
+          "Cache invalidation on deploys"
+        ],
+        "deployment": "managed",
+        "provider": "azure",
+        "data_bearing": false,
+        "data_location": null,
+        "sources": [
+          "https://aws.amazon.com/about-aws/global-infrastructure/regional-product-services/"
+        ]
+      },
+      {
+        "layer": "ci_cd",
+        "choice": "GitHub Actions",
+        "justification": "Automated tests and deploys on every push to Azure App Service (Linux, Basic B1 and up); free minutes cover a team of 5.",
+        "driven_by": [
+          "team.size",
+          "team.has_devops"
+        ],
+        "alternatives": [
+          {
+            "choice": "GitLab CI",
+            "why_not": "equivalent; GitHub chosen for its marketplace of deploy actions"
+          }
+        ],
+        "tradeoffs": [
+          "Secrets must be stored as encrypted environment secrets"
+        ],
+        "deployment": "saas",
+        "provider": "github",
+        "data_bearing": false,
+        "data_location": null,
+        "sources": [
+          "https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions"
+        ]
+      },
+      {
+        "layer": "observability",
+        "choice": "Azure Monitor + Application Insights in West Europe (Netherlands)",
+        "justification": "Logs and metrics stay with the host provider in West Europe (Netherlands); alerts on error rate and latency against the 100 ms p95 target.",
+        "driven_by": [
+          "requirements.availability",
+          "requirements.p95_latency_ms",
+          "infrastructure.data_residency"
+        ],
+        "alternatives": [
+          {
+            "choice": "Sentry (SaaS)",
+            "why_not": "extra vendor; add later for richer error grouping"
+          }
+        ],
+        "tradeoffs": [
+          "Log retention costs grow with traffic"
+        ],
+        "deployment": "managed",
+        "provider": "azure",
+        "data_bearing": true,
+        "data_location": "eu",
+        "sources": [
+          "https://docs.sentry.io/organization/data-storage-location/"
+        ]
+      },
+      {
+        "layer": "other",
+        "choice": "Tenant isolation: tenant_id on every row + database row-level security",
+        "justification": "Several customer organisations share the system: every query is scoped by tenant, enforced in the database so one bug cannot leak another team's boards.",
+        "driven_by": [
+          "requirements.multi_tenant"
+        ],
+        "alternatives": [
+          {
+            "choice": "Database per tenant",
+            "why_not": "strong isolation but heavy operations for thousands of small teams"
+          }
+        ],
+        "tradeoffs": [
+          "Every new table needs a policy"
+        ],
+        "deployment": "library",
+        "provider": "neutral",
+        "data_bearing": false,
+        "data_location": null,
+        "sources": [
+          "https://www.postgresql.org/docs/current/ddl-rowsecurity.html"
+        ]
+      }
+    ]
+  },
+  "estimated_monthly_cost_usd": {
+    "min": 428,
+    "max": 2309,
+    "currency": "USD",
+    "assumptions": [
+      "Hosting Azure App Service (Linux, Basic B1 and up): $150-800/month at the 'medium' tier.",
+      "Database Azure Database for PostgreSQL – Flexible Server 17: $150-700/month.",
+      "storage: Azure Blob Storage (West Europe (Netherlands)) $10-80/month.",
+      "cache: Azure Managed Redis in West Europe (Netherlands) $60-350/month.",
+      "queue: Azure Service Bus in West Europe (Netherlands) $5-30/month.",
+      "cdn: Azure Front Door $15-120/month.",
+      "ci_cd: GitHub Actions $4-21/month.",
+      "observability: Azure Monitor + Application Insights in West Europe (Netherlands) $30-200/month.",
+      "Stored data ~200 GB after 12 months at ~$0.02-0.035/GB-month (year-end volume used as an upper bound, not an average).",
+      "Excluded: payment gateway fees (~2% per transaction) are a share of revenue, not infrastructure.",
+      "Excluded: taxes, domain names, paid support plans and data-egress spikes. Order-of-magnitude band, not a quote."
+    ]
+  },
+  "warnings": [
+    {
+      "code": "PEAK_EQUALS_LAUNCH_USERS",
+      "severity": "info",
+      "message": "Every launch user (1,000) is assumed online at once at peak; sizing uses this conservative figure.",
+      "fields": [
+        "scale.peak_concurrent_users",
+        "scale.users_at_launch"
+      ]
+    },
+    {
+      "code": "LATENCY_TARGET_UNMEASURED",
+      "severity": "info",
+      "message": "p95 100 ms is achievable only with users near the Azure App Service (Linux, Basic B1 and up) region and no cross-region calls; the engine cannot measure it — load-test before launch.",
+      "fields": [
+        "requirements.p95_latency_ms"
+      ]
+    },
+    {
+      "code": "GDPR_OBLIGATIONS",
+      "severity": "info",
+      "message": "GDPR: lawful basis and privacy notice, data-subject rights endpoints, DPAs with every processor (Art. 28), security of processing (Art. 32); transfers outside the EU need an adequacy decision or SCCs.",
+      "fields": [
+        "compliance"
+      ]
+    },
+    {
+      "code": "BUDGET_AT_RISK",
+      "severity": "info",
+      "message": "Upper estimate $2309/month can exceed the $1500 budget at peak usage.",
+      "fields": [
+        "budget.monthly_infra_usd"
+      ]
+    }
+  ],
+  "assumptions": [
+    "Knowledge base as of 2026-11-10; lifecycle and pricing judgements use that date, not the run date.",
+    "Scale tier 'medium' from 50,000 users and ~5,000 peak concurrent users (people, not requests per second; used only for sizing and cost).",
+    "gdpr with no data_residency: EU region (West Europe (Netherlands)) chosen to avoid international transfers."
+  ],
+  "validation_errors": []
+}

@@ -1,0 +1,366 @@
+{
+  "scenario_id": "P6",
+  "engine_version": "1.0.0",
+  "status": "ok",
+  "summary": "Single deployable monolith: React Native (Expo) (Android) on Python 3.13 + Django 5.2 LTS with Azure Database for PostgreSQL – Flexible Server 17 — Central India (Pune), hosted on Azure App Service (Linux, Basic B1 and up) — Central India (Pune). Estimated $29-82/month.",
+  "architecture_style": "monolith",
+  "stack": {
+    "frontend": {
+      "choice": "React Native (Expo) (Android)",
+      "justification": "Mobile: React Native (Expo) — Team already writes javascript for the mobile app; mature on-device storage and background sync; good fast delivery (you weighted it 4/5); good low running cost (you weighted it 5/5).",
+      "driven_by": [
+        "project.platforms",
+        "team.languages",
+        "requirements.offline_support",
+        "priorities.cost",
+        "priorities.time_to_market",
+        "priorities.maintainability"
+      ],
+      "alternatives": [
+        {
+          "choice": "Kotlin Multiplatform + Compose Multiplatform",
+          "why_not": "Team lists javascript, python but this needs kotlin/java (team.languages). React Native (Expo) is stronger on: good fast delivery (you weighted it 4/5) (priorities.time_to_market). Overall 6.3 points behind."
+        },
+        {
+          "choice": "Kotlin + Jetpack Compose (native Android)",
+          "why_not": "Team lists javascript, python but this needs kotlin/java (team.languages). React Native (Expo) is stronger on: good fast delivery (you weighted it 4/5) (priorities.time_to_market). Overall 6.5 points behind."
+        }
+      ],
+      "tradeoffs": [
+        "JS runtime overhead on very low-end phones"
+      ],
+      "deployment": "client",
+      "provider": "neutral",
+      "data_bearing": true,
+      "data_location": "device",
+      "sources": [
+        "https://expo.dev/changelog",
+        "https://reactnative.dev/blog"
+      ]
+    },
+    "backend": {
+      "choice": "Python 3.13 + Django 5.2 LTS",
+      "justification": "Team already writes python for the API; good low running cost (you weighted it 5/5); good maintainability (you weighted it 4/5).",
+      "driven_by": [
+        "team.languages",
+        "priorities.cost",
+        "priorities.time_to_market",
+        "priorities.maintainability",
+        "priorities.security"
+      ],
+      "alternatives": [
+        {
+          "choice": "Node.js 24 LTS + NestJS (TypeScript)",
+          "why_not": "Python 3.13 + Django 5.2 LTS is stronger on: good fast delivery (you weighted it 4/5) (priorities.time_to_market); good security (you weighted it 3/5) (priorities.security). Overall 1.0 points behind."
+        },
+        {
+          "choice": "Python 3.13 + FastAPI",
+          "why_not": "Python 3.13 + Django 5.2 LTS is stronger on: good maintainability (you weighted it 4/5) (priorities.maintainability); good fast delivery (you weighted it 4/5) (priorities.time_to_market). Overall 4.8 points behind."
+        }
+      ],
+      "tradeoffs": [
+        "WebSockets need Django Channels"
+      ],
+      "deployment": "library",
+      "provider": "neutral",
+      "data_bearing": false,
+      "data_location": null,
+      "sources": [
+        "https://www.djangoproject.com/download/",
+        "https://devguide.python.org/versions/"
+      ]
+    },
+    "database": {
+      "choice": "Azure Database for PostgreSQL – Flexible Server 17 — Central India (Pune)",
+      "justification": "Handles write-heavy load; good low running cost (you weighted it 5/5); good maintainability (you weighted it 4/5).",
+      "driven_by": [
+        "scale.workload",
+        "priorities.cost",
+        "priorities.time_to_market",
+        "priorities.maintainability",
+        "priorities.security"
+      ],
+      "alternatives": [
+        {
+          "choice": "Azure Database for MySQL – Flexible Server 8.4",
+          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 is stronger on: good maintainability (you weighted it 4/5) (priorities.maintainability); good security (you weighted it 3/5) (priorities.security). Overall 5.6 points behind."
+        },
+        {
+          "choice": "Azure SQL Database (serverless/General Purpose)",
+          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 is stronger on: good low running cost (you weighted it 5/5) (priorities.cost). Overall 8.0 points behind."
+        },
+        {
+          "choice": "SQLite",
+          "why_not": "Excluded: single-file database: only for one self-hosted server at tiny scale (scale.users_12_months)."
+        }
+      ],
+      "tradeoffs": [
+        "Vertical write scaling; sharding needs extensions"
+      ],
+      "deployment": "managed",
+      "provider": "azure",
+      "data_bearing": true,
+      "data_location": "india",
+      "sources": [
+        "https://www.postgresql.org/support/versioning/",
+        "https://www.postgresql.org/docs/current/textsearch.html",
+        "https://www.postgresql.org/docs/current/ddl-rowsecurity.html",
+        "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html",
+        "https://supabase.com/docs/guides/platform/regions"
+      ]
+    },
+    "hosting": {
+      "choice": "Azure App Service (Linux, Basic B1 and up) — Central India (Pune)",
+      "justification": "Satisfies the hard constraints (managed_cloud (no servers to patch), data_residency india -> Central India (Pune)). Good maintainability (you weighted it 4/5); good fast delivery (you weighted it 4/5).",
+      "driven_by": [
+        "infrastructure.deployment_model",
+        "infrastructure.data_residency",
+        "priorities.cost",
+        "priorities.time_to_market",
+        "priorities.maintainability",
+        "priorities.security"
+      ],
+      "alternatives": [
+        {
+          "choice": "Google Cloud Run",
+          "why_not": "Azure App Service (Linux, Basic B1 and up) is stronger on: good maintainability (you weighted it 4/5) (priorities.maintainability); good fast delivery (you weighted it 4/5) (priorities.time_to_market). Overall 0.8 points behind."
+        },
+        {
+          "choice": "Azure Container Apps",
+          "why_not": "Azure App Service (Linux, Basic B1 and up) is stronger on: good maintainability (you weighted it 4/5) (priorities.maintainability); good fast delivery (you weighted it 4/5) (priorities.time_to_market). Overall 8.4 points behind."
+        },
+        {
+          "choice": "Cloudflare Pages",
+          "why_not": "Excluded: serves static/edge pages only; this project needs an application backend (project.type)."
+        }
+      ],
+      "tradeoffs": [
+        "Hybrid Connections limited to 5 per Basic plan",
+        "Less control than containers for unusual runtimes"
+      ],
+      "deployment": "managed",
+      "provider": "azure",
+      "data_bearing": true,
+      "data_location": "india",
+      "region": "Central India (Pune)",
+      "sources": [
+        "https://learn.microsoft.com/en-us/azure/reliability/regions-list",
+        "https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/",
+        "https://azure.microsoft.com/en-us/pricing/details/app-service/linux/",
+        "https://learn.microsoft.com/en-us/azure/app-service/app-service-hybrid-connections",
+        "https://learn.microsoft.com/en-us/azure/compliance/"
+      ]
+    },
+    "supporting": [
+      {
+        "layer": "auth",
+        "choice": "Backend-issued sessions + MSG91 OTP API (India)",
+        "justification": "phone_otp for Indian users: an Indian SMS provider with DLT-registered templates is the cheapest reliable OTP route (about Rs 0.20 per SMS); the backend stores users and refresh tokens in the in-region database.",
+        "driven_by": [
+          "requirements.auth",
+          "infrastructure.data_residency"
+        ],
+        "alternatives": [
+          {
+            "choice": "Firebase Authentication (phone)",
+            "why_not": "stores identity data in Google's global auth service, conflicting with India residency"
+          },
+          {
+            "choice": "Twilio Verify",
+            "why_not": "about $0.05 per verification plus SMS, far above Indian SMS rates"
+          }
+        ],
+        "tradeoffs": [
+          "DLT registration of sender ID/template before launch",
+          "OTP needs network at login; sessions must stay valid offline"
+        ],
+        "deployment": "saas",
+        "provider": "msg91",
+        "data_bearing": false,
+        "data_location": null,
+        "sources": [
+          "https://msg91.com/in/pricing/otp",
+          "https://www.trai.gov.in/",
+          "https://firebase.google.com/pricing",
+          "https://www.twilio.com/en-us/verify/pricing"
+        ]
+      },
+      {
+        "layer": "storage",
+        "choice": "Azure Blob Storage (Central India (Pune))",
+        "justification": "Uploads (GPS-tagged photos) go straight from clients to object storage via signed URLs. Private bucket, server-generated signed URLs, encryption with managed keys.",
+        "driven_by": [
+          "requirements.file_media_storage",
+          "infrastructure.data_residency"
+        ],
+        "alternatives": [
+          {
+            "choice": "Storing files in the database",
+            "why_not": "bloats backups and costs more per GB"
+          },
+          {
+            "choice": "Cloudflare R2",
+            "why_not": "zero egress fees, but a second vendor outside AZURE"
+          }
+        ],
+        "tradeoffs": [
+          "Egress charges for heavy downloads"
+        ],
+        "deployment": "managed",
+        "provider": "azure",
+        "data_bearing": true,
+        "data_location": "india",
+        "sources": [
+          "https://aws.amazon.com/compliance/india-data-protection/",
+          "https://docs.cloud.google.com/storage/docs/locations",
+          "https://learn.microsoft.com/en-us/azure/reliability/regions-list"
+        ]
+      },
+      {
+        "layer": "queue",
+        "choice": "Azure Service Bus in Central India (Pune)",
+        "justification": "Background work: photo post-processing (thumbnails, EXIF/GPS extraction) after bursts of offline syncs.",
+        "driven_by": [
+          "requirements.offline_support"
+        ],
+        "alternatives": [
+          {
+            "choice": "Synchronous processing in the request",
+            "why_not": "slow responses and lost work when a call fails"
+          }
+        ],
+        "tradeoffs": [
+          "Consumers must be idempotent"
+        ],
+        "deployment": "managed",
+        "provider": "azure",
+        "data_bearing": true,
+        "data_location": "india",
+        "sources": [
+          "https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/"
+        ]
+      },
+      {
+        "layer": "ci_cd",
+        "choice": "GitHub Actions",
+        "justification": "Automated tests and deploys on every push to Azure App Service (Linux, Basic B1 and up); free minutes cover a team of 2.",
+        "driven_by": [
+          "team.size",
+          "team.has_devops"
+        ],
+        "alternatives": [
+          {
+            "choice": "GitLab CI",
+            "why_not": "equivalent; GitHub chosen for its marketplace of deploy actions"
+          }
+        ],
+        "tradeoffs": [
+          "Secrets must be stored as encrypted environment secrets"
+        ],
+        "deployment": "saas",
+        "provider": "github",
+        "data_bearing": false,
+        "data_location": null,
+        "sources": [
+          "https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions"
+        ]
+      },
+      {
+        "layer": "observability",
+        "choice": "Azure Monitor + Application Insights in Central India (Pune)",
+        "justification": "Logs and metrics stay with the host provider in Central India (Pune); alerts on error rate and latency.",
+        "driven_by": [
+          "requirements.availability",
+          "infrastructure.data_residency"
+        ],
+        "alternatives": [
+          {
+            "choice": "Sentry (SaaS)",
+            "why_not": "stores data only in the US or EU"
+          }
+        ],
+        "tradeoffs": [
+          "Log retention costs grow with traffic"
+        ],
+        "deployment": "managed",
+        "provider": "azure",
+        "data_bearing": true,
+        "data_location": "india",
+        "sources": [
+          "https://docs.sentry.io/organization/data-storage-location/"
+        ]
+      },
+      {
+        "layer": "other",
+        "choice": "Offline-first sync: expo-sqlite + background task, outbox + idempotent sync API",
+        "justification": "Must work without connectivity: writes go to an on-device database first; an outbox queue retries uploads when signal returns; each record carries a client-generated UUID so retries are idempotent; server applies last-writer-wins per field with an edit log; photos are compressed on-device and uploaded with resumable chunks; sync batches are small and compressed for 2G/3G.",
+        "driven_by": [
+          "requirements.offline_support",
+          "project.description"
+        ],
+        "alternatives": [
+          {
+            "choice": "Firebase Firestore offline cache",
+            "why_not": "convenient but ties data to Google's global service and its pricing"
+          },
+          {
+            "choice": "Online-only app",
+            "why_not": "fails the stated offline requirement"
+          }
+        ],
+        "tradeoffs": [
+          "Conflict resolution rules must be agreed with field teams",
+          "Device storage limits on low-end phones"
+        ],
+        "deployment": "client",
+        "provider": "neutral",
+        "data_bearing": true,
+        "data_location": "device",
+        "sources": [
+          "https://developer.android.com/topic/architecture/data-layer/offline-first",
+          "https://developer.android.com/develop/background-work/background-tasks/persistent"
+        ]
+      }
+    ]
+  },
+  "estimated_monthly_cost_usd": {
+    "min": 29,
+    "max": 82,
+    "currency": "USD",
+    "assumptions": [
+      "Hosting Azure App Service (Linux, Basic B1 and up): $13-30/month at the 'tiny' tier.",
+      "Database Azure Database for PostgreSQL – Flexible Server 17: $13-30/month.",
+      "storage: Azure Blob Storage (Central India (Pune)) $0-2/month.",
+      "queue: Azure Service Bus in Central India (Pune) $0-1/month.",
+      "observability: Azure Monitor + Application Insights in Central India (Pune) $0-5/month.",
+      "Stored data ~100 GB after 12 months at ~$0.02-0.035/GB-month (year-end volume used as an upper bound, not an average).",
+      "Phone OTP: 2,000 users x 0.3-1.0 OTP logins/month at India SMS ~Rs 0.20-0.25 + GST per SMS = $1-9/month (long-lived sessions keep OTPs rare).",
+      "Excluded: taxes, domain names, paid support plans and data-egress spikes. Order-of-magnitude band, not a quote."
+    ]
+  },
+  "warnings": [
+    {
+      "code": "OFFLINE_LOGIN",
+      "severity": "info",
+      "message": "Phone OTP needs signal at first login; sessions are long-lived refresh tokens so the app keeps working offline afterwards.",
+      "fields": [
+        "requirements.offline_support",
+        "requirements.auth"
+      ]
+    },
+    {
+      "code": "DPDP_OBLIGATIONS",
+      "severity": "info",
+      "message": "DPDP Act 2023: collect consent with a clear notice, support access/correction/erasure requests, keep breach-notification runbooks (72 h to the Board under the 2025 Rules) and delete data when the purpose ends. Hosting in India simplifies transfers; legal review still required.",
+      "fields": [
+        "compliance"
+      ]
+    }
+  ],
+  "assumptions": [
+    "requirements.p95_latency_ms absent or null: no explicit latency target; typical web latency assumed.",
+    "Knowledge base as of 2026-11-10; lifecycle and pricing judgements use that date, not the run date.",
+    "Scale tier 'tiny' from 2,000 users and ~200 peak concurrent users (people, not requests per second; used only for sizing and cost)."
+  ],
+  "validation_errors": []
+}

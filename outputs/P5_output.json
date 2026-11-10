@@ -1,0 +1,361 @@
+{
+  "scenario_id": "P5",
+  "engine_version": "1.0.0",
+  "status": "ok",
+  "summary": "Hybrid cloud + on-premises integration: React (Vite SPA) (web) on .NET 10 LTS + ASP.NET Core with Azure SQL Database (serverless/General Purpose) — Central India (Pune), hosted on Azure App Service (Linux, Basic B1 and up) — Central India (Pune). Estimated $51-276/month.",
+  "architecture_style": "hybrid",
+  "stack": {
+    "frontend": {
+      "choice": "React (Vite SPA) (web)",
+      "justification": "Web: React (Vite SPA) — Rich interactive app screens; team already writes javascript for the UI; internal app behind login needs no SEO; good fast delivery (you weighted it 5/5); good low running cost (you weighted it 3/5).",
+      "driven_by": [
+        "project.type",
+        "project.description",
+        "project.platforms",
+        "team.languages",
+        "priorities.cost",
+        "priorities.time_to_market",
+        "priorities.maintainability",
+        "priorities.security"
+      ],
+      "alternatives": [
+        {
+          "choice": "Blazor (ASP.NET Core 10)",
+          "why_not": "React (Vite SPA) is stronger on: good fast delivery (you weighted it 5/5) (priorities.time_to_market); rich interactive app screens (project.type). Overall 2.2 points behind."
+        },
+        {
+          "choice": "Next.js",
+          "why_not": "Learning curve 3/5 for an intermediate team (team.experience). React (Vite SPA) is stronger on: good low running cost (you weighted it 3/5) (priorities.cost). Overall 4.8 points behind."
+        }
+      ],
+      "tradeoffs": [
+        "Client-rendered pages are weak for SEO"
+      ],
+      "deployment": "client",
+      "provider": "neutral",
+      "data_bearing": false,
+      "data_location": null,
+      "sources": [
+        "https://react.dev/blog/2025/02/14/sunsetting-create-react-app"
+      ]
+    },
+    "backend": {
+      "choice": ".NET 10 LTS + ASP.NET Core",
+      "justification": "Team already writes csharp for the API; first-class SQL Server driver/ORM; mature security/audit tooling; good maintainability (you weighted it 5/5); good security (you weighted it 4/5).",
+      "driven_by": [
+        "team.experience",
+        "team.languages",
+        "infrastructure.existing_systems",
+        "compliance",
+        "priorities.time_to_market",
+        "priorities.performance",
+        "priorities.maintainability",
+        "priorities.security"
+      ],
+      "alternatives": [
+        {
+          "choice": "Node.js 24 LTS + NestJS (TypeScript)",
+          "why_not": ".NET 10 LTS + ASP.NET Core is stronger on: first-class SQL Server driver/ORM (infrastructure.existing_systems); good security (you weighted it 4/5) (priorities.security). Overall 9.6 points behind."
+        },
+        {
+          "choice": "Node.js 24 LTS + Express 5",
+          "why_not": ".NET 10 LTS + ASP.NET Core is stronger on: good maintainability (you weighted it 5/5) (priorities.maintainability); good security (you weighted it 4/5) (priorities.security). Overall 17.4 points behind."
+        }
+      ],
+      "tradeoffs": [
+        "Smaller open-source hosting choice outside Azure"
+      ],
+      "deployment": "library",
+      "provider": "neutral",
+      "data_bearing": false,
+      "data_location": null,
+      "sources": [
+        "https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core"
+      ]
+    },
+    "database": {
+      "choice": "Azure SQL Database (serverless/General Purpose) — Central India (Pune)",
+      "justification": "Matches the existing On-prem SQL Server 2019 the team already runs; EF Core + SQL Server is the default .NET pairing; team knows SQL; good maintainability (you weighted it 5/5); good security (you weighted it 4/5). New application data lives in the cloud database; the on-prem server is integrated, not migrated (see supporting 'other').",
+      "driven_by": [
+        "team.languages",
+        "infrastructure.existing_systems",
+        "priorities.time_to_market",
+        "priorities.maintainability",
+        "priorities.security"
+      ],
+      "alternatives": [
+        {
+          "choice": "Azure Database for PostgreSQL – Flexible Server 17",
+          "why_not": "Azure SQL Database (serverless/General Purpose) is stronger on: matches the existing On-prem SQL Server 2019 the team already runs (infrastructure.existing_systems); EF Core + SQL Server is the default .NET pairing (team.languages). Overall 6.7 points behind."
+        },
+        {
+          "choice": "Azure Database for MySQL – Flexible Server 8.4",
+          "why_not": "Azure SQL Database (serverless/General Purpose) is stronger on: matches the existing On-prem SQL Server 2019 the team already runs (infrastructure.existing_systems); good maintainability (you weighted it 5/5) (priorities.maintainability). Overall 13.9 points behind."
+        },
+        {
+          "choice": "SQLite",
+          "why_not": "Excluded: single-file database: only for one self-hosted server at tiny scale (scale.users_12_months)."
+        }
+      ],
+      "tradeoffs": [
+        "Licence cost outside Azure SQL; Windows-centric tooling"
+      ],
+      "deployment": "managed",
+      "provider": "azure",
+      "data_bearing": true,
+      "data_location": "india",
+      "sources": [
+        "https://azure.microsoft.com/en-us/pricing/details/azure-sql-database/single/",
+        "https://learn.microsoft.com/en-us/lifecycle/products/sql-server-2022"
+      ]
+    },
+    "hosting": {
+      "choice": "Azure App Service (Linux, Basic B1 and up) — Central India (Pune)",
+      "justification": "Satisfies the hard constraints (cloud_preference azure, managed_cloud (no servers to patch), data_residency india -> Central India (Pune)). Hybrid Connections reach the existing on-prem database without opening inbound ports; built-in Entra ID sign-in (Easy Auth); quick to set up for a 6-week MVP; good maintainability (you weighted it 5/5); good fast delivery (you weighted it 5/5).",
+      "driven_by": [
+        "timeline.mvp_weeks",
+        "infrastructure.cloud_preference",
+        "infrastructure.deployment_model",
+        "infrastructure.existing_systems",
+        "priorities.time_to_market",
+        "priorities.maintainability",
+        "priorities.security"
+      ],
+      "alternatives": [
+        {
+          "choice": "Azure Container Apps",
+          "why_not": "Azure App Service (Linux, Basic B1 and up) is stronger on: good maintainability (you weighted it 5/5) (priorities.maintainability); good fast delivery (you weighted it 5/5) (priorities.time_to_market). Overall 13.8 points behind."
+        },
+        {
+          "choice": "Cloudflare Pages",
+          "why_not": "Excluded: runs on cloudflare, but cloud_preference is azure (infrastructure.cloud_preference)."
+        },
+        {
+          "choice": "Google Cloud Run",
+          "why_not": "Excluded: runs on gcp, but cloud_preference is azure (infrastructure.cloud_preference)."
+        }
+      ],
+      "tradeoffs": [
+        "Hybrid Connections limited to 5 per Basic plan",
+        "Less control than containers for unusual runtimes"
+      ],
+      "deployment": "managed",
+      "provider": "azure",
+      "data_bearing": true,
+      "data_location": "india",
+      "region": "Central India (Pune)",
+      "sources": [
+        "https://learn.microsoft.com/en-us/azure/reliability/regions-list",
+        "https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/",
+        "https://azure.microsoft.com/en-us/pricing/details/app-service/linux/",
+        "https://learn.microsoft.com/en-us/azure/app-service/app-service-hybrid-connections",
+        "https://learn.microsoft.com/en-us/azure/compliance/"
+      ]
+    },
+    "supporting": [
+      {
+        "layer": "auth",
+        "choice": "Microsoft Entra ID (existing tenant) via OpenID Connect",
+        "justification": "enterprise_sso is required and 'Microsoft Entra ID (Azure AD)' already exists: reuse it so employees keep one login; app roles/groups in the token drive approvals and admin rights.",
+        "driven_by": [
+          "requirements.auth",
+          "infrastructure.existing_systems"
+        ],
+        "alternatives": [
+          {
+            "choice": "Keycloak (self-hosted)",
+            "why_not": "duplicates an identity provider the company already operates"
+          },
+          {
+            "choice": "Amazon Cognito federation",
+            "why_not": "extra hop and a second directory to administer"
+          }
+        ],
+        "tradeoffs": [
+          "Depends on the customer's Entra tenant admins for app registration and consent"
+        ],
+        "deployment": "saas",
+        "provider": "azure",
+        "data_bearing": false,
+        "data_location": null,
+        "sources": [
+          "https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/what-is-single-sign-on"
+        ]
+      },
+      {
+        "layer": "storage",
+        "choice": "Azure Blob Storage (Central India (Pune))",
+        "justification": "Uploads (images, documents) go straight from clients to object storage via signed URLs. Private bucket, server-generated signed URLs, encryption with managed keys.",
+        "driven_by": [
+          "requirements.file_media_storage",
+          "infrastructure.data_residency"
+        ],
+        "alternatives": [
+          {
+            "choice": "Storing files in the database",
+            "why_not": "bloats backups and costs more per GB"
+          },
+          {
+            "choice": "Cloudflare R2",
+            "why_not": "zero egress fees, but a second vendor outside AZURE"
+          }
+        ],
+        "tradeoffs": [
+          "Egress charges for heavy downloads"
+        ],
+        "deployment": "managed",
+        "provider": "azure",
+        "data_bearing": true,
+        "data_location": "india",
+        "sources": [
+          "https://aws.amazon.com/compliance/india-data-protection/",
+          "https://docs.cloud.google.com/storage/docs/locations",
+          "https://learn.microsoft.com/en-us/azure/reliability/regions-list"
+        ]
+      },
+      {
+        "layer": "ci_cd",
+        "choice": "GitHub Actions",
+        "justification": "Automated tests and deploys on every push to Azure App Service (Linux, Basic B1 and up); free minutes cover a team of 2.",
+        "driven_by": [
+          "team.size",
+          "team.has_devops"
+        ],
+        "alternatives": [
+          {
+            "choice": "GitLab CI",
+            "why_not": "equivalent; GitHub chosen for its marketplace of deploy actions"
+          }
+        ],
+        "tradeoffs": [
+          "Secrets must be stored as encrypted environment secrets"
+        ],
+        "deployment": "saas",
+        "provider": "github",
+        "data_bearing": false,
+        "data_location": null,
+        "sources": [
+          "https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions"
+        ]
+      },
+      {
+        "layer": "observability",
+        "choice": "Azure Monitor + Application Insights in Central India (Pune)",
+        "justification": "Logs and metrics stay with the host provider in Central India (Pune); alerts on error rate and latency against the 800 ms p95 target.",
+        "driven_by": [
+          "requirements.availability",
+          "requirements.p95_latency_ms",
+          "infrastructure.data_residency"
+        ],
+        "alternatives": [
+          {
+            "choice": "Sentry (SaaS)",
+            "why_not": "stores data only in the US or EU"
+          }
+        ],
+        "tradeoffs": [
+          "Log retention costs grow with traffic"
+        ],
+        "deployment": "managed",
+        "provider": "azure",
+        "data_bearing": true,
+        "data_location": "india",
+        "sources": [
+          "https://docs.sentry.io/organization/data-storage-location/"
+        ]
+      },
+      {
+        "layer": "other",
+        "choice": "Microsoft Graph notifications (Outlook mail / Teams) for approvals",
+        "justification": "Approval requests and decisions reach managers in the Microsoft 365 tools they already use, authorised through the existing Entra tenant.",
+        "driven_by": [
+          "infrastructure.existing_systems",
+          "project.description"
+        ],
+        "alternatives": [
+          {
+            "choice": "Separate e-mail service (SES/SendGrid)",
+            "why_not": "duplicates mail infrastructure the company already has"
+          }
+        ],
+        "tradeoffs": [
+          "Needs admin consent for Graph application permissions"
+        ],
+        "deployment": "saas",
+        "provider": "azure",
+        "data_bearing": false,
+        "data_location": null,
+        "sources": [
+          "https://learn.microsoft.com/en-us/graph/overview"
+        ]
+      },
+      {
+        "layer": "other",
+        "choice": "Integration with existing On-prem SQL Server 2019 via App Service Hybrid Connection (outbound 443 relay, no inbound ports)",
+        "justification": "Reuse the existing SQL Server data in place: read reference data through a narrow repository layer over a private network path; add new app tables only with the DBA's agreement. The new application keeps its own tables in Azure SQL Database (serverless/General Purpose) and reads the existing data through App Service Hybrid Connection (outbound 443 relay, no inbound ports).",
+        "driven_by": [
+          "infrastructure.existing_systems"
+        ],
+        "alternatives": [
+          {
+            "choice": "Migrate everything into the new database now",
+            "why_not": "risky in the MVP timeline and breaks existing consumers"
+          },
+          {
+            "choice": "Use the on-prem server as the only database",
+            "why_not": "ties availability of the new app to the on-prem server and the relay"
+          }
+        ],
+        "tradeoffs": [
+          "Cross-network latency on queries to the on-prem server",
+          "Credentials for the on-prem database must live in a secret store"
+        ],
+        "deployment": "library",
+        "provider": "neutral",
+        "data_bearing": false,
+        "data_location": null,
+        "sources": [
+          "https://learn.microsoft.com/en-us/azure/app-service/app-service-hybrid-connections",
+          "https://learn.microsoft.com/en-us/azure/app-service/app-service-hybrid-connections"
+        ]
+      }
+    ]
+  },
+  "estimated_monthly_cost_usd": {
+    "min": 51,
+    "max": 276,
+    "currency": "USD",
+    "assumptions": [
+      "Hosting Azure App Service (Linux, Basic B1 and up): $30-150/month at the 'small' tier.",
+      "Database Azure SQL Database (serverless/General Purpose): $15-80/month.",
+      "storage: Azure Blob Storage (Central India (Pune)) $1-10/month.",
+      "ci_cd: GitHub Actions $0-4/month.",
+      "observability: Azure Monitor + Application Insights in Central India (Pune) $5-30/month.",
+      "Stored data ~20 GB after 12 months at ~$0.02-0.035/GB-month (year-end volume used as an upper bound, not an average).",
+      "Excluded: taxes, domain names, paid support plans and data-egress spikes. Order-of-magnitude band, not a quote."
+    ]
+  },
+  "warnings": [
+    {
+      "code": "ISO27001_CONTROLS",
+      "severity": "info",
+      "message": "ISO/IEC 27001:2022 certifies your organisation's ISMS, not a cloud provider's badge: keep asset inventory, access reviews, logging and change management for this system.",
+      "fields": [
+        "compliance"
+      ]
+    },
+    {
+      "code": "EXISTING_SYSTEM_EXTENDED_SUPPORT",
+      "severity": "info",
+      "message": "'On-prem SQL Server 2019' is in extended (security-only) support until 2030-01-09; supported, but plan the upgrade path.",
+      "fields": [
+        "infrastructure.existing_systems"
+      ]
+    }
+  ],
+  "assumptions": [
+    "Knowledge base as of 2026-11-10; lifecycle and pricing judgements use that date, not the run date.",
+    "Scale tier 'small' from 1,500 users and ~300 peak concurrent users (people, not requests per second; used only for sizing and cost)."
+  ],
+  "validation_errors": []
+}

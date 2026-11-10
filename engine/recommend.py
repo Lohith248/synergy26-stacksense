@@ -14,7 +14,7 @@ class Warnings:
         self.items = []
 
     def __call__(self, code, sev, msg, fields):
-        if not any(w["code"] == code for w in self.items):
+        if not any(w["code"] == code and w["message"] == msg for w in self.items):
             self.items.append({"code": code, "severity": sev, "message": msg, "fields": list(fields)})
 
 
@@ -50,9 +50,11 @@ def hard_conflicts(ctx):
 def component(cand, ranked_ok, ranked_out, extra_paths, extras, name=None, base_why=""):
     """Build the official component object from a winning candidate and its competitors."""
     item = cand.item
-    pos = sorted([t for t in cand.terms if t[1] > 0], key=lambda t: (-t[1], t[0]))
-    reasons = [t[3] for t in pos[:4]]
-    why = base_why + ("; ".join(reasons[:1]).capitalize() + ("; " + "; ".join(reasons[1:]) if len(reasons) > 1 else "") + "." if reasons else "")
+    pos = sorted([t for t in cand.terms if t[1] > 0], key=lambda t: (t[0].startswith("prio_"), -t[1], t[0]))
+    domain = [t for t in pos if not t[0].startswith("prio_")][:3]
+    prios = [t for t in pos if t[0].startswith("prio_")][:2]
+    reasons = [t[3] for t in domain + prios]
+    why = base_why + (cap("; ".join(reasons)) + "." if reasons else "")
     alts = []
     for a in ranked_ok[1:3]:
         alts.append({"choice": a.item["name"], "why_not": why_not(cand, a)})
@@ -60,7 +62,7 @@ def component(cand, ranked_ok, ranked_out, extra_paths, extras, name=None, base_
         if len(alts) >= 3:
             break
         alts.append({"choice": a.item["name"], "why_not": f"Excluded: {a.excluded[0]} ({a.excluded[1]})."})
-    driven = [t[2] for t in cand.terms if abs(t[1]) >= 1] + list(extra_paths)
+    driven = [t[2] for t in cand.terms if abs(t[1]) >= (2.5 if t[0].startswith("prio_") else 1)] + list(extra_paths)
     out = {"choice": name or item["name"], "justification": why.strip() or "Best overall fit for the stated inputs.",
            "driven_by": order_paths(driven) or ["project.type"], "alternatives": alts,
            "tradeoffs": list(item.get("limits", []))}
@@ -77,18 +79,40 @@ def why_not(win, alt):
         if g > 0.5:
             gaps.append((g, k))
     gaps.sort(key=lambda x: (-x[0], x[1]))
-    texts = []
+    weak, strong = [], []
     for g, k in gaps[:2]:
         neg = [t for t in alt.terms if t[0] == k and t[1] < 0]
         pos = [t for t in win.terms if t[0] == k and t[1] > 0]
         if neg:
-            texts.append(f"{neg[0][3]} ({neg[0][2]})")
+            weak.append(f"{neg[0][3]} ({neg[0][2]})")
         elif pos:
-            texts.append(f"less {pos[0][3].split(' (')[0]} than {win.item['name']} ({pos[0][2]})")
+            strong.append(f"{pos[0][3]} ({pos[0][2]})")
     total = round(win.score - alt.score, 1)
-    if not texts:
+    if not weak and not strong:
         return f"Close runner-up (score {alt.score} vs {win.score}); a stable id-based tie-break keeps the result deterministic."
-    return "; ".join(texts).capitalize() + f". Overall {total} points behind."
+    parts = []
+    if weak:
+        parts.append(cap("; ".join(weak)))
+    if strong:
+        parts.append(f"{win.item['name'].split(' — ')[0]} is stronger on: " + "; ".join(strong))
+    return ". ".join(parts) + f". Overall {total} points behind."
+
+
+def cap(s):
+    return s[:1].upper() + s[1:] if s else s
+
+
+def envelope_text(ctx, region):
+    bits = []
+    if ctx["cloud"] in ("aws", "azure", "gcp"):
+        bits.append(f"cloud_preference {ctx['cloud']}")
+    if ctx["deploy"] != "managed_cloud":
+        bits.append(f"deployment_model {ctx['deploy']}")
+    else:
+        bits.append("managed_cloud (no servers to patch)")
+    if ctx["req"]["infrastructure.data_residency"] in ("india", "eu", "us") or ctx["residency_from_rbi"]:
+        bits.append(f"data_residency {ctx['residency']}" + (f" -> {region}" if region else ""))
+    return "Satisfies the hard constraints (" + ", ".join(bits) + "). " if bits else ""
 
 
 def none_component(layer, why, paths, alts):
@@ -114,8 +138,6 @@ def recommend(req, assumptions, sid):
 
     if ctx["residency_from_rbi"]:
         assumptions.append("rbi_localisation present with data_residency 'none': payment and personal data are kept in India.")
-    if ctx["peak_assumed"]:
-        pass
     if ctx["req"]["infrastructure.data_residency"] == "other":
         W("RESIDENCY_UNSPECIFIED", "warning", "data_residency 'other' does not name a jurisdiction; regions could not be verified. State the country so every data store can be pinned.",
           ["infrastructure.data_residency"])
@@ -132,6 +154,15 @@ def recommend(req, assumptions, sid):
         b_ok, b_out = sl.rank(bs)
         backend_c = b_ok[0]
     backend = backend_c.item if backend_c else None
+
+    if backend and ctx["langs"] and not set(backend["langs"]) & set(ctx["langs"]):
+        fit = next((c for c in b_ok if set(c.item["langs"]) & set(ctx["langs"])), None)
+        W("SKILL_MISMATCH", "warning",
+          f"{backend['name']} is not in the team's languages ({', '.join(ctx['langs'])}); it was chosen for the stated priorities and requirements. "
+          + (f"The best skill-matched option, {fit.item['name']}, scored {round(backend_c.score - fit.score, 1)} points lower ({why_not(backend_c, fit)}) — "
+             "choose it if ramp-up time matters more." if fit else "No option in the knowledge base uses the team's languages.")
+          + " Budget training time into the timeline.",
+          ["team.languages", "team.experience"])
 
     # ---- hosting
     hs = sl.hosting_candidates(ctx)
@@ -164,7 +195,8 @@ def recommend(req, assumptions, sid):
     host_name = host["name"] + (f" — {region}" if region else "")
     hosting = component(host_c, h_ok, h_out, host_extra_paths,
                         {"deployment": host["deploy"], "provider": host["provider"], "data_bearing": ctx["needs_backend"],
-                         "data_location": loc if ctx["needs_backend"] else None, "region": region}, name=host_name)
+                         "data_location": loc if ctx["needs_backend"] else None, "region": region}, name=host_name,
+                        base_why=envelope_text(ctx, region) if ctx["needs_backend"] else "")
 
     # ---- backend component
     if backend_c:
@@ -190,9 +222,8 @@ def recommend(req, assumptions, sid):
         db_cmp = component(db_c, d_ok, d_out, [], {"deployment": "self_hosted" if db_c.vkey == "self" else "managed",
                                                    "provider": host["provider"] if db_c.vkey not in ("any", "self") else ("mongodb" if db_c.vkey == "any" else "neutral"),
                                                    "data_bearing": True, "data_location": loc}, name=vname)
-        if ctx["existing_db"] and ctx["existing_db"]["pattern"].get("engine") == db_c.id:
-            db_cmp["justification"] = (f"Same engine as the existing '{ctx['existing_db']['raw']}', so skills, tooling and queries carry over; "
-                                       + db_cmp["justification"])
+        if ctx["existing_db"] and ctx["existing_db"]["pattern"].get("engine") == db_c.id and ctx["existing_db"]["onprem"] and not ctx["self_host_only"]:
+            db_cmp["justification"] += " New application data lives in the cloud database; the on-prem server is integrated, not migrated (see supporting 'other')."
     else:
         db_cmp = none_component("database", "Content lives as Markdown/HTML files in the repository; there is no user data to store.",
                                 ["project.type", "requirements.auth"],
@@ -253,6 +284,8 @@ def recommend(req, assumptions, sid):
     contradictions(ctx, W, assumptions, host, backend)
     for s in supporting:
         explicit = ctx["req"]["infrastructure.data_residency"] in ("india", "eu", "us") or ctx["residency_from_rbi"]
+        if s["layer"] == "payments" and any(w["code"] == "PAYMENT_DATA_LOCATION" for w in W.items):
+            continue
         if s["data_bearing"] and explicit and s["data_location"] not in (ctx["res_key"], "device"):
             W("RESIDENCY_UNVERIFIED_SERVICE", "warning", f"{s['choice']} stores data but its location could not be pinned to {ctx['residency'].upper()}.",
               ["infrastructure.data_residency"])
@@ -348,8 +381,11 @@ def contradictions(ctx, W, assumptions, host, backend):
         life = e["life"]
         if life:
             if life["eol"] <= AS_OF:
+                what = {"unmaintained": f"is no longer maintained (repository archived {life['eol']})",
+                        "closed": "is closed to new customers", "deprecated": f"was deprecated on {life['eol']}"}.get(
+                    life.get("kind"), f"reached end of support on {life['eol']}")
                 W("END_OF_LIFE_SYSTEM", "warning",
-                  f"'{e['raw']}' reached end of support on {life['eol']} ({life['name']}); integrate only through an isolated interface and plan an upgrade.",
+                  f"'{e['raw']}' {what} ({life['name']}); keep it behind an isolated interface, do not build new features on it, and plan a migration.",
                   ["infrastructure.existing_systems"])
             elif life.get("mainstream_end") and life["mainstream_end"] <= AS_OF:
                 W("EXISTING_SYSTEM_EXTENDED_SUPPORT", "info",
@@ -407,9 +443,10 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         else:
             plo, phi = 0.05, 0.06
             txt = "Twilio Verify ~$0.05 + SMS"
-        lo += round(logins * 0.5 * plo, 2)
-        hi += round(logins * 1.5 * phi, 2)
-        lines.append(f"Phone OTP: {logins:,} users x 0.5-1.5 OTP logins/month at {txt} per SMS.")
+        olo, ohi = round(logins * 0.3 * plo, 2), round(logins * 1.0 * phi, 2)
+        lo += olo
+        hi += ohi
+        lines.append(f"Phone OTP: {logins:,} users x 0.3-1.0 OTP logins/month at {txt} per SMS = ${olo:,.0f}-{ohi:,.0f}/month (long-lived sessions keep OTPs rare).")
     if ctx["req"]["requirements.payments"]:
         lines.append("Excluded: payment gateway fees (~2% per transaction) are a share of revenue, not infrastructure.")
     if host["kind"] == "onprem":

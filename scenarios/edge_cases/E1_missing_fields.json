@@ -1,0 +1,13 @@
+{
+  "scenario_id": "E1",
+  "project": {
+    "name": "Few fields",
+    "type": "web_app"
+  },
+  "scale": {
+    "users_at_launch": 100
+  },
+  "budget": {
+    "monthly_infra_usd": 20
+  }
+}

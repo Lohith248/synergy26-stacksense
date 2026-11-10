@@ -1,0 +1,198 @@
+{
+  "scenario_id": "P1",
+  "engine_version": "1.0.0",
+  "status": "ok",
+  "summary": "Static site: Astro (web), hosted on Cloudflare Pages — Cloudflare edge network. Estimated $0-0/month.",
+  "architecture_style": "static",
+  "stack": {
+    "frontend": {
+      "choice": "Astro (web)",
+      "justification": "Web: Astro — Team already writes css, html, javascript for the UI; server-rendered/static HTML that search engines index; pre-built static pages, no server needed; good low running cost (you weighted it 5/5); good fast delivery (you weighted it 4/5).",
+      "driven_by": [
+        "project.type",
+        "project.description",
+        "project.platforms",
+        "team.languages",
+        "requirements.seo_critical",
+        "priorities.cost",
+        "priorities.time_to_market",
+        "priorities.performance"
+      ],
+      "alternatives": [
+        {
+          "choice": "Hugo",
+          "why_not": "Astro is stronger on: good fast delivery (you weighted it 4/5) (priorities.time_to_market). Overall 1.6 points behind."
+        },
+        {
+          "choice": "SvelteKit",
+          "why_not": "Needs a server runtime for a site that does not (project.type). Astro is stronger on: good low running cost (you weighted it 5/5) (priorities.cost). Overall 17.2 points behind."
+        }
+      ],
+      "tradeoffs": [
+        "Interactive widgets need islands"
+      ],
+      "deployment": "client",
+      "provider": "neutral",
+      "data_bearing": false,
+      "data_location": null,
+      "sources": [
+        "https://docs.astro.build/"
+      ]
+    },
+    "backend": {
+      "choice": "None",
+      "justification": "No application server is needed: there are no accounts, payments, uploads or dynamic data; pages are pre-built at deploy time.",
+      "driven_by": [
+        "project.type",
+        "requirements.payments",
+        "requirements.auth"
+      ],
+      "alternatives": [
+        {
+          "choice": "Netlify/Cloudflare serverless functions",
+          "why_not": "nothing to compute at request time for this site"
+        },
+        {
+          "choice": "Node.js + Express",
+          "why_not": "a server to run and pay for with no feature that needs it"
+        }
+      ],
+      "tradeoffs": [],
+      "deployment": "none",
+      "provider": null,
+      "data_bearing": false,
+      "data_location": null,
+      "sources": []
+    },
+    "database": {
+      "choice": "None",
+      "justification": "Content lives as Markdown/HTML files in the repository; there is no user data to store.",
+      "driven_by": [
+        "project.type",
+        "requirements.auth"
+      ],
+      "alternatives": [
+        {
+          "choice": "SQLite",
+          "why_not": "no runtime data to persist"
+        },
+        {
+          "choice": "Headless CMS database",
+          "why_not": "a single author edits files directly"
+        }
+      ],
+      "tradeoffs": [],
+      "deployment": "none",
+      "provider": null,
+      "data_bearing": false,
+      "data_location": null,
+      "sources": []
+    },
+    "hosting": {
+      "choice": "Cloudflare Pages — Cloudflare edge network",
+      "justification": "A static site needs nothing more than a CDN host; fits a zero budget on its free plan; quick to set up for a 2-week MVP; good low running cost (you weighted it 5/5); good fast delivery (you weighted it 4/5).",
+      "driven_by": [
+        "project.type",
+        "budget.monthly_infra_usd",
+        "timeline.mvp_weeks",
+        "infrastructure.deployment_model",
+        "priorities.cost",
+        "priorities.time_to_market",
+        "priorities.performance"
+      ],
+      "alternatives": [
+        {
+          "choice": "GitHub Pages",
+          "why_not": "Cloudflare Pages is stronger on: good performance (you weighted it 3/5) (priorities.performance); good scalability (you weighted it 1/5) (priorities.scalability). Overall 4.0 points behind."
+        },
+        {
+          "choice": "Netlify",
+          "why_not": "Cloudflare Pages is stronger on: good low running cost (you weighted it 5/5) (priorities.cost); good performance (you weighted it 3/5) (priorities.performance). Overall 7.2 points behind."
+        },
+        {
+          "choice": "On-premises Linux servers (Docker Compose)",
+          "why_not": "Excluded: self-managed infrastructure, but deployment_model is managed_cloud (infrastructure.deployment_model)."
+        }
+      ],
+      "tradeoffs": [
+        "500 builds/month and 20,000 files per site on Free",
+        "No regional pinning of edge-cached content"
+      ],
+      "deployment": "saas",
+      "provider": "cloudflare",
+      "data_bearing": false,
+      "data_location": null,
+      "region": "Cloudflare edge network",
+      "sources": [
+        "https://developers.cloudflare.com/pages/platform/limits/"
+      ]
+    },
+    "supporting": [
+      {
+        "layer": "ci_cd",
+        "choice": "GitHub Actions",
+        "justification": "Automated tests and deploys on every push to Cloudflare Pages; free minutes cover a team of 1.",
+        "driven_by": [
+          "team.size",
+          "team.has_devops"
+        ],
+        "alternatives": [
+          {
+            "choice": "GitLab CI",
+            "why_not": "equivalent; GitHub chosen for its marketplace of deploy actions"
+          }
+        ],
+        "tradeoffs": [
+          "Secrets must be stored as encrypted environment secrets"
+        ],
+        "deployment": "saas",
+        "provider": "github",
+        "data_bearing": false,
+        "data_location": null,
+        "sources": [
+          "https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions"
+        ]
+      },
+      {
+        "layer": "other",
+        "choice": "Git-based Markdown content (no CMS)",
+        "justification": "The owner writes posts in Markdown in the repository; every push rebuilds and publishes the site.",
+        "driven_by": [
+          "project.description"
+        ],
+        "alternatives": [
+          {
+            "choice": "Headless CMS (Contentful/Sanity)",
+            "why_not": "adds accounts and cost for a single author"
+          }
+        ],
+        "tradeoffs": [
+          "Non-technical editors would need a CMS later"
+        ],
+        "deployment": "library",
+        "provider": "neutral",
+        "data_bearing": false,
+        "data_location": null,
+        "sources": [
+          "https://docs.astro.build/"
+        ]
+      }
+    ]
+  },
+  "estimated_monthly_cost_usd": {
+    "min": 0,
+    "max": 0,
+    "currency": "USD",
+    "assumptions": [
+      "Hosting Cloudflare Pages: $0-0/month at the 'tiny' tier.",
+      "Excluded: taxes, domain names, paid support plans and data-egress spikes. Order-of-magnitude band, not a quote."
+    ]
+  },
+  "warnings": [],
+  "assumptions": [
+    "requirements.p95_latency_ms absent or null: no explicit latency target; typical web latency assumed.",
+    "Knowledge base as of 2026-11-10; lifecycle and pricing judgements use that date, not the run date.",
+    "Scale tier 'tiny' from 3,000 users and ~50 peak concurrent users (people, not requests per second; used only for sizing and cost)."
+  ],
+  "validation_errors": []
+}

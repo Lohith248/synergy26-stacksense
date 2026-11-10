@@ -44,9 +44,9 @@ def prio_terms(c, ctx, r):
         w = ctx["prio"][k]
         delta = r[i] - 3
         if delta:
-            word = "strong" if delta > 0 else "weaker"
+            word = "good" if delta > 0 else "weaker"
             c.add(f"prio_{k}", w * delta * 0.8, f"priorities.{k}",
-                  f"{word} on {PRIO_LABEL[k]} (priority {w}/5)")
+                  f"{word} {PRIO_LABEL[k]} (you weighted it {w}/5)")
 
 
 def lang_term(c, ctx, langs, weight, what):
@@ -64,7 +64,7 @@ def lang_term(c, ctx, langs, weight, what):
 def learn_term(c, ctx, learning):
     if learning > 2:
         c.add("learning", -(learning - 2) * ctx["xf"] * 1.2, "team.experience",
-              f"learning curve {learning}/5 for a {ctx['exp']} team")
+              f"learning curve {learning}/5 for {'an' if ctx['exp'][0] in 'aeiou' else 'a'} {ctx['exp']} team")
 
 
 def tier_term(c, ctx, max_tier, what):
@@ -198,12 +198,10 @@ def database_candidates(ctx, host, backend):
         c = Cand(d)
         name, vkey = db_variant(d, host.item)
         c.variant, c.vkey = name, vkey
-        if name is None:
-            c.exclude(f"no managed offering on {host.item['name']}", "infrastructure.cloud_preference")
-        if d["id"] == "mongodb" and vkey == "any" and ctx["cloud"] in ("aws", "azure", "gcp"):
-            pass
         if d["id"] == "sqlite" and (host.item["kind"] not in ("vm", "onprem") or ctx["tier"] > 0):
             c.exclude("single-file database: only for one self-hosted server at tiny scale", "scale.users_12_months")
+        if name is None:
+            c.exclude(f"no managed offering on {host.item['name']}", "infrastructure.cloud_preference")
         prio_terms(c, ctx, d["r"])
         learn_term(c, ctx, d["learning"])
         tier_term(c, ctx, d["max_tier"], d["name"])
@@ -246,13 +244,13 @@ def web_candidates(ctx, backend):
             c.add("static", 5 if f["kind"] == "static" else -3, "project.type",
                   "pre-built static pages, no server needed" if f["kind"] == "static" else "needs a server runtime for a site that does not")
         else:
-            c.add("app", (f["app"] - 3) * 2.5, "project.type",
+            c.add("app", (f["app"] - 3) * 3.5, "project.type",
                   "rich interactive app screens" if f["app"] >= 4 else "suited to content pages, not app screens")
             if f["kind"] == "static":
                 c.add("static", -2, "project.type", "a static-site generator for a dynamic application")
         if ctx["desc"]["markdown"] and f["kind"] == "static":
             c.add("markdown", 2, "project.description", "renders the owner's Markdown files directly")
-        if backend and set(backend["langs"]) & set(f["langs"]) and backend["id"] != "none":
+        if backend and set(backend["langs"]) & set(f["langs"]) & set(ctx["langs"]):
             c.add("shared_lang", 1.5, "team.languages", "same language as the backend")
         if ctx["desc"]["internal_only"] and f["kind"] == "spa":
             c.add("internal", 1, "project.description", "internal app behind login needs no SEO")
