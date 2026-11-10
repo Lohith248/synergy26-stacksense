@@ -19,12 +19,12 @@
       ],
       "alternatives": [
         {
-          "choice": "SvelteKit",
-          "why_not": "Next.js is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market); rich interactive app screens (project.type). Overall 3.7 points behind. Known limit of SvelteKit: smaller hiring pool than React."
+          "choice": "Nuxt (Vue SSR/SSG)",
+          "why_not": "Next.js is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market); same React component model as a React Native mobile app (project.platforms). Overall 4.1 points behind. Known limit of Nuxt: needs a Node server runtime for SSR."
         },
         {
-          "choice": "Astro",
-          "why_not": "Suited to content pages, not app screens (project.type); a static-site generator for a dynamic application (project.type). Overall 5.5 points behind. Known limit of Astro: interactive widgets need islands."
+          "choice": "SvelteKit",
+          "why_not": "Next.js is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market); rich interactive app screens (project.type). Overall 5.2 points behind. Known limit of SvelteKit: smaller hiring pool than React."
         },
         {
           "choice": "Ionic Capacitor (web app wrapped)",

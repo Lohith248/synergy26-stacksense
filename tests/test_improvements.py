@@ -179,5 +179,35 @@ class Explanations(unittest.TestCase):  # item 7
         self.assertIn("Basic", core(run(P(5)), "hosting"))
 
 
+PUBLIC_CORES = {  # regression guard: public-scenario cores after items 1-7 (change only with a recorded reason)
+    1: ("Astro", "None", "None", "Cloudflare Pages"),
+    2: ("Next.js", "NestJS", "PostgreSQL", "Azure App Service"),
+    3: ("React (Vite SPA)", "Go", "PostgreSQL", "Azure App Service"),
+    4: ("React (Vite SPA)", "Spring Boot", "Amazon RDS for PostgreSQL", "ECS on Fargate"),
+    5: ("React (Vite SPA)", ".NET", "Azure SQL", "Azure App Service"),
+    6: ("React Native", "Django", "PostgreSQL", "Azure App Service"),
+}
+
+
+class Breadth(unittest.TestCase):  # item 8
+    def test_kb_sizes(self):
+        from engine.kb import TECH
+        self.assertGreaterEqual(len(TECH["database"]), 8)
+        self.assertGreaterEqual(len(TECH["frontend_web"]), 9)
+        names = " ".join(x["name"] for x in TECH["frontend_web"])
+        self.assertIn("Vue", names)
+        self.assertIn("Nuxt", names)
+
+    def test_public_cores_stable(self):
+        for i, want in PUBLIC_CORES.items():
+            out = run(P(i))
+            for layer, w in zip(("frontend", "backend", "database", "hosting"), want):
+                self.assertIn(w, core(out, layer), (i, layer))
+
+    def test_vue_team_gets_vue(self):
+        out = run(P(2, team__languages=["vue", "python"]))
+        self.assertIn("Nuxt", core(out, "frontend"))
+
+
 if __name__ == "__main__":
     unittest.main()

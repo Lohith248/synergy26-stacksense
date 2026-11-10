@@ -24,8 +24,8 @@
           "why_not": "React (Vite SPA) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market); rich interactive app screens (project.type). Overall 2.2 points behind. Known limit of Blazor: smaller component ecosystem than React."
         },
         {
-          "choice": "Next.js",
-          "why_not": "Learning curve 3/5 for an intermediate team (team.experience). React (Vite SPA) is stronger on: good low running cost (priority 3/5) (priorities.cost). Overall 4.8 points behind. Known limit of Next.js: server runtime needed for SSR; more moving parts than a static site."
+          "choice": "Vue 3 (Vite SPA)",
+          "why_not": "React (Vite SPA) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market). Overall 4.0 points behind. Known limit of Vue 3: smaller hiring pool and component ecosystem than React."
         }
       ],
       "tradeoffs": [

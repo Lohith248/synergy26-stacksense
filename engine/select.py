@@ -233,7 +233,8 @@ def database_candidates(ctx, host, backend):
         if d["id"] == "sqlite" and (host.item["kind"] not in ("vm", "onprem") or ctx["tier"] > 0):
             c.exclude("single-file database: only for one self-hosted server at tiny scale", "scale.users_12_months")
         if name is None:
-            c.exclude(f"no managed offering on {host.item['name']}", "infrastructure.cloud_preference")
+            c.exclude(f"no managed offering on {host.item['name']}",
+                      "infrastructure.cloud_preference" if ctx["cloud"] in ("aws", "azure", "gcp") else "stack.hosting")
         if vkey == "any" and ctx["cloud"] in ("aws", "azure", "gcp") and d["id"] != "mongodb":
             c.exclude(f"a separate vendor outside the explicit cloud_preference {ctx['cloud']}", "infrastructure.cloud_preference")
         if vkey == "any" and ctx["res_key"] and "regions" in d and ctx["res_key"] not in d["regions"]:
@@ -297,6 +298,8 @@ def web_candidates(ctx, backend):
             c.add("markdown", 2, "project.description", "renders the owner's Markdown files directly")
         if backend and set(backend["langs"]) & set(f["langs"]) & set(ctx["langs"]):
             c.add("shared_lang", 1.5, "team.languages", "same language as the backend")
+        if ctx["mobile"] and f["id"] in ("nextjs", "react-vite") and set(ctx["langs"]) & {"javascript", "typescript"}:
+            c.add("react_mobile", 1.5, "project.platforms", "same React component model as a React Native mobile app")
         if ctx["desc"]["internal_only"] and f["kind"] == "spa":
             c.add("internal", 1, "project.description", "internal app behind login needs no SEO")
         cands.append(c)

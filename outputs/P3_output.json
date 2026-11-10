@@ -20,12 +20,12 @@
       ],
       "alternatives": [
         {
-          "choice": "Next.js",
-          "why_not": "Learning curve 3/5 for a senior team (team.experience). React (Vite SPA) is stronger on: good low running cost (priority 2/5) (priorities.cost). Overall 2.4 points behind. Known limit of Next.js: server runtime needed for SSR; more moving parts than a static site."
+          "choice": "Vue 3 (Vite SPA)",
+          "why_not": "React (Vite SPA) is stronger on: good fast delivery (priority 3/5) (priorities.time_to_market). Overall 2.4 points behind. Known limit of Vue 3: smaller hiring pool and component ecosystem than React."
         },
         {
-          "choice": "Angular",
-          "why_not": "Learning curve 4/5 for a senior team (team.experience). React (Vite SPA) is stronger on: good fast delivery (priority 3/5) (priorities.time_to_market). Overall 2.5 points behind. Known limit of Angular: steeper learning curve; 24-month support per major."
+          "choice": "Next.js",
+          "why_not": "Learning curve 3/5 for a senior team (team.experience). React (Vite SPA) is stronger on: good low running cost (priority 2/5) (priorities.cost). Overall 2.4 points behind. Known limit of Next.js: server runtime needed for SSR; more moving parts than a static site."
         }
       ],
       "tradeoffs": [
