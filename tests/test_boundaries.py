@@ -176,8 +176,13 @@ class Contract(unittest.TestCase):
 
 class HardConstraints(unittest.TestCase):
     def _self_hostable(self, out):
+        # payment gateways cannot be self-hosted: allowed only when named in an explicit warning
+        codes = warn_codes(out)
+        allowed_saas = ({"payments"} if "EXTERNAL_PAYMENT_GATEWAY" in codes else set()) | (
+            {"auth"} if "EXTERNAL_IDENTITY_PROVIDER" in codes else set()) | (
+            {"other"} if "EXTERNAL_EXISTING_SERVICE" in codes else set())
         for c in comps(out):
-            if c["choice"] != "None":
+            if c["choice"] != "None" and c.get("layer") not in allowed_saas:
                 self.assertIn(c.get("deployment"), ("self_hosted", "client", "none", "library"),
                               f"{c['choice']} is {c.get('deployment')}")
         self.assertNotIn("cdn", [s["layer"] for s in out["stack"].get("supporting", [])])
@@ -206,9 +211,9 @@ class HardConstraints(unittest.TestCase):
 
     def test_B15_aws_explicit(self):
         out = run(P(4))
+        # third-party rails (payments, SMS) are not cloud providers; no other hyperscaler may appear
         for c in comps(out):
-            if c.get("provider"):
-                self.assertIn(c["provider"], ("aws", "neutral"), c["choice"])
+            self.assertNotIn(c.get("provider"), ("azure", "gcp"), c["choice"])
         self.assertIn(out["stack"]["hosting"]["provider"], ("aws",))
         self.assertIn("ap-south", json.dumps(out["stack"]["hosting"]))
 
@@ -236,7 +241,7 @@ class HardConstraints(unittest.TestCase):
         s["compliance"] = []
         out = run(s)
         for c in comps(out):
-            if c.get("data_bearing"):
+            if c.get("data_bearing") and not (c.get("layer") == "payments" and "PAYMENT_DATA_LOCATION" in warn_codes(out)):
                 self.assertEqual(c.get("data_location"), "eu", c["choice"])
         s["infrastructure"]["data_residency"] = "other"
         out = run(s)

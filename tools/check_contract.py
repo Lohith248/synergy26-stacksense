@@ -103,7 +103,7 @@ def check(doc):
         errs.append("estimated_monthly_cost_usd: needs min, max and non-empty assumptions")
     else:
         lo, hi = cost.get("min"), cost.get("max")
-        if st == "invalid_input" and lo is None and hi is None:
+        if st in ("invalid_input", "infeasible") and lo is None and hi is None:
             pass
         elif not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) and v >= 0
                      for v in (lo, hi)):
