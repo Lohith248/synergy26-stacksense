@@ -7,7 +7,7 @@
   "stack": {
     "frontend": {
       "choice": "React Native (Expo) (Android)",
-      "justification": "Mobile: React Native (Expo) — Team already writes javascript for the mobile app; mature on-device storage and background sync; good fast delivery (priority 4/5); good low running cost (priority 5/5).",
+      "justification": "Mobile: React Native (Expo) — Team already writes javascript for the mobile app; mature on-device storage and background sync; good fast delivery (priority 4/5); good low running cost (priority 5/5). Low-end devices: React Native (Expo) adds a JavaScript runtime, so keep the bundle small, use the default Hermes engine, lazy-load screens and profile memory on a 2 GB phone; Kotlin + Jetpack Compose (native Android) (6.0 points behind) is the fallback if memory is tight.",
       "driven_by": [
         "project.platforms",
         "team.languages",
@@ -35,7 +35,8 @@
       "data_location": "device",
       "sources": [
         "https://expo.dev/changelog",
-        "https://reactnative.dev/blog"
+        "https://reactnative.dev/blog",
+        "https://reactnative.dev/docs/hermes"
       ],
       "kb_id": "react-native-expo",
       "what_would_change": [
@@ -93,8 +94,9 @@
     },
     "database": {
       "choice": "Cloud SQL for PostgreSQL 17 — asia-south1 (Mumbai)",
-      "justification": "Handles write-heavy load; good low running cost (priority 5/5); good maintainability (priority 4/5).",
+      "justification": "Handles write-heavy load; good low running cost (priority 5/5); good maintainability (priority 4/5). GPS coordinates are stored as PostGIS geography points, so area and distance queries run in the database.",
       "driven_by": [
+        "project.description",
         "scale.workload",
         "priorities.cost",
         "priorities.time_to_market",
@@ -125,7 +127,8 @@
         "https://www.postgresql.org/docs/current/textsearch.html",
         "https://www.postgresql.org/docs/current/ddl-rowsecurity.html",
         "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html",
-        "https://supabase.com/docs/guides/platform/regions"
+        "https://supabase.com/docs/guides/platform/regions",
+        "https://postgis.net/documentation/"
       ],
       "what_would_change": [
         {

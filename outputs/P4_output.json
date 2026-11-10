@@ -125,9 +125,11 @@
     },
     "database": {
       "choice": "Amazon RDS for PostgreSQL 17 — ap-south-1 (Mumbai) (multi-AZ / zone-redundant HA)",
-      "justification": "Strict ACID transactions for money and bookings; good security (priority 5/5); good maintainability (priority 4/5).",
+      "justification": "Strict ACID transactions for money movement and ledger postings; good security (priority 5/5); good maintainability (priority 4/5). The 99.95% target uses a standby in a second zone with automatic failover and point-in-time recovery. Automated backups and snapshots stay in ap-south-1 (Mumbai) (no cross-region copies), as RBI localisation requires.",
       "driven_by": [
         "requirements.payments",
+        "requirements.availability",
+        "compliance",
         "priorities.cost",
         "priorities.scalability",
         "priorities.maintainability",
@@ -175,11 +177,12 @@
     },
     "hosting": {
       "choice": "AWS ECS on Fargate (+ Application Load Balancer) — ap-south-1 (Mumbai)",
-      "justification": "Satisfies the hard constraints (cloud_preference aws, managed_cloud (no servers to patch), data_residency india -> ap-south-1 (Mumbai)). Good security (priority 5/5); good scalability (priority 4/5).",
+      "justification": "Satisfies the hard constraints (cloud_preference aws, managed_cloud (no servers to patch), data_residency india -> ap-south-1 (Mumbai)). Runs across availability zones for the 99.95% target; good security (priority 5/5); good scalability (priority 4/5).",
       "driven_by": [
         "team.has_devops",
         "infrastructure.cloud_preference",
         "infrastructure.deployment_model",
+        "requirements.availability",
         "priorities.scalability",
         "priorities.maintainability",
         "priorities.security"
@@ -187,7 +190,7 @@
       "alternatives": [
         {
           "choice": "AWS Elastic Beanstalk (managed platform on EC2)",
-          "why_not": "AWS ECS on Fargate (+ Application Load Balancer) is stronger on: good security (priority 5/5) (priorities.security); good scalability (priority 4/5) (priorities.scalability). Overall 0.1 points behind. Known limit of AWS Elastic Beanstalk: you still pay for and size the EC2 instances underneath."
+          "why_not": "The EC2/VM operating system stays in your patching and hardening scope for rbi_localisation, pci_dss, iso27001 (compliance). AWS ECS on Fargate (+ Application Load Balancer) is stronger on: good security (priority 5/5) (priorities.security). Overall 2.1 points behind. Known limit of AWS Elastic Beanstalk: you still pay for and size the EC2 instances underneath."
         },
         {
           "choice": "AWS Lambda + API Gateway",
@@ -203,7 +206,7 @@
         "More AWS concepts (VPC, IAM, task definitions) than a PaaS"
       ],
       "kb_id": "aws-ecs-fargate",
-      "score_margin": 0.1,
+      "score_margin": 2.1,
       "deployment": "managed",
       "provider": "aws",
       "data_bearing": true,
@@ -216,17 +219,6 @@
         "https://aws.amazon.com/compliance/programs/"
       ],
       "what_would_change": [
-        {
-          "edit": "priorities.cost: 2 -> 3",
-          "path": "priorities.cost",
-          "value": 3,
-          "new_choice": "AWS Elastic Beanstalk (managed platform on EC2) — ap-south-1 (Mumbai)",
-          "also_by": [
-            "priorities.time_to_market: 3 -> 4",
-            "priorities.scalability: 4 -> 3",
-            "priorities.security: 5 -> 4"
-          ]
-        },
         {
           "edit": "infrastructure.cloud_preference: aws -> any",
           "path": "infrastructure.cloud_preference",
@@ -241,6 +233,13 @@
           "path": "infrastructure.cloud_preference",
           "value": "azure",
           "new_choice": "Azure App Service (Linux, Premium v3, 2+ instances) — Central India (Pune)",
+          "also_by": []
+        },
+        {
+          "edit": "infrastructure.deployment_model: managed_cloud -> self_hosted_cloud_vm",
+          "path": "infrastructure.deployment_model",
+          "value": "self_hosted_cloud_vm",
+          "new_choice": "Amazon EC2 VM (Docker Compose) — ap-south-1 (Mumbai)",
           "also_by": []
         }
       ]

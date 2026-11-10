@@ -137,6 +137,12 @@ def hosting_candidates(ctx):
         avail = req["requirements.availability"]
         if avail in ("99.95", "99.99") and (h["sla"] is None or "single" in str(h["sla"])):
             c.add("availability", -6, "requirements.availability", f"no multi-zone SLA for a {avail}% target")
+        elif avail in ("99.95", "99.99") and kind not in ("static", "onprem"):
+            c.add("availability", 1, "requirements.availability", f"runs across availability zones for the {avail}% target")
+        regulated = [x for x in ctx["compliance"] if x in ("pci_dss", "hipaa", "rbi_localisation", "iso27001", "soc2")]
+        if regulated and h.get("host_os") == "customer":
+            c.add("host_os", -2, "compliance",
+                  f"the EC2/VM operating system stays in your patching and hardening scope for {', '.join(regulated)}")
         if req["requirements.realtime"] and kind == "serverless":
             c.add("realtime", -10, "requirements.realtime",
                   "functions cannot hold long-lived WebSocket connections; realtime would need a separate connection gateway")
@@ -274,8 +280,12 @@ def database_candidates(ctx, host, backend):
         learn_term(c, ctx, d["learning"])
         tier_term(c, ctx, d["max_tier"], d["name"])
         if req["requirements.payments"] or ctx["desc"]["ledger"] or req["project.type"] in ("fintech", "ecommerce", "marketplace"):
+            what = {"fintech": "money movement and ledger postings", "marketplace": "bookings and payments",
+                    "ecommerce": "orders, stock and payments"}.get(req["project.type"], "payments and the records they change")
+            if ctx["desc"]["ledger"]:
+                what = "money movement and ledger postings"
             c.add("acid", (d["acid"] - 3) * 2.5, "requirements.payments",
-                  "strict ACID transactions for money and bookings" if d["acid"] >= 4 else "weaker multi-record transactions")
+                  f"strict ACID transactions for {what}" if d["acid"] >= 4 else f"weaker multi-record transactions for {what}")
         if req["scale.workload"] == "write_heavy":
             c.add("write", (d["write"] - 3) * 1.5, "scale.workload", "handles write-heavy load" if d["write"] >= 4 else "write throughput limits")
         if req["requirements.multi_tenant"]:

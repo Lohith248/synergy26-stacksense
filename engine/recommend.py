@@ -269,6 +269,17 @@ def _recommend(req, assumptions, sid):
         db_cmp = component(db_c, d_ok, d_out, [], {"deployment": "self_hosted" if db_c.vkey == "self" else "managed",
                                                    "provider": host["provider"] if db_c.vkey not in ("any", "self") else (db_c.id if db_c.vkey == "any" else "neutral"),
                                                    "data_bearing": True, "data_location": loc}, name=vname)
+        if ha and db_c.vkey != "self":
+            db_cmp["justification"] += (f" The {req['requirements.availability']}% target uses a standby in a second zone with automatic failover "
+                                        "and point-in-time recovery.")
+            db_cmp["driven_by"] = order_paths(db_cmp["driven_by"] + ["requirements.availability"])
+        if "rbi_localisation" in ctx["compliance"] and db_c.vkey != "self":
+            db_cmp["justification"] += f" Automated backups and snapshots stay in {db_region or 'the Indian region'} (no cross-region copies), as RBI localisation requires."
+            db_cmp["driven_by"] = order_paths(db_cmp["driven_by"] + ["compliance"])
+        if ctx["desc"]["gps_media"] and db_c.id in ("postgresql", "supabase"):
+            db_cmp["justification"] += " GPS coordinates are stored as PostGIS geography points, so area and distance queries run in the database."
+            db_cmp["driven_by"] = order_paths(db_cmp["driven_by"] + ["project.description"])
+            db_cmp["sources"] = db_cmp["sources"] + cite(["postgis"])
         if ctx["data_gb"] >= 1000 and db_c.item.get("family") == "relational":
             db_cmp["justification"] += (f" At ~{ctx['data_gb']:,.0f} GB in year one, partition the largest tables by time and move cold rows or blobs "
                                         "to object storage so backups and index maintenance stay manageable.")
@@ -307,6 +318,12 @@ def _recommend(req, assumptions, sid):
         fe_trade += mcmp["tradeoffs"]
         fe_src += mcmp["sources"]
         fe_why.append(f"Mobile: {mob.item['name']} — {mcmp['justification']}")
+        if ctx["desc"]["low_end"] and mob.item["low_end"] <= 3:
+            light = next((c for c in m_ok[1:] if c.item["low_end"] >= 5), None)
+            fe_why.append(f"Low-end devices: {mob.item['name']} adds a JavaScript runtime, so keep the bundle small, use the default Hermes engine, "
+                          "lazy-load screens and profile memory on a 2 GB phone"
+                          + (f"; {light.item['name']} ({round(mob.score - light.score, 1)} points behind) is the fallback if memory is tight." if light else "."))
+            fe_src.append(cite(["rn-hermes"])[0])
     if ctx["desktop"]:
         if web:
             parts.append("installable PWA (desktop)")

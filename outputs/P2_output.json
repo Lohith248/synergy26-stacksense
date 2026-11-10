@@ -116,7 +116,7 @@
     },
     "database": {
       "choice": "Azure Database for PostgreSQL – Flexible Server 17 — Central India (Pune)",
-      "justification": "Strict ACID transactions for money and bookings; built-in full-text search avoids a separate search service; good low running cost (priority 4/5); good fast delivery (priority 5/5).",
+      "justification": "Strict ACID transactions for bookings and payments; built-in full-text search avoids a separate search service; good low running cost (priority 4/5); good fast delivery (priority 5/5).",
       "driven_by": [
         "requirements.full_text_search",
         "requirements.payments",

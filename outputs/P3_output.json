@@ -106,7 +106,7 @@
     },
     "database": {
       "choice": "Azure Database for PostgreSQL – Flexible Server 17 — West Europe (Netherlands)",
-      "justification": "Strict ACID transactions for money and bookings; row-level security enforces tenant isolation in the database; handles write-heavy load; good maintainability (priority 4/5); good performance (priority 5/5).",
+      "justification": "Strict ACID transactions for payments and the records they change; row-level security enforces tenant isolation in the database; handles write-heavy load; good maintainability (priority 4/5); good performance (priority 5/5).",
       "driven_by": [
         "scale.workload",
         "requirements.payments",
