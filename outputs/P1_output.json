@@ -102,12 +102,12 @@
       ],
       "alternatives": [
         {
-          "choice": "GitHub Pages",
-          "why_not": "Cloudflare Pages is stronger on: good performance (you weighted it 3/5) (priorities.performance); good scalability (you weighted it 1/5) (priorities.scalability). Overall 4.0 points behind."
+          "choice": "Firebase Hosting (Google Cloud)",
+          "why_not": "Cloudflare Pages is stronger on: good scalability (you weighted it 1/5) (priorities.scalability). Overall 0.8 points behind."
         },
         {
-          "choice": "Netlify",
-          "why_not": "Cloudflare Pages is stronger on: good low running cost (you weighted it 5/5) (priorities.cost); good performance (you weighted it 3/5) (priorities.performance). Overall 7.2 points behind."
+          "choice": "Amazon S3 + CloudFront (static site)",
+          "why_not": "Cloudflare Pages is stronger on: good fast delivery (you weighted it 4/5) (priorities.time_to_market). Overall 1.6 points behind."
         },
         {
           "choice": "On-premises Linux servers (Docker Compose)",

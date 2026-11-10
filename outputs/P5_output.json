@@ -131,8 +131,8 @@
           "why_not": "Excluded: runs on cloudflare, but cloud_preference is azure (infrastructure.cloud_preference)."
         },
         {
-          "choice": "Google Cloud Run",
-          "why_not": "Excluded: runs on gcp, but cloud_preference is azure (infrastructure.cloud_preference)."
+          "choice": "Amazon S3 + CloudFront (static site)",
+          "why_not": "Excluded: runs on aws, but cloud_preference is azure (infrastructure.cloud_preference)."
         }
       ],
       "tradeoffs": [

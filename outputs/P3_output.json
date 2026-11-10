@@ -135,7 +135,7 @@
           "why_not": "Azure App Service (Linux, Basic B1 and up) is stronger on: good maintainability (you weighted it 4/5) (priorities.maintainability); good fast delivery (you weighted it 3/5) (priorities.time_to_market). Overall 3.0 points behind."
         },
         {
-          "choice": "Cloudflare Pages",
+          "choice": "Amazon S3 + CloudFront (static site)",
           "why_not": "Excluded: serves static/edge pages only; this project needs an application backend (project.type)."
         }
       ],

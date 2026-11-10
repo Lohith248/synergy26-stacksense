@@ -140,12 +140,12 @@
           "why_not": "Spring Boot is a long-running JVM/.NET server: slow cold starts and per-invocation connection pools on functions (team.languages). AWS ECS on Fargate (+ Application Load Balancer) is stronger on: good maintainability (you weighted it 4/5) (priorities.maintainability). Overall 6.4 points behind."
         },
         {
-          "choice": "Azure App Service (Linux, Basic B1 and up)",
-          "why_not": "Excluded: runs on azure, but cloud_preference is aws (infrastructure.cloud_preference)."
+          "choice": "Amazon S3 + CloudFront (static site)",
+          "why_not": "Excluded: serves static/edge pages only; this project needs an application backend (project.type)."
         },
         {
-          "choice": "Google Cloud Run",
-          "why_not": "Excluded: runs on gcp, but cloud_preference is aws (infrastructure.cloud_preference)."
+          "choice": "Azure App Service (Linux, Basic B1 and up)",
+          "why_not": "Excluded: runs on azure, but cloud_preference is aws (infrastructure.cloud_preference)."
         }
       ],
       "tradeoffs": [
