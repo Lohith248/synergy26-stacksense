@@ -128,7 +128,7 @@ The engine contains no LLM calls, so the result is always the same with or witho
 python stacksense.py run scenarios/stacksense_public_scenarios.json --out outputs --no-llm
 ```
 
-You can also set the environment variable `STACKSENSE_LLM=off`. The test suite blocks sockets and verifies byte-identical outputs across processes and hash seeds.
+You can also set the environment variable `STACKSENSE_LLM=off` (see `.env.example`). The engine reads no environment variables, so it has no effect. The test suite blocks sockets and verifies byte-identical outputs across processes and hash seeds.
 
 ## Verify
 
@@ -168,7 +168,7 @@ Example: `scenarios/extras/X1_p6_with_extras.json` (P6 plus the first four). The
 - **Soft conflicts:** budget, timeline and team conflicts give `ok_with_warnings` with a full stack and named warnings, never a silent violation.
 - **`cloud_preference: none`** means no public cloud.
 - **`on_premise` and `air_gapped`** both allow only self-hostable components, with no SaaS or CDN. Unavoidable external dependencies (a payment gateway, an existing cloud identity provider, an SMS carrier link) are kept only with an explicit warning.
-- **Extra output fields** (Section 4 allows them): each core component has `kb_id`, `score_margin` (gap to the runner-up; small means a near-tie) and `what_would_change` (up to three distinct outcomes, each with the first one-field edit that causes it and up to three other edits that lead there; `none in the probe set` when nothing tried flips it), `stability` (share of a fixed grid of 53-54 priority-weight vectors that keeps the choice, with the nearest single-priority flip point), `confidence` (`low` if stability < 0.7 or margin < 1.0, `high` if stability ≥ 0.9 and margin ≥ 2.0, else `medium`, with the numbers in `basis`) and `contrast` ("X rather than Y. Reason. Trade-off accepted: ..."). Components also carry `deployment`, `provider`, `data_bearing`, `data_location` and `sources`.
+- **Extra output fields** (Section 4 allows them): each core component has `kb_id`, `score_margin` (gap to the runner-up; small means a near-tie) and `what_would_change` (up to three distinct outcomes, each with the first one-field edit that causes it and up to three other edits that lead there; `none in the probe set` when nothing tried flips it), `stability` (share of a fixed grid of 53-54 priority-weight vectors that keeps the choice, with the nearest single-priority flip point), `confidence` (`low` if stability < 0.7 or margin < 1.0, `high` if stability ≥ 0.9 and margin ≥ 2.0, else `medium`, with the numbers in `basis`) and `contrast` ("X rather than Y. Reason. Trade-off accepted: ..."), `pareto` (whether another eligible option rates at least as well on all six priorities, and if so what the choice wins on, usually team fit or an existing system). Components also carry `deployment`, `provider`, `data_bearing`, `data_location` and `sources`.
 - **Relaxed recommendations:** when a critical conflict remains (for example a huge scale on a $0 budget), the summary starts with "Relaxed recommendation" and one `Relaxed:` assumption names each relaxed field.
 - **Description rules:** fixed, deterministic keyword rules on `project.description` shape supporting services and warnings only, for example UPI, EMI, payouts, ledger, KYC, offline sync and Microsoft 365. Core layers come from structured fields.
 
