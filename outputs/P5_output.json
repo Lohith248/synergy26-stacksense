@@ -39,6 +39,23 @@
         "https://react.dev/blog/2025/02/14/sunsetting-create-react-app"
       ],
       "kb_id": "react-vite",
+      "stability": {
+        "score": 0.87,
+        "vectors_tested": 52,
+        "label": "moderate",
+        "alternatives": [
+          {
+            "choice": "Blazor (ASP.NET Core 10) (web)",
+            "share": 0.13
+          }
+        ],
+        "flip_point": {
+          "priority": "time_to_market",
+          "from": 5,
+          "value": 2,
+          "new_choice": "Blazor (ASP.NET Core 10) (web)"
+        }
+      },
       "what_would_change": [
         {
           "edit": "requirements.seo_critical: false -> true",
@@ -84,6 +101,13 @@
       "sources": [
         "https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core"
       ],
+      "stability": {
+        "score": 1.0,
+        "vectors_tested": 52,
+        "label": "robust",
+        "alternatives": [],
+        "flip_point": null
+      },
       "what_would_change": [
         {
           "edit": "none in the probe set",
@@ -131,6 +155,13 @@
         "https://azure.microsoft.com/en-us/pricing/details/azure-sql-database/single/",
         "https://learn.microsoft.com/en-us/lifecycle/products/sql-server-2022"
       ],
+      "stability": {
+        "score": 1.0,
+        "vectors_tested": 52,
+        "label": "robust",
+        "alternatives": [],
+        "flip_point": null
+      },
       "what_would_change": [
         {
           "edit": "none in the probe set",
@@ -186,6 +217,13 @@
         "https://learn.microsoft.com/en-us/azure/app-service/app-service-hybrid-connections",
         "https://learn.microsoft.com/en-us/azure/compliance/"
       ],
+      "stability": {
+        "score": 1.0,
+        "vectors_tested": 52,
+        "label": "robust",
+        "alternatives": [],
+        "flip_point": null
+      },
       "what_would_change": [
         {
           "edit": "infrastructure.cloud_preference: azure -> aws",

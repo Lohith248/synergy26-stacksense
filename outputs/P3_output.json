@@ -39,6 +39,23 @@
         "https://react.dev/blog/2025/02/14/sunsetting-create-react-app"
       ],
       "kb_id": "react-vite",
+      "stability": {
+        "score": 0.91,
+        "vectors_tested": 54,
+        "label": "robust",
+        "alternatives": [
+          {
+            "choice": "Angular (web)",
+            "share": 0.09
+          }
+        ],
+        "flip_point": {
+          "priority": "time_to_market",
+          "from": 3,
+          "value": 1,
+          "new_choice": "Angular (web)"
+        }
+      },
       "what_would_change": [
         {
           "edit": "requirements.seo_critical: false -> true",
@@ -90,6 +107,23 @@
       "sources": [
         "https://go.dev/doc/devel/release"
       ],
+      "stability": {
+        "score": 0.59,
+        "vectors_tested": 54,
+        "label": "sensitive",
+        "alternatives": [
+          {
+            "choice": "Node.js 24 LTS + NestJS (TypeScript)",
+            "share": 0.41
+          }
+        ],
+        "flip_point": {
+          "priority": "time_to_market",
+          "from": 3,
+          "value": 5,
+          "new_choice": "Node.js 24 LTS + NestJS (TypeScript)"
+        }
+      },
       "what_would_change": [
         {
           "edit": "priorities.time_to_market: 3 -> 5",
@@ -143,6 +177,13 @@
         "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html",
         "https://supabase.com/docs/guides/platform/regions"
       ],
+      "stability": {
+        "score": 1.0,
+        "vectors_tested": 54,
+        "label": "robust",
+        "alternatives": [],
+        "flip_point": null
+      },
       "what_would_change": [
         {
           "edit": "none in the probe set",
@@ -195,6 +236,23 @@
         "https://learn.microsoft.com/en-us/azure/app-service/app-service-hybrid-connections",
         "https://learn.microsoft.com/en-us/azure/compliance/"
       ],
+      "stability": {
+        "score": 0.91,
+        "vectors_tested": 54,
+        "label": "robust",
+        "alternatives": [
+          {
+            "choice": "Google Cloud Run — europe-west1 (Belgium)",
+            "share": 0.09
+          }
+        ],
+        "flip_point": {
+          "priority": "cost",
+          "from": 2,
+          "value": 5,
+          "new_choice": "Google Cloud Run — europe-west1 (Belgium)"
+        }
+      },
       "what_would_change": [
         {
           "edit": "requirements.realtime: true -> false",

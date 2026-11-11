@@ -39,6 +39,23 @@
         "https://docs.astro.build/"
       ],
       "kb_id": "astro",
+      "stability": {
+        "score": 0.79,
+        "vectors_tested": 53,
+        "label": "moderate",
+        "alternatives": [
+          {
+            "choice": "Hugo (web)",
+            "share": 0.21
+          }
+        ],
+        "flip_point": {
+          "priority": "time_to_market",
+          "from": 4,
+          "value": 1,
+          "new_choice": "Hugo (web)"
+        }
+      },
       "what_would_change": [
         {
           "edit": "requirements.realtime: false -> true",
@@ -78,6 +95,13 @@
       "data_location": null,
       "sources": [],
       "kb_id": "none",
+      "stability": {
+        "score": 1.0,
+        "vectors_tested": 53,
+        "label": "robust",
+        "alternatives": [],
+        "flip_point": null
+      },
       "what_would_change": [
         {
           "edit": "requirements.realtime: false -> true",
@@ -116,6 +140,13 @@
       "data_location": null,
       "sources": [],
       "kb_id": "none",
+      "stability": {
+        "score": 1.0,
+        "vectors_tested": 53,
+        "label": "robust",
+        "alternatives": [],
+        "flip_point": null
+      },
       "what_would_change": [
         {
           "edit": "requirements.realtime: false -> true",
@@ -172,6 +203,23 @@
         "https://developers.cloudflare.com/pages/platform/limits/",
         "https://developers.cloudflare.com/pages/functions/pricing/"
       ],
+      "stability": {
+        "score": 0.75,
+        "vectors_tested": 53,
+        "label": "moderate",
+        "alternatives": [
+          {
+            "choice": "Amazon S3 + CloudFront (static site) — CloudFront edge (S3 origin bucket in your chosen region)",
+            "share": 0.25
+          }
+        ],
+        "flip_point": {
+          "priority": "time_to_market",
+          "from": 4,
+          "value": 2,
+          "new_choice": "Amazon S3 + CloudFront (static site) — CloudFront edge (S3 origin bucket in your chosen region)"
+        }
+      },
       "what_would_change": [
         {
           "edit": "requirements.realtime: false -> true",

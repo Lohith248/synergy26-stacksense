@@ -49,6 +49,13 @@
         "https://reactnative.dev/blog"
       ],
       "kb_id": "nextjs+react-native-expo",
+      "stability": {
+        "score": 1.0,
+        "vectors_tested": 54,
+        "label": "robust",
+        "alternatives": [],
+        "flip_point": null
+      },
       "what_would_change": [
         {
           "edit": "requirements.seo_critical: true -> false",
@@ -93,6 +100,27 @@
         "https://github.com/nodejs/release#release-schedule",
         "https://docs.nestjs.com/"
       ],
+      "stability": {
+        "score": 0.63,
+        "vectors_tested": 54,
+        "label": "sensitive",
+        "alternatives": [
+          {
+            "choice": "Python 3.13 + Django 5.2 LTS",
+            "share": 0.3
+          },
+          {
+            "choice": "Node.js 24 LTS + Express 5",
+            "share": 0.07
+          }
+        ],
+        "flip_point": {
+          "priority": "performance",
+          "from": 3,
+          "value": 2,
+          "new_choice": "Python 3.13 + Django 5.2 LTS"
+        }
+      },
       "what_would_change": [
         {
           "edit": "priorities.performance: 3 -> 2",
@@ -151,6 +179,13 @@
         "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html",
         "https://supabase.com/docs/guides/platform/regions"
       ],
+      "stability": {
+        "score": 1.0,
+        "vectors_tested": 54,
+        "label": "robust",
+        "alternatives": [],
+        "flip_point": null
+      },
       "what_would_change": [
         {
           "edit": "none in the probe set",
@@ -204,6 +239,23 @@
         "https://learn.microsoft.com/en-us/azure/app-service/app-service-hybrid-connections",
         "https://learn.microsoft.com/en-us/azure/compliance/"
       ],
+      "stability": {
+        "score": 0.91,
+        "vectors_tested": 54,
+        "label": "robust",
+        "alternatives": [
+          {
+            "choice": "Google Cloud Run — asia-south1 (Mumbai)",
+            "share": 0.09
+          }
+        ],
+        "flip_point": {
+          "priority": "time_to_market",
+          "from": 5,
+          "value": 1,
+          "new_choice": "Google Cloud Run — asia-south1 (Mumbai)"
+        }
+      },
       "what_would_change": [
         {
           "edit": "infrastructure.cloud_preference: any -> aws",

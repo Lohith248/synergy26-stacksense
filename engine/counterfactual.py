@@ -48,6 +48,52 @@ def probes(req):
     return near + mid + far
 
 
+def weight_grid(req):
+    """Fixed, ordered grid of priority vectors (no randomness): every single priority at every other value 1-5, then
+    every ordered pair 'favour one (5) over another (1)'. Vectors equal to the scenario's own weights are skipped."""
+    cur = {k: req[f"priorities.{k}"] for k in PRIO}
+    out = [{k: v} for k in PRIO for v in range(1, 6) if v != cur[k]]
+    for i, a in enumerate(PRIO):
+        for b in PRIO[i + 1:]:
+            for hi, lo in ((a, b), (b, a)):
+                if cur[hi] != 5 or cur[lo] != 1:
+                    out.append({hi: 5, lo: 1})
+    return out
+
+
+def stability(doc, req, run):
+    """Per core layer: share of grid vectors that keep the choice, the runner-up outcomes, and the nearest single-priority flip."""
+    vectors = weight_grid(req)
+    base = {k: doc["stack"][k].get("kb_id") for k in LAYERS}
+    same = {k: 0 for k in LAYERS}
+    alts = {k: {} for k in LAYERS}
+    flip = {k: None for k in LAYERS}  # (distance, priority order, value order, record)
+    for vec in vectors:
+        r2 = dict(req)
+        for k, v in vec.items():
+            r2[f"priorities.{k}"] = v
+        out = run(r2)
+        for layer in LAYERS:
+            new = out["stack"][layer] if out.get("stack") else None
+            if new is None or new.get("kb_id") == base[layer]:
+                same[layer] += 1
+                continue
+            alts[layer][new["choice"]] = alts[layer].get(new["choice"], 0) + 1
+            if len(vec) == 1:
+                (k, v), = vec.items()
+                key = (abs(v - req[f"priorities.{k}"]), PRIO.index(k), v)
+                if flip[layer] is None or key < flip[layer][0]:
+                    flip[layer] = (key, {"priority": k, "from": req[f"priorities.{k}"], "value": v, "new_choice": new["choice"]})
+    n = len(vectors)
+    for layer in LAYERS:
+        score = round(same[layer] / n, 2)
+        doc["stack"][layer]["stability"] = {
+            "score": score, "vectors_tested": n,
+            "label": "robust" if score >= 0.9 else "moderate" if score >= 0.7 else "sensitive",
+            "alternatives": [{"choice": c, "share": round(m / n, 2)} for c, m in sorted(alts[layer].items(), key=lambda x: (-x[1], x[0]))[:2]],
+            "flip_point": flip[layer][1] if flip[layer] else None}
+
+
 def fmt(v):
     if v is None:
         return "unset"
@@ -81,6 +127,7 @@ def annotate(doc, req, run):
                     same["also_by"].append(edit)
             elif len(found[k]) < MAX_PER_LAYER:
                 found[k].append({"edit": edit, "path": path, "value": val, "new_choice": new["choice"], "also_by": []})
+    stability(doc, req, run)
     for k in LAYERS:
         doc["stack"][k]["what_would_change"] = found[k] or [
             {"edit": "none in the probe set", "path": None, "value": None, "also_by": [],
