@@ -181,7 +181,7 @@
       "sources": [
         "https://cloud.google.com/about/locations",
         "https://cloud.google.com/run/pricing",
-        "https://cloud.google.com/run/docs/triggering/websockets"
+        "https://docs.cloud.google.com/run/docs/triggering/websockets"
       ],
       "what_would_change": [
         {
