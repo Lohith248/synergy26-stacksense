@@ -1,4 +1,5 @@
 """Strict validation of the standard input schema (PDF Section 3.1, pp4-5) with recorded defaults."""
+import difflib
 import math
 
 PROJECT_TYPES = ["content_site", "web_app", "saas_b2b", "ecommerce", "marketplace", "social", "realtime_collab",
@@ -78,6 +79,59 @@ def _fmt(v):
     return repr(v) if isinstance(v, str) else str(v).lower() if isinstance(v, bool) else str(v)
 
 
+def _near(word, options):
+    """Closest known name (case-insensitive) or None; stdlib difflib, deterministic."""
+    m = difflib.get_close_matches(str(word).lower(), [o.lower() for o in options], n=1, cutoff=0.7)
+    return next((o for o in options if o.lower() == m[0]), None) if m else None
+
+
+def _did_you_mean(word, options):
+    n = _near(word, options) if isinstance(word, str) else None
+    return f" Did you mean {n!r}?" if n else ""
+
+
+_KIDS = {}
+for _p, *_ in FIELDS:
+    _g, _, _k = _p.partition(".")
+    if _k:
+        _KIDS.setdefault(_g, []).append(_k)
+_TOP = sorted(GROUPS | {"scenario_id", "compliance"})
+
+
+def unknown_key_warnings(raw):
+    """Info warnings for keys the schema does not define (they are ignored), with a near-miss hint."""
+    out = []
+    if not isinstance(raw, dict):
+        return out
+
+    def add(path, known):
+        out.append({"code": "UNKNOWN_FIELD", "severity": "info", "fields": [path],
+                    "message": f"Unknown key '{path}' is ignored; it does not affect any decision." + _did_you_mean(path.rsplit(".", 1)[-1], known)})
+    for k in raw:
+        if k not in _TOP:
+            add(k, _TOP)
+    for g in sorted(GROUPS):
+        if isinstance(raw.get(g), dict):
+            for k in raw[g]:
+                if k not in _KIDS[g]:
+                    add(f"{g}.{k}", _KIDS[g])
+    return out
+
+
+def _missing_hint(raw, parts):
+    """Required field missing: point at an unknown sibling key that looks like it."""
+    parent = raw.get(parts[0]) if len(parts) == 2 else None
+    if len(parts) == 2 and not isinstance(parent, dict):  # the whole group may be misspelled
+        for k in raw:
+            if k not in _TOP and _near(k, [parts[0]]):
+                return f" Found unknown key '{k}'. Did you mean '{parts[0]}'?"
+        return ""
+    for k in (parent or {}):
+        if k not in _KIDS[parts[0]] and _near(k, [parts[1]]):
+            return f" Found unknown key '{parts[0]}.{k}'. Did you mean '{parts[1]}'?"
+    return ""
+
+
 def validate(raw):
     """-> (req dict keyed by dotted path, errors [{field,message}], assumptions [str])."""
     errors, assumptions, req = [], [], {}
@@ -101,7 +155,7 @@ def validate(raw):
             continue
         if not present:
             if required:
-                errors.append({"field": path, "message": "Required field is missing."})
+                errors.append({"field": path, "message": "Required field is missing." + _missing_hint(raw, parts)})
             else:
                 req[path] = default
                 if default is not None:
@@ -115,7 +169,7 @@ def validate(raw):
                 msg = "Must be a string."
         elif kind in ("enum", "xenum"):
             if not isinstance(val, str) or val not in extra:
-                msg = f"Must be one of {', '.join(extra)} (got {_fmt(val)})."
+                msg = f"Must be one of {', '.join(extra)} (got {_fmt(val)})." + _did_you_mean(val, extra)
         elif kind in ("enum_list", "enum_list0"):
             if not isinstance(val, list) or not all(isinstance(x, str) for x in val):
                 msg = "Must be a list of strings."
@@ -124,7 +178,7 @@ def validate(raw):
             else:
                 bad = [x for x in val if x not in extra]
                 if bad:
-                    msg = f"Unknown value(s) {bad}; allowed: {', '.join(extra)}."
+                    msg = f"Unknown value(s) {bad}; allowed: {', '.join(extra)}." + "".join(_did_you_mean(x, extra) for x in bad)
                 elif len(set(val)) != len(val):
                     assumptions.append(f"{path}: duplicate values ignored.")
                     val = sorted(set(val), key=val.index)

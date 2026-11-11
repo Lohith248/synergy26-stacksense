@@ -393,6 +393,9 @@ def _recommend(req, assumptions, sid):
           f"Estimated minimum ${cost['min']}/month exceeds the ${ctx['budget']:g}/month budget. The stack keeps the hard constraints; "
           "to fit the budget, reduce scope (fewer managed services, lower availability) or raise the budget.",
           ["budget.monthly_infra_usd"])
+    elif ctx["budget"] >= 500 and cost["max"] * 8 < ctx["budget"]:
+        W("BUDGET_FAR_ABOVE_NEED", "info", f"The ${ctx['budget']:g}/month budget is far above the estimated ${cost['min']}-{cost['max']}/month need. The stack was not inflated to use it; spare budget could buy redundancy, support plans or monitoring.",
+          ["budget.monthly_infra_usd"])
     elif cost["max"] > ctx["budget"] > 0:
         W("BUDGET_AT_RISK", "info", f"Upper estimate ${cost['max']}/month can exceed the ${ctx['budget']:g} budget at peak usage.",
           ["budget.monthly_infra_usd"])
@@ -429,6 +432,15 @@ def contradictions(ctx, W, assumptions, host, backend):
           ["project.platforms", "timeline.mvp_weeks", "team.size"])
     if "api_only" in ctx["platforms"] and len(ctx["platforms"]) > 1:
         W("API_ONLY_WITH_CLIENTS", "info", "api_only was listed together with client platforms; treated as 'also expose a public API'.", ["project.platforms"])
+    if req["requirements.offline_support"] and ctx["platforms"] == ["api_only"]:
+        W("OFFLINE_WITHOUT_CLIENT", "warning", "offline_support is true but the only platform is api_only; offline behaviour lives in a client app. Add a web, mobile or desktop client or drop offline_support.",
+          ["requirements.offline_support", "project.platforms"])
+    if req["requirements.seo_critical"] and req["project.type"] == "internal_tool":
+        W("SEO_ON_INTERNAL_TOOL", "warning", "seo_critical is true for an internal tool; pages behind a login are not indexed by search engines. Confirm whether a public site is meant, otherwise set it to false.",
+          ["requirements.seo_critical", "project.type"])
+    if "hipaa" in req["compliance"] and req["infrastructure.data_residency"] in ("india", "eu", "other"):
+        W("HIPAA_RESIDENCY", "warning", f"HIPAA covers US patient data, but data_residency is '{req['infrastructure.data_residency']}'. Data kept only in that region may conflict with US clinics' expectations, and a BAA with the cloud provider is still required; confirm which law governs which data.",
+          ["compliance", "infrastructure.data_residency"])
     if req["requirements.seo_critical"] and not ctx["web"]:
         W("SEO_WITHOUT_WEB", "warning", "seo_critical is true but no web platform is listed; search engines cannot index native apps. Add a web landing site.",
           ["requirements.seo_critical", "project.platforms"])

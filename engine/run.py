@@ -1,6 +1,6 @@
 """Entry point used by the CLI and tests: scenario object -> Section 4 output document."""
 from . import ENGINE_VERSION
-from .validate import validate
+from .validate import unknown_key_warnings, validate
 
 
 def invalid_output(errors, scenario_id, assumptions=()):
@@ -22,7 +22,11 @@ def invalid_output(errors, scenario_id, assumptions=()):
 def evaluate(raw, counterfactuals=True):
     sid = raw.get("scenario_id") if isinstance(raw, dict) and isinstance(raw.get("scenario_id"), str) else None
     req, errors, assumptions = validate(raw)
+    unknown = unknown_key_warnings(raw)
     if errors:
-        return invalid_output(errors, sid, assumptions)
-    from .recommend import recommend
-    return recommend(req, assumptions, sid, probe=not counterfactuals)
+        out = invalid_output(errors, sid, assumptions)
+    else:
+        from .recommend import recommend
+        out = recommend(req, assumptions, sid, probe=not counterfactuals)
+    out["warnings"] = out["warnings"] + unknown
+    return out
