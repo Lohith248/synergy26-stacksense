@@ -272,7 +272,15 @@
     {"pattern": "heroku free", "name": "Heroku free dynos", "eol": "2022-11-28", "src": "heroku-free"},
     {"pattern": "firebase dynamic links", "name": "Firebase Dynamic Links", "eol": "2025-08-25", "src": "firebase-dynamic-links"},
     {"pattern": "minio", "name": "MinIO (open-source repository)", "eol": "2026-04-25", "kind": "unmaintained", "src": "minio-archived"},
-    {"pattern": "app runner", "name": "AWS App Runner (closed to new customers)", "eol": "2026-01-01", "kind": "closed", "src": "aws-apprunner-closed"}
+    {"pattern": "app runner", "name": "AWS App Runner (closed to new customers)", "eol": "2026-01-01", "kind": "closed", "src": "aws-apprunner-closed"},
+    {"pattern": "django 4.2", "name": "Django 4.2 LTS", "eol": "2026-04-07", "src": "django-download"},
+    {"pattern": "spring boot 3.4", "name": "Spring Boot 3.4 (open-source support)", "eol": "2025-12-31", "src": "eol-spring-boot"},
+    {"pattern": "spring boot 3.5", "name": "Spring Boot 3.5 (open-source support)", "eol": "2026-06-30", "src": "eol-spring-boot"},
+    {"pattern": "spring boot 4.0", "name": "Spring Boot 4.0 (open-source support)", "eol": "2026-12-31", "src": "eol-spring-boot"},
+    {"pattern": "java 17", "name": "Oracle Java SE 17", "eol": "2029-09-30", "mainstream_end": "2026-09-30", "src": "eol-oracle-jdk"},
+    {"pattern": "jdk 17", "name": "Oracle Java SE 17", "eol": "2029-09-30", "mainstream_end": "2026-09-30", "src": "eol-oracle-jdk"},
+    {"pattern": "node 22", "name": "Node.js 22", "eol": "2027-04-30", "src": "node-release"},
+    {"pattern": "node 24", "name": "Node.js 24", "eol": "2028-04-30", "src": "node-release"}
   ],
   "existing_patterns": [
     {"match": ["entra", "azure ad", "azure active directory"], "kind": "identity", "name": "Microsoft Entra ID", "how": "Reuse it as the identity provider: OpenID Connect sign-in with group/app-role claims for authorisation; no separate user store.", "src": ["entra-sso"]},

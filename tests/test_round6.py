@@ -31,6 +31,17 @@ class LifecycleSpellings(unittest.TestCase):
             self.assertIn("END_OF_LIFE_SYSTEM", with_existing(raw), raw)
         self.assertIn("END_OF_LIFE_SOON", with_existing("PostgreSQL14 cluster"))
 
+    def test_r13_rows(self):
+        """research/R13: Django 4.2 ended 2026-04-07 (verified); Spring Boot 3.4/3.5 ended, 4.0 ends 2026-12-31 and
+        Java 17 premier support ended 2026-09-30 (endoflife.date, secondary); Node 22/24, Python 3.11 still supported."""
+        self.assertIn("END_OF_LIFE_SYSTEM", with_existing("Django 4.2 admin"))
+        for raw in ("Spring Boot 3.4 service", "Spring Boot 3.5 API"):
+            self.assertIn("END_OF_LIFE_SYSTEM", with_existing(raw), raw)
+        self.assertIn("END_OF_LIFE_SOON", with_existing("Spring Boot 4.0 API"))
+        self.assertIn("EXISTING_SYSTEM_EXTENDED_SUPPORT", with_existing("Java 17 batch jobs"))
+        for raw in ("Node.js 22 API", "Node 24 worker", "Python 3.11 scripts", "Java 21 service", "Django 5.2 app", "Spring Boot 4.1 API"):
+            self.assertFalse(with_existing(raw) & {"END_OF_LIFE_SYSTEM", "END_OF_LIFE_SOON"}, raw)
+
     def test_newer_versions_are_not_flagged(self):
         for raw in ("Node.js 22 API", "Node 180 widgets", "Python 3.13", ".NET 10 API", "PostgreSQL 16", "Angular 17 app"):
             self.assertFalse(with_existing(raw) & {"END_OF_LIFE_SYSTEM", "END_OF_LIFE_SOON"}, raw)
