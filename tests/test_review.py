@@ -82,5 +82,33 @@ class ExportBoundary(unittest.TestCase):
             self.assertEqual(source.read_text(), '{}')
 
 
+class HardConstraintWarnings(unittest.TestCase):
+    def test_unresolved_residency_is_critical_and_never_claimed_satisfied(self):
+        s = copy.deepcopy(PUBLIC[5])
+        s['infrastructure']['data_residency'] = 'other'
+        out = evaluate(s, counterfactuals=False)
+        self.assertEqual(next(w['severity'] for w in out['warnings'] if w['code'] == 'RESIDENCY_UNSPECIFIED'), 'critical')
+        self.assertNotIn('Satisfies the hard constraints', out['stack']['hosting']['justification'])
+        self.assertTrue(out['summary'].startswith('Relaxed recommendation'))
+
+    def test_external_payment_and_identity_conflicts_are_critical(self):
+        for onprem in (False, True):
+            s = copy.deepcopy(PUBLIC[4] if onprem else PUBLIC[1])
+            if onprem:
+                s['infrastructure'].update(cloud_preference='none', deployment_model='on_premise')
+                code = 'EXTERNAL_IDENTITY_PROVIDER'
+            else:
+                s['infrastructure']['data_residency'] = 'eu'
+                s['compliance'] = ['gdpr']
+                code = 'PAYMENT_DATA_LOCATION'
+            out = evaluate(s, counterfactuals=False)
+            self.assertEqual(next(w['severity'] for w in out['warnings'] if w['code'] == code), 'critical')
+            self.assertTrue(any(a.startswith('Relaxed:') for a in out['assumptions']))
+
+    def test_known_supported_public_case_has_no_new_critical_warning(self):
+        out = evaluate(copy.deepcopy(PUBLIC[5]), counterfactuals=False)
+        self.assertFalse(any(w['severity'] == 'critical' for w in out['warnings']))
+
+
 if __name__ == '__main__':
     unittest.main()

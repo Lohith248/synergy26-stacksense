@@ -38,7 +38,7 @@ def build(ctx, host, backend, db, mobile, warn):
             idp = ctx["existing_idp"]
             if idp and "entra" in idp["pattern"]["name"].lower() and not ctx["no_internet"]:
                 if ctx["self_host_only"]:
-                    warn("EXTERNAL_IDENTITY_PROVIDER", "warning",
+                    warn("EXTERNAL_IDENTITY_PROVIDER", "critical",
                          "The company's existing identity provider (Microsoft Entra ID) is a cloud service; reusing it is kept as the one external dependency of an otherwise on-premises stack. Use Keycloak federated to on-prem AD if no cloud dependency is acceptable.",
                          ["infrastructure.existing_systems", "infrastructure.deployment_model"])
                 if p in ("aws", "gcp"):
@@ -368,11 +368,11 @@ def build(ctx, host, backend, db, mobile, warn):
                 why += " pci_dss: the gateway is PCI DSS Level 1; your scope still covers the pages that embed checkout."
                 src += ["pci-saq-a", "pci-v4"]
             if ctx["self_host_only"] and not store:
-                warn("EXTERNAL_PAYMENT_GATEWAY", "warning",
+                warn("EXTERNAL_PAYMENT_GATEWAY", "critical",
                      f"Payments cannot be self-hosted: {name.split(' (')[0]} is the single external SaaS dependency kept on {ctx['deploy']} (card/UPI networks are external by nature). Card data never touches your servers.",
                      ["requirements.payments", "infrastructure.deployment_model"])
             if not store and not india and ctx["res_key"] in ("eu", "us") and ctx["req"]["infrastructure.data_residency"] in ("eu", "us"):
-                warn("PAYMENT_DATA_LOCATION", "warning",
+                warn("PAYMENT_DATA_LOCATION", "critical",
                      f"{name.split(' (')[0]} processes payer data; its storage location for {ctx['residency'].upper()} residency is not verified in the knowledge base — confirm the data-processing terms.",
                      ["requirements.payments", "infrastructure.data_residency"])
             if not store and ctx["type"] == "api_platform" and not india:
@@ -443,7 +443,7 @@ def build(ctx, host, backend, db, mobile, warn):
                                 "azure": ("Azure OpenAI (Foundry) + Azure AI Search vectors", "azure", ["azure-ai-search"]),
                                 "gcp": ("Vertex AI Gemini + pgvector", "gcp", ["gcp-locations"])}.get(p, ("Hosted LLM API + pgvector", "neutral", ["postgres-versioning"]))
                 if loc:
-                    warn("LLM_REGION_CHECK", "warning", f"Confirm the chosen LLM model is served in {ctx['residency'].upper()} before sending personal data to it.",
+                    warn("LLM_REGION_CHECK", "critical", f"Confirm the chosen LLM model is served in {ctx['residency'].upper()} before sending personal data to it.",
                          ["requirements.ml_features", "infrastructure.data_residency"])
             out.append(svc("ml", c, "Retrieval-augmented generation: embeddings stored next to the data, a managed model generates answers from retrieved passages.",
                            dp, [("Fine-tuning a model", "costlier and slower to update than retrieval")], ["Per-token cost; evaluate answer quality"],
@@ -518,7 +518,7 @@ def build(ctx, host, backend, db, mobile, warn):
                        "self_hosted", "neutral", False, Z, ["statement"]))
     elif ctx["existing_m365"] or (d["approvals"] and ctx["existing_idp"]):
         if ctx["self_host_only"]:
-            warn("EXTERNAL_EXISTING_SERVICE", "warning",
+            warn("EXTERNAL_EXISTING_SERVICE", "critical",
                  "Microsoft 365 is an existing cloud service; calling Microsoft Graph for notifications is kept as an integration with an existing system, not a new SaaS dependency.",
                  ["infrastructure.existing_systems", "infrastructure.deployment_model"])
         out.append(svc("other", "Microsoft Graph notifications (Outlook mail / Teams) for approvals",

@@ -156,6 +156,8 @@ def cap(s):
 
 
 def envelope_text(ctx, region):
+    if ctx["residency"] == "other":
+        return "Deployment/provider filters are met, but residency is unresolved until a jurisdiction is supplied. "
     bits = []
     if ctx["cloud"] in ("aws", "azure", "gcp"):
         bits.append(f"cloud_preference {ctx['cloud']}")
@@ -200,7 +202,7 @@ def _recommend(req, assumptions, sid):
     if ctx["residency_from_rbi"]:
         assumptions.append("rbi_localisation present with data_residency 'none': payment and personal data are kept in India.")
     if ctx["req"]["infrastructure.data_residency"] == "other":
-        W("RESIDENCY_UNSPECIFIED", "warning", "data_residency 'other' does not name a jurisdiction; regions could not be verified. State the country so every data store can be pinned.",
+        W("RESIDENCY_UNSPECIFIED", "critical", "data_residency 'other' does not name a jurisdiction; regions could not be verified. State the country so every data store can be pinned.",
           ["infrastructure.data_residency"])
         assumptions.append("data_residency 'other': no region pinning applied; choose regions in the required jurisdiction.")
     if not ctx["langs"]:
@@ -439,7 +441,7 @@ def _recommend(req, assumptions, sid):
         if s["layer"] == "payments" and any(w["code"] == "PAYMENT_DATA_LOCATION" for w in W.items):
             continue
         if s["data_bearing"] and explicit and s["data_location"] not in (ctx["res_key"], "device"):
-            W("RESIDENCY_UNVERIFIED_SERVICE", "warning", f"{s['choice']} stores data but its location could not be pinned to {ctx['residency'].upper()}.",
+            W("RESIDENCY_UNVERIFIED_SERVICE", "critical", f"{s['choice']} stores data but its location could not be pinned to {ctx['residency'].upper()}.",
               ["infrastructure.data_residency"])
 
     # ---- cost band
