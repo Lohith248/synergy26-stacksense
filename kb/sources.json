@@ -12,7 +12,7 @@
   "aws-sns-sms": {"url": "https://docs.aws.amazon.com/sms-voice/latest/userguide/phone-numbers-sms-by-country.html", "title": "Amazon SNS SMS supported countries", "status": "verified", "claims": ["R5:2a-SMS-India", "R5:2b-DLT-India"], "note": "India SMS and TRAI DLT registration verified on the AWS End User Messaging SMS pages; the SNS-specific page did not render"},
   "aws-opensearch": {"url": "https://aws.amazon.com/opensearch-service/pricing/", "title": "Amazon OpenSearch Service pricing", "status": "official-unverified"},
   "aws-sagemaker": {"url": "https://aws.amazon.com/sagemaker/ai/pricing/", "title": "Amazon SageMaker AI pricing (real-time inference)", "status": "official-unverified"},
-  "aws-bedrock": {"url": "https://docs.aws.amazon.com/bedrock/latest/userguide/models-regions.html", "title": "Amazon Bedrock model availability by Region", "status": "official-unverified"},
+  "aws-bedrock": {"url": "https://docs.aws.amazon.com/bedrock/latest/userguide/models-region-compatibility.html", "title": "Amazon Bedrock model availability by Region", "status": "official-unverified"},
   "azure-regions": {"url": "https://learn.microsoft.com/en-us/azure/reliability/regions-list", "title": "Azure regions: Central India (Pune), South India, West India, India South Central", "status": "verified", "claims": ["R4:8.3", "review fetch"]},
   "azure-products-by-region": {"url": "https://learn.microsoft.com/en-us/azure/reliability/regions-list", "title": "Azure products available by region", "status": "verified", "claims": ["R5:1"], "note": "Central India (Pune) with 3 availability zones verified on the Learn regions list; per-service availability remains as cited"},
   "azure-compliance": {"url": "https://learn.microsoft.com/en-us/azure/compliance/", "title": "Azure compliance offerings (ISO 27001, SOC 2, PCI DSS, HIPAA)", "status": "verified", "claims": ["R1:AZ-28..31"]},
@@ -31,7 +31,7 @@
   "gcp-storage-locations": {"url": "https://docs.cloud.google.com/storage/docs/locations", "title": "Cloud Storage locations: asia-south1 Mumbai, asia-south2 Delhi", "status": "verified", "claims": ["R4:8.5"]},
   "gcp-hipaa": {"url": "https://docs.cloud.google.com/docs/security/compliance/hipaa", "title": "Google Cloud HIPAA BAA", "status": "verified", "claims": ["R4:5.5"]},
   "gcp-cloudrun-pricing": {"url": "https://cloud.google.com/run/pricing", "title": "Cloud Run pricing", "status": "verified", "claims": ["R5:6a-CloudRun-locations", "R5:6b-CloudRun-free"], "note": "free tier verified on docs.cloud.google.com/free/docs/free-cloud-features"},
-  "gcp-cloudrun-websockets": {"url": "https://cloud.google.com/run/docs/triggering/websockets", "title": "Cloud Run: using WebSockets (connections subject to the request timeout)", "status": "official-unverified"},
+  "gcp-cloudrun-websockets": {"url": "https://docs.cloud.google.com/run/docs/triggering/websockets", "title": "Cloud Run: using WebSockets (connections subject to the request timeout)", "status": "verified", "claims": ["R8:A6"]},
   "firebase-pricing": {"url": "https://firebase.google.com/pricing", "title": "Firebase pricing (phone auth billed per SMS; FCM no-cost)", "status": "verified", "claims": ["R1:GCP-08", "R1:GCP-10", "R2:9.1"]},
   "github-pages-limits": {"url": "https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits", "title": "GitHub Pages limits: 1 GB site, 100 GB/month soft bandwidth, not for commercial SaaS", "status": "verified", "claims": ["R2:1.1", "R2:1.2", "R2:1.4"]},
   "cloudflare-pages-limits": {"url": "https://developers.cloudflare.com/pages/platform/limits/", "title": "Cloudflare Pages limits: 500 builds/month free, 20,000 files", "status": "verified", "claims": ["R2:1.5", "R2:1.7"]},
@@ -161,7 +161,7 @@
   "clickhouse": {"url": "https://github.com/ClickHouse/ClickHouse", "title": "ClickHouse open source (Apache-2.0)", "status": "verified", "claims": ["R7:7"]},
   "aws-apigw-usage-plans": {"url": "https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-api-usage-plans.html", "title": "API Gateway usage plans and API keys (throttling, quotas)", "status": "verified", "claims": ["R7:8"]},
   "azure-apim": {"url": "https://learn.microsoft.com/en-us/azure/api-management/api-management-policies", "title": "Azure API Management rate-limit and quota policies (Consumption tier)", "status": "verified", "claims": ["R7:9"]},
-  "gcp-api-gateway": {"url": "https://docs.cloud.google.com/api-gateway/docs/overview", "title": "Google Cloud API Gateway (API keys, quotas); pages did not render", "status": "official-unverified", "claims": ["R7:10"]},
+  "gcp-api-gateway": {"url": "https://docs.cloud.google.com/api-gateway/docs/about-api-gateway", "title": "Google Cloud API Gateway (API keys, quotas); pages did not render", "status": "official-unverified", "claims": ["R7:10"]},
   "kong": {"url": "https://github.com/Kong/kong", "title": "Kong Gateway open source (Apache-2.0)", "status": "verified", "claims": ["R7:11"]},
   "stripe-usage-billing": {"url": "https://docs.stripe.com/billing/subscriptions/usage-based", "title": "Stripe usage-based (metered) billing", "status": "verified", "claims": ["R7:12"]},
   "cognito-federation": {"url": "https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-identity-federation.html", "title": "Cognito user pools federate with multiple SAML and OIDC IdPs", "status": "verified", "claims": ["R7:13"]},
@@ -174,5 +174,6 @@
   "cf-pages-pricing": {"url": "https://developers.cloudflare.com/pages/functions/pricing/", "title": "Cloudflare Pages: requests to static assets are free and unlimited", "status": "verified", "claims": ["R7:21"]},
   "cloudfront-pricing": {"url": "https://aws.amazon.com/cloudfront/pricing/", "title": "CloudFront flat-rate Free plan: $0, 1M requests, 100 GB transfer per month", "status": "verified", "claims": ["R7:22"]},
   "postgis": {"url": "https://postgis.net/documentation/", "title": "PostGIS spatial extension for PostgreSQL (geography type, spatial indexes)", "status": "official-unverified"},
-  "rn-hermes": {"url": "https://reactnative.dev/docs/hermes", "title": "React Native: Hermes JavaScript engine (default)", "status": "official-unverified"}
+  "rn-hermes": {"url": "https://reactnative.dev/docs/hermes", "title": "React Native: Hermes JavaScript engine (default)", "status": "verified", "claims": ["R8:A17"]},
+  "gcp-vertex-search": {"url": "https://docs.cloud.google.com/generative-ai-app-builder/docs/introduction", "title": "Vertex AI Search (now Agent Search): generative-AI search and recommendations for websites, enterprise data and media", "status": "verified", "claims": ["R8:B1"], "note": "positioning only; pricing unit and free tier not confirmed"}
 }

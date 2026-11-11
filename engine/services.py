@@ -203,9 +203,14 @@ def build(ctx, host, backend, db, mobile, warn):
                 c, prov, cost, src = f"Azure AI Search{rtxt}", "azure", [[0, 75], [75, 250], [250, 1000], [1000, 4000]], ["azure-ai-search"]
             else:
                 c, prov, cost, src = "Meilisearch (self-hosted container, MIT core)", "neutral", [[0, 10], [10, 40], [40, 200], [200, 800]], ["meilisearch-license"]
+            alts = [("Database full-text search", "relevance and load isolation weaker at this scale")]
+            if p == "gcp" and not selfh:  # Google Cloud has no managed engine comparable to OpenSearch / Azure AI Search
+                src = src + ["gcp-vertex-search"]
+                alts.append(("Vertex AI Search", "Google positions it as generative-AI search for websites, enterprise data and media, not a general "
+                             "application search engine; Elastic Cloud on the Google Cloud Marketplace is the managed option to price if self-hosting is unwanted"))
             out.append(svc("search", c, f"Search at {ctx['users']:,} users / {ctx['data_gb']:g} GB benefits from a dedicated engine with relevance tuning, kept in the same region as the data.",
                            dp + ["scale.users_12_months"] + res_path,
-                           [("Database full-text search", "relevance and load isolation weaker at this scale")],
+                           alts,
                            ["Index must be kept in sync with the database (outbox/CDC)"],
                            "managed" if prov != "neutral" else "self_hosted", prov, True, cost, src, loc))
 

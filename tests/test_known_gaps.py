@@ -47,5 +47,28 @@ class OneNewLanguage(unittest.TestCase):
             self.assertTrue(any(w in b for w in want), (langs, b))
 
 
+
+class GcpSearch(unittest.TestCase):
+    def test_gcp_keeps_meilisearch_and_says_why_not_vertex(self):
+        out = run(P(2, infrastructure__cloud_preference="gcp", infrastructure__data_residency="none", scale__users_12_months=2000000, scale__peak_concurrent_users=50000, scale__users_at_launch=100000))
+        item = next(x for x in out["stack"]["supporting"] if x["layer"] == "search")
+        self.assertIn("Meilisearch", item["choice"])
+        alt = next(a for a in item["alternatives"] if "Vertex AI Search" in a["choice"])
+        self.assertIn("not a general", alt["why_not"])
+        self.assertTrue(any("generative-ai-app-builder" in u for u in item["sources"]))
+
+
+class SourcesFixed(unittest.TestCase):
+    def test_moved_urls_and_verified_status(self):
+        with open(os.path.join(ROOT, "kb", "sources.json"), encoding="utf-8") as f:
+            src = json.load(f)
+        self.assertTrue(src["gcp-cloudrun-websockets"]["url"].startswith("https://docs.cloud.google.com/run/"))
+        self.assertEqual(src["gcp-cloudrun-websockets"]["status"], "verified")
+        self.assertEqual(src["rn-hermes"]["status"], "verified")
+        self.assertIn("about-api-gateway", src["gcp-api-gateway"]["url"])
+        self.assertIn("models-region-compatibility", src["aws-bedrock"]["url"])
+        self.assertEqual(sum(v.get("status") == "official-unverified" for k, v in src.items() if k != "_note"), 15)
+
+
 if __name__ == "__main__":
     unittest.main()
