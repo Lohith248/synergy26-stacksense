@@ -1,0 +1,61 @@
+{
+ "scenario_id": "H21",
+ "project": {
+  "name": "NFTBazaar",
+  "type": "marketplace",
+  "description": "NFT marketplace with wallet connect and creator royalties.",
+  "platforms": [
+   "web"
+  ]
+ },
+ "scale": {
+  "traffic_pattern": "spiky",
+  "workload": "read_heavy",
+  "users_at_launch": 2000,
+  "users_12_months": 30000,
+  "peak_concurrent_users": 2000,
+  "data_volume_gb_12_months": 200
+ },
+ "team": {
+  "has_devops": false,
+  "size": 4,
+  "experience": "intermediate",
+  "languages": [
+   "typescript"
+  ]
+ },
+ "budget": {
+  "monthly_infra_usd": 400
+ },
+ "timeline": {
+  "mvp_weeks": 10
+ },
+ "infrastructure": {
+  "cloud_preference": "gcp",
+  "deployment_model": "managed_cloud",
+  "data_residency": "none",
+  "existing_systems": []
+ },
+ "requirements": {
+  "realtime": false,
+  "offline_support": false,
+  "full_text_search": true,
+  "file_media_storage": true,
+  "payments": true,
+  "auth": "social",
+  "multi_tenant": false,
+  "ml_features": "none",
+  "seo_critical": false,
+  "availability": "99.9",
+  "p95_latency_ms": null
+ },
+ "compliance": [],
+ "priorities": {
+  "cost": 3,
+  "time_to_market": 3,
+  "scalability": 3,
+  "performance": 3,
+  "maintainability": 3,
+  "security": 3
+ }
+}

@@ -1,0 +1,68 @@
+{
+ "scenario_id": "H15",
+ "project": {
+  "name": "EuroPay",
+  "type": "fintech",
+  "description": "Account-to-account payments for EU small businesses with strict uptime.",
+  "platforms": [
+   "web",
+   "android",
+   "ios"
+  ]
+ },
+ "scale": {
+  "traffic_pattern": "steady",
+  "workload": "balanced",
+  "users_at_launch": 5000,
+  "users_12_months": 80000,
+  "peak_concurrent_users": 3000,
+  "data_volume_gb_12_months": 300
+ },
+ "team": {
+  "has_devops": true,
+  "size": 8,
+  "experience": "senior",
+  "languages": [
+   "go",
+   "typescript"
+  ]
+ },
+ "budget": {
+  "monthly_infra_usd": 9000
+ },
+ "timeline": {
+  "mvp_weeks": 16
+ },
+ "infrastructure": {
+  "cloud_preference": "gcp",
+  "deployment_model": "managed_cloud",
+  "data_residency": "eu",
+  "existing_systems": []
+ },
+ "requirements": {
+  "realtime": false,
+  "offline_support": false,
+  "full_text_search": false,
+  "file_media_storage": true,
+  "payments": true,
+  "auth": "email_password",
+  "multi_tenant": false,
+  "ml_features": "none",
+  "seo_critical": false,
+  "availability": "99.99",
+  "p95_latency_ms": null
+ },
+ "compliance": [
+  "gdpr",
+  "pci_dss",
+  "soc2"
+ ],
+ "priorities": {
+  "cost": 3,
+  "time_to_market": 3,
+  "scalability": 3,
+  "performance": 3,
+  "maintainability": 3,
+  "security": 3
+ }
+}

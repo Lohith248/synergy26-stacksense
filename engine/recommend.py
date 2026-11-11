@@ -425,6 +425,11 @@ def contradictions(ctx, W, assumptions, host, backend):
         W("AVAILABILITY_VS_TEAM", "warning",
           f"A {avail}% availability target (≈{ {'99.95': '22', '99.99': '4.4'}[avail]} min downtime/month) needs on-call and redundancy that a {ctx['size']}-person {ctx['exp']} team without DevOps rarely sustains. Managed multi-zone services were preferred; plan on-call or relax the target.",
           ["requirements.availability", "team.size", "team.experience", "team.has_devops"])
+    if avail == "99.99":
+        W("AVAILABILITY_SINGLE_REGION", "warning",
+          "A 99.99% target (about 4.4 minutes of downtime a month) is beyond what one region of managed services is designed to deliver, and service SLAs compose to a lower number. "
+          "This stack runs multi-zone in one region; add a second region with tested failover, or plan on 99.95%.",
+          ["requirements.availability"])
     n_plat = len([p for p in ctx["platforms"] if p != "api_only"])
     if n_plat >= 3 and ctx["weeks"] <= 6:
         W("TIMELINE_VS_SCOPE", "warning",

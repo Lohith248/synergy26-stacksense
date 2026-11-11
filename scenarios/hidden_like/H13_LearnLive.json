@@ -1,0 +1,64 @@
+{
+ "scenario_id": "H13",
+ "project": {
+  "name": "LearnLive",
+  "type": "web_app",
+  "description": "Live classes with recorded video lectures for school students.",
+  "platforms": [
+   "web"
+  ]
+ },
+ "scale": {
+  "traffic_pattern": "spiky",
+  "workload": "read_heavy",
+  "users_at_launch": 3000,
+  "users_12_months": 60000,
+  "peak_concurrent_users": 4000,
+  "data_volume_gb_12_months": 2000
+ },
+ "team": {
+  "has_devops": false,
+  "size": 4,
+  "experience": "intermediate",
+  "languages": [
+   "python",
+   "javascript"
+  ]
+ },
+ "budget": {
+  "monthly_infra_usd": 800
+ },
+ "timeline": {
+  "mvp_weeks": 12
+ },
+ "infrastructure": {
+  "cloud_preference": "gcp",
+  "deployment_model": "managed_cloud",
+  "data_residency": "india",
+  "existing_systems": []
+ },
+ "requirements": {
+  "realtime": true,
+  "offline_support": false,
+  "full_text_search": true,
+  "file_media_storage": true,
+  "payments": true,
+  "auth": "phone_otp",
+  "multi_tenant": false,
+  "ml_features": "none",
+  "seo_critical": false,
+  "availability": "99.9",
+  "p95_latency_ms": null
+ },
+ "compliance": [
+  "dpdp"
+ ],
+ "priorities": {
+  "cost": 3,
+  "time_to_market": 3,
+  "scalability": 3,
+  "performance": 3,
+  "maintainability": 3,
+  "security": 3
+ }
+}

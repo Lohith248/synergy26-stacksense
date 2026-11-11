@@ -162,6 +162,39 @@ ORACLE = {
                 hosting=w(["On-premises"], CLOUD_NAMES)),
     "H12": dict(frontend=w(["Astro", "Next.js", "Eleventy", "Hugo"]), backend=w(["None"]), database=w(["None"]),
                 hosting=w(STATIC_OK, STATIC_BAD)),
+    # ---- blind probes H13-H21: scenarios and rows written after an independent review, before the engine fixes
+    "H13": dict(backend=w(["Python", "FastAPI", "Django", "Node", "NestJS"], [".NET", "Spring", "PHP", "Rails"]),
+                database=w(["PostgreSQL"], ["SQLite"], INDIA), hosting=w([], ["Pages", "Static", "On-premises"], INDIA),
+                sup_has={"other": ["MediaConvert", "Transcoder", "Mux", "Cloudflare Stream", "Media Services"],
+                         "realtime": ["WebRTC", "Daily", "Twilio", "Agora", "Chime", "LiveKit", "Jitsi"]}),  # $800 cannot carry in-region video for 60k users: BUDGET_EXCEEDED must be raised, not hidden
+    "H14": dict(backend=w(["Spring", "Java", "Node", "NestJS"], ["PHP", "Rails", "Django", "Go 1"]),
+                database=w(["Timescale", "PostgreSQL"], ["SQLite", "MySQL"], EU),
+                hosting=w([], ["Pages", "Static", "Lambda", "On-premises"], EU),
+                sup_has={"other": ["IoT Hub", "Event Hubs", "MQTT"]}),  # IoT Hub is the ingestion buffer; the review said "no queue" and was wrong
+    "H15": dict(backend=w(["Go 1", "Node", "NestJS"], ["PHP", "Rails", ".NET", "Django"]),
+                database=w(["PostgreSQL", "Spanner", "AlloyDB"], ["SQLite", "Mongo"], EU),
+                hosting=w([], ["Lambda", "Pages", "Static", "On-premises", "Azure", "AWS"], EU),
+                warn_has=["AVAILABILITY_SINGLE_REGION"]),
+    "H16": dict(frontend=w([], ["Unity", "Electron", "WPF"], ["Android", "iOS"]),
+                backend=w(["Node", "NestJS", "Spring", "Kotlin"], ["PHP", "Rails", "Django", ".NET"]),
+                database=w(["PostgreSQL", "Dynamo", "Aurora"], ["SQLite"]), hosting=w([], ["Pages", "Static", "On-premises", "Azure", "Google"]),
+                sup_has={"cdn": ["CloudFront"], "other": ["MediaConvert"], "queue": ["SQS"]}),
+    "H17": dict(frontend=w(["Next.js", "Nuxt"], ["Vite SPA", "Unity"], ["Android"]),
+                backend=w(["Node", "NestJS", "Laravel", "PHP"], [".NET", "Spring", "Rails", "Django"]),
+                database=w(["PostgreSQL", "MySQL"], ["SQLite", "Cosmos", "Dynamo"], EU),
+                hosting=w([], ["Pages", "Static", "On-premises"], EU)),
+    "H18": dict(backend=w(["Node", "NestJS", "Python", "FastAPI", "Django"], [".NET", "Spring", "PHP", "Rails"]),
+                database=w(["PostgreSQL"], ["SQLite"], INDIA), hosting=w([], ["Pages", "Static", "On-premises"], INDIA),
+                sup_has={"realtime": ["WebRTC", "Twilio", "Daily", "Agora", "Chime", "LiveKit", "Jitsi", "Vonage"]}),
+    "H19": dict(backend=w([".NET"], langs_except(".NET")), database=w(["Azure SQL", "SQL Server", "PostgreSQL"], ["SQLite", "Mongo"]),
+                hosting=w(["App Service", "Container Apps"], ["Lambda", "AWS", "Google", "Kubernetes"]),
+                sup_has={"auth": ["Entra"]}),
+    "H20": dict(backend=w(["Python", "FastAPI", "Django"], [".NET", "Spring", "PHP", "Rails", "Node"]),
+                hosting=w([], ["Kubernetes", "Premium", "Beanstalk", "ECS", "On-premises"]),
+                sup_has={"other": ["Scheduler", "cron"]}, within_budget=True),
+    "H21": dict(backend=w(["Node", "NestJS"], [".NET", "Spring", "Rails", "PHP", "Django"]),
+                hosting=w([], ["Pages", "Static", "On-premises"]),
+                sup_has={"other": ["RPC", "indexer"]}, warn_has=["WEB3_CAUTION"], within_budget=True),
 }
 
 
@@ -188,6 +221,15 @@ def _judge(sid, out):
     for layer in spec.get("sup_absent", []):
         if any(x["layer"] == layer for x in sup):
             miss.append("supporting %s should be absent" % layer)
+    codes = {x["code"] for x in out["warnings"]}
+    for c in spec.get("warn_has", []):
+        if c not in codes:
+            miss.append("warning %s missing (has %s)" % (c, sorted(codes)))
+    if spec.get("within_budget"):
+        budget = out["estimated_monthly_cost_usd"]["min"]
+        limit = SC[sid]["budget"]["monthly_infra_usd"]
+        if budget > limit:
+            miss.append("minimum estimate $%s exceeds the $%s budget" % (budget, limit))
     if spec.get("no_cloud"):
         for x in sup:
             hit = [c for c in CLOUD_NAMES if c.lower() in x["choice"].lower()]

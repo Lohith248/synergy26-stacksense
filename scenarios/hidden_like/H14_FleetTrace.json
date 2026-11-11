@@ -1,0 +1,64 @@
+{
+ "scenario_id": "H14",
+ "project": {
+  "name": "FleetTrace",
+  "type": "iot",
+  "description": "Fleet GPS tracking: 500 GPS pings per second from trucks across Europe with live map and alerts.",
+  "platforms": [
+   "web"
+  ]
+ },
+ "scale": {
+  "traffic_pattern": "steady",
+  "workload": "write_heavy",
+  "users_at_launch": 300,
+  "users_12_months": 3000,
+  "peak_concurrent_users": 200,
+  "data_volume_gb_12_months": 3000
+ },
+ "team": {
+  "has_devops": true,
+  "size": 5,
+  "experience": "senior",
+  "languages": [
+   "java",
+   "typescript"
+  ]
+ },
+ "budget": {
+  "monthly_infra_usd": 3000
+ },
+ "timeline": {
+  "mvp_weeks": 12
+ },
+ "infrastructure": {
+  "cloud_preference": "azure",
+  "deployment_model": "managed_cloud",
+  "data_residency": "eu",
+  "existing_systems": []
+ },
+ "requirements": {
+  "realtime": true,
+  "offline_support": false,
+  "full_text_search": false,
+  "file_media_storage": false,
+  "payments": false,
+  "auth": "email_password",
+  "multi_tenant": false,
+  "ml_features": "none",
+  "seo_critical": false,
+  "availability": "99.9",
+  "p95_latency_ms": null
+ },
+ "compliance": [
+  "gdpr"
+ ],
+ "priorities": {
+  "cost": 3,
+  "time_to_market": 3,
+  "scalability": 3,
+  "performance": 3,
+  "maintainability": 3,
+  "security": 3
+ }
+}

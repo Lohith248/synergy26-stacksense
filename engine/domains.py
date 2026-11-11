@@ -125,6 +125,65 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
                        ["The open-source edition is AGPL: keep it unmodified or comply with the licence"], "self_hosted", "neutral", False, Z,
                        ["metabase-license", "superset"] + (["looker-studio"] if p == "gcp" else [])))
 
+    # ---------------- video: transcoding pipeline for uploaded video, managed WebRTC for live calls
+    if d["video_vod"] and ctx["needs_backend"]:
+        if hyper and p == "aws":
+            tr, tprov, tsrc, tdep = f"Video transcoding: AWS Elemental MediaConvert{rtxt}", "aws", ["aws-mediaconvert"], "managed"
+        elif hyper and p == "gcp":
+            tr, tprov, tsrc, tdep = f"Video transcoding: Google Cloud Transcoder API{rtxt}", "gcp", ["gcp-transcoder"], "managed"
+        else:
+            tr, tprov, tsrc, tdep = "Video transcoding: FFmpeg worker containers fed from the job queue", "neutral", ["ffmpeg"], "self_hosted"
+        out.append(svc("other", tr,
+                       "Uploaded video is re-encoded into several bitrates (adaptive streaming) by background workers, not by the web API, so playback works on slow phones "
+                       "and uploads never block requests.",
+                       ["project.description", "requirements.file_media_storage"],
+                       [("Serving the original upload", "huge files, no adaptive bitrate, buffering on mobile networks"),
+                        ("Third-party video API", "simplest to run, but video would be stored outside your chosen region/provider")],
+                       ["Billed per output minute (managed) or per worker-hour (FFmpeg); budget it per hour of video uploaded"],
+                       tdep, tprov, True, [[10, 60], [60, 400], [400, 3000], [3000, 20000]], tsrc, loc))
+    if d["video_call"] and ctx["needs_backend"]:
+        if selfh or not hyper:
+            vc, vsrc, vdep, vprov = "Video calls: LiveKit (open-source WebRTC server, self-hosted)", ["livekit"], "self_hosted", "neutral"
+        else:
+            vc, vsrc, vdep, vprov = "Video calls: managed WebRTC video API (for example Daily); recordings off by default", ["daily-docs"], "managed", "neutral"
+        out.append(svc("realtime", vc,
+                       "Live video runs through a WebRTC media server (SFU), never through the application server: the API only issues short-lived room tokens.",
+                       ["project.description"],
+                       [("Relaying video through the application API", "media streams need a purpose-built server; the API would saturate"),
+                        ("Peer-to-peer WebRTC only", "fails behind many mobile and corporate NATs and does not scale past a few participants")],
+                       ["Bandwidth is the main cost: priced per participant-minute (managed) or per egress GB (self-hosted)"],
+                       vdep, vprov, False, [[0, 25], [25, 150], [150, 1000], [1000, 6000]], vsrc))
+        if "hipaa" in ctx["compliance"]:
+            warn("VIDEO_PHI", "warning", "Video consultations carry PHI: the video provider must sign a BAA, and recordings must stay off unless stored in your HIPAA-eligible storage.",
+                 ["compliance", "project.description"])
+
+    # ---------------- scheduled work (reminders, nightly jobs)
+    if d["scheduler"] and ctx["needs_backend"]:
+        if selfh or not hyper:
+            sc, ssrc, sdep, sprov = "Scheduler: cron / Celery beat or Graphile Worker schedule inside the app container", ["postgres-versioning"], "self_hosted", "neutral"
+        else:
+            sc, sprov, ssrc, sdep = {"aws": (f"Scheduler: Amazon EventBridge Scheduler{rtxt}", "aws", ["aws-eventbridge-scheduler"], "managed"),
+                                     "azure": (f"Scheduler: Azure Container Apps jobs or Functions timer trigger{rtxt}", "azure", ["azure-container-apps-jobs"], "managed"),
+                                     "gcp": (f"Scheduler: Google Cloud Scheduler{rtxt}", "gcp", ["gcp-cloud-scheduler"], "managed")}[p]
+        out.append(svc("other", sc,
+                       "Reminders and other timed work run from a scheduler that calls the app on a schedule, so no always-on process or hand-rolled timer loop is needed.",
+                       ["project.description"],
+                       [("In-process timers", "lost on every restart or deploy; duplicated across instances")],
+                       ["Make scheduled jobs idempotent: a schedule can fire twice"], sdep, sprov, False, [[0, 1], [0, 3], [1, 10], [5, 30]], ssrc))
+
+    # ---------------- web3: on-chain access and payment caution
+    if d["web3"] and ctx["needs_backend"]:
+        warn("WEB3_CAUTION", "warning", "Crypto/NFT products: card processors may restrict or refuse some crypto businesses, so check the processor's restricted-business list before building the checkout; "
+             "wallets and private keys stay with the user (never custody them by default); regulation (consumer, tax, anti-money-laundering) varies by country and is not assessed here.",
+             ["project.description", "requirements.payments"])
+        out.append(svc("other", "On-chain access: managed blockchain RPC provider plus an event indexer (for example The Graph or a self-run indexer)",
+                       "Wallet connections, ownership checks and mint/transfer events are read from the chain through an RPC provider; an indexer copies events into the database so listings and search stay fast.",
+                       ["project.description"],
+                       [("Running your own full node", "large disk, constant sync and upgrades for a small team"),
+                        ("Querying the chain on every page load", "slow and rate-limited by RPC providers")],
+                       ["RPC providers meter requests; chain reorganisations require the indexer to handle rollbacks"],
+                       "managed", "neutral", False, [[0, 50], [50, 250], [250, 1500], [1500, 8000]], ["the-graph"]))
+
     # ---------------- API platforms: gateway with keys, quotas, rate limits
     if typ == "api_platform" or (ctx["api_only"] and req["requirements.payments"]):
         if hyper:

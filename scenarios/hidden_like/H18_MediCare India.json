@@ -1,0 +1,65 @@
+{
+ "scenario_id": "H18",
+ "project": {
+  "name": "MediCare India",
+  "type": "healthtech",
+  "description": "Clinic EHR with video consult and prescription records.",
+  "platforms": [
+   "web",
+   "android"
+  ]
+ },
+ "scale": {
+  "traffic_pattern": "steady",
+  "workload": "balanced",
+  "users_at_launch": 2000,
+  "users_12_months": 20000,
+  "peak_concurrent_users": 1000,
+  "data_volume_gb_12_months": 300
+ },
+ "team": {
+  "has_devops": false,
+  "size": 5,
+  "experience": "intermediate",
+  "languages": [
+   "typescript",
+   "python"
+  ]
+ },
+ "budget": {
+  "monthly_infra_usd": 1500
+ },
+ "timeline": {
+  "mvp_weeks": 12
+ },
+ "infrastructure": {
+  "cloud_preference": "gcp",
+  "deployment_model": "managed_cloud",
+  "data_residency": "india",
+  "existing_systems": []
+ },
+ "requirements": {
+  "realtime": true,
+  "offline_support": false,
+  "full_text_search": false,
+  "file_media_storage": true,
+  "payments": true,
+  "auth": "phone_otp",
+  "multi_tenant": false,
+  "ml_features": "none",
+  "seo_critical": false,
+  "availability": "99.9",
+  "p95_latency_ms": null
+ },
+ "compliance": [
+  "dpdp"
+ ],
+ "priorities": {
+  "cost": 3,
+  "time_to_market": 3,
+  "scalability": 3,
+  "performance": 3,
+  "maintainability": 3,
+  "security": 3
+ }
+}

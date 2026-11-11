@@ -277,11 +277,13 @@ def build(ctx, host, backend, db, mobile, warn):
 
     # ---------------- queue
     need_queue = (req["requirements.payments"] and ctx["tier"] >= 2) or req["requirements.ml_features"] == "training" or (
-        req["scale.workload"] == "write_heavy" and ctx["tier"] >= 2) or (req["requirements.offline_support"] and d["gps_media"])
+        req["scale.workload"] == "write_heavy" and ctx["tier"] >= 2) or (req["requirements.offline_support"] and d["gps_media"]) or d["video_vod"]
     if need_queue and ctx["needs_backend"]:
         why = []
         if req["requirements.payments"] and ctx["tier"] >= 2:
             why.append("payment webhooks and ledger postings processed idempotently with retries")
+        if d["video_vod"]:
+            why.append("video transcoding jobs queued after each upload")
         if req["requirements.offline_support"] and d["gps_media"]:
             why.append("photo post-processing (thumbnails, EXIF/GPS extraction) after bursts of offline syncs")
         if req["scale.workload"] == "write_heavy" and ctx["tier"] >= 2:
@@ -297,7 +299,7 @@ def build(ctx, host, backend, db, mobile, warn):
         out.append(svc("queue", c, "Background work: " + "; ".join(why) + ".",
                        [x for x in ("requirements.payments", "requirements.offline_support", "scale.workload", "requirements.ml_features")
                         if (x == "requirements.payments" and req[x] and ctx["tier"] >= 2) or (x == "requirements.offline_support" and req[x])
-                        or (x == "scale.workload" and req[x] == "write_heavy" and ctx["tier"] >= 2) or (x == "requirements.ml_features" and req[x] == "training")] or ["scale.workload"],
+                        or (x == "scale.workload" and req[x] == "write_heavy" and ctx["tier"] >= 2) or (x == "requirements.ml_features" and req[x] == "training")] or ["project.description" if d["video_vod"] else "scale.workload"],
                        [("Synchronous processing in the request", "slow responses and lost work when a call fails")],
                        ["Consumers must be idempotent"], "managed" if prov in ("aws", "azure", "gcp") else "library", prov, True, cost, src, loc))
 
@@ -382,7 +384,8 @@ def build(ctx, host, backend, db, mobile, warn):
                                "saas", prov, True, Z, src, "india" if india else None))
 
     # ---------------- cdn
-    if (ctx["web"] and ctx["needs_backend"] and not selfh and not d["internal_only"]
+    public_media = ctx["mobile"] and not ctx["web"] and req["requirements.file_media_storage"] and (d["video_vod"] or ctx["type"] == "social")
+    if ((ctx["web"] or public_media) and ctx["needs_backend"] and not selfh and not d["internal_only"]
             and (req["requirements.seo_critical"] or ctx["tier"] >= 1 or ctx["geo"] in ("multi_region", "global"))):
         name = {"aws": "Amazon CloudFront", "azure": "Azure Front Door", "gcp": "Cloud CDN"}.get(p, "Cloudflare (free plan)")
         out.append(svc("cdn", name, "Caches public pages and static assets near users; only public, non-personal content is cached at the edge.",

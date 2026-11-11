@@ -1,0 +1,65 @@
+{
+ "scenario_id": "H17",
+ "project": {
+  "name": "ModaEU",
+  "type": "ecommerce",
+  "description": "Online fashion store for EU customers.",
+  "platforms": [
+   "web",
+   "android"
+  ]
+ },
+ "scale": {
+  "traffic_pattern": "seasonal",
+  "workload": "read_heavy",
+  "users_at_launch": 5000,
+  "users_12_months": 60000,
+  "peak_concurrent_users": 3000,
+  "data_volume_gb_12_months": 100
+ },
+ "team": {
+  "has_devops": false,
+  "size": 4,
+  "experience": "intermediate",
+  "languages": [
+   "php",
+   "javascript"
+  ]
+ },
+ "budget": {
+  "monthly_infra_usd": 1500
+ },
+ "timeline": {
+  "mvp_weeks": 10
+ },
+ "infrastructure": {
+  "cloud_preference": "gcp",
+  "deployment_model": "managed_cloud",
+  "data_residency": "eu",
+  "existing_systems": []
+ },
+ "requirements": {
+  "realtime": false,
+  "offline_support": false,
+  "full_text_search": true,
+  "file_media_storage": true,
+  "payments": true,
+  "auth": "email_password",
+  "multi_tenant": false,
+  "ml_features": "none",
+  "seo_critical": true,
+  "availability": "99.9",
+  "p95_latency_ms": null
+ },
+ "compliance": [
+  "gdpr"
+ ],
+ "priorities": {
+  "cost": 3,
+  "time_to_market": 3,
+  "scalability": 3,
+  "performance": 3,
+  "maintainability": 3,
+  "security": 3
+ }
+}
