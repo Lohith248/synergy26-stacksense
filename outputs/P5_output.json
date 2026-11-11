@@ -2,7 +2,7 @@
   "scenario_id": "P5",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Hybrid cloud + on-premises integration: React (Vite SPA) (web) on .NET 10 LTS + ASP.NET Core with Azure SQL Database (serverless/General Purpose) — Central India (Pune), hosted on Azure App Service (Linux, Basic B2 / Standard S1) — Central India (Pune). Estimated $51-276/month.",
+  "summary": "Hybrid cloud + on-premises integration: React (Vite SPA) (web) on .NET 10 LTS + ASP.NET Core with Azure SQL Database (serverless/General Purpose) — Central India (Pune), hosted on Azure App Service (Linux, Basic B2 / Standard S1) — Central India (Pune), at an estimated $51-276/month.",
   "architecture_style": "hybrid",
   "stack": {
     "frontend": {

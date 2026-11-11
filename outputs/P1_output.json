@@ -2,7 +2,7 @@
   "scenario_id": "P1",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Static site: Astro (web), hosted on Cloudflare Pages — Cloudflare edge network. Estimated $0-5/month.",
+  "summary": "Static site: Astro (web), hosted on Cloudflare Pages — Cloudflare edge network, at an estimated $0-5/month.",
   "architecture_style": "static",
   "stack": {
     "frontend": {

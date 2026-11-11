@@ -2,7 +2,7 @@
   "scenario_id": "P3",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Modular monolith: React (Vite SPA) (web) on Go 1.27 (net/http + chi) with Azure Database for PostgreSQL – Flexible Server 17 — West Europe (Netherlands), hosted on Azure App Service (Linux, Premium v3, 2+ instances) — West Europe (Netherlands). Estimated $459-2388/month.",
+  "summary": "Modular monolith: React (Vite SPA) (web) on Go 1.27 (net/http + chi) with Azure Database for PostgreSQL – Flexible Server 17 — West Europe (Netherlands), hosted on Azure App Service (Linux, Premium v3, 2+ instances) — West Europe (Netherlands), at an estimated $459-2388/month.",
   "architecture_style": "modular_monolith",
   "stack": {
     "frontend": {

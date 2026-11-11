@@ -2,7 +2,7 @@
   "scenario_id": "P4",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Small set of services: React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) on Java 21/25 LTS + Spring Boot with Amazon RDS for PostgreSQL 17 — ap-south-1 (Mumbai) (multi-AZ / zone-redundant HA), hosted on AWS ECS on Fargate (+ Application Load Balancer) — ap-south-1 (Mumbai). Estimated $1130-6219/month.",
+  "summary": "Small set of services: React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) on Java 21/25 LTS + Spring Boot with Amazon RDS for PostgreSQL 17 — ap-south-1 (Mumbai) (multi-AZ / zone-redundant HA), hosted on AWS ECS on Fargate (+ Application Load Balancer) — ap-south-1 (Mumbai), at an estimated $1130-6219/month.",
   "architecture_style": "service_oriented",
   "stack": {
     "frontend": {

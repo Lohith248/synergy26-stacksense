@@ -2,7 +2,7 @@
   "scenario_id": "P2",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Modular monolith: Next.js (web) + React Native (Expo) (Android) on Node.js 24 LTS + NestJS (TypeScript) with Azure Database for PostgreSQL – Flexible Server 17 — Central India (Pune), hosted on Azure App Service (Linux, Basic B2 / Standard S1) — Central India (Pune). Estimated $88-457/month.",
+  "summary": "Modular monolith: Next.js (web) + React Native (Expo) (Android) on Node.js 24 LTS + NestJS (TypeScript) with Azure Database for PostgreSQL – Flexible Server 17 — Central India (Pune), hosted on Azure App Service (Linux, Basic B2 / Standard S1) — Central India (Pune), at an estimated $88-457/month.",
   "architecture_style": "modular_monolith",
   "stack": {
     "frontend": {

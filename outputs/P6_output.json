@@ -2,7 +2,7 @@
   "scenario_id": "P6",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Single deployable monolith: React Native (Expo) (Android) on Python 3.13 + Django 5.2 LTS with Cloud SQL for PostgreSQL 17 — asia-south1 (Mumbai), hosted on Google Cloud Run — asia-south1 (Mumbai). Estimated $13-66/month.",
+  "summary": "Single deployable monolith: React Native (Expo) (Android) on Python 3.13 + Django 5.2 LTS with Cloud SQL for PostgreSQL 17 — asia-south1 (Mumbai), hosted on Google Cloud Run — asia-south1 (Mumbai), at an estimated $13-66/month.",
   "architecture_style": "monolith",
   "stack": {
     "frontend": {

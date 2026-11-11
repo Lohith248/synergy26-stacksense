@@ -481,7 +481,7 @@ def _recommend(req, assumptions, sid):
             assumptions.append(f"Relaxed: {', '.join(w['fields'])} — {w['message'].split('. ')[0].rstrip('.')}. "
                                "The stack above does not satisfy this as stated; see the matching critical warning.")
         summary = (f"Relaxed recommendation ({len(crit)} critical conflict{'s' if len(crit) > 1 else ''}: "
-                   + ", ".join(w["code"] for w in crit) + "). " + summary)
+                   + ", ".join(w["code"] for w in crit) + ") — " + summary)
     return {"scenario_id": sid, "engine_version": ENGINE_VERSION, "status": status, "summary": summary,
             "architecture_style": style, "stack": stack, "estimated_monthly_cost_usd": cost,
             "warnings": W.items, "assumptions": assumptions, "validation_errors": []}
@@ -755,7 +755,7 @@ def make_summary(ctx, style, fe, be, db, host_name, cost, status):
         parts.append(f"on {be['choice']}")
     if db["choice"] != "None":
         parts.append(f"with {db['choice']}")
-    s = " ".join(parts) + f", hosted on {host_name}. Estimated ${cost['min']}-{cost['max']}/month."
+    s = " ".join(parts) + f", hosted on {host_name}, at an estimated ${cost['min']}-{cost['max']}/month."  # statement 4: one or two sentences
     if status == "ok_with_warnings":
         s += " Review the warnings: some inputs conflict or carry risk."
     return s

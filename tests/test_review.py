@@ -426,5 +426,19 @@ class RenderedSourceWording(unittest.TestCase):
         self.assertIn('oracle.com', sources['eol-oracle-jdk']['url'])
 
 
+
+class SummaryLength(unittest.TestCase):
+    def test_every_summary_is_at_most_two_sentences(self):
+        import re
+        docs = [evaluate(copy.deepcopy(s), counterfactuals=False) for s in PUBLIC]
+        for f in sorted((ROOT / 'scenarios' / 'edge_cases').glob('*.json')):
+            docs += parse_text(f.read_text(encoding='utf-8'))
+        for d in docs:
+            if d['status'] == 'invalid_input':
+                continue
+            with self.subTest(sid=d.get('scenario_id'), status=d['status']):
+                self.assertLessEqual(len(re.findall(r'[.!?](?:\s|$)', d['summary'])), 2, d['summary'])
+
+
 if __name__ == '__main__':
     unittest.main()
