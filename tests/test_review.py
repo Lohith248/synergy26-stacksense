@@ -181,5 +181,13 @@ class ExplanationAccuracy(unittest.TestCase):
             self.assertIn('BUDGET_EXCEEDED', [w['code'] for w in out['warnings']])
 
 
+
+class FrontDoorShare(unittest.TestCase):
+    def test_public_p2_keeps_the_exact_budget_share(self):
+        out = evaluate(copy.deepcopy(PUBLIC[1]), counterfactuals=False)
+        cdn = next(x for x in out['stack']['supporting'] if x['layer'] == 'cdn')
+        self.assertIn('23% of the $150 budget', cdn['justification'])
+
+
 if __name__ == '__main__':
     unittest.main()

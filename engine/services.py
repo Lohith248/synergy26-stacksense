@@ -404,7 +404,8 @@ def build(ctx, host, backend, db, mobile, warn):
         # explicitly (a hard constraint), the free Cloudflare plan in front of Azure does the same job for a small site
         if p == "azure" and req["infrastructure.cloud_preference"] != "azure" and ctx["budget"] < 35 / 0.15:
             out.append(svc("cdn", "Cloudflare (free plan) in front of Azure", why + f" Azure Front Door's $35/month base fee would take "
-                           f"more than 15% of the ${ctx['budget']:g} budget, so the free plan is used.",
+                           + (f"{3500 / ctx['budget']:.0f}% of" if ctx["budget"] >= 35 else "more than all of")
+                           + f" the ${ctx['budget']:g} budget, so the free plan is used.",
                            paths + ["budget.monthly_infra_usd"],
                            [("Azure Front Door", "the $35/month Standard base fee is too large a share of this budget; switch when the budget grows"),
                             ("No CDN", "every asset request hits the origin; slower for distant users")],
