@@ -56,6 +56,11 @@
           "new_choice": "Blazor (ASP.NET Core 10) (web)"
         }
       },
+      "confidence": {
+        "label": "medium",
+        "basis": "stability 0.87 (moderate) over 52 priority vectors."
+      },
+      "contrast": "React (Vite SPA) (web) rather than Blazor (ASP.NET Core 10). React (Vite SPA) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market); rich interactive app screens (project.type). Trade-off accepted: Client-rendered pages are weak for SEO.",
       "what_would_change": [
         {
           "edit": "requirements.seo_critical: false -> true",
@@ -108,6 +113,11 @@
         "alternatives": [],
         "flip_point": null
       },
+      "confidence": {
+        "label": "high",
+        "basis": "stability 1.00 (robust) over 52 priority vectors; score margin 9.2 over the runner-up."
+      },
+      "contrast": ".NET 10 LTS + ASP.NET Core rather than Node.js 24 LTS + NestJS (TypeScript). .NET 10 LTS + ASP.NET Core is stronger on: first-class SQL Server driver/ORM (infrastructure.existing_systems); good security (priority 4/5) (priorities.security). Trade-off accepted: Smaller open-source hosting choice outside Azure.",
       "what_would_change": [
         {
           "edit": "none in the probe set",
@@ -162,6 +172,11 @@
         "alternatives": [],
         "flip_point": null
       },
+      "confidence": {
+        "label": "high",
+        "basis": "stability 1.00 (robust) over 52 priority vectors; score margin 6.7 over the runner-up."
+      },
+      "contrast": "Azure SQL Database (serverless/General Purpose) rather than Azure Database for PostgreSQL – Flexible Server 17. Azure SQL Database (serverless/General Purpose) is stronger on: matches the existing On-prem SQL Server 2019 the team already runs (infrastructure.existing_systems); EF Core + SQL Server is the default .NET pairing (team.languages). Trade-off accepted: Licence cost outside Azure SQL; Windows-centric tooling.",
       "what_would_change": [
         {
           "edit": "none in the probe set",
@@ -224,6 +239,11 @@
         "alternatives": [],
         "flip_point": null
       },
+      "confidence": {
+        "label": "high",
+        "basis": "stability 1.00 (robust) over 52 priority vectors; score margin 15.6 over the runner-up."
+      },
+      "contrast": "Azure App Service (Linux, Basic B2 / Standard S1) rather than Azure Container Apps. Azure App Service (Linux, Basic B2 / Standard S1) is stronger on: good maintainability (priority 5/5) (priorities.maintainability); good fast delivery (priority 5/5) (priorities.time_to_market). Trade-off accepted: Hybrid Connections limited to 5 per Basic plan.",
       "what_would_change": [
         {
           "edit": "infrastructure.cloud_preference: azure -> aws",

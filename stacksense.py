@@ -50,6 +50,10 @@ def explain(doc):
                 fp = st["flip_point"]
                 lines.append(f"  stability {st['score']:.2f} ({st['label']}, {st['vectors_tested']} priority vectors)"
                              + (f"; flips to {fp['new_choice']} if priorities.{fp['priority']} {fp['from']} -> {fp['value']}" if fp else "; no single priority change flips it"))
+            if c.get("confidence"):
+                lines.append(f"  confidence {c['confidence']['label']}: {c['confidence']['basis']}")
+            if c.get("contrast"):
+                lines.append(f"  decision: {c['contrast']}")
             for e in c.get("what_would_change", [])[:2]:
                 if e["path"]:
                     lines.append(f"  would change if {e['edit']} -> {e['new_choice']}")

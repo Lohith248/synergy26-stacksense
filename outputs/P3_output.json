@@ -56,6 +56,11 @@
           "new_choice": "Angular (web)"
         }
       },
+      "confidence": {
+        "label": "high",
+        "basis": "stability 0.91 (robust) over 54 priority vectors."
+      },
+      "contrast": "React (Vite SPA) (web) rather than Vue 3 (Vite SPA). React (Vite SPA) is stronger on: good fast delivery (priority 3/5) (priorities.time_to_market). Trade-off accepted: Client-rendered pages are weak for SEO.",
       "what_would_change": [
         {
           "edit": "requirements.seo_critical: false -> true",
@@ -124,6 +129,11 @@
           "new_choice": "Node.js 24 LTS + NestJS (TypeScript)"
         }
       },
+      "confidence": {
+        "label": "low",
+        "basis": "stability 0.59 (sensitive) over 54 priority vectors; score margin 0.8 over the runner-up (near-tie)."
+      },
+      "contrast": "Go 1.27 (net/http + chi) rather than Node.js 24 LTS + NestJS (TypeScript). Go 1.27 (net/http + chi) is stronger on: good performance (priority 5/5) (priorities.performance); good security (priority 3/5) (priorities.security). Trade-off accepted: More hand-written code than batteries-included frameworks.",
       "what_would_change": [
         {
           "edit": "priorities.time_to_market: 3 -> 5",
@@ -184,6 +194,11 @@
         "alternatives": [],
         "flip_point": null
       },
+      "confidence": {
+        "label": "high",
+        "basis": "stability 1.00 (robust) over 54 priority vectors; score margin 3.2 over the runner-up."
+      },
+      "contrast": "Azure Database for PostgreSQL – Flexible Server 17 rather than Azure SQL Database (serverless/General Purpose). Azure Database for PostgreSQL – Flexible Server 17 is stronger on: good low running cost (priority 2/5) (priorities.cost). Trade-off accepted: Vertical write scaling; sharding needs extensions.",
       "what_would_change": [
         {
           "edit": "none in the probe set",
@@ -253,6 +268,11 @@
           "new_choice": "Google Cloud Run — europe-west1 (Belgium)"
         }
       },
+      "confidence": {
+        "label": "high",
+        "basis": "stability 0.91 (robust) over 54 priority vectors; score margin 2.4 over the runner-up."
+      },
+      "contrast": "Azure App Service (Linux, Premium v3, 2+ instances) rather than Google Cloud Run. Azure App Service (Linux, Premium v3, 2+ instances) is stronger on: good maintainability (priority 4/5) (priorities.maintainability); good fast delivery (priority 3/5) (priorities.time_to_market). Trade-off accepted: Less control than containers for unusual runtimes.",
       "what_would_change": [
         {
           "edit": "requirements.realtime: true -> false",

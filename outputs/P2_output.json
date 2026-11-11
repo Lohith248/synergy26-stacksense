@@ -56,6 +56,11 @@
         "alternatives": [],
         "flip_point": null
       },
+      "confidence": {
+        "label": "high",
+        "basis": "stability 1.00 (robust) over 54 priority vectors."
+      },
+      "contrast": "Next.js (web) + React Native (Expo) (Android) rather than Nuxt (Vue SSR/SSG). Next.js is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market); same React component model as a React Native mobile app (project.platforms). Trade-off accepted: Server runtime needed for SSR; more moving parts than a static site.",
       "what_would_change": [
         {
           "edit": "requirements.seo_critical: true -> false",
@@ -121,6 +126,11 @@
           "new_choice": "Python 3.13 + Django 5.2 LTS"
         }
       },
+      "confidence": {
+        "label": "low",
+        "basis": "stability 0.63 (sensitive) over 54 priority vectors; score margin 0.8 over the runner-up (near-tie)."
+      },
+      "contrast": "Node.js 24 LTS + NestJS (TypeScript) rather than Python 3.13 + Django 5.2 LTS. Node.js 24 LTS + NestJS (TypeScript) is stronger on: native WebSocket support (requirements.realtime); good performance (priority 3/5) (priorities.performance). Trade-off accepted: More boilerplate than Express.",
       "what_would_change": [
         {
           "edit": "priorities.performance: 3 -> 2",
@@ -186,6 +196,11 @@
         "alternatives": [],
         "flip_point": null
       },
+      "confidence": {
+        "label": "high",
+        "basis": "stability 1.00 (robust) over 54 priority vectors; score margin 6.0 over the runner-up."
+      },
+      "contrast": "Azure Database for PostgreSQL – Flexible Server 17 rather than Supabase Postgres. Azure Database for PostgreSQL – Flexible Server 17 is stronger on: good low running cost (priority 4/5) (priorities.cost); good maintainability (priority 3/5) (priorities.maintainability). Trade-off accepted: Vertical write scaling; sharding needs extensions.",
       "what_would_change": [
         {
           "edit": "none in the probe set",
@@ -256,6 +271,11 @@
           "new_choice": "Google Cloud Run — asia-south1 (Mumbai)"
         }
       },
+      "confidence": {
+        "label": "high",
+        "basis": "stability 0.91 (robust) over 54 priority vectors; score margin 3.0 over the runner-up."
+      },
+      "contrast": "Azure App Service (Linux, Basic B2 / Standard S1) rather than Google Cloud Run. Azure App Service (Linux, Basic B2 / Standard S1) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market); good maintainability (priority 3/5) (priorities.maintainability). Trade-off accepted: Less control than containers for unusual runtimes.",
       "what_would_change": [
         {
           "edit": "infrastructure.cloud_preference: any -> aws",

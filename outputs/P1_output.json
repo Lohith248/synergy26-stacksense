@@ -56,6 +56,11 @@
           "new_choice": "Hugo (web)"
         }
       },
+      "confidence": {
+        "label": "medium",
+        "basis": "stability 0.79 (moderate) over 53 priority vectors."
+      },
+      "contrast": "Astro (web) rather than Hugo. Astro is stronger on: good fast delivery (priority 4/5) (priorities.time_to_market). Trade-off accepted: Interactive widgets need islands.",
       "what_would_change": [
         {
           "edit": "requirements.realtime: false -> true",
@@ -102,6 +107,11 @@
         "alternatives": [],
         "flip_point": null
       },
+      "confidence": {
+        "label": "high",
+        "basis": "stability 1.00 (robust) over 53 priority vectors."
+      },
+      "contrast": "No backend rather than Netlify/Cloudflare serverless functions. Nothing to compute at request time for this site.",
       "what_would_change": [
         {
           "edit": "requirements.realtime: false -> true",
@@ -147,6 +157,11 @@
         "alternatives": [],
         "flip_point": null
       },
+      "confidence": {
+        "label": "high",
+        "basis": "stability 1.00 (robust) over 53 priority vectors."
+      },
+      "contrast": "No database rather than SQLite. No runtime data to persist.",
       "what_would_change": [
         {
           "edit": "requirements.realtime: false -> true",
@@ -177,7 +192,7 @@
       "alternatives": [
         {
           "choice": "Firebase Hosting (Google Cloud)",
-          "why_not": "Close runner-up (score 33.2 vs 33.6); a stable id-based tie-break keeps the result deterministic. Known limit of Firebase Hosting: spark plan: 10 GB storage and 10 GB/month transfer, site disabled when exceeded unless upgraded to Blaze."
+          "why_not": "Close runner-up (score 33.2 vs 33.6): many small differences, none above half a point, add up to the 0.4-point gap, so either is defensible. Known limit of Firebase Hosting: spark plan: 10 GB storage and 10 GB/month transfer, site disabled when exceeded unless upgraded to Blaze."
         },
         {
           "choice": "Amazon S3 + CloudFront (static site)",
@@ -220,6 +235,11 @@
           "new_choice": "Amazon S3 + CloudFront (static site) — CloudFront edge (S3 origin bucket in your chosen region)"
         }
       },
+      "confidence": {
+        "label": "low",
+        "basis": "stability 0.75 (moderate) over 53 priority vectors; score margin 0.4 over the runner-up (near-tie)."
+      },
+      "contrast": "Cloudflare Pages rather than Firebase Hosting (Google Cloud). Close runner-up (score 33.2 vs 33.6): many small differences, none above half a point, add up to the 0.4-point gap, so either is defensible. Trade-off accepted: 500 builds/month and 20,000 files per site on Free.",
       "what_would_change": [
         {
           "edit": "requirements.realtime: false -> true",

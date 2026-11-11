@@ -72,6 +72,11 @@
           "new_choice": "React (Vite SPA) (web) + React Native (Expo) (Android + iOS)"
         }
       },
+      "confidence": {
+        "label": "low",
+        "basis": "stability 0.54 (sensitive) over 54 priority vectors."
+      },
+      "contrast": "React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) rather than Angular. Learning curve 4/5 for a senior team (team.experience). React (Vite SPA) is stronger on: good fast delivery (priority 3/5) (priorities.time_to_market). Trade-off accepted: Client-rendered pages are weak for SEO.",
       "what_would_change": [
         {
           "edit": "priorities.time_to_market: 3 -> 4",
@@ -146,6 +151,11 @@
         ],
         "flip_point": null
       },
+      "confidence": {
+        "label": "high",
+        "basis": "stability 0.96 (robust) over 54 priority vectors; score margin 4.0 over the runner-up."
+      },
+      "contrast": "Java 21/25 LTS + Spring Boot rather than Node.js 24 LTS + NestJS (TypeScript). Java 21/25 LTS + Spring Boot is stronger on: good security (priority 5/5) (priorities.security); mature security/audit tooling (compliance). Trade-off accepted: Heavier runtime and slower iteration than Node/Python.",
       "what_would_change": [
         {
           "edit": "none in the probe set",
@@ -205,6 +215,11 @@
         "alternatives": [],
         "flip_point": null
       },
+      "confidence": {
+        "label": "high",
+        "basis": "stability 1.00 (robust) over 54 priority vectors; score margin 3.2 over the runner-up."
+      },
+      "contrast": "Amazon RDS for PostgreSQL 17 rather than Amazon RDS for SQL Server. Amazon RDS for PostgreSQL 17 is stronger on: good low running cost (priority 2/5) (priorities.cost). Trade-off accepted: Vertical write scaling; sharding needs extensions.",
       "what_would_change": [
         {
           "edit": "none in the probe set",
@@ -275,6 +290,11 @@
           "new_choice": "AWS Elastic Beanstalk (managed platform on EC2) — ap-south-1 (Mumbai)"
         }
       },
+      "confidence": {
+        "label": "medium",
+        "basis": "stability 0.78 (moderate) over 54 priority vectors; score margin 2.1 over the runner-up."
+      },
+      "contrast": "AWS ECS on Fargate (+ Application Load Balancer) rather than AWS Elastic Beanstalk (managed platform on EC2). The EC2/VM operating system stays in your patching and hardening scope for rbi_localisation, pci_dss, iso27001 (compliance). AWS ECS on Fargate (+ Application Load Balancer) is stronger on: good security (priority 5/5) (priorities.security). Trade-off accepted: Load balancer and NAT add fixed monthly cost.",
       "what_would_change": [
         {
           "edit": "infrastructure.cloud_preference: aws -> any",

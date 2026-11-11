@@ -94,6 +94,29 @@ def stability(doc, req, run):
             "flip_point": flip[layer][1] if flip[layer] else None}
 
 
+def confidence(doc):
+    """One label per core layer: low if the choice is sensitive (stability < 0.7) or a near-tie (margin < 1.0),
+    high if robust (>= 0.9) with a clear margin (>= 2.0, or no scored runner-up), else medium. Plus a contrastive
+    sentence 'X rather than Y: reason. Trade-off accepted: limit.' built from the existing alternatives and tradeoffs."""
+    for layer in LAYERS:
+        c = doc["stack"][layer]
+        st, m = c["stability"]["score"], c.get("score_margin")
+        label = ("low" if st < 0.7 or (m is not None and m < 1.0) else
+                 "high" if st >= 0.9 and (m is None or m >= 2.0) else "medium")
+        basis = f"stability {st:.2f} ({c['stability']['label']}) over {c['stability']['vectors_tested']} priority vectors"
+        if m is not None:
+            basis += f"; score margin {m} over the runner-up" + (" (near-tie)" if m < 1.0 else "")
+        c["confidence"] = {"label": label, "basis": basis + "."}
+        if c["alternatives"]:
+            alt = c["alternatives"][0]
+            why = alt["why_not"].split(" Overall ")[0].split(" Known limit ")[0].rstrip(".")
+            subject = f"No {layer}" if c.get("kb_id") in (None, "none") or c["choice"] == "None" else c["choice"].split(" — ")[0]
+            s = f"{subject} rather than {alt['choice']}. {why[:1].upper() + why[1:]}."
+            if c["tradeoffs"]:
+                s += f" Trade-off accepted: {c['tradeoffs'][0].rstrip('.')}."
+            c["contrast"] = s
+
+
 def fmt(v):
     if v is None:
         return "unset"
@@ -128,6 +151,7 @@ def annotate(doc, req, run):
             elif len(found[k]) < MAX_PER_LAYER:
                 found[k].append({"edit": edit, "path": path, "value": val, "new_choice": new["choice"], "also_by": []})
     stability(doc, req, run)
+    confidence(doc)
     for k in LAYERS:
         doc["stack"][k]["what_would_change"] = found[k] or [
             {"edit": "none in the probe set", "path": None, "value": None, "also_by": [],

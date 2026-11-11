@@ -103,7 +103,8 @@ def why_not(win, alt):
         return (f"Tied on score ({alt.score}) with {win.item['name'].split(' (')[0]}; the stable id-based tie-break keeps the result "
                 "deterministic, so either is a defensible choice." + tail)
     if not weak and not strong:
-        return f"Close runner-up (score {alt.score} vs {win.score}); a stable id-based tie-break keeps the result deterministic." + tail
+        return (f"Close runner-up (score {alt.score} vs {win.score}): many small differences, none above half a point, add up to "
+                f"the {total}-point gap, so either is defensible." + tail)
     parts = []
     if weak:
         parts.append(cap("; ".join(weak)))
