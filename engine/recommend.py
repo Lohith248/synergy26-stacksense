@@ -1,4 +1,5 @@
 """Orchestration: validated input -> Section 4 document. Deterministic; no clock, randomness or network."""
+import re
 from datetime import date  # fromisoformat only: dates are compared with the KB date, never the clock
 from . import ENGINE_VERSION
 from . import context as cx
@@ -466,7 +467,18 @@ def _recommend(req, assumptions, sid):
         W("BUDGET_FAR_ABOVE_NEED", "info", f"The ${ctx['budget']:g}/month budget is far above the estimated ${cost['min']}-{cost['max']}/month need. The stack was not inflated to use it; spare budget could buy redundancy, support plans or monitoring.",
           ["budget.monthly_infra_usd"])
     elif cost["max"] > ctx["budget"] > 0:
-        W("BUDGET_AT_RISK", "info", f"Upper estimate ${cost['max']}/month can exceed the ${ctx['budget']:g} budget at peak usage.",
+        # ponytail: drivers read back from the band's own "label ... $lo-hi/month" lines; a structured item list would be cleaner
+        items = []
+        for line in cost["assumptions"]:
+            m = re.findall(r"\$([\d,]+(?:\.\d+)?)-([\d,]+(?:\.\d+)?)/month", line)
+            if m:
+                items.append((float(m[-1][1].replace(",", "")), line.split(":")[0].split(" — ")[0]))
+        top = sorted(items, key=lambda x: (-x[0], x[1]))[:2]
+        far = cost["max"] > 2 * ctx["budget"]
+        W("BUDGET_AT_RISK", "warning" if far else "info",
+          f"Upper estimate ${cost['max']}/month is {cost['max'] / ctx['budget']:.1f}x the ${ctx['budget']:g} budget at peak usage"
+          + (f"; the largest upper-bound items are {' and '.join(f'{n} (up to ${v:,.0f})' for v, n in top)}" if top else "")
+          + f". Launch near the ${cost['min']} lower bound and set billing alerts at the budget.",
           ["budget.monthly_infra_usd"])
 
     stack = {"frontend": fe_cmp, "backend": backend_cmp, "database": db_cmp, "hosting": hosting,

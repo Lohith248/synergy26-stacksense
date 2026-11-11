@@ -721,7 +721,7 @@
     {
       "code": "BUDGET_AT_RISK",
       "severity": "info",
-      "message": "Upper estimate $6219/month can exceed the $6000 budget at peak usage.",
+      "message": "Upper estimate $6219/month is 1.0x the $6000 budget at peak usage; the largest upper-bound items are Phone OTP (up to $1,800) and Database Amazon RDS for PostgreSQL 17 (up to $1,400). Launch near the $1130 lower bound and set billing alerts at the budget.",
       "fields": [
         "budget.monthly_infra_usd"
       ]

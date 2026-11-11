@@ -468,5 +468,23 @@ class PublicCitedSources(unittest.TestCase):
                 self.assertEqual(src[key]['status'], 'verified')
 
 
+
+class BudgetAtRisk(unittest.TestCase):
+    def test_upper_bound_far_above_budget_is_a_warning_that_names_its_drivers(self):
+        out = evaluate(copy.deepcopy(PUBLIC[1]), counterfactuals=False)  # P2: $150 budget
+        w = next(x for x in out['warnings'] if x['code'] == 'BUDGET_AT_RISK')
+        self.assertEqual(w['severity'], 'warning')
+        self.assertIn('Hosting', w['message'])
+        self.assertIn('Phone OTP', w['message'])
+        self.assertEqual(out['status'], 'ok_with_warnings')
+
+    def test_mild_overshoot_stays_info(self):
+        s = copy.deepcopy(PUBLIC[1])
+        cap = evaluate(copy.deepcopy(s), counterfactuals=False)['estimated_monthly_cost_usd']['max']
+        s['budget']['monthly_infra_usd'] = round(cap * 0.75)
+        w = next(x for x in evaluate(s, counterfactuals=False)['warnings'] if x['code'] == 'BUDGET_AT_RISK')
+        self.assertEqual(w['severity'], 'info')
+
+
 if __name__ == '__main__':
     unittest.main()

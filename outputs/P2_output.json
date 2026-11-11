@@ -1,8 +1,8 @@
 {
   "scenario_id": "P2",
   "engine_version": "1.0.0",
-  "status": "ok",
-  "summary": "Modular monolith: Next.js (web) + React Native (Expo) (Android) on Node.js 24 LTS + NestJS (TypeScript) with Azure Database for PostgreSQL – Flexible Server 17 — Central India (Pune), hosted on Azure App Service (Linux, Basic B2 / Standard S1) — Central India (Pune), at an estimated $83-457/month.",
+  "status": "ok_with_warnings",
+  "summary": "Modular monolith: Next.js (web) + React Native (Expo) (Android) on Node.js 24 LTS + NestJS (TypeScript) with Azure Database for PostgreSQL – Flexible Server 17 — Central India (Pune), hosted on Azure App Service (Linux, Basic B2 / Standard S1) — Central India (Pune), at an estimated $83-457/month. Review the warnings: some inputs conflict or carry risk.",
   "architecture_style": "modular_monolith",
   "stack": {
     "frontend": {
@@ -610,8 +610,8 @@
     },
     {
       "code": "BUDGET_AT_RISK",
-      "severity": "info",
-      "message": "Upper estimate $457/month can exceed the $150 budget at peak usage.",
+      "severity": "warning",
+      "message": "Upper estimate $457/month is 3.0x the $150 budget at peak usage; the largest upper-bound items are Hosting Azure App Service (Linux, Basic B2 / Standard S1) (up to $150) and Phone OTP (up to $135). Launch near the $83 lower bound and set billing alerts at the budget.",
       "fields": [
         "budget.monthly_infra_usd"
       ]
