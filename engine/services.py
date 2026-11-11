@@ -460,14 +460,17 @@ def build(ctx, host, backend, db, mobile, warn):
                            "managed" if prov != "neutral" else "self_hosted", prov, True,
                            Z if selfh else [[5, 30], [30, 200], [200, 1500], [1500, 8000]], src, loc))
         else:
-            c = {"aws": "Amazon SageMaker AI training jobs", "azure": "Azure Machine Learning training jobs", "gcp": "Vertex AI custom training"}.get(p, "Scheduled training job on a GPU/CPU worker (PyTorch / scikit-learn)")
+            managed = hyper and not ctx["self_host_only"]  # on_premise/air_gapped: own GPU hardware, outside the cloud bill
+            c = {"aws": "Amazon SageMaker AI training jobs", "azure": "Azure Machine Learning training jobs", "gcp": "Vertex AI custom training"}.get(p) if managed                 else "Scheduled training job on a GPU/CPU worker (PyTorch / scikit-learn)"
             out.append(svc("ml", c, "Model training runs as scheduled batch jobs separate from the serving path.", dp,
-                           [("Training inside the web API", "starves user requests of CPU/memory")], ["Training data governance and cost control"],
-                           "managed" if hyper and not selfh else "self_hosted", p if hyper else "neutral", True, [[10, 50], [50, 200], [200, 1500], [1500, 8000]], ["aws-sagemaker"], loc))
+                           [("Training inside the web API", "starves user requests of CPU/memory")],
+                           ["Training data governance and cost control"] + (["GPU hardware, power and operations must be sized separately"] if ctx["self_host_only"] else []),
+                           "managed" if managed else "self_hosted", p if managed else "neutral", True,
+                           Z if ctx["self_host_only"] else [[10, 50], [50, 200], [200, 1500], [1500, 8000]], ["aws-sagemaker"], loc))
             lo, hi = out[-1]["_cost"][ctx["tier"]]  # ponytail: one T4-class GPU at ~$0.75/h (SageMaker page did not render a training rate)
             out[-1]["_note"] = (f" Basis: about {lo / 0.75:,.0f}-{hi / 0.75:,.0f} GPU-hours a month on one T4-class GPU instance "
                                 + ("(e.g. ml.g4dn.xlarge) " if p == "aws" else "") + "at ~$0.75/hour; rate not verified on 11 Nov 2026. "
-                                "Larger models or more frequent retraining scale this linearly.") if hyper and not selfh else ""
+                                "Larger models or more frequent retraining scale this linearly.") if managed else ""
 
     # ---------------- ci/cd + observability
     if ctx["self_host_only"]:

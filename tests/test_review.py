@@ -348,5 +348,26 @@ class SmallDatabasePlanBasis(unittest.TestCase):
         self.assertIn('not verified', line)
 
 
+
+class OnPremTraining(unittest.TestCase):
+    def test_self_hosted_training_has_no_cloud_fee(self):
+        for dep in ('on_premise', 'air_gapped'):
+            with self.subTest(dep=dep):
+                s = copy.deepcopy(PUBLIC[5])
+                s['infrastructure'].update(cloud_preference='none', deployment_model=dep)
+                s['requirements'].update(auth='email_password', ml_features='training')
+                out = evaluate(s, counterfactuals=False)
+                ml = next(x for x in out['stack']['supporting'] if x['layer'] == 'ml')
+                self.assertEqual(ml['deployment'], 'self_hosted')
+                self.assertFalse(any(a.startswith('ml:') for a in out['estimated_monthly_cost_usd']['assumptions']))
+                self.assertIn('GPU', ' '.join(ml['tradeoffs']))
+
+    def test_managed_training_keeps_its_band(self):
+        s = copy.deepcopy(PUBLIC[5])
+        s['requirements']['ml_features'] = 'training'
+        out = evaluate(s, counterfactuals=False)
+        self.assertTrue(any(a.startswith('ml:') for a in out['estimated_monthly_cost_usd']['assumptions']))
+
+
 if __name__ == '__main__':
     unittest.main()
