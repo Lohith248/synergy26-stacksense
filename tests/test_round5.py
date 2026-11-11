@@ -137,6 +137,12 @@ class RankStability(unittest.TestCase):
                         self.assertEqual(kb(evaluate(s3, counterfactuals=False), layer), kb(out, layer), (i, layer, k, v))
         self.assertGreater(seen, 3)
 
+    def test_explain_prints_stability_and_flip_point(self):
+        import stacksense
+        text = stacksense.explain(evaluate(copy.deepcopy(PUBLIC[3])))
+        self.assertIn("stability 0.", text)
+        self.assertIn("flips to", text)
+
     def test_deterministic_bytes(self):
         a = json.dumps(evaluate(copy.deepcopy(PUBLIC[3])), sort_keys=True)
         b = json.dumps(evaluate(copy.deepcopy(PUBLIC[3])), sort_keys=True)
