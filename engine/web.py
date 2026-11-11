@@ -4,11 +4,13 @@ GET  /             the single page (web/index.html)
 GET  /api/schema   the input schema (field path, kind, required, default, allowed values)
 GET  /api/samples  public scenarios and edge cases shipped in scenarios/
 POST /api/evaluate scenario JSON (object or array) -> list of output documents (same parse_text as the CLI)
+POST /api/evaluate?format=files  same, as [{"name": "<id>_output.json", "text": <exact CLI file text>}]
 
 The page only calls this server; nothing is fetched from the internet and no LLM is involved.
 """
 import json
 import os
+import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from .load import parse_text
@@ -16,6 +18,7 @@ from .validate import EXTRA_PATHS, FIELDS
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MAX_BODY = 2_000_000
+DISCARD_MAX = 64_000_000  # an oversize body is read and dropped (up to this much) so the browser can read the 413
 
 
 def schema():
@@ -27,7 +30,8 @@ def samples():
     out = []
     with open(os.path.join(ROOT, "scenarios", "stacksense_public_scenarios.json"), encoding="utf-8") as f:
         for s in json.load(f):
-            out.append({"id": s["scenario_id"], "label": f"{s['scenario_id']} {s['project']['name']}", "group": "Public scenarios", "scenario": s})
+            out.append({"id": s["scenario_id"], "label": f"{s['scenario_id']} {s['project']['name']}", "group": "Public scenarios", "scenario": s,
+                        "text": json.dumps(s, indent=2, ensure_ascii=False)})
     groups = {"edge_cases": "Edge cases", "extras": "Extra inputs", "hidden_like": "Probe scenarios"}
     for sub in groups:
         edir = os.path.join(ROOT, "scenarios", sub)
@@ -39,7 +43,7 @@ def samples():
                     data = json.loads(text)
                 except ValueError:
                     data = text  # malformed on purpose (an edge case); sent as raw text
-                out.append({"id": name[:-5], "label": name[:-5].replace("_", " "), "group": groups[sub], "scenario": data})
+                out.append({"id": name[:-5], "label": name[:-5].replace("_", " "), "group": groups[sub], "scenario": data, "text": text})
     return out
 
 
@@ -73,19 +77,35 @@ class Handler(BaseHTTPRequestHandler):
             self._json(404, {"error": "not found"})
 
     def do_POST(self):
-        if self.path != "/api/evaluate":
+        path, _, query = self.path.partition("?")  # no urllib: the offline guard bans it
+        if path != "/api/evaluate":
             return self._json(404, {"error": "not found"})
         try:
             n = int(self.headers.get("Content-Length") or 0)
         except ValueError:
             n = 0  # malformed header: same 400 as a missing body
-        if n <= 0 or n > MAX_BODY:
-            return self._json(413 if n > MAX_BODY else 400, {"error": "body must be 1 byte to 2 MB of JSON"})
+        if n > MAX_BODY:
+            left = min(n, DISCARD_MAX)
+            while left > 0:
+                chunk = self.rfile.read(min(65536, left))
+                if not chunk:
+                    break
+                left -= len(chunk)
+            self.close_connection = True
+            return self._json(413, {"error": f"too large: {n / 1e6:.1f} MB; limit {MAX_BODY // 1_000_000} MB"})
+        if n <= 0:
+            return self._json(400, {"error": "body must be 1 byte to 2 MB of JSON"})
         try:
             text = self.rfile.read(n).decode("utf-8")
         except UnicodeDecodeError:
             return self._json(400, {"error": "body must be UTF-8"})
-        self._json(200, parse_text(text))
+        docs = parse_text(text)
+        if "format=files" in query.split("&"):
+            if ROOT not in sys.path:
+                sys.path.insert(0, ROOT)
+            from stacksense import dump_doc, out_name  # the CLI's own serializer and file naming
+            return self._json(200, [{"name": out_name(d, i, len(docs)), "text": dump_doc(d)} for i, d in enumerate(docs)])
+        self._json(200, docs)
 
 
 def make_server(port=8765, host="127.0.0.1"):

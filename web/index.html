@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>StackSense</title>
+<meta name="description" content="StackSense: describe a software project and get a justified tech-stack recommendation (frontend, backend, database, hosting). Runs offline on a local server; no LLM.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231f4fd1'/%3E%3Ctext x='16' y='23' font-size='20' font-family='sans-serif' font-weight='700' text-anchor='middle' fill='white'%3ES%3C/text%3E%3C/svg%3E">
 <script>
 /* theme first, to avoid a flash: saved choice > #theme= > OS preference */
 (function () {
@@ -19,7 +21,7 @@
 </script>
 <style>
 :root{
-  --bg:#f3f5f8;--panel:#fff;--panel2:#f7f8fb;--ink:#151b26;--muted:#556070;--line:#d9dee7;--line2:#b9c1ce;
+  --bg:#f3f5f8;--panel:#fff;--panel2:#f7f8fb;--ink:#151b26;--muted:#556070;--line:#d9dee7;--line2:#7d8798;
   --accent:#1f4fd1;--accent-bg:#e7edfc;--btn:#1f4fd1;--btnink:#fff;--focus:#1f4fd1;
   --ok:#14733f;--ok-bg:#e3f3ea;--warn:#7f5000;--warn-bg:#fbefd9;--crit:#b3261e;--crit-bg:#fce9e7;--info:#1f4fd1;--info-bg:#e7edfc;
   --shadow:0 1px 2px rgba(20,30,50,.06),0 2px 8px rgba(20,30,50,.05);color-scheme:light;
@@ -28,7 +30,7 @@
   --mono:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace;
 }
 :root[data-theme=dark]{
-  --bg:#0f1217;--panel:#171b22;--panel2:#1d222b;--ink:#e8ecf3;--muted:#9aa5b5;--line:#2b323d;--line2:#455062;
+  --bg:#0f1217;--panel:#171b22;--panel2:#1d222b;--ink:#e8ecf3;--muted:#9aa5b5;--line:#2b323d;--line2:#6b778c;
   --accent:#8fb0ff;--accent-bg:#1a2540;--btn:#3a63d6;--btnink:#fff;--focus:#9bb8ff;
   --ok:#62c78f;--ok-bg:#14291f;--warn:#e8b45c;--warn-bg:#2c2210;--crit:#ff8c82;--crit-bg:#3a1b19;--info:#8fb0ff;--info-bg:#1a2540;
   --shadow:none;color-scheme:dark;
@@ -71,7 +73,7 @@ main{display:grid;grid-template-columns:minmax(380px,480px) minmax(0,1fr);gap:va
   .inpane{overflow:hidden}
   .inbody{overflow:auto}
 }
-@media (max-width:900px){main{grid-template-columns:minmax(0,1fr);padding:var(--s3)}.badges{margin-left:0}}
+@media (max-width:900px){main{grid-template-columns:minmax(0,1fr);padding:var(--s3)}.badges{margin-left:0}.m-only{display:inline-flex}}
 
 /* buttons and inputs */
 button,select,input,textarea{font:inherit;color:inherit}
@@ -164,13 +166,15 @@ h3.sh small{font-size:var(--t-xs);color:var(--muted);font-weight:400}
 .kpi .sub{font-size:var(--t-xs);color:var(--muted)}
 .kpi.wide{grid-column:1/-1}
 .cbar{position:relative;height:10px;background:var(--panel2);border:1px solid var(--line);border-radius:999px;margin:var(--s3) 0 var(--s1)}
-.cbar .rng{position:absolute;top:-1px;bottom:-1px;border-radius:999px;background:var(--ok);min-width:4px}
+.cbar .rng{position:absolute;top:-1px;bottom:-1px;border-radius:999px;background:var(--accent);min-width:4px}
 .cbar .rng.over{background:var(--warn)}.cbar .rng.way{background:var(--crit)}
 .cbar .mk{position:absolute;top:-6px;bottom:-6px;width:2px;background:var(--ink)}
 .cbar .mk::after{content:attr(data-l);position:absolute;top:100%;left:50%;transform:translateX(-50%);font-size:10px;color:var(--muted);white-space:nowrap;margin-top:2px}
-.cbar-wrap{padding-bottom:22px}
+.cbar .mk.l::after{left:0;transform:none}.cbar .mk.r::after{left:auto;right:0;transform:none}
+.cbar-wrap{padding:0 6px 22px}
 .sevs{display:flex;gap:var(--s3);flex-wrap:wrap;margin:2px 0}
 .sevs span{font-size:var(--t-md);font-weight:700}
+.sevs .critical{color:var(--crit)}.sevs .warning{color:var(--warn)}.sevs .info{color:var(--info)}.sevs .zero{color:var(--muted);font-weight:500}
 .gcard{padding:var(--s3) var(--s4);display:flex;flex-direction:column;gap:var(--s1);text-align:left;cursor:pointer;width:100%;color:inherit;font:inherit}
 .gcard:hover{border-color:var(--accent)}
 .gcard .l{font-size:var(--t-xs);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700}
@@ -192,7 +196,7 @@ h3.sh small{font-size:var(--t-xs);color:var(--muted);font-weight:400}
 .pbody ul,.sup ul,.alist{margin:0;padding-left:var(--s5)}
 .pbody li,.sup li{margin:3px 0}
 .chips{display:flex;flex-wrap:wrap;gap:var(--s1)}
-.chip{display:inline-block;font:var(--t-xs)/1.4 var(--mono);background:var(--panel2);border:1px solid var(--line);border-radius:var(--r1);padding:1px 7px;color:var(--ink);overflow-wrap:anywhere;text-align:left}
+.chip{display:inline-flex;align-items:center;min-height:24px;font:var(--t-xs)/1.4 var(--mono);background:var(--panel2);border:1px solid var(--line);border-radius:var(--r1);padding:1px 7px;color:var(--ink);overflow-wrap:anywhere;text-align:left}
 button.chip{cursor:pointer;color:var(--accent);border-color:var(--accent)}
 button.chip:hover{background:var(--accent-bg)}
 .fact{font-size:var(--t-xs);background:var(--panel2);border-radius:var(--r1);padding:1px 8px;border:1px solid var(--line)}
@@ -222,15 +226,21 @@ details.mini{margin-top:2px}
 .strip ul{margin:var(--s1) 0 0;padding-left:var(--s5)}
 .empty{max-width:640px;margin:var(--s5) auto;padding:var(--s2)}
 .empty h3{font-size:var(--t-xl);margin-bottom:var(--s3)}
-.empty ol{padding-left:var(--s5);display:grid;gap:var(--s2)}
-.empty dl{display:grid;grid-template-columns:max-content 1fr;gap:var(--s2) var(--s3);margin:var(--s4) 0 0;font-size:var(--t-sm)}
-.empty dt{font-weight:700}.empty dd{margin:0;color:var(--muted)}
+.empty .lead{font-size:var(--t-lg);margin-bottom:var(--s4)}
+.empty h4{font-size:var(--t-xs);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.examples{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:var(--s3);margin:var(--s2) 0 var(--s4)}
+.example{display:flex;flex-direction:column;gap:2px;text-align:left;padding:var(--s3) var(--s4);border:1px solid var(--line2);border-radius:var(--r2);background:var(--panel);cursor:pointer;min-height:56px;font:inherit;color:inherit}
+.example:hover:not(:disabled){border-color:var(--accent);background:var(--accent-bg)}
+.example:disabled{opacity:.55;cursor:not-allowed}
+.example span{font-size:var(--t-xs);color:var(--muted)}
+.busybar{display:flex;gap:var(--s3);align-items:center;flex-wrap:wrap;margin-bottom:var(--s3);padding:var(--s2) var(--s3);border:1px solid var(--line2);border-radius:var(--r1);background:var(--panel2);font-size:var(--t-sm)}
+.m-only{display:none}
 .errbox{border:1px solid var(--crit);background:var(--crit-bg);border-radius:var(--r2);padding:var(--s4);display:grid;gap:var(--s3);justify-items:start}
 .errbox h3{color:var(--crit);font-size:var(--t-lg)}
 .swhead{display:flex;justify-content:space-between;gap:var(--s3);flex-wrap:wrap;font-size:var(--t-sm);margin-bottom:var(--s2)}
 .swhead .counts{display:flex;gap:var(--s3);flex-wrap:wrap}
-.sw{display:flex;flex-wrap:wrap;gap:var(--s2);max-height:150px;overflow:auto;padding:var(--s1);margin-bottom:var(--s4);border:1px solid var(--line);border-radius:var(--r2);background:var(--panel2)}
-.sw [role=tab]{display:inline-flex;gap:6px;align-items:center;padding:3px 10px;border:1px solid var(--line2);border-radius:999px;background:var(--panel);cursor:pointer;font-size:var(--t-sm);max-width:100%;overflow-wrap:anywhere;text-align:left}
+.sw{display:flex;flex-wrap:wrap;gap:var(--s1) var(--s2);max-height:104px;overflow:auto;padding:var(--s1);margin-bottom:var(--s4);border:1px solid var(--line);border-radius:var(--r2);background:var(--panel2)}
+.sw [role=tab]{display:inline-flex;gap:6px;align-items:center;min-height:26px;padding:2px 10px;border:1px solid var(--line2);border-radius:999px;background:var(--panel);cursor:pointer;font-size:var(--t-sm);max-width:100%;overflow-wrap:anywhere;text-align:left}
 .sw [role=tab][aria-selected=true]{background:var(--btn);color:var(--btnink);border-color:var(--btn);font-weight:700}
 .g-ok{color:var(--ok)}.g-ok_with_warnings{color:var(--warn)}.g-infeasible,.g-invalid_input{color:var(--crit)}
 .sw [aria-selected=true] .g{color:inherit}
@@ -240,7 +250,7 @@ details.mini{margin-top:2px}
 @media print{
   html,body{height:auto!important;overflow:visible!important;background:#fff}
   body{display:block!important;color:#000}
-  .inpane,.badges,.actions,.skip,.sw,.swhead,.btn,.gcard .go,.tryit{display:none!important}
+  .inpane,.badges,.actions,.skip,.sw,.swhead,.btn,.gcard .go,.tryit,.busybar,.m-only{display:none!important}
   main{display:block!important;padding:0}
   .respane{border:0;box-shadow:none;overflow:visible!important;padding:0}
   .top{border:0;padding:0 0 var(--s3)}
@@ -252,15 +262,19 @@ details.mini{margin-top:2px}
 </style>
 </head>
 <body>
-<a class="skip" href="#results">Skip to results</a>
+<a class="skip" href="#results" id="skipTop">Skip to results</a>
 <header class="top">
   <div class="brand">
     <h1>StackSense</h1>
     <p>Describe a project; get a justified, auditable tech-stack recommendation.</p>
   </div>
-  <div class="badges" aria-label="Product properties">
-    <span class="pill">Offline</span><span class="pill">Deterministic</span><span class="pill">No LLM</span>
-    <button type="button" class="btn sm" id="themeBtn" aria-label="Colour theme">Theme: auto</button>
+  <div class="badges">
+    <span class="badges" role="list" aria-label="Product properties">
+      <span class="pill" role="listitem" tabindex="0" title="Offline: nothing leaves this machine. No internet calls, no accounts.">Offline</span>
+      <span class="pill" role="listitem" tabindex="0" title="Deterministic: the same input always gives the same stack.">Deterministic</span>
+      <span class="pill" role="listitem" tabindex="0" title="No LLM: rules and weighted scoring choose every component. No AI model is asked.">No LLM</span>
+    </span>
+    <button type="button" class="btn sm" id="themeBtn" title="Switch colour theme: auto, light or dark">Theme: auto</button>
   </div>
 </header>
 <main>
@@ -270,6 +284,7 @@ details.mini{margin-top:2px}
     <select id="sample" aria-label="Load a sample scenario"><option value="">Load a sample scenario</option></select>
     <div class="toolbar">
       <input type="file" id="file" accept=".json,application/json" hidden>
+      <button type="button" class="btn primary runbtn m-only" id="runTop"><span class="spin" aria-hidden="true"></span><span class="runlbl">Recommend</span></button>
       <button type="button" class="btn" id="importBtn">Import JSON</button>
       <button type="button" class="btn" id="exportIn">Export input</button>
       <button type="button" class="btn" id="reset">Reset</button>
@@ -290,8 +305,9 @@ details.mini{margin-top:2px}
     </div>
   </div>
   <div class="runbar">
-    <button type="button" class="btn primary" id="run"><span class="spin" aria-hidden="true"></span><span id="runLbl">Recommend</span></button>
+    <button type="button" class="btn primary runbtn" id="run"><span class="spin" aria-hidden="true"></span><span class="runlbl">Recommend</span></button>
     <span class="hint">Ctrl/Cmd + Enter</span>
+    <button type="button" class="btn sm" id="skipRes" hidden>Skip to results</button>
   </div>
 </section>
 <section class="respane" id="results" aria-labelledby="resH" tabindex="-1">
@@ -306,7 +322,9 @@ details.mini{margin-top:2px}
     </div>
   </div>
   <div id="announce" class="sr-only" role="status" aria-live="polite"></div>
-  <div id="resBody" aria-live="polite" aria-busy="false"></div>
+  <div id="busyBar" class="busybar" hidden><div class="spin" style="display:inline-block" aria-hidden="true"></div><span id="busyTxt"></span><button type="button" class="btn sm" id="cancelRun">Cancel</button></div>
+  <div id="runMsg" class="notice" role="status"></div>
+  <div id="resBody" aria-busy="false"></div>
 </section>
 </main>
 <script>
@@ -316,7 +334,7 @@ const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const LAYERS = [["frontend", "Frontend"], ["backend", "Backend"], ["database", "Database"], ["hosting", "Hosting"]];
 const STATUS = {
   ok: ["OK", "●", "Valid input and a complete stack with no risks that need attention."],
-  ok_with_warnings: ["OK with warnings", "▲", "A complete stack was chosen, but some inputs conflict or carry risk. Review the warnings."],
+  ok_with_warnings: ["OK with warnings", "▲", "A complete stack was chosen, but some inputs conflict or carry risk."],
   infeasible: ["Infeasible", "■", "The hard constraints cannot all be met together. The warnings name the conflict; relax one input and run again."],
   invalid_input: ["Invalid input", "✕", "The input was rejected before any stack was chosen. Fix the listed fields and run again."],
 };
@@ -337,6 +355,8 @@ const LABELS = {
   "priorities.cost": "Low running cost", "priorities.time_to_market": "Fast delivery", "priorities.scalability": "Scalability", "priorities.performance": "Performance",
   "priorities.maintainability": "Maintainability", "priorities.security": "Security",
 };
+const MARGIN_TIP = "Score points: the gap between the best and second-best option on the engine's weighted score. A bigger gap means a clearer win.";
+const SEVG = {critical: "▲", warning: "●", info: "○"}, SEVORD = {critical: 0, warning: 1, info: 2};
 const SECTIONS = [
   ["project", "Project", f => f.path === "scenario_id" || f.path.startsWith("project."), ""],
   ["scale", "Scale", f => f.path.startsWith("scale."), ""],
@@ -350,7 +370,8 @@ const SECTIONS = [
 ];
 
 let SCHEMA = [], SAMPLES = [], FIELDS = new Map(), STASH = {}, mode = "form";
-let RES = null, PREV = {}, LASTEDIT = null, busy = false;
+let RES = null, PREV = {}, LASTEDIT = null, busy = false, READY = false, ABORT = null;
+let baseText = null, dirty = false;  // baseText: the loaded scenario text, sent verbatim until the form is touched
 
 function h(tag, props, ...kids) {
   const e = document.createElement(tag);
@@ -433,9 +454,11 @@ function makeControl(fd, id, described) {
     root = h("div", {class: "checks", role: "group", "aria-labelledby": "lbl-" + fd.path, "aria-describedby": described});
     fd.choices.forEach(o => root.append(h("label", {}, h("input", {type: "checkbox", value: o}), o)));
     const boxes = [...root.querySelectorAll("input")];
+    let order = [], keepEmpty = false;  // loaded order first, newly ticked items after; a loaded [] stays []
+    root.addEventListener("change", () => { keepEmpty = false; });
     ctl = {root, inputs: boxes,
-      get: () => { const v = boxes.filter(b => b.checked).map(b => b.value); return v.length ? v : undefined; },
-      set: v => boxes.forEach(b => { b.checked = Array.isArray(v) && v.includes(b.value); }),
+      get: () => { const on = boxes.filter(b => b.checked).map(b => b.value); return on.length ? [...order.filter(x => on.includes(x)), ...on.filter(x => !order.includes(x))] : keepEmpty ? [] : undefined; },
+      set: v => { order = Array.isArray(v) ? v.slice() : []; keepEmpty = Array.isArray(v) && v.length === 0; boxes.forEach(b => { b.checked = Array.isArray(v) && v.includes(b.value); }); },
       fits: v => Array.isArray(v) && (emptyOk || v.length > 0) && v.every(x => fd.choices.includes(x)), focus: () => boxes[0].focus()};
   } else if (k === "int" || k === "num" || k === "opt_int") {
     el = h("input", {...common, type: "number", step: k === "num" ? "any" : "1", inputmode: "decimal", placeholder: k === "opt_int" ? "No target" : (fmtDefault(fd.default) ? "Default: " + fmtDefault(fd.default) : "")});
@@ -443,8 +466,10 @@ function makeControl(fd, id, described) {
       fits: v => typeof v === "number" && Number.isFinite(v), focus: () => el.focus()};
   } else if (k === "str_list") {
     el = h("input", {...common, type: "text", placeholder: req ? "Comma separated, e.g. python, typescript" : "Comma separated"});
-    ctl = {root: el, inputs: [el], get: () => { const v = el.value.split(",").map(s => s.trim()).filter(Boolean); return el.value.trim() === "" ? undefined : v; },
-      set: v => { el.value = Array.isArray(v) ? v.join(", ") : ""; },
+    let keepEmpty = false;
+    el.addEventListener("input", () => { keepEmpty = false; });
+    ctl = {root: el, inputs: [el], get: () => { const v = el.value.split(",").map(s => s.trim()).filter(Boolean); return el.value.trim() === "" ? (keepEmpty ? [] : undefined) : v; },
+      set: v => { el.value = Array.isArray(v) ? v.join(", ") : ""; keepEmpty = Array.isArray(v) && v.length === 0; },
       fits: v => Array.isArray(v) && v.every(x => typeof x === "string" && !x.includes(",") && x.trim() === x && x) && (emptyOk || v.length > 0), focus: () => el.focus()};
   } else {
     el = fd.path === "project.description" ? h("textarea", {...common, rows: "3"}) : h("input", {...common, type: "text"});
@@ -478,8 +503,8 @@ function makeField(fd) {
     else { ctl.set(undefined); f.hasRaw = true; f.raw = v; note.textContent = "Loaded value " + JSON.stringify(v) + " is not editable here (not a listed choice or wrong type). It is sent unchanged; change this control to replace it."; }
   };
   f.focus = () => ctl.focus();
-  ctl.root.addEventListener("input", () => { f.clearRaw(); f.clearInvalid(); });
-  ctl.root.addEventListener("change", () => { f.clearRaw(); f.clearInvalid(); });
+  ctl.root.addEventListener("input", () => { dirty = true; f.clearRaw(); f.clearInvalid(); });
+  ctl.root.addEventListener("change", () => { dirty = true; f.clearRaw(); f.clearInvalid(); });
   return f;
 }
 
@@ -541,7 +566,7 @@ function parseErr(text) {
 }
 function updateJsonStat() {
   const t = $("json").value, st = $("jsonStat"); st.textContent = ""; st.className = "";
-  if (!t.trim()) { st.textContent = "Empty. Sending this makes the engine report invalid input."; return; }
+  if (!t.trim()) { st.textContent = "Empty. Paste or import a scenario first."; return; }
   const pe = parseErr(t);
   if (pe) {
     st.className = "bad"; st.append("Invalid JSON: " + pe.msg + ". The engine reports it as invalid_input if you send it anyway. ");
@@ -551,12 +576,12 @@ function updateJsonStat() {
 function setMode(m) {
   $("inErr").textContent = "";
   if (m === mode) return true;
-  if (m === "json") { $("json").value = JSON.stringify(formToObj(), null, 2); }
+  if (m === "json") { $("json").value = currentText(); }
   else {
     let o;
     try { o = JSON.parse($("json").value); } catch (e) { $("inErr").textContent = "Cannot show in the form: the JSON does not parse (" + e.message + "). Fix it, or run it as is."; return false; }
     if (!isObj(o)) { $("inErr").textContent = "The form edits one scenario object; this JSON is " + (Array.isArray(o) ? "an array of scenarios" : "not an object") + ". Run it directly from the JSON tab."; return false; }
-    objToForm(o);
+    objToForm(o); baseText = $("json").value; dirty = false;
   }
   showMode(m); return true;
 }
@@ -567,10 +592,20 @@ function showMode(m) {
   $("inNote").hidden = m !== "form";
   if (m === "json") updateJsonStat();
 }
-function currentText() { return mode === "form" ? JSON.stringify(formToObj(), null, 2) : $("json").value; }
-function loadObj(o) { clearInvalidAll(); objToForm(o); $("json").value = JSON.stringify(o, null, 2); if (mode === "json") updateJsonStat(); }
+function currentText() { return mode === "form" ? (!dirty && baseText != null ? baseText : JSON.stringify(formToObj(), null, 2)) : $("json").value; }
+function loadObj(o, text) { clearInvalidAll(); objToForm(o); baseText = text != null ? text : JSON.stringify(o, null, 2); dirty = false; $("json").value = baseText; if (mode === "json") updateJsonStat(); }
 function loadText(t) { clearInvalidAll(); STASH = {}; $("inNote").textContent = ""; $("json").value = t; showMode("json"); }
-function loadSample(s) { $("inErr").textContent = ""; if (typeof s === "string") loadText(s); else loadObj(s); }
+const allText = () => "[\n" + SAMPLES.filter(s => typeof s.scenario !== "string").map(s => s.text).join(",\n") + "\n]";  // raw file texts, so numbers like 1.0 survive
+function loadSampleAt(v) {
+  $("inErr").textContent = "";
+  if (v === "all") return loadText(allText());
+  const s = SAMPLES[Number(v)];
+  if (typeof s.scenario === "string") loadText(s.text); else loadObj(s.scenario, s.text);
+}
+function findSample(id) {
+  const q = String(id).trim().toLowerCase();
+  return SAMPLES.findIndex(x => x.id.toLowerCase() === q || x.id.split("_")[0].toLowerCase() === q);
+}
 function download(name, text) {
   const a = h("a", {href: URL.createObjectURL(new Blob([text], {type: "application/json"})), download: name});
   document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
@@ -579,13 +614,13 @@ function fileSafe(s) { return String(s).replace(/[^\w.-]+/g, "_"); }
 
 /* ---------- result rendering ---------- */
 function chip(path) {
-  return resolveField(path) ? h("button", {type: "button", class: "chip", title: "Show this input field", onclick: () => gotoField(path), text: path}) : h("span", {class: "chip", text: path});
+  return resolveField(path) ? h("button", {type: "button", class: "chip", onclick: () => gotoField(path), text: path}) : h("span", {class: "chip", text: path});
 }
 const chipList = list => list && list.length ? h("div", {class: "chips"}, list.map(chip)) : null;
 function confBadge(c) {
   if (!c || !c.label) return null;
   const dots = {high: "●●●", medium: "●●○", low: "●○○"}[c.label] || "";
-  return h("span", {class: "badge conf-" + c.label, title: c.basis || ""}, h("i", {"aria-hidden": "true", text: dots}), cap(c.label) + " confidence");
+  return h("span", {class: "badge conf-" + c.label}, h("i", {"aria-hidden": "true", text: dots}), cap(c.label) + " confidence");
 }
 function links(src) {
   return h("ul", {}, src.map(u => h("li", {class: "wrap"}, /^https?:\/\//i.test(u) ? h("a", {href: u, target: "_blank", rel: "noopener noreferrer", text: u}) : u)));
@@ -593,21 +628,26 @@ function links(src) {
 function sec(title, content, open) { return h("details", {class: "mini", ...(open ? {open: true} : {})}, h("summary", {text: title}), content); }
 function bullets(list) { return h("ul", {}, list.map(t => h("li", {class: "wrap", text: t}))); }
 
-function costBlock(c, budget) {
+function budgetWarn(warns) {
+  const rank = {info: 1, warning: 2, critical: 3};
+  return (warns || []).filter(w => /BUDGET/.test(w.code)).sort((a, b) => (rank[b.severity] || 0) - (rank[a.severity] || 0))[0] || null;
+}
+function costBlock(c, budget, warns) {
   const k = h("div", {class: "kpi wide"}, h("div", {class: "k", text: "Estimated monthly cost"}));
   if (!c || c.min == null) { k.append(h("div", {class: "v", text: "Not estimated"}), h("div", {class: "sub", text: (c && c.assumptions && c.assumptions[0]) || ""})); return k; }
-  const hasB = typeof budget === "number";
+  const hasB = typeof budget === "number", bw = budgetWarn(warns);  // colour and words follow the engine's budget warning, never our own arithmetic
+  const over = hasB && c.max > budget ? ` (upper estimate ${usd(c.max - budget)} over)` : "";
   let cls = "", verdict;
   if (!hasB) verdict = "No budget given in the input.";
-  else if (c.min > budget) { cls = "way"; verdict = `Even the lower estimate exceeds the ${usd(budget)} budget by ${usd(c.min - budget)}.`; }
-  else if (c.max > budget) { cls = "over"; verdict = `Upper estimate exceeds the ${usd(budget)} budget by ${usd(c.max - budget)}; lower estimate fits.`; }
-  else verdict = `Within the ${usd(budget)} budget (upper estimate ${usd(budget - c.max)} below it).`;
+  else if (bw) { cls = bw.severity === "critical" ? "way" : bw.severity === "warning" ? "over" : ""; verdict = `Budget ${usd(budget)} · ${bw.severity}: ${bw.code}${over}`; }
+  else verdict = `Budget ${usd(budget)} · ` + (c.max <= budget ? "whole range fits" : c.min <= budget ? "lower estimate fits" : "range starts above it") + over;
   const top = Math.max(c.max, hasB ? budget : 0) * 1.12 || 1, pct = n => Math.min(100, Math.max(0, n / top * 100));
+  const bp = hasB ? pct(budget) : 0;
   const bar = h("div", {class: "cbar", role: "img", "aria-label": `Estimate ${usd(c.min)} to ${usd(c.max)} per month. ${verdict}`},
-    h("div", {class: "rng " + cls}), hasB ? h("div", {class: "mk", "data-l": "Budget " + usd(budget)}) : null);
+    h("div", {class: "rng " + cls}), hasB ? h("div", {class: "mk" + (bp < 16 ? " l" : bp > 84 ? " r" : ""), "data-l": "Budget " + usd(budget)}) : null);
   bar.firstChild.style.left = pct(c.min) + "%"; bar.firstChild.style.width = Math.max(0.8, pct(c.max) - pct(c.min)) + "%";
-  if (hasB) bar.lastChild.style.left = pct(budget) + "%";
-  k.append(h("div", {class: "v", text: `${usd(c.min)} - ${usd(c.max)}`}), h("div", {class: hasB ? "cbar-wrap" : ""}, bar), h("div", {class: "sub", text: verdict + " Order-of-magnitude estimate in " + (c.currency || "USD") + "."}));
+  if (hasB) bar.lastChild.style.left = bp + "%";
+  k.append(h("div", {class: "v", text: `${usd(c.min)} - ${usd(c.max)}`}), h("div", {class: hasB ? "cbar-wrap" : ""}, bar), h("div", {class: "sub", text: verdict + ". Order-of-magnitude estimate in " + (c.currency || "USD") + "."}));
   return k;
 }
 
@@ -623,9 +663,9 @@ function layerFacts(c) {
 
 function stabilityBlock(s) {
   if (!s) return null;
-  const meter = h("span", {class: "meter", role: "img", "aria-label": `stability ${s.score}`}, h("i")); meter.firstChild.style.width = Math.round((s.score || 0) * 100) + "%";
+  const meter = h("span", {class: "meter", role: "img", "aria-label": `Stability ${Number(s.score).toFixed(2)} out of 1.00 (${s.label})`}, h("i")); meter.firstChild.style.width = Math.round((s.score || 0) * 100) + "%";
   const out = h("div", {}, h("h4", {text: "Stability across priority weightings"}),
-    h("div", {}, meter, ` ${cap(s.label)}: ${Number(s.score).toFixed(2)} over ${s.vectors_tested} weightings`));
+    h("div", {}, meter, ` ${cap(s.label)}: ${Number(s.score).toFixed(2)} of 1.00 over ${s.vectors_tested} weightings`));
   if (s.alternatives && s.alternatives.length) out.append(h("div", {class: "muted wrap", text: "Won instead in: " + s.alternatives.map(a => `${a.choice} (${Math.round(a.share * 100)}%)`).join("; ")}));
   if (s.flip_point) {
     const fp = s.flip_point;
@@ -640,7 +680,7 @@ function tryIt(doc, w) {
 
 function layerPanel(doc, key, label, c, chg) {
   const wc = (c.what_would_change || []);
-  const d = h("details", {class: "panel", id: "layer-" + key, open: true},
+  const d = h("details", {class: "panel", id: "layer-" + key},
     h("summary", {}, h("span", {class: "lay", text: label}), h("span", {class: "ch", text: c.choice}), confBadge(c.confidence),
       chg ? h("span", {class: "chg", text: "Changed: was " + chg}) : null),
     h("div", {class: "pbody"},
@@ -648,7 +688,7 @@ function layerPanel(doc, key, label, c, chg) {
       layerFacts(c),
       c.driven_by && c.driven_by.length ? h("div", {}, h("h4", {text: "Driven by"}), chipList(c.driven_by)) : null,
       c.contrast ? h("div", {}, h("h4", {text: "Why this over the runner-up"}), h("p", {class: "wrap", text: c.contrast})) : null,
-      c.score_margin !== undefined ? h("div", {class: "muted", text: `Score margin over runner-up: ${c.score_margin} points.`}) : null,
+      c.score_margin !== undefined ? h("div", {class: "muted", title: MARGIN_TIP, text: `Margin over runner-up: ${c.score_margin} score points.`}) : null,
       c.confidence && c.confidence.basis ? h("div", {class: "muted wrap", text: "Confidence basis: " + c.confidence.basis}) : null,
       stabilityBlock(c.stability),
       c.pareto ? h("div", {}, h("h4", {text: "Pareto check"}), h("div", {class: "wrap"}, h("b", {text: c.pareto.optimal ? "Pareto-optimal. " : "Dominated by " + (c.pareto.dominated_by || []).join(", ") + ". "}), c.pareto.note)) : null,
@@ -688,6 +728,12 @@ function diffSnap(prev, cur) {
 }
 const layerName = k => k.startsWith("support:") ? "Supporting: " + human(k.slice(8)) : cap(k);
 
+function warnCard(w) {
+  return h("div", {class: "warn " + w.severity}, h("div", {class: "wh"}, h("span", {class: "sev " + w.severity}, h("span", {"aria-hidden": "true", text: (SEVG[w.severity] || "") + " "}), w.severity), h("span", {class: "code", text: w.code})),
+    h("p", {class: "wrap", text: w.message}), chipList(w.fields));
+}
+const sortWarns = ws => ws.map((w, idx) => [w, idx]).sort((a, b) => (SEVORD[a[0].severity] ?? 3) - (SEVORD[b[0].severity] ?? 3) || a[1] - b[1]).map(x => x[0]);
+
 function renderDoc(i) {
   const d = RES.docs[i], chg = RES.diffs[i], budget = RES.budgets[i];
   const root = h("div", {id: "resPanel"});
@@ -715,63 +761,69 @@ function renderDoc(i) {
     root.append(s);
   }
 
+  const warns = sortWarns(d.warnings || []), sev = {critical: 0, warning: 0, info: 0};
+  warns.forEach(w => { sev[w.severity] = (sev[w.severity] || 0) + 1; });
+  const assumptions = () => {
+    const c = d.estimated_monthly_cost_usd;
+    root.append(h("h3", {class: "sh", text: "Assumptions"}));
+    if (c && c.assumptions && c.assumptions.length) root.append(sec(`Cost assumptions (${c.assumptions.length})`, bullets(c.assumptions)));
+    root.append(sec(`Assumptions (${(d.assumptions || []).length})`, bullets(d.assumptions || [])));
+  };
+
   if (d.validation_errors && d.validation_errors.length) {
     root.append(h("div", {class: "verr"}, h("h3", {text: `Validation errors (${d.validation_errors.length})`}),
       h("ul", {}, d.validation_errors.map(e => h("li", {class: "wrap"}, chip(e.field), " ", e.message)))));
   }
 
-  const warns = d.warnings || [], sev = {critical: 0, warning: 0, info: 0};
-  warns.forEach(w => { sev[w.severity] = (sev[w.severity] || 0) + 1; });
-  const confs = d.stack ? LAYERS.map(([k, n]) => [n, d.stack[k] && d.stack[k].confidence]).filter(x => x[1]) : [];
+  if (!d.stack) {  // invalid_input / infeasible: no stack, so no cost, architecture or confidence tiles
+    const crit = warns.filter(w => w.severity === "critical"), rest = warns.filter(w => w.severity !== "critical");
+    if (crit.length) root.append(h("div", {class: "verr"}, h("h3", {text: d.status === "infeasible" ? `Conflicts that make this infeasible (${crit.length})` : `Critical issues (${crit.length})`}), crit.map(warnCard)));
+    if (rest.length) { root.append(h("h3", {class: "sh"}, "Warnings ", h("small", {text: `(${rest.length})`}))); rest.forEach(w => root.append(warnCard(w))); }
+    assumptions();
+    return root;
+  }
+
+  const confs = LAYERS.map(([k, n]) => [n, d.stack[k] && d.stack[k].confidence]).filter(x => x[1]);
   const rank = {low: 0, medium: 1, high: 2}, lowest = confs.sort((a, b) => rank[a[1].label] - rank[b[1].label])[0];
+  const sv = (key, label) => h("span", {class: key + (sev[key] ? "" : " zero")}, h("span", {"aria-hidden": "true", text: SEVG[key] + " "}), `${sev[key]} ${label}`);
   root.append(h("div", {class: "kpis"},
-    costBlock(d.estimated_monthly_cost_usd, budget),
-    h("div", {class: "kpi"}, h("div", {class: "k", text: "Architecture"}), h("div", {class: "v", text: human(d.architecture_style)}), h("div", {class: "sub", text: d.stack ? "Four layers plus " + ((d.stack.supporting || []).length) + " supporting service(s)" : "No stack chosen"})),
+    costBlock(d.estimated_monthly_cost_usd, budget, warns),
+    h("div", {class: "kpi"}, h("div", {class: "k", text: "Architecture"}), h("div", {class: "v", text: human(d.architecture_style)}), h("div", {class: "sub", text: "Four layers plus " + ((d.stack.supporting || []).length) + " supporting service(s)"})),
     h("div", {class: "kpi"}, h("div", {class: "k", text: "Warnings"}),
-      h("div", {class: "sevs"}, h("span", {style: "color:var(--crit)", text: "▲ " + sev.critical + " critical"}), h("span", {style: "color:var(--warn)", text: "● " + sev.warning + " warning"}), h("span", {style: "color:var(--info)", text: "○ " + sev.info + " info"})),
+      h("div", {class: "sevs"}, sv("critical", "critical"), sv("warning", "warning"), sv("info", "info")),
       h("div", {class: "sub", text: warns.length ? "Listed below, most severe first" : "None"})),
     h("div", {class: "kpi"}, h("div", {class: "k", text: "Lowest confidence"}), h("div", {class: "v"}, lowest ? confBadge(lowest[1]) : "n/a"), h("div", {class: "sub wrap", text: lowest ? "Layer: " + lowest[0] : "No confidence data"}))));
 
-  if (d.stack) {
-    root.append(h("h3", {class: "sh", text: "Stack at a glance"}));
-    root.append(h("div", {class: "glance"}, LAYERS.map(([k, n]) => {
-      const c = d.stack[k]; if (!c) return null;
-      const lc = chg && chg.changes.find(x => x.layer === k);
-      return h("button", {type: "button", class: "gcard", onclick: () => { const p = $("layer-" + k); p.open = true; p.scrollIntoView({behavior: REDUCED ? "auto" : "smooth", block: "start"}); p.querySelector("summary").focus(); }},
-        h("span", {class: "l", text: n}), h("span", {class: "c", text: c.choice}), confBadge(c.confidence),
-        c.score_margin !== undefined ? h("span", {class: "m", text: "Margin over runner-up: " + c.score_margin}) : null,
-        c.region || (c.provider && c.provider !== "neutral") ? h("span", {class: "m", text: [c.provider !== "neutral" ? c.provider : null, c.region].filter(Boolean).join(" / ")}) : null,
-        lc ? h("span", {class: "chg", text: "Changed: was " + (lc.was || "none")}) : null);
-    })));
-  }
+  root.append(h("h3", {class: "sh", text: "Stack at a glance"}));
+  root.append(h("div", {class: "glance"}, LAYERS.map(([k, n]) => {
+    const c = d.stack[k]; if (!c) return null;
+    const lc = chg && chg.changes.find(x => x.layer === k);
+    return h("button", {type: "button", class: "gcard", onclick: () => { const p = $("layer-" + k); p.open = true; p.scrollIntoView({behavior: REDUCED ? "auto" : "smooth", block: "start"}); p.querySelector("summary").focus({preventScroll: true}); }},
+      h("span", {class: "l", text: n}), h("span", {class: "c", text: c.choice}), confBadge(c.confidence),
+      c.score_margin !== undefined ? h("span", {class: "m", title: MARGIN_TIP, text: `${c.score_margin} score points ahead of runner-up`}) : null,
+      c.region || (c.provider && c.provider !== "neutral") ? h("span", {class: "m", text: [c.provider !== "neutral" ? c.provider : null, c.region].filter(Boolean).join(" / ")}) : null,
+      lc ? h("span", {class: "chg", text: "Changed: was " + (lc.was || "none")}) : null);
+  })));
 
-  if (warns.length) {
-    root.append(h("h3", {class: "sh"}, "Warnings ", h("small", {text: `(${warns.length})`})));
-    const order = {critical: 0, warning: 1, info: 2};
-    warns.map((w, idx) => [w, idx]).sort((a, b) => (order[a[0].severity] ?? 3) - (order[b[0].severity] ?? 3) || a[1] - b[1]).forEach(([w]) =>
-      root.append(h("div", {class: "warn " + w.severity}, h("div", {class: "wh"}, h("span", {class: "sev " + w.severity, text: w.severity}), h("span", {class: "code", text: w.code})),
-        h("p", {class: "wrap", text: w.message}), chipList(w.fields))));
-  }
+  if (warns.length) { root.append(h("h3", {class: "sh"}, "Warnings ", h("small", {text: `(${warns.length})`}))); warns.forEach(w => root.append(warnCard(w))); }
 
-  if (d.stack) {
-    root.append(h("h3", {class: "sh", text: "Layer details"}));
-    LAYERS.forEach(([k, n]) => { if (d.stack[k]) root.append(layerPanel(d, k, n, d.stack[k], chg && (chg.changes.find(x => x.layer === k) || {}).was)); });
-    const sup = d.stack.supporting || [];
-    if (sup.length) { root.append(h("h3", {class: "sh"}, "Supporting services ", h("small", {text: `(${sup.length})`}))); root.append(h("div", {class: "supgrid"}, sup.map(supportCard))); }
-  }
-
-  const c = d.estimated_monthly_cost_usd;
-  root.append(h("h3", {class: "sh", text: "Assumptions"}));
-  if (c && c.assumptions && c.assumptions.length) root.append(sec(`Cost assumptions (${c.assumptions.length})`, bullets(c.assumptions)));
-  root.append(sec(`Assumptions (${(d.assumptions || []).length})`, bullets(d.assumptions || [])));
+  root.append(h("h3", {class: "sh", text: "Layer details"}));
+  LAYERS.forEach(([k, n]) => { if (d.stack[k]) root.append(layerPanel(d, k, n, d.stack[k], chg && (chg.changes.find(x => x.layer === k) || {}).was)); });
+  const sup = d.stack.supporting || [];
+  if (sup.length) { root.append(h("h3", {class: "sh"}, "Supporting services ", h("small", {text: `(${sup.length})`}))); root.append(h("div", {class: "supgrid"}, sup.map(supportCard))); }
+  assumptions();
   return root;
 }
 
 function glyphOf(s) { return (STATUS[s] || ["", "●"])[1]; }
 
+function note(i) {
+  const d = RES.docs[i], n = (d.warnings || []).length;
+  return `${d.scenario_id || "Scenario"}: ${(STATUS[d.status] || [d.status])[0]}, ${n} ${n === 1 ? "warning" : "warnings"}`;
+}
 function renderResults() {
   const body = $("resBody"); body.textContent = ""; body.setAttribute("aria-busy", "false");
-  $("actions").hidden = !RES; $("exportAll").hidden = !RES || RES.docs.length < 2;
+  $("actions").hidden = !RES; $("skipRes").hidden = !RES; $("exportAll").hidden = !RES || RES.docs.length < 2;
   if (!RES) { body.append(emptyState()); return; }
   const n = RES.docs.length;
   if (n > 1) {
@@ -781,7 +833,7 @@ function renderResults() {
       h("div", {class: "counts"}, Object.entries(counts).map(([s, c]) => h("span", {class: "g-" + s, text: `${glyphOf(s)} ${c} ${(STATUS[s] || [s])[0]}`})))));
     const sw = h("div", {class: "sw", role: "tablist", "aria-label": "Scenarios"});
     RES.docs.forEach((d, i) => sw.append(h("button", {type: "button", role: "tab", id: "sw-" + i, "aria-controls": "resPanel", "aria-selected": String(i === RES.sel), tabindex: i === RES.sel ? "0" : "-1",
-      onclick: () => selectDoc(i), title: d.status}, h("span", {class: "g g-" + d.status, "aria-hidden": "true", text: glyphOf(d.status)}), d.scenario_id || "scenario " + (i + 1), h("span", {class: "sr-only", text: " " + d.status}))));
+      onclick: () => selectDoc(i)}, h("span", {class: "g g-" + d.status, "aria-hidden": "true", text: glyphOf(d.status)}), d.scenario_id || "scenario " + (i + 1), h("span", {class: "sr-only", text: " " + d.status}))));
     wireTabs(sw, tab => selectDoc(Number(tab.id.slice(3))));
     body.append(sw);
   }
@@ -790,9 +842,13 @@ function renderResults() {
   body.append(panel);
   if (RES.docs.length === 1 && mode === "form") markInvalid(RES.docs[0]);
 }
-function selectDoc(i) {
-  RES.sel = i; renderResults(); const t = $("sw-" + i); if (t) t.focus();
-  say(`${RES.docs[i].scenario_id || "Scenario"}: ${RES.docs[i].status}`);
+function selectDoc(i) {  // swap only the panel and the tab state; the switcher keeps its scroll and nothing big is announced
+  RES.sel = i;
+  document.querySelectorAll("#resBody .sw [role=tab]").forEach((t, k) => { t.setAttribute("aria-selected", String(k === i)); t.tabIndex = k === i ? 0 : -1; });
+  const np = renderDoc(i); np.setAttribute("role", "tabpanel"); np.setAttribute("aria-labelledby", "sw-" + i);
+  $("resPanel").replaceWith(np);
+  const t = $("sw-" + i); if (t) t.focus({preventScroll: true});
+  say(note(i));
 }
 function markInvalid(d) {
   clearInvalidAll();
@@ -800,70 +856,93 @@ function markInvalid(d) {
 }
 
 function emptyState() {
-  return h("div", {class: "empty"}, h("h3", {text: "Get a recommendation"}),
-    h("ol", {}, h("li", {text: "Load a sample from the picker, import a JSON file, or fill in the form. Fields marked Required must be set."}),
-      h("li", {}, "Press ", h("b", {text: "Recommend"}), " or Ctrl/Cmd + Enter. A JSON array runs many scenarios at once."),
-      h("li", {text: "Click any field-path chip in a result to jump to the input that drove it. Use Try it on a counterfactual to re-run with that single edit."})),
-    h("dl", {}, ...Object.entries(STATUS).flatMap(([k, v]) => [h("dt", {class: "g-" + k, text: v[1] + " " + v[0]}), h("dd", {text: v[2]})])));
+  const ex = [["P2", "Marketplace app in India"], ["P4", "Fintech with RBI and PCI rules"], ["E3", "Inputs that contradict each other"], ["E2", "Invalid input, rejected with reasons"]]
+    .map(([id, hint]) => [findSample(id), hint]).filter(x => x[0] >= 0);
+  return h("div", {class: "empty"}, h("h3", {text: "Pick a tech stack for a software project"}),
+    h("p", {class: "lead", text: "Describe a project (users, team, budget, legal rules) and StackSense chooses a frontend, backend, database and hosting, with the reasons, a monthly cost range and what would change the answer."}),
+    h("h4", {text: "Run an example"}),
+    h("div", {class: "examples"}, ex.map(([i, hint]) => h("button", {type: "button", class: "example runbtn-ex", disabled: !READY, onclick: () => runExample(i)}, h("b", {text: SAMPLES[i].label}), h("span", {text: hint})))),
+    h("p", {class: "muted"}, "Or ", h("button", {type: "button", class: "linkbtn", onclick: () => $("file").click(), text: "import a scenario JSON file"}), ", or ",
+      h("button", {type: "button", class: "linkbtn", onclick: () => { const f = FIELDS.values().next().value; if (mode !== "form") setMode("form"); if (f) { f.row.scrollIntoView({block: "center"}); f.focus(); } }, text: "fill in the form"}), "."));
 }
+function runExample(i) { $("sample").value = String(i); loadSampleAt(i); run(); }
 
 function errorState(title, detail, retry) {
-  const body = $("resBody"); body.textContent = ""; body.setAttribute("aria-busy", "false"); $("actions").hidden = !RES;
+  const body = $("resBody"); body.textContent = ""; body.setAttribute("aria-busy", "false"); $("actions").hidden = true; $("skipRes").hidden = true;
   body.append(h("div", {class: "errbox", role: "alert"}, h("h3", {text: title}), h("p", {class: "wrap", text: detail}),
     retry ? h("button", {type: "button", class: "btn", onclick: retry, text: "Retry"}) : null));
   say(title);
 }
 
 /* ---------- run ---------- */
-function setBusy(b) {
-  busy = b; $("run").disabled = b; $("run").classList.toggle("busy", b); $("run").setAttribute("aria-busy", String(b));
-  $("runLbl").textContent = b ? "Running..." : "Recommend"; $("resBody").setAttribute("aria-busy", String(b));
-  $("resBody").style.opacity = b && RES ? ".45" : "";
-  if (b && !RES) { $("resBody").textContent = ""; $("resBody").append(h("p", {class: "muted", text: "Evaluating the scenario(s) on the local engine..."})); }
+function syncRun() {
+  document.querySelectorAll(".runbtn").forEach(b => { b.disabled = busy || !READY; b.classList.toggle("busy", busy); b.setAttribute("aria-busy", String(busy)); });
+  document.querySelectorAll(".runbtn-ex").forEach(b => { b.disabled = busy || !READY; });
+  document.querySelectorAll(".runlbl").forEach(l => { l.textContent = busy ? "Running..." : "Recommend"; });
+}
+function setBusy(b, n = 1) {
+  busy = b; syncRun(); $("resBody").setAttribute("aria-busy", String(b)); $("resBody").style.opacity = b ? ".45" : "";
+  $("busyBar").hidden = !b;
+  if (b) $("busyTxt").textContent = n > 1 ? `Evaluating ${n} scenarios (about ~0.2 s each, ~${Math.max(1, Math.round(n * 0.2))} s in all)...` : "Evaluating the scenario on the local engine...";
+}
+function goResults() {
+  const mobile = matchMedia("(max-width:900px)").matches;
+  if (mobile) $("results").scrollIntoView({behavior: REDUCED ? "auto" : "smooth", block: "start"});
+  $("resH").tabIndex = -1; $("resH").focus({preventScroll: mobile});
+}
+function afterRun(noScroll) {
+  const r = $("resH").getBoundingClientRect(), seen = r.top >= 0 && r.bottom <= innerHeight;
+  if (noScroll) { $("resH").tabIndex = -1; $("resH").focus({preventScroll: true}); }
+  else if (matchMedia("(max-width:900px)").matches) goResults();
+  else { $("resH").tabIndex = -1; $("resH").focus({preventScroll: seen}); }
 }
 
 async function run(opts = {}) {
-  if (busy) return;
+  if (busy || !READY) return;
   if (!opts.keepEdit) LASTEDIT = null;
-  $("inErr").textContent = ""; clearInvalidAll();
+  $("inErr").textContent = ""; $("runMsg").textContent = ""; clearInvalidAll();
   const text = currentText();
+  if (!text.trim()) { $("inErr").textContent = "Paste or import a scenario first"; if (mode === "json") $("json").focus(); return; }
   if (mode === "json") updateJsonStat();
   let parsed = null; try { parsed = JSON.parse(text); } catch (e) { /* the engine reports JSON errors itself */ }
-  setBusy(true);
+  ABORT = new AbortController();
+  setBusy(true, Array.isArray(parsed) ? parsed.length : 1);
   let r, raw;
   try {
-    r = await fetch("/api/evaluate", {method: "POST", headers: {"Content-Type": "application/json"}, body: text});
+    r = await fetch("/api/evaluate?format=files", {method: "POST", headers: {"Content-Type": "application/json"}, body: text, signal: ABORT.signal});
     raw = await r.text();
   } catch (e) {
-    setBusy(false); errorState("Cannot reach the StackSense server", `No response from ${location.origin || "the server"}. If you stopped "python stacksense.py serve", start it again, then retry. Your input is unchanged.`, () => run());
+    setBusy(false);
+    if (e && e.name === "AbortError") { renderResults(); $("runMsg").textContent = "Run cancelled. Your input is unchanged."; say("Run cancelled"); return; }
+    errorState("Cannot reach the StackSense server", "Cannot reach the StackSense server — is `python stacksense.py serve` still running? Your input is unchanged.", () => run());
     return;
   }
   setBusy(false);
   let body = null; try { body = JSON.parse(raw); } catch (e) { /* not JSON */ }
   if (!r.ok) {
     const msg = body && body.error ? body.error : (raw.slice(0, 200) || r.statusText);
-    errorState(r.status === 413 ? "Input too large (HTTP 413)" : `The server rejected the request (HTTP ${r.status})`, msg, () => run());
+    errorState(r.status === 413 ? "Input too large" : `The server rejected the request (HTTP ${r.status})`, msg, r.status >= 500 ? () => run() : null);
     return;
   }
-  if (!Array.isArray(body)) { errorState("Unexpected response from the server", "Expected a list of output documents.", () => run()); return; }
+  if (!Array.isArray(body) || !body.every(x => x && typeof x.text === "string")) { errorState("Unexpected response from the server", "Expected a list of output files.", () => run()); return; }
+  const docs = body.map(x => JSON.parse(x.text));
   const inputs = Array.isArray(parsed) ? parsed : [parsed];
-  const diffs = body.map(d => {
+  const diffs = docs.map(d => {
     const key = d.scenario_id, cur = snapshot(d); let df = null;
     if (key != null && PREV[key]) df = diffSnap(PREV[key], cur);
     if (key != null) PREV[key] = cur;
     return df;
   });
-  const budgets = body.map((d, i) => { const b = inputs[i] && getPath(inputs[i], "budget.monthly_infra_usd"); return typeof b === "number" ? b : null; });
-  RES = {docs: body, diffs, budgets, sel: 0};
+  const budgets = docs.map((d, i) => { const b = inputs[i] && getPath(inputs[i], "budget.monthly_infra_usd"); return typeof b === "number" ? b : null; });
+  RES = {docs, files: body, diffs, budgets, sel: 0};
   renderResults();
-  const st = body.length === 1 ? `${body[0].scenario_id || "Scenario"}: ${body[0].status}` : `${body.length} scenarios evaluated`;
-  say(st);
-  if (matchMedia("(max-width:900px)").matches && !opts.noScroll) $("results").scrollIntoView({behavior: REDUCED ? "auto" : "smooth", block: "start"});
+  say(docs.length === 1 ? note(0) : `${docs.length} scenarios evaluated`);
+  afterRun(opts.noScroll);
 }
 
 /* ---------- counterfactual edits ---------- */
 function editTarget(doc) {
-  if (mode === "form") { const o = formToObj(); if (doc.scenario_id != null && (o.scenario_id || null) !== doc.scenario_id && RES.docs.length === 1) return {err: "The form now holds a different scenario than this result. Re-run first."}; return {obj: o, write: () => { objToForm(o); $("json").value = JSON.stringify(o, null, 2); }}; }
+  if (mode === "form") { const o = formToObj(); if (doc.scenario_id != null && (o.scenario_id || null) !== doc.scenario_id && RES.docs.length === 1) return {err: "The form now holds a different scenario than this result. Re-run first."}; return {obj: o, write: () => { objToForm(o); baseText = JSON.stringify(o, null, 2); dirty = false; $("json").value = baseText; }}; }
   let v; try { v = JSON.parse($("json").value); } catch (e) { return {err: "The JSON tab does not parse, so the edit cannot be applied."}; }
   const arr = Array.isArray(v), o = arr ? v.find(x => isObj(x) && x.scenario_id === doc.scenario_id) : v;
   if (!isObj(o)) return {err: "Could not find this scenario in the current JSON."};
@@ -884,8 +963,7 @@ function undoEdit() {
 }
 
 /* ---------- export / print ---------- */
-const outText = d => JSON.stringify(d, null, 2) + "\n";
-const current = () => RES && RES.docs[RES.sel];
+const curFile = () => RES && RES.files[RES.sel];  // {name, text}: the exact bytes the CLI would write
 function copyText(t) {
   if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(t);
   const ta = h("textarea", {class: "sr-only"}); ta.value = t; document.body.append(ta); ta.select();
@@ -898,32 +976,31 @@ addEventListener("afterprint", () => { reopen.forEach(d => { d.open = false; });
 /* ---------- init ---------- */
 function applyHash() {
   const p = new URLSearchParams(location.hash.slice(1));
-  if (p.get("mode") === "json") { $("json").value = JSON.stringify(formToObj(), null, 2); showMode("json"); }
   const s = p.get("sample");
   if (s) {
-    const i = s === "ALL" ? "all" : SAMPLES.findIndex(x => x.id === s);
-    if (i === "all" || i >= 0) { $("sample").value = String(i); loadSample(i === "all" ? allSamples() : SAMPLES[i].scenario); }
+    const i = s.toLowerCase() === "all" ? "all" : findSample(s);
+    if (i === -1) { $("inErr").textContent = `Unknown sample "${s}". Choose one from the list.`; return; }
+    $("sample").value = String(i); loadSampleAt(i);
   }
-  if (p.get("mode") === "json" && s && mode === "form") { $("json").value = JSON.stringify(formToObj(), null, 2); showMode("json"); }
+  if (p.get("mode") === "json") setMode("json");
   if (p.get("run") === "1") run({noScroll: true}).then(() => { const n = Number(p.get("sel")); if (RES && n > 0 && n < RES.docs.length) selectDoc(n); });
 }
-function allSamples() { return JSON.stringify(SAMPLES.filter(s => typeof s.scenario !== "string").map(s => s.scenario), null, 2); }
 
 async function init() {
-  $("resBody").setAttribute("aria-busy", "true");
+  READY = false; syncRun(); $("resBody").setAttribute("aria-busy", "true");
   try {
     const [sc, sm] = await Promise.all([fetch("/api/schema"), fetch("/api/samples")]);
     if (!sc.ok || !sm.ok) throw new Error("HTTP " + (sc.ok ? sm.status : sc.status));
     SCHEMA = (await sc.json()).map(f => ({...f, kind: {xint: "int", xenum: "enum", xlist: "str_list"}[f.kind] || f.kind}));
     SAMPLES = await sm.json();
   } catch (e) {
-    errorState("Cannot reach the StackSense server", "The input schema and samples could not be loaded. This page needs its local server: run \"python stacksense.py serve\" and open the address it prints.", init);
+    errorState("Cannot reach the StackSense server", "Cannot reach the StackSense server — is `python stacksense.py serve` still running? The input schema and samples could not be loaded, so Recommend is disabled until this works.", init);
     return;
   }
+  READY = true; syncRun();
   buildForm(); showMode(mode);
   const sel = $("sample"); sel.length = 1;
-  const batch = h("optgroup", {label: "Batch"}, h("option", {value: "all", text: `All ${SAMPLES.filter(s => typeof s.scenario !== "string").length} samples as one array`}));
-  sel.append(batch);
+  sel.append(h("optgroup", {label: "Batch"}, h("option", {value: "all", text: `All ${SAMPLES.filter(s => typeof s.scenario !== "string").length} samples as one array`})));
   const groups = new Map();
   SAMPLES.forEach((s, i) => { const g = s.group || "Samples"; if (!groups.has(g)) groups.set(g, h("optgroup", {label: g})); groups.get(g).append(h("option", {value: String(i), text: s.label})); });
   groups.forEach(g => sel.append(g));
@@ -931,31 +1008,35 @@ async function init() {
   applyHash();
 }
 
-$("sample").onchange = e => { const v = e.target.value; if (v === "") return; loadSample(v === "all" ? allSamples() : SAMPLES[Number(v)].scenario); };
+$("sample").onchange = e => { const v = e.target.value; if (v !== "") loadSampleAt(v); };
 $("importBtn").onclick = () => $("file").click();
 $("file").onchange = async e => {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
   const t = await f.text(); let o = null; try { o = JSON.parse(t); } catch (err) { /* shown as text; the engine reports the JSON error */ }
   $("sample").value = ""; $("inErr").textContent = "";
-  if (isObj(o)) loadObj(o); else loadText(t);
+  if (isObj(o)) loadObj(o, t); else loadText(t);
 };
 $("exportIn").onclick = () => {
-  let id = null; try { const v = JSON.parse(currentText()); id = isObj(v) ? v.scenario_id : null; } catch (e) { /* unnamed */ }
-  download(id ? fileSafe(id) + "_input.json" : "scenario.json", currentText());
+  const t = currentText(); let id = null; try { const v = JSON.parse(t); id = isObj(v) ? v.scenario_id : null; } catch (e) { /* unnamed */ }
+  download(id ? fileSafe(id) + "_input.json" : "scenario.json", t);
 };
 $("reset").onclick = () => {
-  FIELDS.forEach(f => f.set(undefined)); STASH = {}; $("inNote").textContent = ""; $("inErr").textContent = ""; $("json").value = ""; $("sample").value = "";
+  FIELDS.forEach(f => f.set(undefined)); STASH = {}; baseText = null; dirty = false; $("inNote").textContent = ""; $("inErr").textContent = ""; $("runMsg").textContent = ""; $("json").value = ""; $("sample").value = "";
   RES = null; LASTEDIT = null; if (mode === "json") { updateJsonStat(); } renderResults(); say("Input cleared");
 };
 $("tabForm").onclick = () => setMode("form"); $("tabJson").onclick = () => setMode("json");
 wireTabs($("inTabs"), t => { if (!setMode(t.id === "tabJson" ? "json" : "form")) $(mode === "json" ? "tabJson" : "tabForm").focus(); });
 $("json").addEventListener("input", updateJsonStat);
-$("run").onclick = () => run();
-$("exportOut").onclick = () => { const d = current(); if (d) download(`${fileSafe(d.scenario_id || "scenario")}_output.json`, outText(d)); };
-$("exportAll").onclick = () => { if (RES) RES.docs.forEach((d, i) => download(`${fileSafe(d.scenario_id || "scenario" + (i + 1))}_output.json`, outText(d))); };
-$("copyOut").onclick = () => { const d = current(); if (!d) return; copyText(outText(d)).then(() => flashMsg("Copied"), () => flashMsg("Copy blocked by the browser")); };
+document.querySelectorAll(".runbtn").forEach(b => { b.onclick = () => run(); });
+$("cancelRun").onclick = () => { if (ABORT) ABORT.abort(); };
+$("skipRes").onclick = goResults;
+$("skipTop").onclick = e => { e.preventDefault(); goResults(); };
+$("exportOut").onclick = () => { const f = curFile(); if (f) download(f.name, f.text); };
+$("exportAll").onclick = () => { if (RES) RES.files.forEach(f => download(f.name, f.text)); };
+$("copyOut").onclick = () => { const f = curFile(); if (!f) return; copyText(f.text).then(() => flashMsg("Copied"), () => flashMsg("Copy blocked by the browser")); };
 $("printBtn").onclick = () => print();
 document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); run(); } });
+addEventListener("hashchange", () => { if (READY) applyHash(); });
 init();
 </script>
 </body>

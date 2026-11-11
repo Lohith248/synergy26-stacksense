@@ -20,11 +20,15 @@ from engine.load import parse_text  # noqa: E402
 from engine import ENGINE_VERSION  # noqa: E402
 
 
+def dump_doc(doc):
+    """Exact text of an output file; engine/web.py reuses it so UI exports match the CLI byte for byte."""
+    return json.dumps(doc, indent=2, ensure_ascii=False) + "\n"
+
+
 def write_atomic(path, doc):
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8", newline="\n") as f:
-        json.dump(doc, f, indent=2, ensure_ascii=False)
-        f.write("\n")
+        f.write(dump_doc(doc))
     os.replace(tmp, path)
 
 
