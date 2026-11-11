@@ -249,5 +249,18 @@ class TrainingCostBasis(unittest.TestCase):
         self.assertIn('not verified', line)
 
 
+
+class MarginScope(unittest.TestCase):
+    def test_readme_scopes_margin_and_pareto_to_the_layers_that_have_them(self):
+        for s in PUBLIC:
+            stack = evaluate(copy.deepcopy(s), counterfactuals=False)['stack']
+            self.assertNotIn('score_margin', stack['frontend'])
+            self.assertNotIn('pareto', stack['frontend'])
+        readme = (ROOT / 'README.md').read_text(encoding='utf-8')
+        self.assertFalse('each core component has `kb_id`, `score_margin`' in readme)
+        self.assertFalse('for each core layer, the score margin' in readme)
+        self.assertIn('backend, database and hosting', readme)
+
+
 if __name__ == '__main__':
     unittest.main()
