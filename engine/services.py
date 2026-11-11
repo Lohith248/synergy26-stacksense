@@ -505,7 +505,14 @@ def build(ctx, host, backend, db, mobile, warn):
                            [[0, 5], [5, 30], [30, 200], [200, 1200]], ["sentry-regions"], loc))
 
     # ---------------- other (domain-specific)
-    if req["requirements.offline_support"]:
+    if req["requirements.offline_support"] and not ctx["needs_backend"]:
+        out.append(svc("other", "Service worker precache (Workbox) for offline reading",
+                       "Must work without connectivity: the pre-built pages and assets are cached on first visit, so the site reads offline with no server or sync API.",
+                       ["requirements.offline_support", "project.type"],
+                       [("Offline-first sync API", "nothing is written by visitors, so there is nothing to sync")],
+                       ["Cached pages update on the next visit online", "Browser storage quotas limit very large sites"],
+                       "client", "neutral", False, Z, ["workbox"], None))
+    elif req["requirements.offline_support"]:
         mid = mobile["id"] if mobile else ""
         local = {"kotlin-compose": "Room (SQLite) + WorkManager", "kmp-compose": "SQLDelight + WorkManager",
                  "react-native-expo": "expo-sqlite + background task", "flutter": "drift (SQLite) + workmanager plugin",

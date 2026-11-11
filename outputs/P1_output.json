@@ -68,9 +68,9 @@
           "value": true,
           "new_choice": "Next.js (web)",
           "also_by": [
-            "requirements.offline_support: false -> true",
             "requirements.file_media_storage: false -> true",
-            "requirements.payments: false -> true"
+            "requirements.payments: false -> true",
+            "requirements.multi_tenant: false -> true"
           ]
         }
       ]
@@ -121,14 +121,14 @@
           "also_by": []
         },
         {
-          "edit": "requirements.offline_support: false -> true",
-          "path": "requirements.offline_support",
+          "edit": "requirements.file_media_storage: false -> true",
+          "path": "requirements.file_media_storage",
           "value": true,
           "new_choice": "Node.js 24 LTS: Next.js route handlers + server actions (same app as the UI)",
           "also_by": [
-            "requirements.file_media_storage: false -> true",
             "requirements.payments: false -> true",
-            "requirements.multi_tenant: false -> true"
+            "requirements.multi_tenant: false -> true",
+            "requirements.auth: none -> email_password"
           ]
         }
       ]
@@ -176,9 +176,9 @@
           "value": true,
           "new_choice": "Supabase Postgres",
           "also_by": [
-            "requirements.offline_support: false -> true",
             "requirements.file_media_storage: false -> true",
-            "requirements.payments: false -> true"
+            "requirements.payments: false -> true",
+            "requirements.multi_tenant: false -> true"
           ]
         }
       ]
@@ -259,9 +259,9 @@
           "value": true,
           "new_choice": "Google Cloud Run",
           "also_by": [
-            "requirements.offline_support: false -> true",
             "requirements.file_media_storage: false -> true",
-            "requirements.payments: false -> true"
+            "requirements.payments: false -> true",
+            "requirements.multi_tenant: false -> true"
           ]
         },
         {

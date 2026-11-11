@@ -137,7 +137,7 @@ def build(req):
     c["type"] = typ
     dynamic_need = (r["requirements.auth"] != "none" or r["requirements.payments"] or r["requirements.realtime"]
                     or r["requirements.file_media_storage"] or r["requirements.multi_tenant"]
-                    or r["requirements.ml_features"] != "none" or r["requirements.offline_support"]
+                    or r["requirements.ml_features"] != "none"  # offline alone: a static site precaches (services.py)
                     or c["api_only"] or bool(c["mobile"]))
     c["needs_backend"] = dynamic_need or typ in DYNAMIC_TYPES
     c["needs_db"] = c["needs_backend"]

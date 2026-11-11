@@ -108,6 +108,7 @@
   "compose": {"url": "https://developer.android.com/jetpack/androidx/releases/compose-ui", "title": "Jetpack Compose releases", "status": "verified", "claims": ["R3:CM-01"]},
   "capacitor": {"url": "https://capacitorjs.com/docs", "title": "Ionic Capacitor", "status": "verified", "claims": ["R3:CP-01"]},
   "android-offline-first": {"url": "https://developer.android.com/topic/architecture/data-layer/offline-first", "title": "Android offline-first architecture guide", "status": "verified", "claims": ["handoff PRIMARY-SOURCE-CHECKS item 4"]},
+  "workbox": {"url": "https://developer.chrome.com/docs/workbox", "title": "Workbox: production-ready service worker libraries (precaching, caching strategies) for offline web apps", "status": "verified", "claims": ["rendered 12 Nov 2026"]},
   "workmanager": {"url": "https://developer.android.com/develop/background-work/background-tasks/persistent", "title": "Android WorkManager persistent background work", "status": "verified", "claims": ["R5:13"]},
   "postgres-versioning": {"url": "https://www.postgresql.org/support/versioning/", "title": "PostgreSQL versioning: 13 EOL Nov 2025, 14 EOL 12 Nov 2026, 15 EOL 11 Nov 2027 (rechecked in R12)", "status": "verified", "claims": ["R3:PG-01..07"]},
   "postgres-fts": {"url": "https://www.postgresql.org/docs/current/textsearch.html", "title": "PostgreSQL full text search", "status": "verified", "claims": ["R5:14a"]},

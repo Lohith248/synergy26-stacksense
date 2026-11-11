@@ -541,5 +541,23 @@ class RealtimeLocality(unittest.TestCase):
         self.assertIn('Azure App Service', st['hosting']['choice'])
 
 
+class StaticOffline(unittest.TestCase):
+    """Section 6 over-engineering: a static content site that must work offline needs a service-worker
+    precache, not an application server and database."""
+    def test_p1_offline_stays_static(self):
+        sys.path.insert(0, str(ROOT / 'tools'))
+        import check_contract
+        base = evaluate(copy.deepcopy(PUBLIC[0]), counterfactuals=False)['stack']
+        s = copy.deepcopy(PUBLIC[0])
+        s['requirements']['offline_support'] = True
+        out = evaluate(s, counterfactuals=False)
+        self.assertEqual(check_contract.check(out), [])
+        for layer in ('frontend', 'backend', 'database', 'hosting'):
+            self.assertEqual(out['stack'][layer]['choice'], base[layer]['choice'], layer)
+        off = [x for x in out['stack']['supporting'] if 'requirements.offline_support' in x['driven_by']]
+        self.assertTrue(off and 'service worker' in off[0]['choice'].lower())
+        self.assertNotIn('outbox', json.dumps(off))
+
+
 if __name__ == '__main__':
     unittest.main()
