@@ -481,7 +481,7 @@
       "queue: Google Cloud Pub/Sub / Cloud Tasks in asia-south1 (Mumbai) $0-1/month.",
       "ci_cd: GitHub Actions $0-4/month.",
       "observability: Cloud Logging + Cloud Monitoring in asia-south1 (Mumbai) $0-5/month.",
-      "Stored data ~100 GB after 12 months at ~$0.02-0.035/GB-month (year-end volume used as an upper bound, not an average).",
+      "Stored data ~100 GB after 12 months at ~$0.02-0.035/GB-month (year-end volume used as an upper bound, not an average); bulk files and media are assumed to sit in object storage, while database rows stay small.",
       "Phone OTP: 2,000 users x 0.3-1.0 OTP logins/month at India SMS ~Rs 0.20-0.25 + GST per SMS = $1-9/month (long-lived sessions keep OTPs rare).",
       "Spiky traffic: the upper bound is a peak month; with autoscaling, quiet months run near the lower bound.",
       "Excluded: taxes, domain names, paid support plans and data-egress spikes. Order-of-magnitude band, not a quote."

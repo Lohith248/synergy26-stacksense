@@ -369,5 +369,26 @@ class OnPremTraining(unittest.TestCase):
         self.assertTrue(any(a.startswith('ml:') for a in out['estimated_monthly_cost_usd']['assumptions']))
 
 
+
+class StoredDataRate(unittest.TestCase):
+    def stored(self, out):
+        return next(a for a in out['estimated_monthly_cost_usd']['assumptions'] if a.startswith('Stored data'))
+
+    def test_data_without_object_storage_is_priced_at_database_ssd_rates(self):
+        s = copy.deepcopy(PUBLIC[5])
+        s['requirements']['file_media_storage'] = False
+        s['project']['description'] = 'NGO field agents fill crop surveys; data syncs when signal is available.'
+        out = evaluate(s, counterfactuals=False)
+        self.assertFalse(any(x['layer'] == 'storage' for x in out['stack']['supporting']))
+        line = self.stored(out)
+        self.assertIn('database', line)
+        self.assertIn('$0.10-0.25/GB-month', line)
+
+    def test_object_storage_case_states_the_split(self):
+        line = self.stored(evaluate(copy.deepcopy(PUBLIC[5]), counterfactuals=False))
+        self.assertIn('$0.02-0.035/GB-month', line)
+        self.assertIn('object storage', line)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -684,11 +684,16 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
             hi += chi
             lines.append(f"{s['layer']}: {s['choice'].split(' — ')[0]} ${clo}-{chi}/month." + s.get("_note", ""))
     gb = ctx["data_gb"]
-    if any(s["layer"] == "storage" and s["deployment"] != "self_hosted" for s in supporting) or (db_item and db_c.vkey != "self" and gb > 20):
-        slo, shi = round(gb * 0.02, 2), round(gb * 0.035 + 1, 2)
+    obj = any(s["layer"] == "storage" and s["deployment"] != "self_hosted" for s in supporting)
+    if obj or (db_item and db_c.vkey != "self" and gb > 20):
+        # object storage ~$0.02-0.035/GB-month; managed database SSD ~$0.10-0.25 (Cloud SQL SSD $0.17 Iowa / $0.20 Mumbai, rendered 11 Nov 2026)
+        r_lo, r_hi = (0.02, 0.035) if obj else (0.10, 0.25)
+        slo, shi = round(gb * r_lo, 2), round(gb * r_hi + 1, 2)
         lo += slo
         hi += shi
-        lines.append(f"Stored data ~{gb:g} GB after 12 months at ~$0.02-0.035/GB-month (year-end volume used as an upper bound, not an average).")
+        lines.append(f"Stored data ~{gb:g} GB after 12 months at ~${r_lo:.2f}-{r_hi:g}/GB-month (year-end volume used as an upper bound, not an average); "
+                     + ("bulk files and media are assumed to sit in object storage, while database rows stay small." if obj
+                        else "it lives in the managed database's SSD storage, which costs several times object storage."))
     if ctx["req"]["requirements.auth"] == "phone_otp" and not ctx["no_internet"]:
         logins = ctx["users"]
         if any("MSG91" in s["choice"] for s in supporting):
