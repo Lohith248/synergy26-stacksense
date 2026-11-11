@@ -132,7 +132,7 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
         out.append(svc("other", "BI dashboards: Metabase (open-source edition, self-hosted container)",
                        "Analysts build dashboards and scheduled reports with SQL or a query builder, signed in through the same identity provider.",
                        ["project.type", "requirements.auth"],
-                       [("Looker Studio", "no-cost and simple, but Google-account based and weaker on governed internal access") if p == "gcp" else
+                       [("Data Studio (formerly Looker Studio)", "no-cost and simple, but Google-account based and weaker on governed internal access") if p == "gcp" else
                         ("Apache Superset", "comparable open-source tool; heavier to operate"),
                         ("Custom React dashboards", "every new report becomes a development task")],
                        ["The open-source edition is AGPL: keep it unmodified or comply with the licence"], "self_hosted", "neutral", False, Z,

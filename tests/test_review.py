@@ -559,5 +559,16 @@ class StaticOffline(unittest.TestCase):
         self.assertNotIn('outbox', json.dumps(off))
 
 
+class CurrentProductNames(unittest.TestCase):
+    """Section 5.2: Google renamed Looker Studio to Data Studio (docs page rendered 12 Nov 2026)."""
+    def test_gcp_analytics_names_data_studio(self):
+        s = copy.deepcopy(PUBLIC[2])
+        s['project']['type'] = 'data_analytics'
+        s['infrastructure']['cloud_preference'] = 'gcp'
+        text = json.dumps(evaluate(s, counterfactuals=False))
+        self.assertIn('Data Studio', text)
+        self.assertNotIn('"Looker Studio"', text)
+
+
 if __name__ == '__main__':
     unittest.main()

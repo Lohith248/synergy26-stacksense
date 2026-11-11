@@ -158,7 +158,7 @@
   "fabric-overview": {"url": "https://learn.microsoft.com/en-us/fabric/fundamentals/microsoft-fabric-overview", "title": "Microsoft Fabric overview (Synapse guide points new warehouses to Fabric)", "status": "official-unverified", "claims": ["R7:3"]},
   "metabase-license": {"url": "https://www.metabase.com/license", "title": "Metabase open-source edition, AGPL", "status": "verified", "claims": ["R7:4"]},
   "superset": {"url": "https://superset.apache.org/", "title": "Apache Superset (ASF project, Apache License)", "status": "verified", "claims": ["R7:5"]},
-  "looker-studio": {"url": "https://docs.cloud.google.com/looker/docs/studio", "title": "Looker Studio (Data Studio) no-cost reporting tool", "status": "official-unverified", "claims": ["R7:6"]},
+  "looker-studio": {"url": "https://docs.cloud.google.com/data-studio", "title": "Data Studio (renamed from Looker Studio) no-cost reporting tool", "status": "verified", "claims": ["R7:6"]},
   "clickhouse": {"url": "https://github.com/ClickHouse/ClickHouse", "title": "ClickHouse open source (Apache-2.0)", "status": "verified", "claims": ["R7:7"]},
   "aws-apigw-usage-plans": {"url": "https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-api-usage-plans.html", "title": "API Gateway usage plans and API keys (throttling, quotas)", "status": "verified", "claims": ["R7:8"]},
   "azure-apim": {"url": "https://learn.microsoft.com/en-us/azure/api-management/api-management-policies", "title": "Azure API Management rate-limit and quota policies (Consumption tier)", "status": "verified", "claims": ["R7:9"]},
