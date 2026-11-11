@@ -473,7 +473,7 @@
   ],
   "assumptions": [
     "requirements.p95_latency_ms absent or null: no explicit latency target; typical web latency assumed.",
-    "Knowledge base as of 2026-11-10; lifecycle and pricing judgements use that date, not the run date.",
+    "Knowledge base as of 2026-11-11; lifecycle and pricing judgements use that date, not the run date.",
     "Scale tier 'tiny' from 2,000 users and ~200 peak concurrent users (people, not requests per second; used only for sizing and cost)."
   ],
   "validation_errors": []

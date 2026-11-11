@@ -608,7 +608,7 @@
     }
   ],
   "assumptions": [
-    "Knowledge base as of 2026-11-10; lifecycle and pricing judgements use that date, not the run date.",
+    "Knowledge base as of 2026-11-11; lifecycle and pricing judgements use that date, not the run date.",
     "Scale tier 'medium' from 50,000 users and ~5,000 peak concurrent users (people, not requests per second; used only for sizing and cost).",
     "gdpr with no data_residency: EU region (West Europe (Netherlands)) chosen to avoid international transfers."
   ],

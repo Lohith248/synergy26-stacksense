@@ -1,4 +1,5 @@
 """Orchestration: validated input -> Section 4 document. Deterministic; no clock, randomness or network."""
+from datetime import date  # fromisoformat only: dates are compared with the KB date, never the clock
 from . import ENGINE_VERSION
 from . import context as cx
 from . import select as sl
@@ -513,6 +514,10 @@ def contradictions(ctx, W, assumptions, host, backend):
                 W("END_OF_LIFE_SYSTEM", "warning",
                   f"'{e['raw']}' {what} ({life['name']}); keep it behind an isolated interface, do not build new features on it, and plan a migration.",
                   ["infrastructure.existing_systems"])
+            elif (date.fromisoformat(life["eol"]) - date.fromisoformat(AS_OF)).days <= 90:
+                W("END_OF_LIFE_SOON", "warning",
+                  f"'{e['raw']}' ({life['name']}) reaches end of support on {life['eol']}, within 90 days of the knowledge-base date {AS_OF}; "
+                  "schedule the upgrade now and avoid building new features on it.", ["infrastructure.existing_systems"])
             elif life.get("mainstream_end") and life["mainstream_end"] <= AS_OF:
                 W("EXISTING_SYSTEM_EXTENDED_SUPPORT", "info",
                   f"'{e['raw']}' is in extended (security-only) support until {life['eol']}; supported, but plan the upgrade path.",

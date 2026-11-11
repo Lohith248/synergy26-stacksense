@@ -1,6 +1,6 @@
 {
   "_about": "StackSense26 knowledge base, curated in-window 10 Nov 2026. as_of fixes all lifecycle judgements (never the wall clock). ratings r = [cost, time_to_market, scalability, performance, maintainability, security], 1-5, higher is better for the user (cost 5 = cheapest). learning/ops: 1 easy/low .. 5 hard/high. cost = monthly USD [low, high] per scale tier [tiny, small, medium, large]: order-of-magnitude planning bands derived from the cited pricing pages, not quotes. regions: residency group -> concrete region; 'global' = edge network with no region choice. lock_in high = proprietary runtime/data API (penalised when infrastructure.lock_in_tolerance is low); host_os customer = the OS of the servers is yours to patch; scaling (hosting): request = scales with requests incl. to zero, instances = autoscaled always-on instances, fixed = capacity you size; max_tier: largest tier the option is comfortable at (0 tiny .. 3 large).",
-  "as_of": "2026-11-10",
+  "as_of": "2026-11-11",
   "hosting": [
     {"id": "github-pages", "name": "GitHub Pages", "provider": "github", "deploy": "saas", "kind": "static", "regions": {"global": "GitHub edge (US-operated)"},
      "r": [5, 5, 3, 4, 4, 4], "learning": 1, "ops": 1, "max_tier": 2, "sla": null, "commercial_ok": false,
@@ -212,7 +212,7 @@
     {"id": "postgresql", "name": "PostgreSQL", "family": "relational", "r": [5, 4, 4, 4, 5, 5], "learning": 2, "max_tier": 3, "fts": true, "rls": true, "acid": 5, "write": 4,
      "variants": {"aws": "Amazon RDS for PostgreSQL 17", "azure": "Azure Database for PostgreSQL – Flexible Server 17", "gcp": "Cloud SQL for PostgreSQL 17",
                   "render": "Render Postgres", "railway": "Railway Postgres", "vercel": "Supabase Postgres", "self": "PostgreSQL 17 (self-hosted container)"},
-     "strengths": ["ACID transactions, JSONB, built-in full-text search and row-level security", "Supported majors 14-18; 13 is EOL"], "limits": ["Vertical write scaling; sharding needs extensions"], "src": ["postgres-versioning", "postgres-fts", "postgres-rls", "aws-rds-regions", "supabase-regions"]},
+     "strengths": ["ACID transactions, JSONB, built-in full-text search and row-level security", "Supported majors 14-18 on 2026-11-11, but 14 ends 2026-11-12 and 15 on 2027-11-11; 13 is EOL"], "limits": ["Vertical write scaling; sharding needs extensions"], "src": ["postgres-versioning", "postgres-fts", "postgres-rls", "aws-rds-regions", "supabase-regions"]},
     {"id": "mysql", "name": "MySQL 8.4 LTS", "family": "relational", "r": [5, 4, 4, 4, 4, 4], "learning": 2, "max_tier": 3, "fts": true, "rls": false, "acid": 4, "write": 4,
      "variants": {"aws": "Amazon RDS for MySQL 8.4", "azure": "Azure Database for MySQL – Flexible Server 8.4", "gcp": "Cloud SQL for MySQL 8.4", "self": "MySQL 8.4 LTS (self-hosted)"},
      "strengths": ["Ubiquitous, simple replication"], "limits": ["8.0 moved to Sustaining Support (Apr 2026); no row-level security"], "src": ["mysql-eol"]},
@@ -264,9 +264,9 @@
     {"pattern": "python 3.9", "name": "Python 3.9", "eol": "2025-10-31", "src": "python-versions"},
     {"pattern": "python 3.10", "name": "Python 3.10", "eol": "2026-10-01", "src": "python-versions"},
     {"pattern": "python 2", "name": "Python 2", "eol": "2020-01-01", "src": "python-versions"},
-    {"pattern": ".net 8", "name": ".NET 8", "eol": "2026-11-10", "src": "dotnet-policy"},
+    {"pattern": ".net 8", "name": ".NET 8", "eol": "2026-11-10", "src": "dotnet-policy"}, {"pattern": ".net 9", "name": ".NET 9", "eol": "2026-11-10", "src": "dotnet-policy"},
     {"pattern": ".net 6", "name": ".NET 6", "eol": "2024-11-12", "src": "dotnet-policy"},
-    {"pattern": "postgresql 13", "name": "PostgreSQL 13", "eol": "2025-11-13", "src": "postgres-versioning"},
+    {"pattern": "postgresql 13", "name": "PostgreSQL 13", "eol": "2025-11-13", "src": "postgres-versioning"}, {"pattern": "postgresql 14", "name": "PostgreSQL 14", "eol": "2026-11-12", "src": "postgres-versioning"}, {"pattern": "postgres 14", "name": "PostgreSQL 14", "eol": "2026-11-12", "src": "postgres-versioning"}, {"pattern": "postgresql 15", "name": "PostgreSQL 15", "eol": "2027-11-11", "src": "postgres-versioning"}, {"pattern": "postgres 15", "name": "PostgreSQL 15", "eol": "2027-11-11", "src": "postgres-versioning"},
     {"pattern": "postgres 13", "name": "PostgreSQL 13", "eol": "2025-11-13", "src": "postgres-versioning"},
     {"pattern": "mysql 5.7", "name": "MySQL 5.7", "eol": "2023-10-31", "src": "mysql-eol"},
     {"pattern": "heroku free", "name": "Heroku free dynos", "eol": "2022-11-28", "src": "heroku-free"},

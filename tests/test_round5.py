@@ -148,5 +148,32 @@ class RankStability(unittest.TestCase):
         self.assertIsNone(evaluate(bad)["stack"])
 
 
+class UpcomingEndOfLife(unittest.TestCase):
+    """R12 (vendor pages): PostgreSQL 14 ends 2026-11-12, 15 ends 2027-11-11, 13 already ended."""
+
+    def codes(self, system):
+        s = copy.deepcopy(PUBLIC[1])
+        s["infrastructure"]["existing_systems"] = [system]
+        out = evaluate(s)
+        self.assertFalse(check(out), check(out))
+        return {w["code"] for w in out["warnings"]}, out
+
+    def test_postgres_14_ends_within_days(self):
+        codes, out = self.codes("PostgreSQL 14 database")
+        self.assertIn("END_OF_LIFE_SOON", codes)
+        self.assertNotIn("END_OF_LIFE_SYSTEM", codes)
+        self.assertIn("2026-11-12", next(w["message"] for w in out["warnings"] if w["code"] == "END_OF_LIFE_SOON"))
+
+    def test_postgres_15_is_supported_for_a_year(self):
+        codes, _ = self.codes("PostgreSQL 15 database")
+        self.assertFalse(codes & {"END_OF_LIFE_SOON", "END_OF_LIFE_SYSTEM"})
+
+    def test_postgres_13_is_already_over(self):
+        self.assertIn("END_OF_LIFE_SYSTEM", self.codes("PostgreSQL 13 database")[0])
+
+    def test_dotnet_9_ended_with_dotnet_8(self):
+        self.assertIn("END_OF_LIFE_SYSTEM", self.codes("legacy .NET 9 service")[0])
+
+
 if __name__ == "__main__":
     unittest.main()

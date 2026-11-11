@@ -175,7 +175,7 @@ Example: `scenarios/extras/X1_p6_with_extras.json` (P6 plus all four). The count
 source/
 ├── stacksense.py            CLI entry point
 ├── engine/                  validation, context, selection, services, orchestration
-├── kb/technologies.json     knowledge base (as_of 2026-11-10)
+├── kb/technologies.json     knowledge base (as_of 2026-11-11)
 ├── kb/sources.json          cited sources with verification status
 ├── scenarios/               official public scenarios + edge_cases/E1-E9
 ├── outputs/                 P1-P6 outputs produced by this engine
@@ -192,5 +192,5 @@ source/
 - **Third-party libraries:** none. The engine uses only the Python standard library (PSF licence).
 - **Datasets:** the organiser's `stacksense_public_scenarios.json`. No external datasets.
 - **APIs:** none called at runtime.
-- **Knowledge-base sources:** official vendor documentation, pricing and lifecycle pages and regulator pages. All are listed in `kb/sources.json` with URL, access date (2026-11-10) and verification status, and they are cited in the report.
+- **Knowledge-base sources:** official vendor documentation, pricing and lifecycle pages and regulator pages. All are listed in `kb/sources.json` with URL, access date (2026-11-11) and verification status, and they are cited in the report.
 - **AI assistance:** Claude Code (Anthropic) was used as a coding and research assistant. It is declared in the report's AI-assistance section. Design decisions are recorded in `DECISIONS.md`.
