@@ -526,8 +526,11 @@ def contradictions(ctx, W, assumptions, host, backend):
     req = ctx["req"]
     avail = req["requirements.availability"]
     if avail in ("99.95", "99.99") and (ctx["size"] <= 2 and (ctx["exp"] == "beginner" or not ctx["devops"])):
-        W("AVAILABILITY_VS_TEAM", "warning",
-          f"A {avail}% availability target (≈{ {'99.95': '22', '99.99': '4.4'}[avail]} min downtime/month) needs on-call and redundancy that a {ctx['size']}-person {ctx['exp']} team without DevOps rarely sustains. Managed multi-zone services were preferred; plan on-call or relax the target.",
+        # statement 6 example (enterprise availability, solo beginner): critical when servers must be run; static sites need no on-call
+        extreme = avail == "99.99" and ctx["size"] == 1 and ctx["exp"] == "beginner" and ctx["needs_backend"]
+        W("AVAILABILITY_VS_TEAM", "critical" if extreme else "warning",
+          f"A {avail}% availability target (≈{ {'99.95': '22', '99.99': '4.4'}[avail]} min downtime/month) needs on-call and redundancy that a {ctx['size']}-person {ctx['exp']} team without DevOps rarely sustains. Managed multi-zone services were preferred; plan on-call or relax the target."
+          + (" Relaxed: the stack is built for the target, but a solo beginner cannot staff 24/7 on-call or failover drills, so treat 99.99% as best effort (about 99.9%) until on-call cover exists." if extreme else ""),
           ["requirements.availability", "team.size", "team.experience", "team.has_devops"])
     if avail == "99.99":
         why = ("A 99.99% target (about 4.4 minutes of downtime a month) is beyond what one region of managed services is designed to deliver, "
@@ -542,8 +545,12 @@ def contradictions(ctx, W, assumptions, host, backend):
               ["requirements.availability"])
     n_plat = len([p for p in ctx["platforms"] if p != "api_only"])
     if n_plat >= 3 and ctx["weeks"] <= 6:
-        W("TIMELINE_VS_SCOPE", "warning",
-          f"{n_plat} client platforms in {ctx['weeks']} weeks with a team of {ctx['size']} is aggressive; ship web first and add other platforms after the MVP.",
+        # statement 6 example (short timeline, many platforms): critical at 8 person-weeks or less
+        extreme = ctx["size"] * ctx["weeks"] <= 8
+        W("TIMELINE_VS_SCOPE", "critical" if extreme else "warning",
+          f"{n_plat} client platforms in {ctx['weeks']} weeks with a team of {ctx['size']} is "
+          + (f"not achievable. Relaxed: the MVP ships {'web' if ctx['web'] else 'one platform'} first; the stack covers every platform, but the others follow after the MVP." if extreme
+             else "aggressive; ship web first and add other platforms after the MVP."),
           ["project.platforms", "timeline.mvp_weeks", "team.size"])
     if "api_only" in ctx["platforms"] and len(ctx["platforms"]) > 1:
         W("API_ONLY_WITH_CLIENTS", "info", "api_only was listed together with client platforms; treated as 'also expose a public API'.", ["project.platforms"])

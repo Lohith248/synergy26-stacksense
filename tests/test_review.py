@@ -262,5 +262,46 @@ class MarginScope(unittest.TestCase):
         self.assertIn('backend, database and hosting', readme)
 
 
+
+def severity(out, code):
+    return next(w['severity'] for w in out['warnings'] if w['code'] == code)
+
+
+class Section6Contradictions(unittest.TestCase):
+    """Statement 6 names these as contradictions: critical warning plus a clearly labelled relaxed recommendation,
+    at the extreme only (as SCALE_VS_BUDGET); milder forms stay warnings."""
+    def solo(self, i, avail):
+        s = copy.deepcopy(PUBLIC[i])
+        s['team'].update(size=1, experience='beginner', has_devops=False)
+        s['requirements']['availability'] = avail
+        return evaluate(s, counterfactuals=False)
+
+    def test_solo_beginner_with_99_99_on_a_dynamic_app_is_critical_and_relaxed(self):
+        out = self.solo(2, '99.99')
+        self.assertEqual(severity(out, 'AVAILABILITY_VS_TEAM'), 'critical')
+        self.assertIn('AVAILABILITY_VS_TEAM', out['summary'].split(').')[0])
+        self.assertTrue(any(a.startswith('Relaxed: requirements.availability') for a in out['assumptions']))
+
+    def test_milder_availability_conflicts_stay_warnings(self):
+        self.assertEqual(severity(self.solo(2, '99.95'), 'AVAILABILITY_VS_TEAM'), 'warning')
+        self.assertEqual(severity(self.solo(0, '99.99'), 'AVAILABILITY_VS_TEAM'), 'warning')  # static site, no servers to run
+
+    def scope(self, weeks, size):
+        s = copy.deepcopy(PUBLIC[1])
+        s['project']['platforms'] = ['web', 'android', 'ios']
+        s['timeline']['mvp_weeks'] = weeks
+        s['team']['size'] = size
+        return evaluate(s, counterfactuals=False)
+
+    def test_many_platforms_in_very_few_person_weeks_is_critical_and_relaxed(self):
+        out = self.scope(2, 3)
+        self.assertEqual(severity(out, 'TIMELINE_VS_SCOPE'), 'critical')
+        self.assertTrue(out['summary'].startswith('Relaxed recommendation'))
+        self.assertIn('web first', next(w['message'] for w in out['warnings'] if w['code'] == 'TIMELINE_VS_SCOPE'))
+
+    def test_aggressive_but_staffed_timeline_stays_a_warning(self):
+        self.assertEqual(severity(self.scope(4, 5), 'TIMELINE_VS_SCOPE'), 'warning')
+
+
 if __name__ == '__main__':
     unittest.main()
