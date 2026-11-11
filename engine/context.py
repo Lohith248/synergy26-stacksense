@@ -40,6 +40,15 @@ DESC_RULES = [
 ]
 
 
+def lifecycle_text(low):
+    """Normalise common product spellings so 'Node.js 18', 'node-18', 'ASP.NET Core 8', 'PostgreSQL14', 'Angular 1.x'
+    meet the lifecycle patterns ('node 18', '.net 8', 'postgresql 14', 'angularjs'); a digit may not follow a pattern."""
+    low = re.sub(r"node\s*\.?\s*js", "node", low)
+    low = re.sub(r"\.net core", ".net", low)
+    low = re.sub(r"angular\s*(?:\.?js\b|1(?:\.|x\b|\b))", "angularjs ", low)
+    return re.sub(r"\b(node|python|postgresql|postgres|\.net|vue|mysql)[\s\-_]*v?(?=\d)", r"\1 ", low)
+
+
 def lang_norm(langs):
     return sorted({LANG_ALIASES.get(x, x) for x in langs})
 
@@ -109,8 +118,9 @@ def build(req):
                 hit = pat
                 break
         life = None
+        norm = lifecycle_text(low)
         for lc in TECH["lifecycle"]:
-            if lc["pattern"] in low:
+            if re.search(re.escape(lc["pattern"]) + r"(?!\d)", norm):
                 life = lc
                 break
         ex.append({"raw": raw, "pattern": hit, "life": life, "onprem": "on-prem" in low or "on prem" in low
