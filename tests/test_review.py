@@ -303,5 +303,29 @@ class Section6Contradictions(unittest.TestCase):
         self.assertEqual(severity(self.scope(4, 5), 'TIMELINE_VS_SCOPE'), 'warning')
 
 
+
+class WebContentLength(unittest.TestCase):
+    def test_malformed_content_length_is_http_400(self):
+        import http.client
+        import threading
+        from engine.web import make_server
+        srv = make_server(0)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            for bad in ('abc', '1.5', ''):
+                with self.subTest(content_length=bad):
+                    conn = http.client.HTTPConnection('127.0.0.1', srv.server_address[1], timeout=10)
+                    conn.putrequest('POST', '/api/evaluate')
+                    conn.putheader('Content-Length', bad)
+                    conn.endheaders()
+                    resp = conn.getresponse()
+                    self.assertEqual(resp.status, 400)
+                    self.assertIn('error', json.loads(resp.read()))
+                    conn.close()
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+
 if __name__ == '__main__':
     unittest.main()
