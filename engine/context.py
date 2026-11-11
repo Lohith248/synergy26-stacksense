@@ -102,6 +102,9 @@ def build(req):
         res = "india"
         c["residency_from_rbi"] = True
     c["residency"] = res
+    # users are in India when data must stay there or Indian data-protection/payment rules apply (DPDP covers data of
+    # people in India even without a residency requirement); drives Indian SMS and payment providers
+    c["india_users"] = res == "india" or "dpdp" in comp or "rbi_localisation" in comp
     c["res_key"] = res if res in ("india", "eu", "us") else None
     c["self_host_only"] = c["deploy"] in ("on_premise", "air_gapped")
     c["no_internet"] = c["deploy"] == "air_gapped"

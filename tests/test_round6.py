@@ -289,6 +289,37 @@ class Pareto(unittest.TestCase):
         self.assertIn("pareto: .NET 10 LTS", stacksense.explain(pub(4)))
 
 
+class IndianUsersWithoutResidency(unittest.TestCase):
+    """Reproduced on b415bc2: P2 with data_residency 'none' or 'other' (still DPDP, so Indian users) switched OTP to
+    Twilio Verify ($450-1,800/month) and the band to $517-2,122 with a critical BUDGET_EXCEEDED; 'other' also recorded
+    'No data_residency given'."""
+
+    def p2(self, res):
+        s = copy.deepcopy(PUBLIC[1])
+        s["infrastructure"]["data_residency"] = res
+        return evaluate(s, counterfactuals=False)
+
+    def test_dpdp_means_indian_sms_and_payments(self):
+        for res in ("none", "other"):
+            out = self.p2(res)
+            sup = {x["layer"]: x for x in out["stack"]["supporting"]}
+            self.assertIn("MSG91", sup["auth"]["choice"], res)
+            self.assertIn("compliance", sup["auth"]["driven_by"], res)
+            self.assertNotIn("conflicting with India residency", json.dumps(sup["auth"]["alternatives"]), res)
+            self.assertIn("Razorpay", sup["payments"]["choice"], res)
+            self.assertNotIn("BUDGET_EXCEEDED", {w["code"] for w in out["warnings"]}, res)
+
+    def test_other_residency_is_not_reported_as_missing(self):
+        self.assertFalse(any(a.startswith("No data_residency given") for a in self.p2("other")["assumptions"]))
+
+    def test_without_indian_signals_twilio_stays(self):
+        s = copy.deepcopy(PUBLIC[1])
+        s["infrastructure"]["data_residency"] = "none"
+        s["compliance"] = []
+        auth = next(x for x in evaluate(s, counterfactuals=False)["stack"]["supporting"] if x["layer"] == "auth")
+        self.assertIn("Twilio", auth["choice"])
+
+
 class FourNines(unittest.TestCase):
     """Round 4 leftover: 99.99% got only a warning. On hyperscaler managed hosting it now gets a second-region warm
     standby inside the same residency area, a cross-region replica, DNS failover and its cost."""

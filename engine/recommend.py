@@ -275,7 +275,7 @@ def _recommend(req, assumptions, sid):
         assumptions.append(f"gdpr with no data_residency: EU region ({region}) chosen to avoid international transfers.")
     else:
         region = next(iter(host["regions"].values())) if "global" in host["regions"] or "any" in host["regions"] else None
-        if region is None:
+        if region is None and req["infrastructure.data_residency"] == "none":
             assumptions.append("No data_residency given: deploy in the provider region closest to most users (not specified in the input).")
     ctx["res_key"] = loc
     host_extra_paths = [p for p in HARD_PATHS if any(c.excluded and c.excluded[1] == p for c in h_out)]

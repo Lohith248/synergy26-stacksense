@@ -109,12 +109,13 @@ def build(ctx, host, backend, db, mobile, warn):
                                ["India SMS needs DLT-registered sender ID and templates", "SMS cost scales with logins"],
                                "managed", "aws", True, [[0, 5], [5, 40], [30, 250], [250, 1500]],
                                ["aws-cognito-pricing", "aws-sns-sms", "trai-dlt"], loc))
-            elif loc == "india" or ctx["residency"] == "india":
+            elif loc == "india" or ctx["residency"] == "india" or ctx["india_users"]:
+                in_res = loc == "india" or ctx["residency"] == "india"
                 out.append(svc("auth", "Backend-issued sessions + MSG91 OTP API (India)",
                                "phone_otp for Indian users: an Indian SMS provider with DLT-registered templates is the cheapest reliable OTP route (about Rs 0.20 per SMS); "
                                "the backend stores users and refresh tokens in the in-region database.",
-                               dp + res_path,
-                               [("Firebase Authentication (phone)", "stores identity data in Google's global auth service, conflicting with India residency"),
+                               dp + res_path + ([] if in_res else ["compliance"]),
+                               [("Firebase Authentication (phone)", "stores identity data in Google's global auth service" + (", conflicting with India residency" if in_res else "; acceptable, but costlier per SMS at scale")),
                                 ("Twilio Verify", "about $0.05 per verification plus SMS, far above Indian SMS rates")],
                                ["DLT registration of sender ID/template before launch", "OTP needs network at login; sessions must stay valid offline"],
                                "saas", "msg91", False, Z, ["msg91-otp", "trai-dlt", "firebase-pricing", "twilio-verify"]))
@@ -311,7 +312,8 @@ def build(ctx, host, backend, db, mobile, warn):
                  "Taking payments requires reaching a payment network, which contradicts an air-gapped deployment. Relaxed: payments excluded from the stack; record payments offline or via a separately connected system.",
                  ["requirements.payments", "infrastructure.deployment_model"])
         else:
-            india = ctx["residency"] == "india" or d["upi"] or "rbi_localisation" in ctx["compliance"]
+            india = ctx["india_users"] or d["upi"]
+            via_compliance = india and ctx["residency"] != "india" and not d["upi"]
             pci = "pci_dss" in ctx["compliance"]
             feats, extra_src = [], []
             store = bool(ctx["mobile"]) and (ctx["type"] == "gaming" or d["digital_goods"]) and ctx["type"] not in ("marketplace", "ecommerce", "fintech")
@@ -378,7 +380,7 @@ def build(ctx, host, backend, db, mobile, warn):
                 src = src + ["stripe-usage-billing"]
             if not store:
                 out.append(svc("payments", name + (" — " + "; ".join(feats) if feats else ""), why,
-                               dp + (["project.description"] if (feats or d["upi"]) else []) + (["compliance"] if pci else []) + res_path,
+                               dp + (["project.description"] if (feats or d["upi"]) else []) + (["compliance"] if pci or via_compliance else []) + res_path,
                                alts, ["Per-transaction fees (~2% domestic cards) are charged on revenue, not in the infrastructure band",
                                       "Webhook handling must be idempotent"],
                                "saas", prov, True, Z, src, "india" if india else None))
