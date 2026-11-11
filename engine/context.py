@@ -12,7 +12,7 @@ DYNAMIC_TYPES = {"web_app", "saas_b2b", "ecommerce", "marketplace", "social", "r
 LANG_ALIASES = {"js": "javascript", "ts": "typescript", "c#": "csharp", "golang": "go", "py": "python",
                 "node": "javascript", "nodejs": "javascript", "node.js": "javascript", "c sharp": "csharp"}
 
-# Deterministic description rules (D7). Each: flag -> regex. They only shape supporting services/warnings.
+# Deterministic description rules (D7). Each: flag -> regex. They shape supporting services/warnings; ledger, markdown, internal_only and low_end also adjust core scores.
 DESC_RULES = [
     ("upi", r"\bupi\b"),
     ("recurring", r"\bemi\b|subscription|recurring|per[- ]seat|pay per seat|monthly plan"),
