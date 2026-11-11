@@ -91,6 +91,11 @@
       ],
       "kb_id": "python-django",
       "score_margin": 1.8,
+      "pareto": {
+        "optimal": true,
+        "dominated_by": [],
+        "note": "No eligible option rates at least as well on all six priorities (cost, delivery, scalability, performance, maintainability, security)."
+      },
       "deployment": "library",
       "provider": "neutral",
       "data_bearing": false,
@@ -157,6 +162,11 @@
       ],
       "kb_id": "postgresql",
       "score_margin": 5.6,
+      "pareto": {
+        "optimal": true,
+        "dominated_by": [],
+        "note": "No eligible option rates at least as well on all six priorities (cost, delivery, scalability, performance, maintainability, security)."
+      },
       "deployment": "managed",
       "provider": "gcp",
       "data_bearing": true,
@@ -224,6 +234,11 @@
       ],
       "kb_id": "gcp-cloud-run",
       "score_margin": 1.5,
+      "pareto": {
+        "optimal": true,
+        "dominated_by": [],
+        "note": "No eligible option rates at least as well on all six priorities (cost, delivery, scalability, performance, maintainability, security)."
+      },
       "deployment": "managed",
       "provider": "gcp",
       "data_bearing": true,

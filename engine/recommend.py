@@ -75,9 +75,31 @@ def component(cand, ranked_ok, ranked_out, extra_paths, extras, name=None, base_
     out["kb_id"] = item["id"]
     if len(ranked_ok) > 1:  # score gap to the runner-up: small margins are near-ties (see what_would_change)
         out["score_margin"] = round(cand.score - ranked_ok[1].score, 1)
+    out["pareto"] = pareto(cand, ranked_ok)
     out.update(extras)
     out["sources"] = cite(item.get("src", []))
     return out
+
+
+PRIO_NAMES = ("cost", "time_to_market", "scalability", "performance", "maintainability", "security")
+
+
+def pareto(cand, ranked_ok):
+    """Dominance on the six priority ratings only (a check on the score terms could never fail: the winner maximises
+    their sum). If an eligible option rates at least as well on all six and better on one, say what the choice wins on."""
+    r = cand.item["r"]
+    dom = [a for a in ranked_ok[1:] if a.item["r"] != r and all(x >= y for x, y in zip(a.item["r"], r))]
+    if not dom:
+        return {"optimal": True, "dominated_by": [],
+                "note": "No eligible option rates at least as well on all six priorities (cost, delivery, scalability, performance, maintainability, security)."}
+    a = dom[0]
+    better = [PRIO_NAMES[i] for i, (x, y) in enumerate(zip(a.item["r"], r)) if x > y]
+    wins = sorted(((cand.term(k) - a.term(k), k) for k in {t[0] for t in cand.terms} if not k.startswith("prio_")
+                   and cand.term(k) - a.term(k) > 0.5), key=lambda x: (-x[0], x[1]))
+    texts = [next(t[3] for t in cand.terms if t[0] == k) for _, k in wins[:2]]
+    return {"optimal": False, "dominated_by": [x.item["name"] for x in dom[:2]],
+            "note": f"{a.item['name']} rates at least as well on every priority and better on {', '.join(better)}; "
+                    + (f"this choice wins on project fit: {'; '.join(texts)}." if texts else "this choice still scores higher overall.")}
 
 
 def why_not(win, alt):
@@ -406,6 +428,9 @@ def _recommend(req, assumptions, sid):
 
     # ---- supporting services
     supporting = sv.build(ctx, host, backend, db_item, mob.item if mob else None, W)
+    second = second_region(ctx, host, db_c if ctx["needs_db"] else None)
+    if second:
+        supporting.append(second)
 
     # ---- warnings from contradictions and context
     contradictions(ctx, W, assumptions, host, backend)
@@ -450,6 +475,41 @@ def _recommend(req, assumptions, sid):
             "warnings": W.items, "assumptions": assumptions, "validation_errors": []}
 
 
+# Second region inside the same residency area (all are public provider regions; India pairs keep RBI data in India).
+SECOND_REGION = {"aws": {"india": "ap-south-2 (Hyderabad)", "eu": "eu-west-1 (Ireland)", "us": "us-east-2 (Ohio)"},
+                 "azure": {"india": "South India (Chennai)", "eu": "North Europe (Ireland)", "us": "West US 2 (Washington)"},
+                 "gcp": {"india": "asia-south2 (Delhi)", "eu": "europe-west4 (Netherlands)", "us": "us-east1 (South Carolina)"}}
+FAILOVER = {"aws": "Route 53 health-checked failover records", "azure": "Azure Front Door priority routing",
+            "gcp": "a global external Application Load Balancer with backends in both regions"}
+
+
+def second_region(ctx, host, db_c):
+    """99.99% on hyperscaler managed hosting: warm standby (smaller app footprint + cross-region DB replica) in a second
+    region of the same residency area, with health-checked failover. Cost: half to all of the hosting band plus one
+    database replica. Self-hosted, on-premise and static hosting get only the warning."""
+    p, req, t = host["provider"], ctx["req"], ctx["tier"]
+    if req["requirements.availability"] != "99.99" or p not in SECOND_REGION or host["kind"] in ("vm", "onprem", "static") \
+            or not ctx["needs_backend"]:
+        return None
+    loc = ctx["res_key"] if ctx["res_key"] in ("india", "eu", "us") else None
+    where = SECOND_REGION[p][loc] if loc else f"a second {p.upper()} region"
+    ctx["second_region"] = where
+    dbc = sl.db_cost(db_c.item, db_c.vkey) if db_c and db_c.vkey != "self" else [[0, 0]] * 4
+    cost = [[round(host["cost"][i][0] / 2) + dbc[i][0], host["cost"][i][1] + dbc[i][1]] for i in range(4)]
+    explicit = req["infrastructure.data_residency"] in ("india", "eu", "us") or ctx["residency_from_rbi"]
+    return sv.svc("other", f"Second-region warm standby in {where}: cross-region database replica + {FAILOVER[p]}",
+                  f"The 99.99% target allows about 4.4 minutes of downtime a month, which one region cannot promise. A scaled-down copy of the "
+                  f"application runs in {where}, the database streams to a cross-region read replica that is promoted on failover, and "
+                  f"{FAILOVER[p]} move traffic when health checks fail" + (", without leaving the required residency area." if loc else "."),
+                  ["requirements.availability"] + (["infrastructure.data_residency"] if explicit else []),
+                  [("Active-active in two regions", "multi-region writes need a globally distributed database: far more cost and complexity at this scale"),
+                   ("Single region, multiple zones", "designed for about 99.95%; one regional outage breaks a 99.99% target")],
+                  ["Replica lag: a failover can lose the last few seconds of writes (RPO in seconds, not zero)",
+                   "Failover must be rehearsed regularly; an untested runbook fails when it is needed"],
+                  "managed", p, True, cost, ["aws-regional"] if p == "aws" else ["azure-regions"] if p == "azure" else ["gcp-locations"],
+                  loc)
+
+
 def contradictions(ctx, W, assumptions, host, backend):
     req = ctx["req"]
     avail = req["requirements.availability"]
@@ -458,10 +518,16 @@ def contradictions(ctx, W, assumptions, host, backend):
           f"A {avail}% availability target (≈{ {'99.95': '22', '99.99': '4.4'}[avail]} min downtime/month) needs on-call and redundancy that a {ctx['size']}-person {ctx['exp']} team without DevOps rarely sustains. Managed multi-zone services were preferred; plan on-call or relax the target.",
           ["requirements.availability", "team.size", "team.experience", "team.has_devops"])
     if avail == "99.99":
-        W("AVAILABILITY_SINGLE_REGION", "warning",
-          "A 99.99% target (about 4.4 minutes of downtime a month) is beyond what one region of managed services is designed to deliver, and service SLAs compose to a lower number. "
-          "This stack runs multi-zone in one region; add a second region with tested failover, or plan on 99.95%.",
-          ["requirements.availability"])
+        why = ("A 99.99% target (about 4.4 minutes of downtime a month) is beyond what one region of managed services is designed to deliver, "
+               "and service SLAs compose to a lower number. ")
+        if ctx.get("second_region"):
+            W("AVAILABILITY_SINGLE_REGION", "info", why + f"Addressed: a warm standby in {ctx['second_region']} with a cross-region database "
+              "replica and health-checked failover (see supporting). Rehearse the failover; replica lag means a few seconds of writes can be lost.",
+              ["requirements.availability"])
+        else:
+            W("AVAILABILITY_SINGLE_REGION", "warning", why +
+              "This stack runs multi-zone in one region; add a second region with tested failover, or plan on 99.95%.",
+              ["requirements.availability"])
     n_plat = len([p for p in ctx["platforms"] if p != "api_only"])
     if n_plat >= 3 and ctx["weeks"] <= 6:
         W("TIMELINE_VS_SCOPE", "warning",

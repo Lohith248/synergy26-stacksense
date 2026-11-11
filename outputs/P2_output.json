@@ -97,6 +97,11 @@
       ],
       "kb_id": "node-nestjs",
       "score_margin": 0.8,
+      "pareto": {
+        "optimal": true,
+        "dominated_by": [],
+        "note": "No eligible option rates at least as well on all six priorities (cost, delivery, scalability, performance, maintainability, security)."
+      },
       "deployment": "library",
       "provider": "neutral",
       "data_bearing": false,
@@ -178,6 +183,11 @@
       ],
       "kb_id": "postgresql",
       "score_margin": 6.0,
+      "pareto": {
+        "optimal": true,
+        "dominated_by": [],
+        "note": "No eligible option rates at least as well on all six priorities (cost, delivery, scalability, performance, maintainability, security)."
+      },
       "deployment": "managed",
       "provider": "azure",
       "data_bearing": true,
@@ -242,6 +252,11 @@
       ],
       "kb_id": "azure-app-service",
       "score_margin": 3.0,
+      "pareto": {
+        "optimal": true,
+        "dominated_by": [],
+        "note": "No eligible option rates at least as well on all six priorities (cost, delivery, scalability, performance, maintainability, security)."
+      },
       "deployment": "managed",
       "provider": "azure",
       "data_bearing": true,

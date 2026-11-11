@@ -52,6 +52,8 @@ def explain(doc):
                              + (f"; flips to {fp['new_choice']} if priorities.{fp['priority']} {fp['from']} -> {fp['value']}" if fp else "; no single priority change flips it"))
             if c.get("confidence"):
                 lines.append(f"  confidence {c['confidence']['label']}: {c['confidence']['basis']}")
+            if c.get("pareto") and not c["pareto"]["optimal"]:
+                lines.append(f"  pareto: {c['pareto']['note']}")
             if c.get("contrast"):
                 lines.append(f"  decision: {c['contrast']}")
             for e in c.get("what_would_change", [])[:2]:

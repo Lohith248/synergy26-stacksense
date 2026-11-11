@@ -209,6 +209,11 @@
       ],
       "kb_id": "cloudflare-pages",
       "score_margin": 0.4,
+      "pareto": {
+        "optimal": true,
+        "dominated_by": [],
+        "note": "No eligible option rates at least as well on all six priorities (cost, delivery, scalability, performance, maintainability, security)."
+      },
       "deployment": "saas",
       "provider": "cloudflare",
       "data_bearing": false,

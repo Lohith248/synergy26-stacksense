@@ -132,6 +132,13 @@
       ],
       "kb_id": "java-spring",
       "score_margin": 4.0,
+      "pareto": {
+        "optimal": false,
+        "dominated_by": [
+          ".NET 10 LTS + ASP.NET Core"
+        ],
+        "note": ".NET 10 LTS + ASP.NET Core rates at least as well on every priority and better on time_to_market, performance; this choice wins on project fit: team already writes java, kotlin for the API."
+      },
       "deployment": "library",
       "provider": "neutral",
       "data_bearing": false,
@@ -197,6 +204,11 @@
       ],
       "kb_id": "postgresql",
       "score_margin": 3.2,
+      "pareto": {
+        "optimal": true,
+        "dominated_by": [],
+        "note": "No eligible option rates at least as well on all six priorities (cost, delivery, scalability, performance, maintainability, security)."
+      },
       "deployment": "managed",
       "provider": "aws",
       "data_bearing": true,
@@ -262,6 +274,11 @@
       ],
       "kb_id": "aws-ecs-fargate",
       "score_margin": 2.1,
+      "pareto": {
+        "optimal": true,
+        "dominated_by": [],
+        "note": "No eligible option rates at least as well on all six priorities (cost, delivery, scalability, performance, maintainability, security)."
+      },
       "deployment": "managed",
       "provider": "aws",
       "data_bearing": true,

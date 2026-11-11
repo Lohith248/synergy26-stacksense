@@ -99,6 +99,11 @@
       ],
       "kb_id": "dotnet-aspnet",
       "score_margin": 9.2,
+      "pareto": {
+        "optimal": true,
+        "dominated_by": [],
+        "note": "No eligible option rates at least as well on all six priorities (cost, delivery, scalability, performance, maintainability, security)."
+      },
       "deployment": "library",
       "provider": "neutral",
       "data_bearing": false,
@@ -157,6 +162,13 @@
       ],
       "kb_id": "sqlserver",
       "score_margin": 6.7,
+      "pareto": {
+        "optimal": false,
+        "dominated_by": [
+          "Azure Database for PostgreSQL – Flexible Server 17"
+        ],
+        "note": "Azure Database for PostgreSQL – Flexible Server 17 rates at least as well on every priority and better on cost; this choice wins on project fit: matches the existing On-prem SQL Server 2019 the team already runs; EF Core + SQL Server is the default .NET pairing."
+      },
       "deployment": "managed",
       "provider": "azure",
       "data_bearing": true,
@@ -220,6 +232,11 @@
       ],
       "kb_id": "azure-app-service",
       "score_margin": 15.6,
+      "pareto": {
+        "optimal": true,
+        "dominated_by": [],
+        "note": "No eligible option rates at least as well on all six priorities (cost, delivery, scalability, performance, maintainability, security)."
+      },
       "deployment": "managed",
       "provider": "azure",
       "data_bearing": true,

@@ -236,6 +236,76 @@ class CostBands(unittest.TestCase):
         self.assertNotIn("$35", line)
 
 
+class Pareto(unittest.TestCase):
+    """Round 5 item 9a: dominance on the six priority ratings (not on score terms, where it could never fail)."""
+
+    def setUp(self):
+        with open(os.path.join(ROOT, "kb", "technologies.json"), encoding="utf-8") as f:
+            t = json.load(f)
+        self.r = {x["name"]: x["r"] for g in ("frontend_web", "backend", "database", "hosting") for x in t[g]}
+
+    def test_dominated_claims_hold_in_the_kb_and_name_the_fit(self):
+        c = pub(4)["stack"]["backend"]  # Java team: .NET rates >= on all six priorities
+        p = c["pareto"]
+        self.assertFalse(p["optimal"])
+        self.assertIn(".NET 10 LTS + ASP.NET Core", p["dominated_by"])
+        mine, other = self.r["Java 21/25 LTS + Spring Boot"], self.r[".NET 10 LTS + ASP.NET Core"]
+        self.assertTrue(all(o >= m for o, m in zip(other, mine)) and other != mine)
+        self.assertIn("java", p["note"])
+
+    def test_optimal_claims_hold_against_the_listed_eligible_alternatives(self):
+        for i in range(1, 7):
+            for layer in ("backend", "database", "hosting"):
+                c = pub(i)["stack"][layer]
+                if "pareto" not in c or not c["pareto"]["optimal"]:
+                    continue
+                mine = next((v for k, v in self.r.items() if c["choice"].startswith(k.split(" (")[0])), None)
+                if mine is None:
+                    continue
+                for a in c["alternatives"]:
+                    if a["why_not"].startswith("Excluded"):
+                        continue
+                    other = next((v for k, v in self.r.items() if a["choice"].startswith(k.split(" (")[0])), None)
+                    if other:
+                        self.assertFalse(other != mine and all(o >= m for o, m in zip(other, mine)), (i, layer, a["choice"]))
+
+    def test_explain_prints_dominated_picks(self):
+        import stacksense
+        self.assertIn("pareto: .NET 10 LTS", stacksense.explain(pub(4)))
+
+
+class FourNines(unittest.TestCase):
+    """Round 4 leftover: 99.99% got only a warning. On hyperscaler managed hosting it now gets a second-region warm
+    standby inside the same residency area, a cross-region replica, DNS failover and its cost."""
+
+    def p4(self, avail):
+        s = copy.deepcopy(PUBLIC[3])
+        s["requirements"]["availability"] = avail
+        return evaluate(s, counterfactuals=False)
+
+    def test_second_region_inside_india_with_cost(self):
+        base, out = self.p4("99.95"), self.p4("99.99")
+        item = next(x for x in out["stack"]["supporting"] if x["choice"].startswith("Second-region warm standby"))
+        self.assertIn("Hyderabad", item["choice"])
+        self.assertIn("requirements.availability", item["driven_by"])
+        self.assertTrue(item["data_bearing"])
+        self.assertEqual(item["data_location"], "india")
+        self.assertGreater(out["estimated_monthly_cost_usd"]["max"], base["estimated_monthly_cost_usd"]["max"])
+        self.assertFalse(any(x["choice"].startswith("Second-region") for x in base["stack"]["supporting"]))
+        w = next(w for w in out["warnings"] if w["code"] == "AVAILABILITY_SINGLE_REGION")
+        self.assertEqual(w["severity"], "info")
+        self.assertIn("Hyderabad", w["message"])
+
+    def test_no_second_region_off_cloud(self):
+        with open(os.path.join(ROOT, "scenarios", "edge_cases", "E7_air_gapped.json"), encoding="utf-8") as f:
+            e7 = json.load(f)
+        e7 = copy.deepcopy(e7[0] if isinstance(e7, list) else e7)
+        e7["requirements"]["availability"] = "99.99"
+        out = evaluate(e7, counterfactuals=False)
+        self.assertFalse(any(x["choice"].startswith("Second-region") for x in out["stack"]["supporting"]))
+        self.assertEqual(next(w for w in out["warnings"] if w["code"] == "AVAILABILITY_SINGLE_REGION")["severity"], "warning")
+
+
 def hidden(name):
     import glob
     with open(glob.glob(os.path.join(ROOT, "scenarios", "hidden_like", name + "_*.json"))[0], encoding="utf-8") as f:
