@@ -36,5 +36,20 @@ class LifecycleSpellings(unittest.TestCase):
             self.assertFalse(with_existing(raw) & {"END_OF_LIFE_SYSTEM", "END_OF_LIFE_SOON"}, raw)
 
 
+class RedirectedOutput(unittest.TestCase):
+    """Review finding, reproduced: `run E3 --explain > file` crashed with UnicodeEncodeError on a cp1252 console."""
+
+    def test_explain_survives_a_legacy_output_encoding(self):
+        import subprocess
+        import tempfile
+        env = dict(os.environ, PYTHONIOENCODING="cp1252", PYTHONUTF8="0")
+        with tempfile.TemporaryDirectory() as d:
+            for scen in ("edge_cases/E3_contradictions.json", "hidden_like/H02_FieldPulse.json"):
+                r = subprocess.run([sys.executable, os.path.join(ROOT, "stacksense.py"), "run", os.path.join(ROOT, "scenarios", scen),
+                                    "--out", d, "--explain"], capture_output=True, env=env)
+                self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", "replace")[-300:])
+                self.assertIn("\nCost: ", r.stdout.decode("utf-8"))  # whole explanation printed, decodes as UTF-8
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -169,7 +169,10 @@ def cmd_interactive(args):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog="stacksense", description="Deterministic tech-stack recommendation engine (no LLM).")
+    for stream in (sys.stdout, sys.stderr):  # redirected output on a cp1252 Windows console must not crash on arrows
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+    ap =argparse.ArgumentParser(prog="stacksense", description="Deterministic tech-stack recommendation engine (no LLM).")
     ap.add_argument("--version", action="version", version=f"StackSense {ENGINE_VERSION}")
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("run", help="evaluate a scenario JSON file (object or array)")
