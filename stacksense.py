@@ -178,7 +178,13 @@ def main(argv=None):
     w = sub.add_parser("serve", help="optional local web UI on 127.0.0.1 (standard library only)")
     w.add_argument("--port", type=int, default=8765)
     w.add_argument("--no-llm", action="store_true")
+    f = sub.add_parser("fields", help="list every input with type, default, rule and the decisions it affects")
+    f.add_argument("--json", action="store_true", help="machine-readable output")
     args = ap.parse_args(argv)
+    if args.cmd == "fields":
+        from engine.fields import render
+        print(render(args.json))
+        return 0
     if args.cmd == "serve":
         from engine.web import serve
         return serve(args.port)
