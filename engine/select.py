@@ -210,6 +210,15 @@ def backend_candidates(ctx, host):
         lang_term(c, ctx, b["langs"], 7, "the API")
         learn_term(c, ctx, b["learning"])
         tier_term(c, ctx, b["max_tier"], b["name"])
+        if b.get("fullstack"):  # the UI app is the backend: only for small web-only apps
+            if not ctx["web"] or ctx["mobile"]:
+                c.exclude("route handlers inside a web app; mobile or API-only clients need a separate API", "project.platforms")
+            elif req["requirements.realtime"]:
+                c.exclude("no long-lived WebSocket connections on serverless hosts", "requirements.realtime")
+            elif ctx["size"] > 4:
+                c.exclude("one shared app for UI and API suits a team of up to 4", "team.size")
+            else:
+                c.add("one_app", 3, "team.size", f"UI and API in one Next.js app: one codebase and one deploy for a team of {ctx['size']}")
         if req["requirements.realtime"]:
             c.add("realtime", (b["realtime"] - 3) * 1.5, "requirements.realtime",
                   "native WebSocket support" if b["realtime"] >= 4 else "realtime needs extra libraries")
@@ -346,6 +355,8 @@ def web_candidates(ctx, backend):
                 continue
             f = dict(f, langs=backend["langs"], name=backend["templates"])
         c = Cand(f)
+        if backend and backend.get("fullstack") and f["id"] != "nextjs":
+            c.exclude("the backend runs inside the Next.js app, so the UI is that same app", "stack.backend")
         if f["kind"] == "templates" and ctx["mobile"]:
             c.add("api_anyway", -3, "project.platforms", "the mobile app needs a JSON API anyway, so server-rendered pages add a second presentation layer")
         prio_terms(c, ctx, f["r"])

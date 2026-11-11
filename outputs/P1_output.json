@@ -118,10 +118,17 @@
           "path": "requirements.realtime",
           "value": true,
           "new_choice": "Node.js 24 LTS + NestJS (TypeScript)",
+          "also_by": []
+        },
+        {
+          "edit": "requirements.offline_support: false -> true",
+          "path": "requirements.offline_support",
+          "value": true,
+          "new_choice": "Node.js 24 LTS: Next.js route handlers + server actions (same app as the UI)",
           "also_by": [
-            "requirements.offline_support: false -> true",
             "requirements.file_media_storage: false -> true",
-            "requirements.payments: false -> true"
+            "requirements.payments: false -> true",
+            "requirements.multi_tenant: false -> true"
           ]
         }
       ]

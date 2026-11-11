@@ -90,8 +90,8 @@
           "why_not": ".NET 10 LTS + ASP.NET Core is stronger on: first-class SQL Server driver/ORM (infrastructure.existing_systems); good security (priority 4/5) (priorities.security). Overall 9.2 points behind. Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
         },
         {
-          "choice": "Node.js 24 LTS + Express 5",
-          "why_not": ".NET 10 LTS + ASP.NET Core is stronger on: good maintainability (priority 5/5) (priorities.maintainability); good security (priority 4/5) (priorities.security). Overall 16.6 points behind. Known limit of Node.js 24 LTS + Express 5: little structure; large codebases need discipline."
+          "choice": "Node.js 24 LTS: Next.js route handlers + server actions (same app as the UI)",
+          "why_not": "Weaker SQL Server tooling (infrastructure.existing_systems). .NET 10 LTS + ASP.NET Core is stronger on: good maintainability (priority 5/5) (priorities.maintainability). Overall 12.4 points behind. Known limit of Node.js 24 LTS: Next.js route handlers + server actions: no long-lived WebSocket connections on serverless hosts."
         }
       ],
       "tradeoffs": [

@@ -192,6 +192,9 @@
      "r": [4, 3, 3, 5, 4, 5], "learning": 3, "low_end": 5, "offline": 5, "strengths": ["Native iOS performance"], "limits": ["iOS only"], "src": ["statement"]}
   ],
   "backend": [
+    {"id": "nextjs-fullstack", "name": "Node.js 24 LTS: Next.js route handlers + server actions (same app as the UI)", "langs": ["javascript", "typescript"], "r": [5, 5, 3, 4, 3, 4], "learning": 2, "max_tier": 1,
+     "realtime": 1, "ml": 1, "enterprise": 2, "sqlserver": 2, "fullstack": true, "strengths": ["One codebase and one deploy for UI and API", "No separate API service to host or version"],
+     "limits": ["No long-lived WebSocket connections on serverless hosts", "Split out a separate API when mobile clients or heavy background work arrive"], "src": ["nextjs"]},
     {"id": "node-express", "name": "Node.js 24 LTS + Express 5", "langs": ["javascript", "typescript"], "r": [5, 5, 3, 4, 3, 3], "learning": 1, "max_tier": 2,
      "realtime": 5, "ml": 1, "enterprise": 2, "sqlserver": 3, "strengths": ["Minimal, fast to start, huge npm ecosystem", "Native WebSockets (Socket.IO / ws)"], "limits": ["Little structure; large codebases need discipline"], "src": ["node-release", "express5"]},
     {"id": "node-nestjs", "name": "Node.js 24 LTS + NestJS (TypeScript)", "langs": ["typescript", "javascript"], "r": [5, 4, 4, 4, 5, 4], "learning": 3, "max_tier": 3,

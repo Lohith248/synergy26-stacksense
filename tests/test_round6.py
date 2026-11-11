@@ -320,6 +320,33 @@ class IndianUsersWithoutResidency(unittest.TestCase):
         self.assertIn("Twilio", auth["choice"])
 
 
+class TinyJsTeam(unittest.TestCase):
+    """Statement 6 over-engineering trap ('tiny teams'). Reproduced on 56471c5: a 2-person beginner JS team building a
+    $10 club sign-up app got React + a separate NestJS service; one Next.js app with route handlers is the simple stack."""
+
+    def club(self, **kw):
+        s = copy.deepcopy(PUBLIC[0])
+        s["project"].update(type="web_app", description="Event sign-up app for our college club")
+        s["requirements"].update(auth="email_password", seo_critical=False)
+        s["team"]["size"] = 2
+        s["budget"]["monthly_infra_usd"] = 10
+        for path, v in kw.items():
+            g, k = path.split("__")
+            s[g][k] = v
+        return evaluate(s, counterfactuals=False)["stack"]
+
+    def test_one_nextjs_app(self):
+        st = self.club()
+        self.assertIn("Next.js route handlers", st["backend"]["choice"])
+        self.assertEqual(st["frontend"]["choice"], "Next.js (web)")
+
+    def test_not_for_mobile_realtime_or_bigger_teams(self):
+        for kw in ({"project__platforms": ["web", "android"]}, {"requirements__realtime": True}, {"team__size": 6}):
+            self.assertNotIn("route handlers", self.club(**kw)["backend"]["choice"], kw)
+        for i in range(1, 7):
+            self.assertNotIn("route handlers", pub(i)["stack"]["backend"]["choice"], i)
+
+
 class FourNines(unittest.TestCase):
     """Round 4 leftover: 99.99% got only a warning. On hyperscaler managed hosting it now gets a second-region warm
     standby inside the same residency area, a cross-region replica, DNS failover and its cost."""
