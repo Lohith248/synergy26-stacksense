@@ -220,5 +220,34 @@ class IotBroker(unittest.TestCase):
         self.assertFalse(any('Mosquitto' in a for a in out['estimated_monthly_cost_usd']['assumptions']))
 
 
+
+class LambdaFramework(unittest.TestCase):
+    def test_django_on_lambda_names_the_adapter_and_connection_limits(self):
+        s = copy.deepcopy(PUBLIC[5])
+        s['infrastructure']['cloud_preference'] = 'aws'
+        out = evaluate(s, counterfactuals=False)
+        host = out['stack']['hosting']
+        self.assertIn('Lambda', host['choice'])
+        self.assertIn('Django', out['stack']['backend']['choice'])
+        text = host['justification'] + ' '.join(host['tradeoffs'])
+        self.assertIn('Lambda Web Adapter', text)
+        self.assertIn('CONN_MAX_AGE', text)
+        self.assertIn('RDS Proxy', text)
+
+
+
+class TrainingCostBasis(unittest.TestCase):
+    def test_training_band_states_its_gpu_hour_basis(self):
+        s = copy.deepcopy(PUBLIC[5])
+        s['infrastructure']['cloud_preference'] = 'aws'
+        s['requirements']['ml_features'] = 'training'
+        out = evaluate(s, counterfactuals=False)
+        ml = next(x for x in out['stack']['supporting'] if x['layer'] == 'ml')
+        self.assertIn('SageMaker', ml['choice'])
+        line = next(a for a in out['estimated_monthly_cost_usd']['assumptions'] if a.startswith('ml:'))
+        self.assertIn('GPU-hours', line)
+        self.assertIn('not verified', line)
+
+
 if __name__ == '__main__':
     unittest.main()

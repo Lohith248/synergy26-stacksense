@@ -464,6 +464,10 @@ def build(ctx, host, backend, db, mobile, warn):
             out.append(svc("ml", c, "Model training runs as scheduled batch jobs separate from the serving path.", dp,
                            [("Training inside the web API", "starves user requests of CPU/memory")], ["Training data governance and cost control"],
                            "managed" if hyper and not selfh else "self_hosted", p if hyper else "neutral", True, [[10, 50], [50, 200], [200, 1500], [1500, 8000]], ["aws-sagemaker"], loc))
+            lo, hi = out[-1]["_cost"][ctx["tier"]]  # ponytail: one T4-class GPU at ~$0.75/h (SageMaker page did not render a training rate)
+            out[-1]["_note"] = (f" Basis: about {lo / 0.75:,.0f}-{hi / 0.75:,.0f} GPU-hours a month on one T4-class GPU instance "
+                                + ("(e.g. ml.g4dn.xlarge) " if p == "aws" else "") + "at ~$0.75/hour; rate not verified on 11 Nov 2026. "
+                                "Larger models or more frequent retraining scale this linearly.") if hyper and not selfh else ""
 
     # ---------------- ci/cd + observability
     if ctx["self_host_only"]:

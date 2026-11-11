@@ -358,6 +358,13 @@ def _recommend(req, assumptions, sid):
         db_cmp = none_component("database", "Content lives as Markdown/HTML files in the repository; there is no user data to store.",
                                 ["project.type", "requirements.auth"],
                                 [("SQLite", "no runtime data to persist"), ("Headless CMS database", "a single author edits files directly")])
+    if host["kind"] == "serverless" and backend_c:  # a web framework on Lambda needs an adapter and connection limits
+        hosting["justification"] += (f" {backend_c.item['name']} runs unchanged behind AWS Lambda Web Adapter, which forwards "
+                                     "API Gateway events to the framework's normal HTTP server.")
+        if ctx["needs_db"] and db_c.item.get("family") == "relational" and db_c.vkey != "self":
+            hosting["tradeoffs"].append("Each concurrent invocation holds its own database connection: "
+                                        + ("keep Django's CONN_MAX_AGE at 0, " if "django" in backend_c.id else "use a pool of one connection, ")
+                                        + "cap reserved concurrency and add RDS Proxy (billed per database vCPU-hour, outside this band) as traffic grows")
 
     # ---- frontend
     parts, f_terms_c, mob = [], None, None
