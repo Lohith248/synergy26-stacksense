@@ -440,5 +440,16 @@ class SummaryLength(unittest.TestCase):
                 self.assertLessEqual(len(re.findall(r'[.!?](?:\s|$)', d['summary'])), 2, d['summary'])
 
 
+
+class NoGenericJustification(unittest.TestCase):
+    def test_balanced_priorities_still_get_a_specific_reason(self):
+        for f in sorted((ROOT / 'scenarios' / 'hidden_like').glob('H*.json')) + sorted((ROOT / 'scenarios' / 'edge_cases').glob('*.json')):
+            for out in parse_text(f.read_text(encoding='utf-8')):
+                for layer in ('frontend', 'backend', 'database', 'hosting'):
+                    if out.get('stack'):
+                        with self.subTest(sid=out['scenario_id'], layer=layer):
+                            self.assertNotIn('Best overall fit', out['stack'][layer]['justification'])
+
+
 if __name__ == '__main__':
     unittest.main()

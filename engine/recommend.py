@@ -55,7 +55,7 @@ def component(cand, ranked_ok, ranked_out, extra_paths, extras, name=None, base_
     pos = sorted([t for t in cand.terms if t[1] > 0], key=lambda t: (t[0].startswith("prio_"), -t[1], t[0]))
     domain = [t for t in pos if not t[0].startswith("prio_")][:3]
     prios = [t for t in pos if t[0].startswith("prio_") and "(priority 3/5)" not in t[3]][:2]
-    reasons = [t[3] for t in domain + prios]
+    reasons = [t[3] for t in domain + prios] or [t[3] for t in pos if t[0].startswith("prio_")][:2]  # balanced (3/5) priorities still decide
     why = base_why + (cap("; ".join(reasons)) + "." if reasons else "")
     alts = []
     for a in ranked_ok[1:3]:
