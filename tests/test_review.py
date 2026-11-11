@@ -486,5 +486,22 @@ class BudgetAtRisk(unittest.TestCase):
         self.assertEqual(w['severity'], 'info')
 
 
+
+class BudgetOvershootWording(unittest.TestCase):
+    def test_small_overshoot_is_a_percentage_not_1_0x(self):
+        out = evaluate(copy.deepcopy(PUBLIC[3]), counterfactuals=False)  # P4: $6,219 vs $6,000
+        msg = next(w['message'] for w in out['warnings'] if w['code'] == 'BUDGET_AT_RISK')
+        self.assertNotIn('1.0x', msg)
+        self.assertIn('4% above the $6000 budget', msg)
+
+
+
+class SnsIndiaSmsRate(unittest.TestCase):
+    def test_p4_otp_line_uses_the_aws_india_local_rate(self):
+        out = evaluate(copy.deepcopy(PUBLIC[3]), counterfactuals=False)
+        line = next(a for a in out['estimated_monthly_cost_usd']['assumptions'] if a.startswith('Phone OTP'))
+        self.assertIn('$0.004', line)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -2,7 +2,7 @@
   "scenario_id": "P4",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Small set of services: React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) on Java 21/25 LTS + Spring Boot with Amazon RDS for PostgreSQL 17 — ap-south-1 (Mumbai) (multi-AZ / zone-redundant HA), hosted on AWS ECS on Fargate (+ Application Load Balancer) — ap-south-1 (Mumbai), at an estimated $1130-6219/month.",
+  "summary": "Small set of services: React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) on Java 21/25 LTS + Spring Boot with Amazon RDS for PostgreSQL 17 — ap-south-1 (Mumbai) (multi-AZ / zone-redundant HA), hosted on AWS ECS on Fargate (+ Application Load Balancer) — ap-south-1 (Mumbai), at an estimated $1220-6219/month.",
   "architecture_style": "service_oriented",
   "stack": {
     "frontend": {
@@ -653,7 +653,7 @@
     ]
   },
   "estimated_monthly_cost_usd": {
-    "min": 1130,
+    "min": 1220,
     "max": 6219,
     "currency": "USD",
     "assumptions": [
@@ -669,7 +669,7 @@
       "ci_cd: GitHub Actions $0-20/month.",
       "observability: Amazon CloudWatch in ap-south-1 (Mumbai) (logs, metrics, alarms) $30-200/month.",
       "Stored data ~500 GB after 12 months at ~$0.02-0.035/GB-month (year-end volume used as an upper bound, not an average); bulk files and media are assumed to sit in object storage, while database rows stay small.",
-      "Phone OTP: 300,000 users x 0.3-1.0 OTP logins/month at SNS India SMS rate band per SMS = $270-1,800/month (long-lived sessions keep OTPs rare).",
+      "Phone OTP: 300,000 users x 0.3-1.0 OTP logins/month at AWS India local SMS $0.004 (AWS SMS price list, 11 Nov 2026) plus DLT and retry overhead per SMS = $360-1,800/month (long-lived sessions keep OTPs rare).",
       "Spiky traffic: the upper bound is a peak month; with autoscaling, quiet months run near the lower bound.",
       "Excluded: payment gateway fees (~2% per transaction) are a share of revenue, not infrastructure.",
       "Excluded: taxes, domain names, paid support plans and data-egress spikes. Order-of-magnitude band, not a quote."
@@ -721,7 +721,7 @@
     {
       "code": "BUDGET_AT_RISK",
       "severity": "info",
-      "message": "Upper estimate $6219/month is 1.0x the $6000 budget at peak usage; the largest upper-bound items are Phone OTP (up to $1,800) and Database Amazon RDS for PostgreSQL 17 (up to $1,400). Launch near the $1130 lower bound and set billing alerts at the budget.",
+      "message": "Upper estimate $6219/month is 4% above the $6000 budget at peak usage; the largest upper-bound items are Phone OTP (up to $1,800) and Database Amazon RDS for PostgreSQL 17 (up to $1,400). Launch near the $1220 lower bound and set billing alerts at the budget.",
       "fields": [
         "budget.monthly_infra_usd"
       ]

@@ -476,7 +476,9 @@ def _recommend(req, assumptions, sid):
         top = sorted(items, key=lambda x: (-x[0], x[1]))[:2]
         far = cost["max"] > 2 * ctx["budget"]
         W("BUDGET_AT_RISK", "warning" if far else "info",
-          f"Upper estimate ${cost['max']}/month is {cost['max'] / ctx['budget']:.1f}x the ${ctx['budget']:g} budget at peak usage"
+          f"Upper estimate ${cost['max']}/month is "
+          + (f"{cost['max'] / ctx['budget']:.1f}x the" if far else f"{max(1, round((cost['max'] / ctx['budget'] - 1) * 100))}% above the")
+          + f" ${ctx['budget']:g} budget at peak usage"
           + (f"; the largest upper-bound items are {' and '.join(f'{n} (up to ${v:,.0f})' for v, n in top)}" if top else "")
           + f". Launch near the ${cost['min']} lower bound and set billing alerts at the budget.",
           ["budget.monthly_infra_usd"])
@@ -713,8 +715,8 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
             plo, phi = 0.0024, 0.0045
             txt = "India SMS ~Rs 0.20-0.25 + GST"
         elif any("SNS" in s["choice"] for s in supporting):
-            plo, phi = 0.003, 0.006
-            txt = "SNS India SMS rate band"
+            plo, phi = 0.004, 0.006  # AWS End User Messaging SMS price CSV: India local $0.004 (11 Nov 2026)
+            txt = "AWS India local SMS $0.004 (AWS SMS price list, 11 Nov 2026) plus DLT and retry overhead"
         else:
             plo, phi = 0.05, 0.06
             txt = "Twilio Verify ~$0.05 + SMS"
