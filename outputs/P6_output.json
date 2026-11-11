@@ -23,7 +23,7 @@
         },
         {
           "choice": "Ionic Capacitor (web app wrapped)",
-          "why_not": "Heavier runtime on low-end phones (project.description); weaker performance (priority 3/5) (priorities.performance). Overall 6.6 points behind. Known limit of Ionic Capacitor: webView performance on low-end devices."
+          "why_not": "Heavier runtime on low-end phones (project.description); weaker performance (priority 3/5) (priorities.performance). Overall 6.6 points behind. Known limit of Ionic Capacitor: WebView performance on low-end devices."
         }
       ],
       "tradeoffs": [

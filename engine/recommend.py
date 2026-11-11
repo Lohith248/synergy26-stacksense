@@ -98,7 +98,7 @@ def why_not(win, alt):
             strong.append(f"{pos[0][3]} ({pos[0][2]})")
     total = round(win.score - alt.score, 1)
     lim = alt.item.get("limits") or []
-    tail = f" Known limit of {alt.item['name'].split(' (')[0]}: {lim[0][:1].lower() + lim[0][1:]}." if lim else ""
+    tail = f" Known limit of {alt.item['name'].split(' (')[0]}: {lim[0] if any(ch.isupper() for ch in lim[0].split(' ')[0][1:]) else lim[0][:1].lower() + lim[0][1:]}." if lim else ""
     if total < 0.1:
         return (f"Tied on score ({alt.score}) with {win.item['name'].split(' (')[0]}; the stable id-based tie-break keeps the result "
                 "deterministic, so either is a defensible choice." + tail)

@@ -31,11 +31,11 @@
         },
         {
           "choice": "React Native (Expo)",
-          "why_not": "Kotlin Multiplatform + Compose Multiplatform is stronger on: good performance (priority 3/5) (priorities.performance); good security (priority 5/5) (priorities.security). Overall 0.3 points behind. Known limit of React Native: jS runtime overhead on very low-end phones."
+          "why_not": "Kotlin Multiplatform + Compose Multiplatform is stronger on: good performance (priority 3/5) (priorities.performance); good security (priority 5/5) (priorities.security). Overall 0.3 points behind. Known limit of React Native: JS runtime overhead on very low-end phones."
         },
         {
           "choice": "Ionic Capacitor (web app wrapped)",
-          "why_not": "Weaker performance (priority 3/5) (priorities.performance). Kotlin Multiplatform + Compose Multiplatform is stronger on: good security (priority 5/5) (priorities.security). Overall 8.3 points behind. Known limit of Ionic Capacitor: webView performance on low-end devices."
+          "why_not": "Weaker performance (priority 3/5) (priorities.performance). Kotlin Multiplatform + Compose Multiplatform is stronger on: good security (priority 5/5) (priorities.security). Overall 8.3 points behind. Known limit of Ionic Capacitor: WebView performance on low-end devices."
         }
       ],
       "tradeoffs": [

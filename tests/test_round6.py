@@ -102,6 +102,15 @@ class Confidence(unittest.TestCase):
         self.assertIn(" rather than ", text)
 
 
+class Wording(unittest.TestCase):
+    def test_known_limit_keeps_acronyms_and_camel_case(self):
+        """Reproduced in P4: 'Known limit of React Native: jS runtime overhead', 'Ionic Capacitor: webView performance'."""
+        text = json.dumps(pub(4), ensure_ascii=False)
+        self.assertNotIn(": jS runtime", text)
+        self.assertNotIn(": webView", text)
+        self.assertIn("Known limit of React Native: JS runtime", text)
+
+
 class AdrExport(unittest.TestCase):
     """Round 5 item 5: Architecture Decision Record per core layer (context, decision, options table, consequences)."""
 
