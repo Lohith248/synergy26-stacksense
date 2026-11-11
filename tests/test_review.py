@@ -139,5 +139,26 @@ class RestrictedServices(unittest.TestCase):
         self.assertTrue(any('OAuth' in x['choice'] for x in out['stack']['supporting'] if x['layer'] == 'auth'))
 
 
+class OnPremCost(unittest.TestCase):
+    def test_local_storage_and_rag_do_not_acquire_managed_cloud_fees(self):
+        s = copy.deepcopy(PUBLIC[5])
+        s['infrastructure'].update(cloud_preference='none', deployment_model='air_gapped')
+        s['requirements'].update(auth='email_password', ml_features='llm_rag')
+        s['budget']['monthly_infra_usd'] = 1500
+        out = evaluate(s, counterfactuals=False)
+        cost = out['estimated_monthly_cost_usd']
+        self.assertEqual((cost['min'], cost['max']), (0, 0))
+        self.assertTrue(any('hardware' in x for x in cost['assumptions']))
+        self.assertNotIn('BUDGET_FAR_ABOVE_NEED', [w['code'] for w in out['warnings']])
+        ml = next(x for x in out['stack']['supporting'] if x['layer'] == 'ml')
+        self.assertNotIn('managed model', ml['justification'])
+        self.assertNotIn('Per-token cost', ml['tradeoffs'])
+
+    def test_cloud_storage_keeps_its_cost(self):
+        out = evaluate(copy.deepcopy(PUBLIC[5]), counterfactuals=False)
+        self.assertGreater(out['estimated_monthly_cost_usd']['min'], 0)
+        self.assertTrue(any('Stored data' in x for x in out['estimated_monthly_cost_usd']['assumptions']))
+
+
 if __name__ == '__main__':
     unittest.main()

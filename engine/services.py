@@ -452,9 +452,12 @@ def build(ctx, host, backend, db, mobile, warn):
                 if loc:
                     warn("LLM_REGION_CHECK", "critical", f"Confirm the chosen LLM model is served in {ctx['residency'].upper()} before sending personal data to it.",
                          ["requirements.ml_features", "infrastructure.data_residency"])
-            out.append(svc("ml", c, "Retrieval-augmented generation: embeddings stored next to the data, a managed model generates answers from retrieved passages.",
-                           dp, [("Fine-tuning a model", "costlier and slower to update than retrieval")], ["Per-token cost; evaluate answer quality"],
-                           "managed" if prov != "neutral" else "self_hosted", prov, True, [[5, 30], [30, 200], [200, 1500], [1500, 8000]], src, loc))
+            out.append(svc("ml", c, "Retrieval-augmented generation: embeddings stored next to the data, "
+                           + ("a local model" if selfh else "a managed model") + " generates answers from retrieved passages.",
+                           dp, [("Fine-tuning a model", "costlier and slower to update than retrieval")],
+                           ["GPU hardware, power and operations must be sized separately; evaluate answer quality"] if selfh else ["Per-token cost; evaluate answer quality"],
+                           "managed" if prov != "neutral" else "self_hosted", prov, True,
+                           Z if selfh else [[5, 30], [30, 200], [200, 1500], [1500, 8000]], src, loc))
         else:
             c = {"aws": "Amazon SageMaker AI training jobs", "azure": "Azure Machine Learning training jobs", "gcp": "Vertex AI custom training"}.get(p, "Scheduled training job on a GPU/CPU worker (PyTorch / scikit-learn)")
             out.append(svc("ml", c, "Model training runs as scheduled batch jobs separate from the serving path.", dp,

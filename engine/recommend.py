@@ -452,7 +452,7 @@ def _recommend(req, assumptions, sid):
           f"Estimated minimum ${cost['min']}/month exceeds the ${ctx['budget']:g}/month budget. The stack keeps the hard constraints; "
           "to fit the budget, reduce scope (fewer managed services, lower availability) or raise the budget.",
           ["budget.monthly_infra_usd"])
-    elif ctx["budget"] >= 500 and cost["max"] * 8 < ctx["budget"]:
+    elif host["kind"] != "onprem" and ctx["budget"] >= 500 and cost["max"] * 8 < ctx["budget"]:
         W("BUDGET_FAR_ABOVE_NEED", "info", f"The ${ctx['budget']:g}/month budget is far above the estimated ${cost['min']}-{cost['max']}/month need. The stack was not inflated to use it; spare budget could buy redundancy, support plans or monitoring.",
           ["budget.monthly_infra_usd"])
     elif cost["max"] > ctx["budget"] > 0:
@@ -660,7 +660,7 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
             hi += chi
             lines.append(f"{s['layer']}: {s['choice'].split(' — ')[0]} ${clo}-{chi}/month.")
     gb = ctx["data_gb"]
-    if any(s["layer"] == "storage" and s["deployment"] != "self_hosted" for s in supporting) or (db_item and gb > 20):
+    if any(s["layer"] == "storage" and s["deployment"] != "self_hosted" for s in supporting) or (db_item and db_c.vkey != "self" and gb > 20):
         slo, shi = round(gb * 0.02, 2), round(gb * 0.035 + 1, 2)
         lo += slo
         hi += shi
