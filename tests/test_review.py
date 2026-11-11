@@ -503,5 +503,27 @@ class SnsIndiaSmsRate(unittest.TestCase):
         self.assertIn('$0.004', line)
 
 
+
+class OnPremStoreBilling(unittest.TestCase):
+    def test_app_store_billing_under_on_premise_is_a_flagged_external_dependency(self):
+        sys.path.insert(0, str(ROOT / 'tools'))
+        import perturb
+        for dep in ('on_premise', 'air_gapped'):
+            with self.subTest(dep=dep):
+                s = copy.deepcopy(PUBLIC[5])  # Android app
+                s['project']['type'] = 'gaming'
+                s['requirements']['payments'] = True
+                s['infrastructure'].update(cloud_preference='none', deployment_model=dep)
+                out = evaluate(s, counterfactuals=False)
+                self.assertEqual(perturb.hard_violations(out, s), [])
+                pay = [x for x in out['stack']['supporting'] if x['layer'] == 'payments']
+                if dep == 'air_gapped':  # no payment network at all: excluded with a critical warning
+                    self.assertEqual(pay, [])
+                    self.assertTrue(any(w['code'] == 'PAYMENTS_NEED_NETWORK' for w in out['warnings']))
+                    continue
+                self.assertIn('Google Play Billing', pay[0]['choice'])
+                self.assertTrue(any(w['code'] == 'EXTERNAL_PAYMENT_GATEWAY' and w['severity'] == 'critical' for w in out['warnings']))
+
+
 if __name__ == '__main__':
     unittest.main()

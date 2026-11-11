@@ -376,9 +376,11 @@ def build(ctx, host, backend, db, mobile, warn):
             if pci:
                 why += " pci_dss: the gateway is PCI DSS Level 1; your scope still covers the pages that embed checkout."
                 src += ["pci-saq-a", "pci-v4"]
-            if ctx["self_host_only"] and not store:
+            if ctx["self_host_only"]:
                 warn("EXTERNAL_PAYMENT_GATEWAY", "critical",
-                     f"Payments cannot be self-hosted: {name.split(' (')[0]} is the single external SaaS dependency kept on {ctx['deploy']} (card/UPI networks are external by nature). Card data never touches your servers.",
+                     f"Payments cannot be self-hosted: {name.split(' (')[0]} is the single external SaaS dependency kept on {ctx['deploy']} "
+                     + ("(app-store billing and receipt validation run on Google/Apple servers)." if store
+                        else "(card/UPI networks are external by nature). Card data never touches your servers."),
                      ["requirements.payments", "infrastructure.deployment_model"])
             if not store and not india and ctx["res_key"] in ("eu", "us") and ctx["req"]["infrastructure.data_residency"] in ("eu", "us"):
                 warn("PAYMENT_DATA_LOCATION", "critical",
