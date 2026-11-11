@@ -78,8 +78,11 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
             name = f"Eclipse Mosquitto MQTT broker on {'a Compute Engine e2-small VM' + rtxt if p == 'gcp' else 'a small always-on VM'} (TCP 8883, persistent disk)"
             why += (f"; {host['name']} serves HTTP requests, so the broker, which holds long-lived device TCP connections, "
                     "runs on its own VM in the same region and forwards messages to the app over the private network")
-            cost = [[8, 30], [25, 60], [60, 200], [200, 800]]
-            note = " Rough VM estimate (small VM + disk); vendor price not verified on 11 Nov 2026."
+            # e2-small rendered 11 Nov 2026: $0.016753/h us-central1, $0.018429/h europe-west1; e2-medium $0.033506/h us-central1
+            cost = [[12, 30], [25, 60], [60, 200], [200, 800]]
+            note = (" Basis: e2-small at $0.017-0.018/hour (us-central1/europe-west1, about $12-14/month, Google pricing page 11 Nov 2026) "
+                    "plus a small disk; bigger tiers use larger or more VMs." if p == "gcp" else
+                    " Rough estimate for a small VM plus disk; this provider's VM price was not checked.")
             trade = trade + ["Open-source Mosquitto is a single node: patch and monitor the VM; a clustered broker is needed for failover"]
         if rate:
             n, sec = rate

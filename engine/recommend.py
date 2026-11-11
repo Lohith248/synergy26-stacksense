@@ -364,7 +364,7 @@ def _recommend(req, assumptions, sid):
         if ctx["needs_db"] and db_c.item.get("family") == "relational" and db_c.vkey != "self":
             hosting["tradeoffs"].append("Each concurrent invocation holds its own database connection: "
                                         + ("keep Django's CONN_MAX_AGE at 0, " if "django" in backend_c.id else "use a pool of one connection, ")
-                                        + "cap reserved concurrency and add RDS Proxy (billed per database vCPU-hour, outside this band) as traffic grows")
+                                        + "cap reserved concurrency and add RDS Proxy (about $0.015 per database vCPU-hour in us-east-1, outside this band) as traffic grows")
 
     # ---- frontend
     parts, f_terms_c, mob = [], None, None
@@ -670,8 +670,9 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
                      "a month at ~$0.57/vCore-hour (Central India rate, 11 Nov 2026); a 0.5-vCore minimum that never pauses is about $210/month "
                      "compute, and DTU Standard S0 (~$17/month) is the fixed-price alternative.")
         if t == 0 and db_c.vkey == "gcp" and db_c.item["id"] in ("postgresql", "mysql"):  # Cloud SQL SLA page, 11 Nov 2026
-            size += (" Assumes a shared-core instance: Google excludes shared-core instances from the Cloud SQL SLA and advises against "
-                     "production use; price band not verified, and a dedicated-core instance costs more.")
+            size += (" Assumes a shared-core instance (db-f1-micro to db-g1-small: $0.0126-0.042/hour in Mumbai, $0.0105-0.035 in Iowa, about "
+                     "$8-31/month, Google pricing page 11 Nov 2026). Google excludes shared-core instances from the Cloud SQL SLA and advises "
+                     "against production use; a dedicated-core instance costs more.")
         lines.append(f"Database {db_c.variant}: ${dlo}-{dhi}/month" + (" (HA doubles instances)" if ha else "") + "." + size)
     if ha:
         lo, hi = lo + host["cost"][t][0], hi + host["cost"][t][1]

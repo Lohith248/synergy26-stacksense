@@ -467,10 +467,11 @@ def build(ctx, host, backend, db, mobile, warn):
                            ["Training data governance and cost control"] + (["GPU hardware, power and operations must be sized separately"] if ctx["self_host_only"] else []),
                            "managed" if managed else "self_hosted", p if managed else "neutral", True,
                            Z if ctx["self_host_only"] else [[10, 50], [50, 200], [200, 1500], [1500, 8000]], ["aws-sagemaker"], loc))
-            lo, hi = out[-1]["_cost"][ctx["tier"]]  # ponytail: one T4-class GPU at ~$0.75/h (SageMaker page did not render a training rate)
-            out[-1]["_note"] = (f" Basis: about {lo / 0.75:,.0f}-{hi / 0.75:,.0f} GPU-hours a month on one T4-class GPU instance "
-                                + ("(e.g. ml.g4dn.xlarge) " if p == "aws" else "") + "at ~$0.75/hour; rate not verified on 11 Nov 2026. "
-                                "Larger models or more frequent retraining scale this linearly.") if managed else ""
+            lo, hi = out[-1]["_cost"][ctx["tier"]]  # ml.g4dn.xlarge Training $0.736/h us-east-1, AWS price data 11 Nov 2026
+            out[-1]["_note"] = (f" Basis: about {lo / 0.736:,.0f}-{hi / 0.736:,.0f} GPU-hours a month on one T4-class GPU at $0.736/hour ("
+                                + ("ml.g4dn.xlarge on-demand training, us-east-1, AWS price data 11 Nov 2026" if p == "aws"
+                                   else "AWS ml.g4dn.xlarge reference rate; this provider's T4 rate was not checked")
+                                + "). Larger models or more frequent retraining scale this linearly.") if managed else ""
 
     # ---------------- ci/cd + observability
     if ctx["self_host_only"]:

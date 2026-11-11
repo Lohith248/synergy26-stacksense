@@ -209,7 +209,7 @@ class IotBroker(unittest.TestCase):
         self.assertIn('TCP', broker['justification'])
         line = next(a for a in out['estimated_monthly_cost_usd']['assumptions'] if 'Mosquitto' in a)
         self.assertNotIn('$0-0', line)
-        self.assertIn('not verified', line)
+        self.assertIn('e2-small at $0.017-0.018/hour', line)
 
     def test_on_premise_broker_runs_on_the_existing_servers_at_no_cloud_cost(self):
         out = iot('on_premise')
@@ -246,7 +246,7 @@ class TrainingCostBasis(unittest.TestCase):
         self.assertIn('SageMaker', ml['choice'])
         line = next(a for a in out['estimated_monthly_cost_usd']['assumptions'] if a.startswith('ml:'))
         self.assertIn('GPU-hours', line)
-        self.assertIn('not verified', line)
+        self.assertIn('$0.736/hour', line)
 
 
 
@@ -345,7 +345,7 @@ class SmallDatabasePlanBasis(unittest.TestCase):
         self.assertIn('$10-30', line)
         self.assertIn('shared-core', line)
         self.assertIn('SLA', line)
-        self.assertIn('not verified', line)
+        self.assertIn('db-g1-small', line)
 
 
 
