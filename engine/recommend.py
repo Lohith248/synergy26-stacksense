@@ -257,6 +257,12 @@ def _recommend(req, assumptions, sid):
         if backend["id"] in ("java-spring", "dotnet-aspnet"):
             c.add("runtime", -7, "team.languages",
                   f"{backend['name'].split(' + ')[-1]} is a long-running JVM/.NET server: slow cold starts and per-invocation connection pools on functions")
+        elif backend["id"] == "elixir-phoenix":
+            c.add("runtime", -7, "team.languages",
+                  "Phoenix runs on the long-lived BEAM VM (Channels, PubSub, Presence hold state in processes): not suited to per-invocation functions")
+        elif backend["id"] == "rust-axum":
+            c.add("runtime", -3, "team.languages",
+                  "Axum is written as a long-running Tokio server; functions need an adapter (lambda_http) and lose shared in-process state")
         elif backend["id"] in ("python-django", "ruby-rails", "php-laravel", "node-nestjs"):
             c.add("runtime", -3, "team.languages",
                   f"{backend['name'].split(' + ')[-1]} is a full-stack framework built to run as a long-lived server, not per-invocation functions")

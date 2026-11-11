@@ -212,7 +212,11 @@
     {"id": "php-laravel", "templates": "Laravel Blade + Livewire", "name": "PHP + Laravel 13", "langs": ["php"], "r": [5, 5, 3, 3, 4, 4], "learning": 2, "max_tier": 2,
      "realtime": 3, "ml": 1, "enterprise": 3, "sqlserver": 3, "strengths": ["Very productive full-stack framework, cheap hosting"], "limits": ["Realtime needs Reverb/extra services"], "src": ["laravel"]},
     {"id": "ruby-rails", "templates": "Rails views + Hotwire (Turbo)", "name": "Ruby on Rails 8.1", "langs": ["ruby"], "r": [4, 5, 3, 3, 4, 4], "learning": 2, "max_tier": 2,
-     "realtime": 3, "ml": 1, "enterprise": 3, "sqlserver": 2, "strengths": ["Convention-over-configuration speed for CRUD products"], "limits": ["Smaller talent pool in many regions"], "src": ["rails"]}
+     "realtime": 3, "ml": 1, "enterprise": 3, "sqlserver": 2, "strengths": ["Convention-over-configuration speed for CRUD products"], "limits": ["Smaller talent pool in many regions"], "src": ["rails"]},
+    {"id": "rust-axum", "name": "Rust + Axum 0.8 (Tokio)", "langs": ["rust"], "r": [5, 2, 5, 5, 4, 5], "learning": 5, "max_tier": 3,
+     "realtime": 4, "ml": 1, "enterprise": 2, "sqlserver": 2, "strengths": ["Very low latency and memory on the Tokio async runtime", "Memory safety without a garbage collector; single static binary", "WebSockets built in (axum::extract::ws)"], "limits": ["Steep learning curve (ownership, async lifetimes); slower iteration than Node/Python", "Fan-out, auth and admin are hand-assembled from crates", "Smaller hiring pool"], "src": ["axum-releases", "tokio"]},
+    {"id": "elixir-phoenix", "templates": "Phoenix LiveView", "name": "Elixir + Phoenix 1.8", "langs": ["elixir"], "r": [5, 4, 5, 4, 4, 4], "learning": 3, "max_tier": 3,
+     "realtime": 5, "ml": 2, "enterprise": 3, "sqlserver": 2, "strengths": ["Channels, Presence and PubSub built in: the BEAM VM holds very many concurrent connections per node", "LiveView renders interactive pages server-side in Elixir", "Generators (mix phx.gen.auth, phx.gen.live) for fast CRUD"], "limits": ["Smaller hiring pool than Node/Python/Java", "Functional/OTP concepts are new to most developers", "Built to run as a long-lived server, not as functions"], "src": ["phoenix-releases", "phoenix-channels"]}
   ],
   "database": [
     {"id": "postgresql", "name": "PostgreSQL", "family": "relational", "r": [5, 4, 4, 4, 5, 5], "learning": 2, "max_tier": 3, "fts": true, "rls": true, "acid": 5, "write": 4,

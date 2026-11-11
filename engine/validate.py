@@ -137,14 +137,43 @@ def _missing_hint(raw, parts):
     return ""
 
 
+_REQ_GROUPS = {p.split(".")[0] for p, _k, r, *_ in FIELDS if r}
+
+
+def null_paths(raw):
+    """Optional fields (and optional-only groups) given as JSON null: generators emit null for 'not provided', so they
+    are treated exactly as absent. Required fields and requirements.p95_latency_ms (null = no target) are excluded."""
+    out = []
+    if not isinstance(raw, dict):
+        return out
+    for path, kind, required, *_ in FIELDS:
+        g, _, k = path.partition(".")
+        if g in raw and raw[g] is None and g not in _REQ_GROUPS:
+            if g not in out:
+                out.append(g)
+        elif k and isinstance(raw.get(g), dict) and k in raw[g] and raw[g][k] is None and not required and kind != "opt_int":
+            out.append(path)
+    return out
+
+
+def null_warnings(raw):
+    paths = null_paths(raw)
+    return [{"code": "NULL_TREATED_AS_ABSENT", "severity": "info", "fields": paths,
+             "message": "Optional field(s) given as null were treated as absent; the documented defaults apply (see assumptions)."}] if paths else []
+
+
 def validate(raw):
     """-> (req dict keyed by dotted path, errors [{field,message}], assumptions [str])."""
     errors, assumptions, req = [], [], {}
     if not isinstance(raw, dict):
         return None, [{"field": "$", "message": "Scenario must be a JSON object."}], []
     for g in sorted(GROUPS):
-        if g in raw and not isinstance(raw[g], dict):
+        if g in raw and raw[g] is not None and not isinstance(raw[g], dict):  # null group = absent (null_paths)
             errors.append({"field": g, "message": f"'{g}' must be an object."})
+    nulls = null_paths(raw)
+    for g in nulls:
+        if "." not in g and g != "compliance":
+            assumptions.append(f"{g} null: treated as absent, so each of its optional fields takes its default below.")
     for path, kind, required, default, extra in FIELDS:
         parts = path.split(".")
         node, present, val = raw, True, None
@@ -155,18 +184,24 @@ def validate(raw):
                 present = False
                 break
         val = node if present else None
+        was_null = path in nulls
+        if was_null:
+            present = False
         if not present and path in EXTRA_PATHS:
             req[path] = list(default) if isinstance(default, list) else default
+            if was_null:
+                assumptions.append(f"{path} null: treated as absent (optional extra input not used).")
             continue
         if not present:
             if required:
                 errors.append({"field": path, "message": "Required field is missing." + _missing_hint(raw, parts)})
             else:
                 req[path] = default
+                how = f"{path} null: treated as absent;" if was_null else f"{path} absent:"
                 if default is not None:
-                    assumptions.append(f"{path} absent: default {_fmt(default) if not isinstance(default, list) else default} applied.")
+                    assumptions.append(f"{how} default {_fmt(default) if not isinstance(default, list) else default} applied.")
                 elif path in UNSPECIFIED_NOTE:
-                    assumptions.append(UNSPECIFIED_NOTE[path])
+                    assumptions.append(f"{how} {UNSPECIFIED_NOTE[path].split(': ', 1)[1]}" if was_null else UNSPECIFIED_NOTE[path])
             continue
         msg = None
         if kind == "str":

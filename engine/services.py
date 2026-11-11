@@ -154,16 +154,19 @@ def build(ctx, host, backend, db, mobile, warn):
                 lib = {"python-django": "Django auth + django-allauth", "dotnet-aspnet": "ASP.NET Core Identity",
                        "java-spring": "Spring Security (+ OAuth2 client)", "php-laravel": "Laravel Fortify/Socialite",
                        "ruby-rails": "Rails authentication generator + OmniAuth",
-                       "python-fastapi": "FastAPI Users (+ Authlib OAuth)", "go-chi": "Keycloak 26 (container next to the API)"}.get(backend["id"] if backend else "", "Auth.js / Passport (Node)")
+                       "python-fastapi": "FastAPI Users (+ Authlib OAuth)", "go-chi": "Keycloak 26 (container next to the API)",
+                       "elixir-phoenix": "Phoenix mix phx.gen.auth (+ Ueberauth for OAuth)",
+                       "rust-axum": "Keycloak 26 (container next to the API)"}.get(backend["id"] if backend else "", "Auth.js / Passport (Node)")
                 if social:
                     lib += " with Google/GitHub/Microsoft OAuth"
                 kc = lib.startswith("Keycloak")
+                kl = "Rust" if backend and backend["id"] == "rust-axum" else "Go"  # backends without a batteries-included auth framework
                 out.append(svc("auth", lib,
-                               (f"{auth} login on a self-hosted identity server: Go has no batteries-included auth framework, so Keycloak handles passwords, MFA and social providers{' and keeps identities in-region' if loc else ''}."
+                               (f"{auth} login on a self-hosted identity server: {kl} has no batteries-included auth framework, so Keycloak handles passwords, MFA and social providers{' and keeps identities in-region' if loc else ''}."
                                 if kc else f"{auth} login kept inside the application: users live in your own database{' (in-region)' if loc else ''}, so no extra vendor or data transfer."),
                                dp + (["team.languages"] if backend else []),
                                [("Auth0 / Clerk (SaaS)", "extra monthly cost per active user and identity data outside your region"),
-                                ("Hand-written auth in Go", "security-sensitive code the team would have to maintain") if kc else ("Keycloak", "a separate service to run for a single application")],
+                                (f"Hand-written auth in {kl}", "security-sensitive code the team would have to maintain") if kc else ("Keycloak", "a separate service to run for a single application")],
                                ["You run and upgrade Keycloak"] if kc else ["You own password hashing, reset e-mails and MFA setup"],
                                "self_hosted" if kc else "library", "neutral", kc, Z, ["keycloak"], loc))
 
@@ -241,7 +244,8 @@ def build(ctx, host, backend, db, mobile, warn):
             native = {"dotnet-aspnet": "ASP.NET Core SignalR", "java-spring": "Spring WebSocket (STOMP)",
                       "python-django": "Django Channels", "python-fastapi": "FastAPI WebSockets",
                       "go-chi": "WebSockets in Go (coder/websocket)", "php-laravel": "Laravel Reverb",
-                      "ruby-rails": "Rails Action Cable"}.get(bid, "Socket.IO on the Node API")
+                      "ruby-rails": "Rails Action Cable", "elixir-phoenix": "Phoenix Channels + Presence (Phoenix.PubSub)",
+                      "rust-axum": "Axum WebSockets (axum::extract::ws on Tokio)"}.get(bid, "Socket.IO on the Node API")
             if p == "azure" and ctx["tier"] >= 2:
                 native = "Azure SignalR Service (managed)"
             if kind == "serverless" and p == "aws":
@@ -251,7 +255,9 @@ def build(ctx, host, backend, db, mobile, warn):
                            dp + (["project.description"] if d["chat"] else []),
                            [("Ably / Pusher", "managed fan-out, but an extra vendor and per-connection cost"),
                             ("Polling", "wastes requests and adds latency")],
-                           ["Scale-out needs a pub/sub backplane (Redis/Valkey)"], "library", "neutral", False, Z, ["ably-pricing"]))
+                           ["Scale-out: cluster the Phoenix nodes so Phoenix.PubSub spans them (or use its Redis adapter)"
+                            if native.startswith("Phoenix") else "Scale-out needs a pub/sub backplane (Redis/Valkey)"],
+                           "library", "neutral", False, Z, ["phoenix-channels"] if native.startswith("Phoenix") else ["ably-pricing"]))
 
     # ---------------- cache
     read_hot = req["scale.workload"] == "read_heavy" and ctx["peak"] >= 1000

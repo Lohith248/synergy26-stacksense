@@ -71,10 +71,12 @@ def lang_term(c, ctx, langs, weight, what):
               f"team lists {', '.join(team)} but this needs {'/'.join(langs[:2])}")
 
 
-def learn_term(c, ctx, learning):
+def learn_term(c, ctx, learning, new_lang=False):
+    """new_lang: no team language fits any option in this layer, so the language itself is new too."""
     if learning > 2:
-        c.add("learning", -(learning - 2) * ctx["xf"] * 1.2, "team.experience",
-              f"learning curve {learning}/5 for {'an' if ctx['exp'][0] in 'aeiou' else 'a'} {ctx['exp']} team")
+        c.add("learning", -(learning - 2) * ctx["xf"] * 1.2 * (2 if new_lang else 1), "team.experience",
+              f"learning curve {learning}/5 for {'an' if ctx['exp'][0] in 'aeiou' else 'a'} {ctx['exp']} team"
+              + ("; new language for the team: learning curve counts double" if new_lang else ""))
 
 
 def tier_term(c, ctx, max_tier, what):
@@ -206,11 +208,13 @@ def ui_needs_js(ctx, skill_band):
 def backend_candidates(ctx, host):
     req = ctx["req"]
     cands = []
+    known = set(ctx["langs"]) | set(ctx["hiring"])
+    new_lang = not any(set(b["langs"]) & known for b in TECH["backend"])  # empty, or client-only languages (swift, dart)
     for b in TECH["backend"]:
         c = Cand(b)
         prio_terms(c, ctx, b["r"])
         lang_term(c, ctx, b["langs"], 7, "the API")
-        learn_term(c, ctx, b["learning"])
+        learn_term(c, ctx, b["learning"], new_lang)
         tier_term(c, ctx, b["max_tier"], b["name"])
         if b.get("fullstack"):  # the UI app is the backend: only for small web-only apps
             if not ctx["web"] or ctx["mobile"]:
@@ -235,10 +239,11 @@ def backend_candidates(ctx, host):
         if ctx["existing_db"] and ctx["existing_db"]["pattern"].get("engine") == "sqlserver":
             c.add("existing", (b["sqlserver"] - 3) * 2, "infrastructure.existing_systems",
                   "first-class SQL Server driver/ORM" if b["sqlserver"] >= 4 else "weaker SQL Server tooling")
-        if (ctx["ui_needs_js"] and ctx["langs"] and ctx["web"] and not set(ctx["langs"]) & {"javascript", "typescript"} and set(b["langs"]) & {"javascript", "typescript"}
+        if (ctx["ui_needs_js"] and ctx["web"] and not set(ctx["langs"]) & {"javascript", "typescript"} and set(b["langs"]) & {"javascript", "typescript"}
                 and not set(ctx["hiring"]) & {"javascript", "typescript"}):  # hiring already earns lang credit
             c.add("one_new_language", 7 * ctx["lf"], "team.languages",  # cancels the language-mismatch penalty above: JS must be learned for the web UI regardless
-                  "the web UI needs JavaScript/TypeScript anyway, so the team learns one new language instead of two")
+                  "the web UI needs JavaScript/TypeScript anyway, so the team learns one new language instead of two" if ctx["langs"] else
+                  "no team language given: the web UI needs JavaScript/TypeScript anyway, so the backend should not add a second new language")
         js_team = set(ctx["langs"]) & {"javascript", "typescript"}
         if js_team and (ctx["web"] or ctx["mobile"]) and set(b["langs"]) & {"javascript", "typescript"}:
             c.add("one_language", 2, "team.languages", "one language (TypeScript/JavaScript) across clients and server")
