@@ -639,6 +639,7 @@ def contradictions(ctx, W, assumptions, host, backend):
         if life:
             if life["eol"] <= AS_OF:
                 what = {"unmaintained": f"is no longer maintained (repository archived {life['eol']})",
+                        "unsupported": f"is no longer supported by its vendor as of {life['eol']}",
                         "closed": f"is closed to new customers (since {life['eol']})", "deprecated": f"was deprecated on {life['eol']}"}.get(
                     life.get("kind"), f"reached end of support on {life['eol']}")
                 W("END_OF_LIFE_SYSTEM", "warning",

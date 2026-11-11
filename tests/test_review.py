@@ -570,5 +570,31 @@ class CurrentProductNames(unittest.TestCase):
         self.assertNotIn('"Looker Studio"', text)
 
 
+class MoreEndOfLife(unittest.TestCase):
+    """Section 6 deprecated technology: common EOL systems in existing_systems are flagged (dates from vendor
+    pages rendered 12 Nov 2026); supported versions stay quiet."""
+    CASES = {'PHP 8.1 site': '2025-12-31', 'php7 api': '2022-11-28', 'CentOS 7 servers': '2024-06-30',
+             'Xamarin.Forms app': '2024-05-01', 'MongoDB 5.0': '2024-10-31', 'mongo 4.4 cluster': '2024-02-29',
+             'Spring Boot 2.7 service': '2023-06-30', 'Django 3.2 app': '2024-04-01', 'Laravel 10 app': '2025-02-04',
+             'Node 16 backend': '2023-09-11', 'Python 3.8 jobs': '2024-10-07', '.NET Core 3.1 API': '2022-12-13',
+             '.NET 7 service': '2024-05-14', 'Angular 15 frontend': 'no longer supported', 'Internet Explorer 11 users': '2022-06-15'}
+
+    def eol(self, system):
+        s = copy.deepcopy(PUBLIC[4])
+        s['infrastructure']['existing_systems'] = [system]
+        return [w['message'] for w in evaluate(s, counterfactuals=False)['warnings'] if w['code'] == 'END_OF_LIFE_SYSTEM']
+
+    def test_flagged(self):
+        for system, needle in self.CASES.items():
+            with self.subTest(system=system):
+                msgs = self.eol(system)
+                self.assertTrue(msgs and needle in msgs[0], msgs)
+
+    def test_supported_versions_stay_quiet(self):
+        for system in ('PHP 8.4 site', 'MongoDB 8.0', 'Angular 21 app', 'Django 5.2 app', 'Laravel 12 app', 'Spring Boot 4.0'):
+            with self.subTest(system=system):
+                self.assertEqual([m for m in self.eol(system) if 'reached end' in m or 'no longer' in m], [])
+
+
 if __name__ == '__main__':
     unittest.main()

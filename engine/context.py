@@ -46,7 +46,9 @@ def lifecycle_text(low):
     low = re.sub(r"node\s*\.?\s*js", "node", low)
     low = re.sub(r"\.net core", ".net", low)
     low = re.sub(r"angular\s*(?:\.?js\b|1(?:\.|x\b|\b))", "angularjs ", low)
-    return re.sub(r"\b(node|python|postgresql|postgres|\.net|vue|mysql)[\s\-_]*v?(?=\d)", r"\1 ", low)
+    low = re.sub(r"\bmongo(?:\s*db)?\b", "mongodb", low)
+    low = re.sub(r"\bcentos\s+linux\b", "centos", low)
+    return re.sub(r"\b(node|python|postgresql|postgres|\.net|vue|mysql|angular|php|django|laravel|mongodb|centos)[\s\-_]*v?(?=\d)", r"\1 ", low)
 
 
 def lang_norm(langs):

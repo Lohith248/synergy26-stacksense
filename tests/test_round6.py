@@ -43,7 +43,7 @@ class LifecycleSpellings(unittest.TestCase):
             self.assertFalse(with_existing(raw) & {"END_OF_LIFE_SYSTEM", "END_OF_LIFE_SOON"}, raw)
 
     def test_newer_versions_are_not_flagged(self):
-        for raw in ("Node.js 22 API", "Node 180 widgets", "Python 3.13", ".NET 10 API", "PostgreSQL 16", "Angular 17 app"):
+        for raw in ("Node.js 22 API", "Node 180 widgets", "Python 3.13", ".NET 10 API", "PostgreSQL 16", "Angular 21 app"):  # 17 is unsupported since 12 Nov KB (angular.dev: v2-v19)
             self.assertFalse(with_existing(raw) & {"END_OF_LIFE_SYSTEM", "END_OF_LIFE_SOON"}, raw)
 
 
