@@ -48,7 +48,7 @@ def loads(text):
         return None, "File is empty."
     try:
         return json.loads(text, object_pairs_hook=_hook, parse_constant=_reject_constant, parse_float=_float), None
-    except ValueError as e:
+    except (ValueError, RecursionError) as e:
         return None, f"Not valid JSON: {e}"
 
 
@@ -63,7 +63,11 @@ def parse_text(text):
         return [invalid_output([{"field": "$", "message": "Array contains no scenarios."}], scenario_id=None)]
     outs = []
     for i, item in enumerate(items):
-        dups = _dup_paths(item)
+        try:
+            dups = _dup_paths(item)
+        except RecursionError:
+            outs.append(invalid_output([{"field": "$", "message": "JSON nesting is too deep."}], scenario_id=None))
+            continue
         if dups:
             sid = item.get("scenario_id") if isinstance(item, dict) and isinstance(item.get("scenario_id"), str) else None
             outs.append(invalid_output([{"field": p.rstrip("."), "message": "Key appears more than once; ambiguous value."}

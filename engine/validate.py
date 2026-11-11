@@ -74,7 +74,10 @@ def _is_int(v):
 
 
 def _is_num(v):
-    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+    try:
+        return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+    except OverflowError:
+        return False
 
 
 def _fmt(v):
@@ -187,6 +190,8 @@ def validate(raw):
         elif kind in ("int", "xint"):
             if not _is_int(val):
                 msg = "Must be an integer (JSON number without fraction)."
+            elif not _is_num(val):
+                msg = "Outside the finite numeric range used for sizing and cost calculations."
             elif val < extra:
                 msg = f"Must be >= {extra} (got {val})."
         elif kind == "opt_int":
@@ -196,6 +201,8 @@ def validate(raw):
                 continue
             if not _is_int(val) or val < extra:
                 msg = "Must be a positive integer or null."
+            elif not _is_num(val):
+                msg = "Outside the finite numeric range used for sizing and cost calculations."
         elif kind == "num":
             if not _is_num(val):
                 msg = "Must be a finite number."
