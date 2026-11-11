@@ -94,6 +94,7 @@ python stacksense.py run path/to/scenario.json --out outputs --explain
 - Input may be a single scenario object or an array of them.
 - Output is written to `outputs/<scenario_id>_output.json`, or `scenario_output.json` when there is no id.
 - `--explain` also prints a readable explanation to the terminal.
+- `--adr` also writes `outputs/<scenario_id>_adr.md`: one Architecture Decision Record per core layer (context, decision, options table, consequences).
 - The exit code is 1 if any scenario is `invalid_input`, otherwise 0.
 - Files are written atomically, so a crash never leaves a half-written output.
 
@@ -109,9 +110,9 @@ python stacksense.py interactive --out outputs
 python stacksense.py serve
 ```
 
-Open http://127.0.0.1:8765/ in a browser. The page has a form for every standard field (required ones marked), a JSON tab, a sample loader (P1-P6 and E1-E9), file import, a Recommend button and export of the input and output JSON. It calls the same engine as the CLI, binds to 127.0.0.1 only, loads nothing from the internet and uses no LLM. Use `--port` to change the port; stop it with Ctrl+C.
+Open http://127.0.0.1:8765/ in a browser. The page has a form for every standard field (required ones marked), a JSON tab, a sample loader (P1-P6, E1-E9, X1 and the hidden-like probes), file import, a Recommend button and export of the input and output JSON. It calls the same engine as the CLI, binds to 127.0.0.1 only, loads nothing from the internet and uses no LLM. Use `--port` to change the port; stop it with Ctrl+C.
 
-Twelve more author-made probes for project types the public set does not cover (gaming, IoT, analytics, AI/RAG, healthtech, API platform, B2B SaaS, seasonal e-commerce, zero-budget students, social, desktop, seasonal content) are in `scenarios/hidden_like/` (regenerate with `python tools/make_hidden_like.py`).
+More probes for project types the public set does not cover are in `scenarios/hidden_like/`. H01-H12 are author-made (gaming, IoT, analytics, AI/RAG, healthtech, API platform, B2B SaaS, seasonal e-commerce, zero-budget students, social, desktop, seasonal content; regenerate with `python tools/make_hidden_like.py`). H13 onward are blind probes: their expected outcomes in `tests/test_oracle.py` were written before the engine was run on them.
 
 Edge-case examples for every Section 6 category are in `scenarios/edge_cases/` (E1-E9):
 
@@ -167,7 +168,7 @@ Example: `scenarios/extras/X1_p6_with_extras.json` (P6 plus the first four). The
 - **Soft conflicts:** budget, timeline and team conflicts give `ok_with_warnings` with a full stack and named warnings, never a silent violation.
 - **`cloud_preference: none`** means no public cloud.
 - **`on_premise` and `air_gapped`** both allow only self-hostable components, with no SaaS or CDN. Unavoidable external dependencies (a payment gateway, an existing cloud identity provider, an SMS carrier link) are kept only with an explicit warning.
-- **Extra output fields** (Section 4 allows them): each core component has `kb_id`, `score_margin` (gap to the runner-up; small means a near-tie) and `what_would_change` (up to three distinct outcomes, each with the first one-field edit that causes it and up to three other edits that lead there; `none in the probe set` when nothing tried flips it). Components also carry `deployment`, `provider`, `data_bearing`, `data_location` and `sources`.
+- **Extra output fields** (Section 4 allows them): each core component has `kb_id`, `score_margin` (gap to the runner-up; small means a near-tie) and `what_would_change` (up to three distinct outcomes, each with the first one-field edit that causes it and up to three other edits that lead there; `none in the probe set` when nothing tried flips it), `stability` (share of a fixed grid of 53-54 priority-weight vectors that keeps the choice, with the nearest single-priority flip point), `confidence` (`low` if stability < 0.7 or margin < 1.0, `high` if stability ≥ 0.9 and margin ≥ 2.0, else `medium`, with the numbers in `basis`) and `contrast` ("X rather than Y. Reason. Trade-off accepted: ..."). Components also carry `deployment`, `provider`, `data_bearing`, `data_location` and `sources`.
 - **Relaxed recommendations:** when a critical conflict remains (for example a huge scale on a $0 budget), the summary starts with "Relaxed recommendation" and one `Relaxed:` assumption names each relaxed field.
 - **Description rules:** fixed, deterministic keyword rules on `project.description` shape supporting services and warnings only, for example UPI, EMI, payouts, ledger, KYC, offline sync and Microsoft 365. Core layers come from structured fields.
 
@@ -179,12 +180,12 @@ source/
 ├── engine/                  validation, context, selection, services, orchestration
 ├── kb/technologies.json     knowledge base (as_of 2026-11-11)
 ├── kb/sources.json          cited sources with verification status
-├── scenarios/               official public scenarios + edge_cases/E1-E9
+├── scenarios/               official public scenarios, edge_cases/E1-E9, hidden_like/ probes, extras/X1
 ├── outputs/                 P1-P6 outputs produced by this engine
 ├── web/index.html           optional local UI page (served by `serve`)
 ├── tools/check_contract.py  output contract checker
 ├── tools/perturb.py         one-field robustness sweep
-├── tests/                   boundary, KB and interactive tests
+├── tests/                   boundary, KB, oracle, fields-sweep, no-LLM guard and round tests
 ├── DECISIONS.md             participant-owned design decisions
 └── README.md
 ```
