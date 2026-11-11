@@ -185,7 +185,7 @@ def cmd_interactive(args):
     s["compliance"] = ask("Compliance", "-", "list")
     s["priorities"] = {k: ask(f"Priority {k} (1-5)", 3, "int") for k in
                        ("cost", "time_to_market", "scalability", "performance", "maintainability", "security")}
-    if ask("Add optional extra inputs (request rate, user geography, hiring plan, lock-in tolerance)? (y/n)", "n", "bool"):
+    if ask("Add optional extra inputs (request rate, user geography, hiring plan, lock-in tolerance, RTO/RPO)? (y/n)", "n", "bool"):
         rps = ask("Peak requests per second (or none)", "none", "optint")
         if rps is not None:
             s["scale"]["peak_rps"] = rps
@@ -193,6 +193,10 @@ def cmd_interactive(args):
         s["scale"]["geo_spread"] = geo
         s["team"]["hiring_languages"] = ask("Languages you plan to hire for", "-", "list")
         s["infrastructure"]["lock_in_tolerance"] = ask("Vendor lock-in tolerance", "medium", choices=["low", "medium", "high"])
+        for key, label in (("rto_minutes", "Recovery time objective, minutes"), ("rpo_minutes", "Recovery point objective, minutes")):
+            v = ask(f"{label} (or none)", "none", "optint")
+            if v is not None:
+                s["requirements"][key] = v
     os.makedirs(args.out, exist_ok=True)
     scen = os.path.join(args.out, f"{s['scenario_id']}_input.json")
     write_atomic(scen, s)

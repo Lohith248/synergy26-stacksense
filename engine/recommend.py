@@ -113,6 +113,22 @@ def why_not(win, alt):
     return ". ".join(parts) + f". Overall {total} points behind." + tail
 
 
+def ha_paths(req):
+    """Inputs that call for zone redundancy: availability >= 99.95, or the optional RTO < 60 min / RPO < 5 min
+    (planning thresholds: a restore from backup is slower than an hour for most databases, and backups are not continuous)."""
+    rto, rpo = req["requirements.rto_minutes"], req["requirements.rpo_minutes"]
+    return ([p for p, on in (("requirements.availability", req["requirements.availability"] in ("99.95", "99.99")),
+                             ("requirements.rto_minutes", rto is not None and rto < 60),
+                             ("requirements.rpo_minutes", rpo is not None and rpo < 5)) if on])
+
+
+def ha_targets(req):
+    names = {"requirements.availability": f"the {req['requirements.availability']}% availability target",
+             "requirements.rto_minutes": f"RTO {req['requirements.rto_minutes']} min",
+             "requirements.rpo_minutes": f"RPO {req['requirements.rpo_minutes']} min"}
+    return [names[p] for p in ha_paths(req)]
+
+
 def cap(s):
     return s[:1].upper() + s[1:] if s else s
 
@@ -272,7 +288,7 @@ def _recommend(req, assumptions, sid):
         d_ok, d_out = sl.rank(ds)
         db_c = d_ok[0]
         db_item = dict(db_c.item, _variant=db_c.variant)
-        ha = req["requirements.availability"] in ("99.95", "99.99")
+        ha = bool(ha_paths(req))
         db_region = db_c.item.get("regions", {}).get(loc) if db_c.vkey == "any" else region
         vname = db_c.variant + (f" — {db_region}" if db_region and db_c.vkey not in ("self",) else "") + (" (multi-AZ / zone-redundant HA)" if ha and db_c.vkey != "self" else "")
         for c in d_ok + d_out:
@@ -281,9 +297,22 @@ def _recommend(req, assumptions, sid):
                                                    "provider": host["provider"] if db_c.vkey not in ("any", "self") else (db_c.id if db_c.vkey == "any" else "neutral"),
                                                    "data_bearing": True, "data_location": loc}, name=vname)
         if ha and db_c.vkey != "self":
-            db_cmp["justification"] += (f" The {req['requirements.availability']}% target uses a standby in a second zone with automatic failover "
-                                        "and point-in-time recovery.")
-            db_cmp["driven_by"] = order_paths(db_cmp["driven_by"] + ["requirements.availability"])
+            hp = ha_paths(req)
+            if hp == ["requirements.availability"]:
+                db_cmp["justification"] += (f" The {req['requirements.availability']}% target uses a standby in a second zone with automatic failover "
+                                            "and point-in-time recovery.")
+            else:
+                db_cmp["justification"] += (f" {cap(' and '.join(ha_targets(req)))} need a standby in a second zone with automatic failover "
+                                            "(restoring from backup takes too long for the RTO; nightly backups lose too much data for the RPO) "
+                                            "and point-in-time recovery.")
+            db_cmp["driven_by"] = order_paths(db_cmp["driven_by"] + hp)
+        rto, rpo = req["requirements.rto_minutes"], req["requirements.rpo_minutes"]
+        if rpo is not None and rpo < 5 and db_c.vkey == "self":
+            W("RPO_NEEDS_REPLICATION", "warning", f"RPO {rpo} min on a self-hosted database: configure streaming replication to a standby server and "
+              "continuous WAL/log archiving; nightly backups alone can lose up to a day of data.", ["requirements.rpo_minutes"])
+        if rto is not None and rto < 5:
+            W("RTO_BELOW_FAILOVER", "warning", f"RTO {rto} min leaves almost no time for failover, DNS and connection-pool recovery; "
+              "rehearse a failover and measure it before promising this, or relax the target.", ["requirements.rto_minutes"])
         if "rbi_localisation" in ctx["compliance"] and db_c.vkey != "self":
             db_cmp["justification"] += f" Automated backups and snapshots stay in {db_region or 'the Indian region'} (no cross-region copies), as RBI localisation requires."
             db_cmp["driven_by"] = order_paths(db_cmp["driven_by"] + ["compliance"])
@@ -538,7 +567,7 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
     lo = host["cost"][t][0]
     hi = host["cost"][t][1]
     lines = [f"Hosting {host['name']}: ${host['cost'][t][0]}-{host['cost'][t][1]}/month at the '{cx.TIER_NAMES[t]}' tier."]
-    ha = ctx["req"]["requirements.availability"] in ("99.95", "99.99")
+    ha = bool(ha_paths(ctx["req"]))
     if db_item and db_c and db_c.vkey != "self":
         dc = sl.db_cost(db_c.item, db_c.vkey)
         dlo, dhi = dc[t]
@@ -549,7 +578,8 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         lines.append(f"Database {db_c.variant}: ${dlo}-{dhi}/month" + (" (HA doubles instances)" if ha else "") + ".")
     if ha:
         lo, hi = lo + host["cost"][t][0], hi + host["cost"][t][1]
-        lines.append("Availability ≥99.95%: at least two app instances across zones.")
+        lines.append(("Availability ≥99.95%" if ha_paths(ctx["req"])[0] == "requirements.availability" else cap(" and ".join(ha_targets(ctx["req"]))))
+                     + ": at least two app instances across zones.")
     for s in supporting:
         clo, chi = s["_cost"][t]
         if chi:

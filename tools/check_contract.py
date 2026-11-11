@@ -16,7 +16,8 @@ SUPPORT_LAYERS = {"cache", "queue", "search", "auth", "storage", "cdn", "realtim
 SEVERITY = {"info", "warning", "critical"}
 CORE = ("frontend", "backend", "database", "hosting")
 # Section 3 paths plus the engine's documented optional extra inputs (README "Extra inputs")
-EXTRA_INPUT_PATHS = {"scale.peak_rps", "scale.geo_spread", "team.hiring_languages", "infrastructure.lock_in_tolerance"}
+EXTRA_INPUT_PATHS = {"scale.peak_rps", "scale.geo_spread", "team.hiring_languages", "infrastructure.lock_in_tolerance",
+                     "requirements.rto_minutes", "requirements.rpo_minutes"}
 INPUT_PATHS = EXTRA_INPUT_PATHS | {
     "project.name", "project.type", "project.description", "project.platforms",
     "scale.users_at_launch", "scale.users_12_months", "scale.peak_concurrent_users",

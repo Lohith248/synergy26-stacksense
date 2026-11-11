@@ -53,6 +53,8 @@ EXTRA_FIELDS = [
     ("scale.geo_spread", "xenum", False, None, ["single_region", "multi_region", "global"]),
     ("team.hiring_languages", "xlist", False, [], None),
     ("infrastructure.lock_in_tolerance", "xenum", False, None, ["low", "medium", "high"]),
+    ("requirements.rto_minutes", "xint", False, None, 0),
+    ("requirements.rpo_minutes", "xint", False, None, 0),
 ]
 EXTRA_PATHS = {f[0] for f in EXTRA_FIELDS}
 FIELDS = FIELDS + EXTRA_FIELDS

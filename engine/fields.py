@@ -57,6 +57,8 @@ AFFECTS = {
     "scale.geo_spread": "supporting cost warnings",
     "team.hiring_languages": "frontend backend supporting warnings ranking",
     "infrastructure.lock_in_tolerance": "database hosting supporting cost warnings ranking",
+    "requirements.rto_minutes": "database cost warnings ranking",
+    "requirements.rpo_minutes": "database cost warnings ranking",
 }
 
 HOW = {
@@ -102,6 +104,8 @@ HOW = {
     "scale.geo_spread": "Optional: multi-region/global users add a latency note and CDN/replica advice.",
     "team.hiring_languages": "Optional: languages the team will hire for count at half the weight of languages already written.",
     "infrastructure.lock_in_tolerance": "Optional: low penalises provider-specific runtimes and data stores.",
+    "requirements.rto_minutes": "Optional: recovery time objective; under 60 min adds a zone-redundant database standby and a second app instance; under 5 min warns.",
+    "requirements.rpo_minutes": "Optional: recovery point objective; under 5 min adds a zone-redundant standby (managed) or a replication warning (self-hosted).",
 }
 
 

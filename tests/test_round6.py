@@ -149,5 +149,54 @@ class AdrExport(unittest.TestCase):
             self.assertEqual(len([f for f in os.listdir(d) if f.endswith(".md")]), 6)
 
 
+def p6(**req):
+    s = copy.deepcopy(PUBLIC[5])
+    s["requirements"].update(req)
+    out = evaluate(s, counterfactuals=False)
+    return out
+
+
+class RecoveryObjectives(unittest.TestCase):
+    """Round 5 item 6: optional requirements.rto_minutes / rpo_minutes, each with a decision effect and a fields row."""
+
+    def test_validation(self):
+        for bad in (-1, "15", 1.5, True):
+            out = p6(rto_minutes=bad)
+            self.assertEqual(out["status"], "invalid_input", bad)
+            self.assertIn("requirements.rto_minutes", {e["field"] for e in out["validation_errors"]})
+        self.assertEqual(p6(rpo_minutes=0)["status"] in ("ok", "ok_with_warnings"), True)
+
+    def test_tight_rto_or_rpo_adds_a_zone_redundant_standby(self):
+        base = p6()
+        self.assertNotIn("zone-redundant HA", base["stack"]["database"]["choice"])
+        for edit, path in (({"rto_minutes": 15}, "requirements.rto_minutes"), ({"rpo_minutes": 0}, "requirements.rpo_minutes")):
+            out = p6(**edit)
+            db = out["stack"]["database"]
+            self.assertIn("zone-redundant HA", db["choice"], edit)
+            self.assertIn(path, db["driven_by"], edit)
+            self.assertIn(path.split(".")[1].split("_")[0].upper(), db["justification"], edit)
+            self.assertGreater(out["estimated_monthly_cost_usd"]["max"], base["estimated_monthly_cost_usd"]["max"], edit)
+
+    def test_relaxed_objectives_change_nothing(self):
+        base, out = p6(), p6(rto_minutes=240, rpo_minutes=60)
+        self.assertEqual({k: base["stack"][k]["choice"] for k in CORE}, {k: out["stack"][k]["choice"] for k in CORE})
+        self.assertEqual(base["estimated_monthly_cost_usd"], out["estimated_monthly_cost_usd"])
+
+    def test_warnings_for_self_hosted_and_unrealistic_targets(self):
+        with open(os.path.join(ROOT, "scenarios", "edge_cases", "E7_air_gapped.json"), encoding="utf-8") as f:
+            e7 = json.load(f)
+        e7 = copy.deepcopy(e7[0] if isinstance(e7, list) else e7)
+        e7["requirements"]["rpo_minutes"] = 1
+        self.assertIn("RPO_NEEDS_REPLICATION", {w["code"] for w in evaluate(e7, counterfactuals=False)["warnings"]})
+        self.assertIn("RTO_BELOW_FAILOVER", {w["code"] for w in p6(rto_minutes=2)["warnings"]})
+        self.assertNotIn("RTO_BELOW_FAILOVER", {w["code"] for w in p6(rto_minutes=15)["warnings"]})
+
+    def test_fields_rows(self):
+        from engine.fields import AFFECTS, HOW
+        for k in ("requirements.rto_minutes", "requirements.rpo_minutes"):
+            self.assertIn("database", AFFECTS[k])
+            self.assertIn("Optional", HOW[k])
+
+
 if __name__ == "__main__":
     unittest.main()

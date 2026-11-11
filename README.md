@@ -147,7 +147,7 @@ python tools/perturb.py
 
 ## Extra inputs (optional)
 
-The engine accepts every standard field and works on files that contain only those. Four optional extra fields can be added inside the usual groups; when absent they are ignored and nothing is assumed. Invalid values are reported in `validation_errors` like any other field. Interactive mode and the web UI ask for them as optional.
+The engine accepts every standard field and works on files that contain only those. Six optional extra fields can be added inside the usual groups; when absent they are ignored and nothing is assumed. Invalid values are reported in `validation_errors` like any other field. Interactive mode and the web UI ask for them as optional.
 
 | Field | Values | What it changes |
 |---|---|---|
@@ -155,8 +155,10 @@ The engine accepts every standard field and works on files that contain only tho
 | `scale.geo_spread` | `single_region`, `multi_region`, `global` | Distant users: adds a CDN even for small apps and a `GLOBAL_USERS_ONE_REGION` warning with the latency cost and what to do within the residency constraint. |
 | `team.hiring_languages` | list of strings | Languages the team will hire for count at half the weight of languages it already writes (for example, hiring Kotlin developers moves P6's Android app to native Kotlin). |
 | `infrastructure.lock_in_tolerance` | `low`, `medium`, `high` | `low` penalises provider-specific runtimes and data stores (Lambda, DynamoDB, Firestore, Cosmos DB, Cognito) and favours portable containers and open engines. |
+| `requirements.rto_minutes` | integer ≥ 0 | Recovery time objective. Under 60 minutes adds a zone-redundant database standby with automatic failover and a second app instance (cost band rises); under 5 minutes adds `RTO_BELOW_FAILOVER`. |
+| `requirements.rpo_minutes` | integer ≥ 0 | Recovery point objective. Under 5 minutes adds the same standby on a managed database, or `RPO_NEEDS_REPLICATION` on a self-hosted one. The 60/5-minute thresholds are planning heuristics, not provider guarantees. |
 
-Example: `scenarios/extras/X1_p6_with_extras.json` (P6 plus all four). The counterfactual probes include `lock_in_tolerance` and `geo_spread`, so `what_would_change` shows when they matter.
+Example: `scenarios/extras/X1_p6_with_extras.json` (P6 plus the first four). The counterfactual probes include `lock_in_tolerance` and `geo_spread`, so `what_would_change` shows when they matter.
 
 ## Output conventions (documented interpretations)
 

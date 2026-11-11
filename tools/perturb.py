@@ -93,7 +93,7 @@ def variants(path, kind, cur, extra):
     if kind == "xenum":
         return list(extra)
     if kind == "xint":
-        return [10, 500, 5000]
+        return [1, 10, 500, 5000]
     if kind == "xlist":
         return [["kotlin"], ["typescript"]]
     if kind == "enum":
