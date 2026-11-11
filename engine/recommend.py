@@ -575,7 +575,11 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
             dlo, dhi = round(dlo * 1.8), round(dhi * 2)
         lo += dlo
         hi += dhi
-        lines.append(f"Database {db_c.variant}: ${dlo}-{dhi}/month" + (" (HA doubles instances)" if ha else "") + ".")
+        # R11 (Azure Retail Prices API / AWS Price List, India regions, compute only): the small-tier band fits a burstable instance
+        size = {"azure": " Sized for a Burstable B2s instance (about $72 compute); a General Purpose D2ds_v5 alone is about $183.",
+                "aws": " Sized for a burstable db.t4g.medium (about $61 compute); a db.m6g.large alone is about $165."}.get(db_c.vkey, "") \
+            if t == 1 and db_c.item["id"] == "postgresql" else ""
+        lines.append(f"Database {db_c.variant}: ${dlo}-{dhi}/month" + (" (HA doubles instances)" if ha else "") + "." + size)
     if ha:
         lo, hi = lo + host["cost"][t][0], hi + host["cost"][t][1]
         lines.append(("Availability ≥99.95%" if ha_paths(ctx["req"])[0] == "requirements.availability" else cap(" and ".join(ha_targets(ctx["req"]))))

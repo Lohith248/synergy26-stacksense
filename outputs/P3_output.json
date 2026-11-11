@@ -2,7 +2,7 @@
   "scenario_id": "P3",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Modular monolith: React (Vite SPA) (web) on Go 1.27 (net/http + chi) with Azure Database for PostgreSQL – Flexible Server 17 — West Europe (Netherlands), hosted on Azure App Service (Linux, Premium v3, 2+ instances) — West Europe (Netherlands). Estimated $424-2308/month.",
+  "summary": "Modular monolith: React (Vite SPA) (web) on Go 1.27 (net/http + chi) with Azure Database for PostgreSQL – Flexible Server 17 — West Europe (Netherlands), hosted on Azure App Service (Linux, Premium v3, 2+ instances) — West Europe (Netherlands). Estimated $459-2388/month.",
   "architecture_style": "modular_monolith",
   "stack": {
     "frontend": {
@@ -492,17 +492,22 @@
           {
             "choice": "No CDN",
             "why_not": "every asset request hits the origin; slower for distant users"
+          },
+          {
+            "choice": "Cloudflare (free plan) in front of Azure",
+            "why_not": "cheaper for a small site, but a second vendor for DNS/TLS and outside the Azure contract"
           }
         ],
         "tradeoffs": [
-          "Cache invalidation on deploys"
+          "Cache invalidation on deploys",
+          "Front Door Standard has a $35/month base fee before requests and egress"
         ],
         "deployment": "managed",
         "provider": "azure",
         "data_bearing": false,
         "data_location": null,
         "sources": [
-          "https://aws.amazon.com/about-aws/global-infrastructure/regional-product-services/"
+          "https://azure.microsoft.com/en-us/pricing/details/frontdoor/"
         ]
       },
       {
@@ -583,8 +588,8 @@
     ]
   },
   "estimated_monthly_cost_usd": {
-    "min": 424,
-    "max": 2308,
+    "min": 459,
+    "max": 2388,
     "currency": "USD",
     "assumptions": [
       "Hosting Azure App Service (Linux, Premium v3, 2+ instances): $150-800/month at the 'medium' tier.",
@@ -592,7 +597,7 @@
       "storage: Azure Blob Storage (West Europe (Netherlands)) $10-80/month.",
       "cache: Azure Managed Redis in West Europe (Netherlands) $60-350/month.",
       "queue: Azure Service Bus in West Europe (Netherlands) $5-30/month.",
-      "cdn: Azure Front Door $15-120/month.",
+      "cdn: Azure Front Door $50-200/month.",
       "ci_cd: GitHub Actions $0-20/month.",
       "observability: Azure Monitor + Application Insights in West Europe (Netherlands) $30-200/month.",
       "Stored data ~200 GB after 12 months at ~$0.02-0.035/GB-month (year-end volume used as an upper bound, not an average).",
@@ -621,7 +626,7 @@
     {
       "code": "BUDGET_AT_RISK",
       "severity": "info",
-      "message": "Upper estimate $2308/month can exceed the $1500 budget at peak usage.",
+      "message": "Upper estimate $2388/month can exceed the $1500 budget at peak usage.",
       "fields": [
         "budget.monthly_infra_usd"
       ]

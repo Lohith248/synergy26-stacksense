@@ -391,9 +391,13 @@ def build(ctx, host, backend, db, mobile, warn):
         out.append(svc("cdn", name, "Caches public pages and static assets near users; only public, non-personal content is cached at the edge.",
                        ["project.platforms"] + (["requirements.seo_critical"] if req["requirements.seo_critical"] else ["scale.users_12_months"])
                        + (["scale.geo_spread"] if ctx["geo"] in ("multi_region", "global") else []),
-                       [("No CDN", "every asset request hits the origin; slower for distant users")],
-                       ["Cache invalidation on deploys"], "managed", p if hyper else "cloudflare", False,
-                       [[0, 1], [1, 15], [15, 120], [120, 800]], ["aws-regional"]))
+                       [("No CDN", "every asset request hits the origin; slower for distant users")]
+                       + ([("Cloudflare (free plan) in front of Azure", "cheaper for a small site, but a second vendor for DNS/TLS and outside the Azure contract")] if p == "azure" else []),
+                       ["Cache invalidation on deploys"] + (["Front Door Standard has a $35/month base fee before requests and egress"] if p == "azure" else []),
+                       "managed", p if hyper else "cloudflare", False,
+                       # Azure: the $35 base fee is verified (R11); request/egress growth in the larger tiers is an estimate
+                       [[35, 40], [35, 60], [50, 200], [150, 900]] if p == "azure" else [[0, 1], [1, 15], [15, 120], [120, 800]],
+                       ["azure-frontdoor-pricing"] if p == "azure" else ["aws-regional"]))
 
     # ---------------- ml
     ml = req["requirements.ml_features"]

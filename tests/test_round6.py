@@ -198,5 +198,32 @@ class RecoveryObjectives(unittest.TestCase):
             self.assertIn("Optional", HOW[k])
 
 
+class CostBands(unittest.TestCase):
+    """Round 5 item 7 (R11, Azure Retail Prices API): Front Door Standard has a $35/month base fee; the old $1-15 band was too low."""
+
+    def test_p2_front_door_band_includes_the_base_fee(self):
+        out = pub(2)
+        cdn = next(s for s in out["stack"]["supporting"] if s["layer"] == "cdn")
+        self.assertIn("Azure Front Door", cdn["choice"])
+        line = next(a for a in out["estimated_monthly_cost_usd"]["assumptions"] if a.startswith("cdn:"))
+        self.assertIn("$35-60/month", line)
+        self.assertTrue(any("$35" in t for t in cdn["tradeoffs"]), cdn["tradeoffs"])
+        self.assertTrue(any("Cloudflare" in a["choice"] for a in cdn["alternatives"]))
+        with open(os.path.join(ROOT, "kb", "sources.json"), encoding="utf-8") as f:
+            src = json.load(f)
+        self.assertEqual(src["azure-frontdoor-pricing"]["status"], "verified")
+        self.assertTrue(any("frontdoor" in u or "front-door" in u for u in cdn["sources"]), cdn["sources"])
+
+    def test_small_tier_database_line_names_the_instance_class_it_assumes(self):
+        line = next(a for a in pub(2)["estimated_monthly_cost_usd"]["assumptions"] if a.startswith("Database "))
+        self.assertIn("Burstable B2s", line)
+        self.assertIn("$183", line)  # General Purpose D2ds_v5 compute alone (R11)
+
+    def test_other_providers_keep_their_bands(self):
+        out = pub(4)  # AWS: CloudFront band unchanged
+        line = next((a for a in out["estimated_monthly_cost_usd"]["assumptions"] if a.startswith("cdn:")), "")
+        self.assertNotIn("$35", line)
+
+
 if __name__ == "__main__":
     unittest.main()

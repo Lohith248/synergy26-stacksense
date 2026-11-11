@@ -2,7 +2,7 @@
   "scenario_id": "P2",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Modular monolith: Next.js (web) + React Native (Expo) (Android) on Node.js 24 LTS + NestJS (TypeScript) with Azure Database for PostgreSQL – Flexible Server 17 — Central India (Pune), hosted on Azure App Service (Linux, Basic B2 / Standard S1) — Central India (Pune). Estimated $89-467/month.",
+  "summary": "Modular monolith: Next.js (web) + React Native (Expo) (Android) on Node.js 24 LTS + NestJS (TypeScript) with Azure Database for PostgreSQL – Flexible Server 17 — Central India (Pune), hosted on Azure App Service (Linux, Basic B2 / Standard S1) — Central India (Pune). Estimated $123-512/month.",
   "architecture_style": "modular_monolith",
   "stack": {
     "frontend": {
@@ -469,17 +469,22 @@
           {
             "choice": "No CDN",
             "why_not": "every asset request hits the origin; slower for distant users"
+          },
+          {
+            "choice": "Cloudflare (free plan) in front of Azure",
+            "why_not": "cheaper for a small site, but a second vendor for DNS/TLS and outside the Azure contract"
           }
         ],
         "tradeoffs": [
-          "Cache invalidation on deploys"
+          "Cache invalidation on deploys",
+          "Front Door Standard has a $35/month base fee before requests and egress"
         ],
         "deployment": "managed",
         "provider": "azure",
         "data_bearing": false,
         "data_location": null,
         "sources": [
-          "https://aws.amazon.com/about-aws/global-infrastructure/regional-product-services/"
+          "https://azure.microsoft.com/en-us/pricing/details/frontdoor/"
         ]
       },
       {
@@ -561,14 +566,14 @@
     ]
   },
   "estimated_monthly_cost_usd": {
-    "min": 89,
-    "max": 467,
+    "min": 123,
+    "max": 512,
     "currency": "USD",
     "assumptions": [
       "Hosting Azure App Service (Linux, Basic B2 / Standard S1): $30-150/month at the 'small' tier.",
-      "Database Azure Database for PostgreSQL – Flexible Server 17: $30-120/month.",
+      "Database Azure Database for PostgreSQL – Flexible Server 17: $30-120/month. Sized for a Burstable B2s instance (about $72 compute); a General Purpose D2ds_v5 alone is about $183.",
       "storage: Azure Blob Storage (Central India (Pune)) $1-10/month.",
-      "cdn: Azure Front Door $1-15/month.",
+      "cdn: Azure Front Door $35-60/month.",
       "ci_cd: GitHub Actions $0-4/month.",
       "observability: Azure Monitor + Application Insights in Central India (Pune) $5-30/month.",
       "Stored data ~50 GB after 12 months at ~$0.02-0.035/GB-month (year-end volume used as an upper bound, not an average).",
@@ -589,7 +594,7 @@
     {
       "code": "BUDGET_AT_RISK",
       "severity": "info",
-      "message": "Upper estimate $467/month can exceed the $150 budget at peak usage.",
+      "message": "Upper estimate $512/month can exceed the $150 budget at peak usage.",
       "fields": [
         "budget.monthly_infra_usd"
       ]
