@@ -55,6 +55,10 @@ EXTRA_FIELDS = [
     ("infrastructure.lock_in_tolerance", "xenum", False, None, ["low", "medium", "high"]),
     ("requirements.rto_minutes", "xint", False, None, 0),
     ("requirements.rpo_minutes", "xint", False, None, 0),
+    # D12: the jurisdiction behind data_residency "other" (R15 list); ignored with any other residency
+    ("infrastructure.residency_country", "xenum", False, None,
+     ["australia", "singapore", "japan", "south_korea", "indonesia", "united_kingdom", "canada", "brazil", "uae",
+      "saudi_arabia", "qatar", "israel", "south_africa", "switzerland", "mexico"]),
 ]
 EXTRA_PATHS = {f[0] for f in EXTRA_FIELDS}
 FIELDS = FIELDS + EXTRA_FIELDS

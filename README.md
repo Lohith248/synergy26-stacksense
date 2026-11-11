@@ -148,7 +148,7 @@ python tools/perturb.py
 
 ## Extra inputs (optional)
 
-The engine accepts every standard field and works on files that contain only those. Six optional extra fields can be added inside the usual groups; when absent they are ignored and nothing is assumed. Invalid values are reported in `validation_errors` like any other field. Interactive mode and the web UI ask for them as optional.
+The engine accepts every standard field and works on files that contain only those. Seven optional extra fields can be added inside the usual groups; when absent they are ignored and nothing is assumed. Invalid values are reported in `validation_errors` like any other field. Interactive mode and the web UI ask for them as optional.
 
 | Field | Values | What it changes |
 |---|---|---|
@@ -157,6 +157,7 @@ The engine accepts every standard field and works on files that contain only tho
 | `team.hiring_languages` | list of strings | Languages the team will hire for count at half the weight of languages it already writes (for example, hiring Kotlin developers moves P6's Android app to native Kotlin). |
 | `infrastructure.lock_in_tolerance` | `low`, `medium`, `high` | `low` penalises provider-specific runtimes and data stores (Lambda, DynamoDB, Firestore, Cosmos DB, Cognito) and favours portable containers and open engines. |
 | `requirements.rto_minutes` | integer ≥ 0 | Recovery time objective. Under 60 minutes adds a zone-redundant database standby with automatic failover and a second app instance (cost band rises); under 5 minutes adds `RTO_BELOW_FAILOVER`. |
+| `infrastructure.residency_country` | `australia`, `singapore`, `japan`, `south_korea`, `indonesia`, `united_kingdom`, `canada`, `brazil`, `uae`, `saudi_arabia`, `qatar`, `israel`, `south_africa`, `switzerland`, `mexico` | Only with `data_residency: "other"` (ignored with a warning otherwise). Every data store uses that country's region from `../research/R15-regions-other.md`; providers without one are excluded, and an explicit `cloud_preference` with no region there is `infeasible`. Without this field the engine reads the country from `project.description` (country names, demonyms, major cities; one jurisdiction only, `RESIDENCY_FROM_DESCRIPTION` warning). Regional words (Gulf, APAC, Europe...) or two countries keep the critical `RESIDENCY_UNSPECIFIED` and list the plausible countries (D12). |
 | `requirements.rpo_minutes` | integer ≥ 0 | Recovery point objective. Under 5 minutes adds the same standby on a managed database, or `RPO_NEEDS_REPLICATION` on a self-hosted one. The 60/5-minute thresholds are planning heuristics, not provider guarantees. |
 
 Example: `scenarios/extras/X1_p6_with_extras.json` (P6 plus the first four). The counterfactual probes include `lock_in_tolerance` and `geo_spread`, so `what_would_change` shows when they matter.

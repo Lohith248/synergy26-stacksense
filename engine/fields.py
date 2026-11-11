@@ -59,6 +59,7 @@ AFFECTS = {
     "infrastructure.lock_in_tolerance": "database hosting supporting cost warnings ranking",
     "requirements.rto_minutes": "database cost warnings ranking",
     "requirements.rpo_minutes": "database cost warnings ranking",
+    "infrastructure.residency_country": "database hosting supporting warnings ranking",
 }
 
 HOW = {
@@ -106,6 +107,7 @@ HOW = {
     "infrastructure.lock_in_tolerance": "Optional: low penalises provider-specific runtimes and data stores.",
     "requirements.rto_minutes": "Optional: recovery time objective; under 60 min adds a zone-redundant database standby and a second app instance; under 5 min warns.",
     "requirements.rpo_minutes": "Optional: recovery point objective; under 5 min adds a zone-redundant standby (managed) or a replication warning (self-hosted).",
+    "infrastructure.residency_country": "Optional: with data_residency other, names the country whose regions every data store must use; ignored otherwise.",
 }
 
 

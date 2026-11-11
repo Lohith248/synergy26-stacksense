@@ -111,7 +111,8 @@ def hosting_candidates(ctx):
             c.exclude("serves static/edge pages only; this project needs an application backend", "project.type")
         # hard: residency (any host that stores or processes personal data must sit in the region)
         if ctx["res_key"] and ctx["needs_backend"] and kind != "onprem" and ctx["res_key"] not in h["regions"]:
-            c.exclude(f"no {ctx['residency'].upper()} region for application data", "infrastructure.data_residency")
+            c.exclude(f"no {h['name'].split(' (')[0]} region in {ctx['res_label']} (R15 region lists, 12 Nov 2026) for application data" if ctx["country"]
+                      else f"no {ctx['residency'].upper()} region for application data", "infrastructure.data_residency")
         # hard: commercial terms
         if not h["commercial_ok"] and ctx["type"] not in ("content_site", "other"):
             c.exclude("free plan terms do not allow commercial products", "project.type")
@@ -310,7 +311,8 @@ def database_candidates(ctx, host, backend):
         if vkey == "any" and ctx["cloud"] in ("aws", "azure", "gcp") and d["id"] != "mongodb":
             c.exclude(f"a separate vendor outside the explicit cloud_preference {ctx['cloud']}", "infrastructure.cloud_preference")
         if vkey == "any" and ctx["res_key"] and "regions" in d and ctx["res_key"] not in d["regions"]:
-            c.exclude(f"no {ctx['res_key'].upper()} region", "infrastructure.data_residency")
+            c.exclude(f"no {d['name'].split(' (')[0]} region in {ctx['res_label']} (R15 region lists, 12 Nov 2026)" if ctx["country"]
+                      else f"no {ctx['res_key'].upper()} region", "infrastructure.data_residency")
         if name is not None:
             lo = db_cost(d, vkey)[ctx["tier"]][0]
             left = max(0, ctx["budget"] - host.item["cost"][ctx["tier"]][0])

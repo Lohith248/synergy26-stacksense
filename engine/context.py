@@ -40,6 +40,68 @@ DESC_RULES = [
 ]
 
 
+# D12: data_residency 'other' -> jurisdiction. Ids, display names and keywords from ../research/R15-regions-other.md.
+# Whole-word, case-insensitive; acronyms in ACRONYMS match upper-case only (as written) so "mas", "sama" or "nia" in prose
+# never pick a country. Lookbehinds keep "New Mexico", "North Korea", "New England" and "New South Wales" out.
+COUNTRIES = {
+    "australia": ("Australia", r"australian?|aussie|sydney|melbourne|canberra|brisbane|perth"),
+    "singapore": ("Singapore", r"singaporean?|pdpa-sg"),
+    "japan": ("Japan", r"japan(?:ese)?|tokyo|osaka"),
+    "south_korea": ("South Korea", r"(?<!north )korean?|seoul|busan|k-isms"),
+    "indonesia": ("Indonesia", r"indonesian?|jakarta|pdp law"),
+    "united_kingdom": ("the United Kingdom", r"u\.k\.|united kingdom|british(?! columbia)|britain|(?<!new )england|scotland|(?<!new south )wales|london|uk gdpr"),
+    "canada": ("Canada", r"canad(?:a|ian)|toronto|montr[eé]al|quebec|ottawa|vancouver|pipeda|law 25"),
+    "brazil": ("Brazil", r"brazil(?:ian)?|brasil|s[aã]o paulo|rio|lgpd|bacen"),
+    "uae": ("the UAE", r"united arab emirates|emirat(?:i|es)|dubai|abu dhabi"),
+    "saudi_arabia": ("Saudi Arabia", r"saudi(?: arabia)?|riyadh|jeddah|dammam|vision 2030"),
+    "qatar": ("Qatar", r"qatar[i]?|doha"),
+    "israel": ("Israel", r"israeli?|tel aviv|jerusalem|haifa"),
+    "south_africa": ("South Africa", r"south african?|johannesburg|cape town|pretoria|popia"),
+    "switzerland": ("Switzerland", r"switzerland|swiss(?! army)|zurich|geneva|bern|ndsg|fadp"),
+    "mexico": ("Mexico", r"(?<!new )mexic(?:o|an)|cdmx|quer[eé]taro|monterrey|lfpdppp"),
+}
+ACRONYMS = {"australia": "IRAP|APRA", "singapore": "MAS", "japan": "APPI|FISC", "south_korea": "PIPA",
+            "indonesia": "OJK", "united_kingdom": "UK|NHS", "uae": "UAE|DIFC|ADGM|TDRA",
+            "saudi_arabia": "KSA|NCA|SAMA", "qatar": "QCB|NIA", "south_africa": "SARB", "switzerland": "FINMA"}
+# Regional words that name several jurisdictions (R15 "ambiguous" column): never pinned, only reported as plausible.
+AMBIGUOUS = [
+    (r"gulf|gcc", "i", ["uae", "saudi_arabia", "qatar"]),
+    (r"middle east|mena", "i", ["uae", "saudi_arabia", "qatar", "israel"]),
+    (r"MEA", "", ["uae", "saudi_arabia", "qatar", "israel", "south_africa"]),
+    (r"apac|asia[- ]pacific|oceania|anz", "i", ["australia", "singapore", "japan", "south_korea", "indonesia"]),
+    (r"south ?east asia|asean", "i", ["singapore", "indonesia"]),
+    (r"SEA", "", ["singapore", "indonesia"]),
+    (r"asia", "i", ["singapore", "japan", "south_korea", "indonesia"]),
+    (r"(?:sub-saharan )?africa", "i", ["south_africa"]),
+    (r"latam|latin america|south america", "i", ["brazil", "mexico"]),
+    (r"north america", "i", ["canada", "mexico"]),
+    (r"europe", "i", ["united_kingdom", "switzerland"]),
+    (r"arabia", "i", ["saudi_arabia"]),
+    (r"SA", "", ["saudi_arabia", "south_africa"]),
+]
+
+
+def detect_country(text):
+    """project.description -> (country id or None, matched word, plausible ids). Exactly one jurisdiction named -> that
+    one; several or only regional words -> None with the plausible list (D12)."""
+    text = text or ""
+    hits = {}
+    for cid, (_, rx) in COUNTRIES.items():
+        m = re.search(r"(?<!\w)(?:" + rx + r")(?!\w)", text, re.I)
+        if not m and cid in ACRONYMS:
+            m = re.search(r"(?<!\w)(?:" + ACRONYMS[cid] + r")(?!\w)", text)
+        if m:
+            hits[cid] = m.group(0)
+    if len(hits) == 1:
+        cid = next(iter(hits))
+        return cid, hits[cid], []
+    plaus = list(hits)
+    for rx, flags, ids in AMBIGUOUS:
+        if not hits and re.search(r"(?<!\w)(?:" + rx + r")(?!\w)", text, re.I if flags else 0):
+            plaus += [i for i in ids if i not in plaus]
+    return None, None, plaus
+
+
 def lifecycle_text(low):
     """Normalise common product spellings so 'Node.js 18', 'node-18', 'ASP.NET Core 8', 'PostgreSQL14', 'Angular 1.x'
     meet the lifecycle patterns ('node 18', '.net 8', 'postgresql 14', 'angularjs'); a digit may not follow a pattern."""
@@ -111,6 +173,23 @@ def build(req):
     # people in India even without a residency requirement); drives Indian SMS and payment providers
     c["india_users"] = res == "india" or "dpdp" in comp or "rbi_localisation" in comp
     c["res_key"] = res if res in ("india", "eu", "us") else None
+    # D12: 'other' resolved to one jurisdiction from the extra field, else from the description
+    c["country"] = c["country_path"] = c["country_word"] = None
+    c["country_plausible"] = []
+    if res == "other":
+        if req.get("infrastructure.residency_country"):
+            c["country"], c["country_path"] = req["infrastructure.residency_country"], "infrastructure.residency_country"
+        else:
+            cid, word, plaus = detect_country(req["project.description"])
+            c["country_plausible"] = plaus
+            if cid:
+                c["country"], c["country_path"], c["country_word"] = cid, "project.description", word
+    if c["country"]:
+        c["residency"] = c["res_key"] = c["country"]
+    c["res_label"] = COUNTRIES[c["country"]][0] if c["country"] else (c["residency"] or "").upper()
+    # a named jurisdiction (india/eu/us or a resolved 'other'); rbi-derived India stays separate as before
+    c["res_named"] = res in ("india", "eu", "us") or bool(c["country"])
+    c["res_paths"] = ["infrastructure.data_residency"] + ([c["country_path"]] if c["country"] else [])
     c["self_host_only"] = c["deploy"] in ("on_premise", "air_gapped")
     c["no_internet"] = c["deploy"] == "air_gapped"
     c["prio"] = {k: req[f"priorities.{k}"] for k in ("cost", "time_to_market", "scalability", "performance",

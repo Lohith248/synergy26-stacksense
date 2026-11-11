@@ -47,7 +47,25 @@ def hard_conflicts(ctx):
         out.append(("RBI_LOCALISATION_VS_RESIDENCY",
                     f"rbi_localisation requires payment data to be stored only in India, but data_residency is '{res}'.",
                     ["compliance", "infrastructure.data_residency"]))
+    if ctx["country"] and cloud in ("aws", "azure", "gcp") and ctx["needs_backend"] and dep in ("managed_cloud", "self_hosted_cloud_vm") \
+            and not any(h["provider"] == cloud and ctx["country"] in h["regions"] for h in TECH["hosting"]):
+        others = sorted({PROVIDER_NAME[h["provider"]] for h in TECH["hosting"]
+                         if h["provider"] in PROVIDER_NAME and ctx["country"] in h["regions"]})
+        out.append(("RESIDENCY_NO_PROVIDER_REGION",
+                    f"cloud_preference '{cloud}' has no region in {ctx['res_label']} ({PROVIDER_NAME[cloud]} region list, R15, 12 Nov 2026), so data "
+                    f"cannot stay in {ctx['res_label']} on {PROVIDER_NAME[cloud]}. Change one: "
+                    + (f"a provider with a region there ({', '.join(others)}), or " if others else "")
+                    + "a different residency jurisdiction.",
+                    ["infrastructure.cloud_preference"] + ctx["res_paths"]))
     return out
+
+
+PROVIDER_NAME = {"aws": "AWS", "azure": "Azure", "gcp": "Google Cloud"}
+
+
+def short(cid):
+    n = cx.COUNTRIES[cid][0]
+    return n[4:] if n.startswith("the ") else n
 
 
 def component(cand, ranked_ok, ranked_out, extra_paths, extras, name=None, base_why=""):
@@ -169,8 +187,8 @@ def envelope_text(ctx, region):
         bits.append(f"deployment_model {ctx['deploy']}")
     else:
         bits.append("managed_cloud (no servers to patch)")
-    if ctx["req"]["infrastructure.data_residency"] in ("india", "eu", "us") or ctx["residency_from_rbi"]:
-        bits.append(f"data_residency {ctx['residency']}" + (f" -> {region}" if region else ""))
+    if ctx["res_named"] or ctx["residency_from_rbi"]:
+        bits.append(f"data_residency {ctx['residency'] if not ctx['country'] else 'other (' + short(ctx['country']) + ')'}" + (f" -> {region}" if region else ""))
     return "Satisfies the hard constraints (" + ", ".join(bits) + "). " if bits else ""
 
 
@@ -205,9 +223,32 @@ def _recommend(req, assumptions, sid):
 
     if ctx["residency_from_rbi"]:
         assumptions.append("rbi_localisation present with data_residency 'none': payment and personal data are kept in India.")
-    if ctx["req"]["infrastructure.data_residency"] == "other":
-        W("RESIDENCY_UNSPECIFIED", "critical", "data_residency 'other' does not name a jurisdiction; regions could not be verified. State the country so every data store can be pinned.",
-          ["infrastructure.data_residency"])
+    rc = req["infrastructure.residency_country"]
+    if rc and req["infrastructure.data_residency"] != "other":
+        W("RESIDENCY_COUNTRY_IGNORED", "warning",
+          f"infrastructure.residency_country '{rc}' is ignored: it applies only to data_residency 'other', and data_residency "
+          f"'{req['infrastructure.data_residency']}' stays authoritative" + ("" if req["infrastructure.data_residency"] == "none"
+                                                                             else f" (so data is not pinned to {short(rc)})") + ".",
+          ["infrastructure.data_residency", "infrastructure.residency_country"])
+    if ctx["country"] and ctx["country_path"] == "infrastructure.residency_country":
+        W("RESIDENCY_COUNTRY", "info", f"data_residency 'other' with infrastructure.residency_country '{rc}': every data store is pinned to "
+          f"regions in {ctx['res_label']}.", ctx["res_paths"])
+        assumptions.append(f"data_residency 'other' read as {short(ctx['country'])} from infrastructure.residency_country; regions come from "
+                           "the R15 provider region lists (12 Nov 2026). A region is a data-location control, not proof of compliance; "
+                           "product availability inside that region is not checked per service.")
+    elif ctx["country"]:
+        W("RESIDENCY_FROM_DESCRIPTION", "warning",
+          f"data_residency 'other' read as {short(ctx['country'])} from project.description ('{ctx['country_word']}'); every data store is pinned "
+          f"to regions in {ctx['res_label']}. Confirm, or set infrastructure.residency_country.", ctx["res_paths"])
+        assumptions.append(f"data_residency 'other' read as {short(ctx['country'])} from project.description ('{ctx['country_word']}'), the only "
+                           "jurisdiction it names; regions come from the R15 provider region lists (12 Nov 2026). A region is a data-location "
+                           "control, not proof of compliance; product availability inside that region is not checked per service.")
+    elif ctx["req"]["infrastructure.data_residency"] == "other":
+        plaus = ctx["country_plausible"]
+        W("RESIDENCY_UNSPECIFIED", "critical", "data_residency 'other' does not name a jurisdiction; regions could not be verified. State the country so every data store can be pinned."
+          + (f" project.description points to more than one jurisdiction (plausible: {', '.join(short(p) for p in plaus)}); "
+             "set infrastructure.residency_country to pin one." if plaus else ""),
+          ["infrastructure.data_residency"] + (["project.description"] if plaus else []))
         assumptions.append("data_residency 'other': no region pinning applied; choose regions in the required jurisdiction.")
     if not ctx["langs"]:
         assumptions.append("team.languages is empty: no language preference applied; mainstream options ranked on other factors.")
@@ -291,6 +332,11 @@ def _recommend(req, assumptions, sid):
             assumptions.append("No data_residency given: deploy in the provider region closest to most users (not specified in the input).")
     ctx["res_key"] = loc
     host_extra_paths = [p for p in HARD_PATHS if any(c.excluded and c.excluded[1] == p for c in h_out)]
+    if ctx["country"]:
+        host_extra_paths += ctx["res_paths"]
+        if any(x in (region or "") for x in ("opt-in", "access-gated")):
+            assumptions.append(f"{region}: " + ("an AWS opt-in region, enabled per account before use" if "opt-in" in region
+                                                 else "Google Cloud gates access to this region with a separate request") + " (R15).")
     if any(c.term("lock_in") for c in h_ok if c is not host_c) or host_c.term("lock_in"):
         host_extra_paths.append("infrastructure.lock_in_tolerance")
     plan = ""
@@ -305,6 +351,8 @@ def _recommend(req, assumptions, sid):
                         {"deployment": host["deploy"], "provider": host["provider"], "data_bearing": ctx["needs_backend"],
                          "data_location": loc if ctx["needs_backend"] else None, "region": region}, name=host_name,
                         base_why=envelope_text(ctx, region) if ctx["needs_backend"] else "")
+    if ctx["country"]:
+        hosting["sources"] = hosting["sources"] + [u for u in cite([REGION_SRC.get(host["provider"], "aws-regions-list")]) if u not in hosting["sources"]]
 
     # ---- backend component
     if backend_c:
@@ -331,6 +379,11 @@ def _recommend(req, assumptions, sid):
         db_cmp = component(db_c, d_ok, d_out, [], {"deployment": "self_hosted" if db_c.vkey == "self" else "managed",
                                                    "provider": host["provider"] if db_c.vkey not in ("any", "self") else (db_c.id if db_c.vkey == "any" else "neutral"),
                                                    "data_bearing": True, "data_location": loc}, name=vname)
+        if ctx["country"]:
+            db_cmp["driven_by"] = order_paths(db_cmp["driven_by"] + ctx["res_paths"])
+            src = REGION_SRC.get(db_c.id if db_c.vkey == "any" else host["provider"])
+            if src:
+                db_cmp["sources"] = db_cmp["sources"] + [u for u in cite([src]) if u not in db_cmp["sources"]]
         if ha and db_c.vkey != "self":
             hp = ha_paths(req)
             if hp == ["requirements.availability"]:
@@ -454,12 +507,12 @@ def _recommend(req, assumptions, sid):
     # ---- warnings from contradictions and context
     contradictions(ctx, W, assumptions, host, backend)
     for s in supporting:
-        explicit = ctx["req"]["infrastructure.data_residency"] in ("india", "eu", "us") or ctx["residency_from_rbi"]
+        explicit = ctx["res_named"] or ctx["residency_from_rbi"]
         if s["layer"] == "payments" and any(w["code"] == "PAYMENT_DATA_LOCATION" for w in W.items):
             continue
         if s["data_bearing"] and explicit and s["data_location"] not in (ctx["res_key"], "device"):
-            W("RESIDENCY_UNVERIFIED_SERVICE", "critical", f"{s['choice']} stores data but its location could not be pinned to {ctx['residency'].upper()}.",
-              ["infrastructure.data_residency"])
+            W("RESIDENCY_UNVERIFIED_SERVICE", "critical", f"{s['choice']} stores data but its location could not be pinned to {ctx['res_label']}.",
+              ctx["res_paths"])
 
     # ---- cost band
     cost = cost_band(ctx, host, db_item, db_c if ctx["needs_db"] else None, supporting, assumptions)
@@ -511,6 +564,15 @@ def _recommend(req, assumptions, sid):
 SECOND_REGION = {"aws": {"india": "ap-south-2 (Hyderabad)", "eu": "eu-west-1 (Ireland)", "us": "us-east-2 (Ohio)"},
                  "azure": {"india": "South India (Chennai)", "eu": "North Europe (Ireland)", "us": "West US 2 (Washington)"},
                  "gcp": {"india": "asia-south2 (Delhi)", "eu": "europe-west4 (Netherlands)", "us": "us-east1 (South Carolina)"}}
+# D12: only where R15 lists a second GA, unrestricted region in the same country for that provider (none invented)
+SECOND_REGION["aws"].update({"australia": "ap-southeast-4 (Melbourne, opt-in region)", "japan": "ap-northeast-3 (Osaka)",
+                             "canada": "ca-west-1 (Calgary, opt-in region)"})
+SECOND_REGION["azure"].update({"australia": "Australia Southeast (Victoria)", "japan": "Japan West (Osaka)", "south_korea": "Korea South (Busan)",
+                               "united_kingdom": "UK West (Cardiff)", "canada": "Canada East (Quebec)"})
+SECOND_REGION["gcp"].update({"australia": "australia-southeast2 (Melbourne)", "japan": "asia-northeast2 (Osaka)",
+                             "canada": "northamerica-northeast2 (Toronto)"})
+REGION_SRC = {"aws": "aws-regions-list", "azure": "azure-regions", "gcp": "gcp-regions-zones", "vercel": "vercel-regions",
+              "render": "render-regions", "railway": "railway-regions", "digitalocean": "digitalocean-regions", "supabase": "supabase-regions"}
 FAILOVER = {"aws": "Route 53 health-checked failover records", "azure": "Azure Front Door priority routing",
             "gcp": "a global external Application Load Balancer with backends in both regions"}
 
@@ -523,17 +585,21 @@ def second_region(ctx, host, db_c):
     if req["requirements.availability"] != "99.99" or p not in SECOND_REGION or host["kind"] in ("vm", "onprem", "static") \
             or not ctx["needs_backend"]:
         return None
-    loc = ctx["res_key"] if ctx["res_key"] in ("india", "eu", "us") else None
+    loc = ctx["res_key"] if ctx["res_key"] in ("india", "eu", "us") or ctx["country"] else None
+    if ctx["country"] and loc not in SECOND_REGION[p]:
+        ctx["no_second_region"] = (f" {PROVIDER_NAME[p]} lists only one region in {ctx['res_label']} (R15, 12 Nov 2026), so a second region would "
+                                   "take data out of the country: confirm in-country disaster-recovery options with the provider, or plan on 99.95%.")
+        return None
     where = SECOND_REGION[p][loc] if loc else f"a second {p.upper()} region"
     ctx["second_region"] = where
     dbc = sl.db_cost(db_c.item, db_c.vkey) if db_c and db_c.vkey != "self" else [[0, 0]] * 4
     cost = [[round(host["cost"][i][0] / 2) + dbc[i][0], host["cost"][i][1] + dbc[i][1]] for i in range(4)]
-    explicit = req["infrastructure.data_residency"] in ("india", "eu", "us") or ctx["residency_from_rbi"]
+    explicit = ctx["res_named"] or ctx["residency_from_rbi"]
     return sv.svc("other", f"Second-region warm standby in {where}: cross-region database replica + {FAILOVER[p]}",
                   f"The 99.99% target allows about 4.4 minutes of downtime a month, which one region cannot promise. A scaled-down copy of the "
                   f"application runs in {where}, the database streams to a cross-region read replica that is promoted on failover, and "
                   f"{FAILOVER[p]} move traffic when health checks fail" + (", without leaving the required residency area." if loc else "."),
-                  ["requirements.availability"] + (["infrastructure.data_residency"] if explicit else []),
+                  ["requirements.availability"] + (ctx["res_paths"] if explicit else []),
                   [("Active-active in two regions", "multi-region writes need a globally distributed database: far more cost and complexity at this scale"),
                    ("Single region, multiple zones", "designed for about 99.95%; one regional outage breaks a 99.99% target")],
                   ["Replica lag: a failover can lose the last few seconds of writes (RPO in seconds, not zero)",
@@ -561,8 +627,9 @@ def contradictions(ctx, W, assumptions, host, backend):
               ["requirements.availability"])
         else:
             W("AVAILABILITY_SINGLE_REGION", "warning", why +
-              "This stack runs multi-zone in one region; add a second region with tested failover, or plan on 99.95%.",
-              ["requirements.availability"])
+              "This stack runs multi-zone in one region; add a second region with tested failover, or plan on 99.95%."
+              + ctx.get("no_second_region", ""),
+              ["requirements.availability"] + (ctx["res_paths"] if ctx.get("no_second_region") else []))
     n_plat = len([p for p in ctx["platforms"] if p != "api_only"])
     if n_plat >= 3 and ctx["weeks"] <= 6:
         # statement 6 example (short timeline, many platforms): critical at 8 person-weeks or less
@@ -615,12 +682,11 @@ def contradictions(ctx, W, assumptions, host, backend):
     if ctx["no_internet"] and req["requirements.ml_features"] in ("llm_rag", "inference_api"):
         assumptions.append("air_gapped: models and package mirrors must be imported into the network manually.")
     if ctx["geo"] in ("multi_region", "global") and ctx["needs_backend"]:
-        res = ctx["req"]["infrastructure.data_residency"]
         W("GLOBAL_USERS_ONE_REGION", "info",
           f"scale.geo_spread '{ctx['geo']}': the API and database run in one region ({host['name']}), so distant users add roughly 100-250 ms per round trip. "
           "Static assets go through the CDN; " + ("data stays in the residency region, so keep APIs chatty-free and cache public responses at the edge."
-                                                 if res in ("india", "eu", "us") else "add a read replica or a second region when distant traffic grows."),
-          ["scale.geo_spread"] + (["infrastructure.data_residency"] if res in ("india", "eu", "us") else []))
+                                                 if ctx["res_named"] else "add a read replica or a second region when distant traffic grows."),
+          ["scale.geo_spread"] + (ctx["res_paths"] if ctx["res_named"] else []))
     lat = req["requirements.p95_latency_ms"]
     if lat is not None and lat <= 100:
         W("LATENCY_TARGET_UNMEASURED", "info", f"p95 {lat} ms is achievable only with users near the {host['name']} region and no cross-region calls; the engine cannot measure it — load-test before launch.",

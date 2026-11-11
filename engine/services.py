@@ -30,7 +30,7 @@ def build(ctx, host, backend, db, mobile, warn):
     rtxt = f" in {region}" if region else ""
     out = []
     d = ctx["desc"]
-    res_path = ["infrastructure.data_residency"] if loc else []
+    res_path = ctx["res_paths"] if loc else []
 
     # ---------------- auth
     auth = req["requirements.auth"]
@@ -388,10 +388,15 @@ def build(ctx, host, backend, db, mobile, warn):
                      + ("(app-store billing and receipt validation run on Google/Apple servers)." if store
                         else "(card/UPI networks are external by nature). Card data never touches your servers."),
                      ["requirements.payments", "infrastructure.deployment_model"])
-            if not store and not india and ctx["res_key"] in ("eu", "us") and ctx["req"]["infrastructure.data_residency"] in ("eu", "us"):
+            if not store and not india and ((ctx["res_key"] in ("eu", "us") and ctx["req"]["infrastructure.data_residency"] in ("eu", "us")) or ctx["country"]):
                 warn("PAYMENT_DATA_LOCATION", "critical",
-                     f"{name.split(' (')[0]} processes payer data; its storage location for {ctx['residency'].upper()} residency is not verified in the knowledge base — confirm the data-processing terms.",
-                     ["requirements.payments", "infrastructure.data_residency"])
+                     f"{name.split(' (')[0]} processes payer data; its storage location for {ctx['res_label']} residency is not verified in the knowledge base — confirm the data-processing terms.",
+                     ["requirements.payments"] + ctx["res_paths"])
+            if not store and not india and ctx["country"]:
+                warn("PAYMENT_LOCAL_ACQUIRING", "info",
+                     f"{name.split(' (')[0]} is the knowledge base's default gateway outside India; whether it offers local acquiring and local payment "
+                     f"methods in {ctx['res_label']} is not in the knowledge base — confirm with the gateway or choose a local acquirer.",
+                     ["requirements.payments"] + ctx["res_paths"])
             if not store and ctx["type"] == "api_platform" and not india:
                 feats.append("usage-based (metered) billing from API-gateway usage records")
                 src = src + ["stripe-usage-billing"]
@@ -462,7 +467,7 @@ def build(ctx, host, backend, db, mobile, warn):
                                 "azure": ("Azure OpenAI (Foundry) + Azure AI Search vectors", "azure", ["azure-ai-search"]),
                                 "gcp": ("Vertex AI Gemini + pgvector", "gcp", ["gcp-locations"])}.get(p, ("Hosted LLM API + pgvector", "neutral", ["postgres-versioning"]))
                 if loc:
-                    warn("LLM_REGION_CHECK", "critical", f"Confirm the chosen LLM model is served in {ctx['residency'].upper()} before sending personal data to it.",
+                    warn("LLM_REGION_CHECK", "critical", f"Confirm the chosen LLM model is served in {ctx['res_label']} before sending personal data to it.",
                          ["requirements.ml_features", "infrastructure.data_residency"])
             out.append(svc("ml", c, "Retrieval-augmented generation: embeddings stored next to the data, "
                            + ("a local model" if selfh else "a managed model") + " generates answers from retrieved passages.",
@@ -506,7 +511,7 @@ def build(ctx, host, backend, db, mobile, warn):
         if ctx["needs_backend"]:
             out.append(svc("observability", ob[0], f"Logs and metrics stay with the host provider{rtxt}; alerts on error rate and latency{(' against the ' + str(req['requirements.p95_latency_ms']) + ' ms p95 target') if req['requirements.p95_latency_ms'] else ''}.",
                            ["requirements.availability"] + (["requirements.p95_latency_ms"] if req["requirements.p95_latency_ms"] else []) + res_path,
-                           [("Sentry (SaaS)", "stores data only in the US or EU" if loc == "india" else "extra vendor; add later for richer error grouping")],
+                           [("Sentry (SaaS)", "stores data only in the US or EU" if loc == "india" or ctx["country"] else "extra vendor; add later for richer error grouping")],
                            ["Log retention costs grow with traffic"], "managed" if hyper else "self_hosted", ob[1], True,
                            [[0, 5], [5, 30], [30, 200], [200, 1200]], ["sentry-regions"], loc))
 
