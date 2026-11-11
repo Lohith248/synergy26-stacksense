@@ -661,7 +661,7 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         if chi:
             lo += clo
             hi += chi
-            lines.append(f"{s['layer']}: {s['choice'].split(' — ')[0]} ${clo}-{chi}/month.")
+            lines.append(f"{s['layer']}: {s['choice'].split(' — ')[0]} ${clo}-{chi}/month." + s.get("_note", ""))
     gb = ctx["data_gb"]
     if any(s["layer"] == "storage" and s["deployment"] != "self_hosted" for s in supporting) or (db_item and db_c.vkey != "self" and gb > 20):
         slo, shi = round(gb * 0.02, 2), round(gb * 0.035 + 1, 2)

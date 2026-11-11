@@ -70,7 +70,17 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
         if p == "gcp" and not selfh:
             why += "; Google Cloud IoT Core was shut down in August 2023, so the broker is self-run"
         paths = ["project.type", "project.description"] if typ == "iot" else ["project.description"]
-        cost = Z
+        cost, note, trade = Z, "", ["Per-device credentials and certificate rotation must be managed", "Offline devices need local buffering"]
+        if dep == "self_hosted" and selfh:
+            why += "; it runs on the same servers as the application, with TCP 8883 (MQTT over TLS) opened to the devices"
+        elif dep == "self_hosted":
+            # ponytail: rough VM band (e2-small-class VM + 10 GB disk, scaled by tier); vendor price not rendered on 11 Nov 2026
+            name = f"Eclipse Mosquitto MQTT broker on {'a Compute Engine e2-small VM' + rtxt if p == 'gcp' else 'a small always-on VM'} (TCP 8883, persistent disk)"
+            why += (f"; {host['name']} serves HTTP requests, so the broker, which holds long-lived device TCP connections, "
+                    "runs on its own VM in the same region and forwards messages to the app over the private network")
+            cost = [[8, 30], [25, 60], [60, 200], [200, 800]]
+            note = " Rough VM estimate (small VM + disk); vendor price not verified on 11 Nov 2026."
+            trade = trade + ["Open-source Mosquitto is a single node: patch and monitor the VM; a clustered broker is needed for failover"]
         if rate:
             n, sec = rate
             per_month = n * SECONDS_PER_MONTH / sec
@@ -86,8 +96,8 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
         out.append(svc("other", "Device ingestion: " + name, why + ".", paths,
                        [("Devices calling the HTTPS API directly", "a request per reading is heavier on battery, bandwidth and servers"),
                         ("Google Cloud IoT Core", "retired on 16 August 2023")],
-                       ["Per-device credentials and certificate rotation must be managed", "Offline devices need local buffering"],
-                       dep, prov, True, cost, src, loc))
+                       trade, dep, prov, True, cost, src, loc))
+        out[-1]["_note"] = note
     if (iot or (req["scale.workload"] == "write_heavy" and ctx["data_gb"] >= 500)) and db and db.get("family") == "relational":
         ts = "TimescaleDB hypertables (extension supported on Azure Database for PostgreSQL)" if (p == "azure" and db["id"] == "postgresql" and not selfh) else \
             "native monthly partitions + BRIN index on the timestamp"

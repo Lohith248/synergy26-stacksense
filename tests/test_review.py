@@ -189,5 +189,36 @@ class FrontDoorShare(unittest.TestCase):
         self.assertIn('23% of the $150 budget', cdn['justification'])
 
 
+
+def iot(deployment='managed_cloud'):
+    s = copy.deepcopy(PUBLIC[5])  # P6 runs on GCP
+    s['project'].update(type='iot', description='Sensors publish temperature telemetry via MQTT and trigger alerts.')
+    if deployment != 'managed_cloud':
+        s['infrastructure'].update(cloud_preference='none', deployment_model=deployment)
+    return evaluate(s, counterfactuals=False)
+
+
+class IotBroker(unittest.TestCase):
+    def test_cloud_broker_has_its_own_priced_vm_next_to_the_http_host(self):
+        out = iot()
+        host = out['stack']['hosting']['choice']
+        self.assertIn('Cloud Run', host)
+        broker = next(x for x in out['stack']['supporting'] if 'Mosquitto' in x['choice'])
+        self.assertIn('Compute Engine', broker['choice'])
+        self.assertIn('asia-south1', broker['choice'])
+        self.assertIn('TCP', broker['justification'])
+        line = next(a for a in out['estimated_monthly_cost_usd']['assumptions'] if 'Mosquitto' in a)
+        self.assertNotIn('$0-0', line)
+        self.assertIn('not verified', line)
+
+    def test_on_premise_broker_runs_on_the_existing_servers_at_no_cloud_cost(self):
+        out = iot('on_premise')
+        broker = next(x for x in out['stack']['supporting'] if 'Mosquitto' in x['choice'])
+        self.assertNotIn('Compute Engine', broker['choice'])
+        self.assertEqual(broker['deployment'], 'self_hosted')
+        self.assertIn('same servers', broker['justification'])
+        self.assertFalse(any('Mosquitto' in a for a in out['estimated_monthly_cost_usd']['assumptions']))
+
+
 if __name__ == '__main__':
     unittest.main()
