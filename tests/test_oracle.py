@@ -68,7 +68,7 @@ ORACLE = {
                          ["Lambda", "Kubernetes", "Pages", "Static", "On-premises"], INDIA),
                sup_has={"payments": ["Razorpay", "Cashfree", "PayU"], "realtime": ["Socket.IO", "SignalR", "WebSocket", "Ably", "Pusher"]}),
     "P3": dict(frontend=w(["React", "Next.js", "Svelte", "Vue"], ["React Native", "Kotlin", "Unity"]),
-               backend=w(["Go", "Node", "NestJS"], [".NET", "Rails", "Laravel", "Django", "Spring", "PHP"]),
+               backend=w(["Go 1", "Node", "NestJS"], [".NET", "Rails", "Laravel", "Django", "Spring", "PHP"]),
                database=w(["PostgreSQL", "Postgres"], ["SQLite"]),
                hosting=w([], ["Lambda", "Pages", "Static", "On-premises", "Functions"]),
                sup_has={"realtime": ["Yjs", "CRDT", "Liveblocks", "WebSocket"]}),
@@ -91,7 +91,7 @@ ORACLE = {
                database=w([], ["SQLite", "None"]), hosting=w([], ["Pages", "Static", "On-premises", "Lambda"])),
     "E4": dict(frontend=w(["Astro", "Next.js", "Eleventy", "Hugo"]), backend=w(["None"]), database=w(["None"]),
                hosting=w(STATIC_OK, STATIC_BAD)),
-    "E5": dict(backend=w(["Node", "NestJS", "Go"], ["PHP", "Rails"]),
+    "E5": dict(backend=w(["Node", "NestJS", "Go 1"], ["PHP", "Rails"]),
                database=w(["PostgreSQL"], ["SQLite"], US),
                hosting=w([], ["Lambda", "Pages", "Static", "On-premises", "India", "Europe", "Mumbai"], US)),
     "E6": dict(backend=w([".NET"], langs_except(".NET")),
@@ -133,7 +133,7 @@ ORACLE = {
                 database=w(["PostgreSQL"], ["SQLite", "Mongo"], US),
                 hosting=w([], ["Lambda", "Pages", "Static", "Netlify", "Vercel", "On-premises"], US),
                 sup_has={"realtime": ["SignalR", "WebSocket", "Twilio", "Socket.IO", "Daily", "Chime", "Agora"]}),
-    "H06": dict(frontend=w(["None"]), backend=w(["Go"], ["PHP", "Rails", "Django", ".NET", "Spring"]),
+    "H06": dict(frontend=w(["None"]), backend=w(["Go 1"], ["PHP", "Rails", "Django", ".NET", "Spring"]),
                 database=w(["PostgreSQL", "Postgres"], ["SQLite"]), hosting=w([], ["Pages", "Static", "On-premises"]),
                 sup_has={"other": ["gateway"]}, sup_absent=["auth"]),
     "H07": dict(backend=w(["Node", "NestJS"], ["Django", ".NET", "Spring", "Rails", "PHP"]),
@@ -256,7 +256,7 @@ class Invariants(unittest.TestCase):
     def test_budget_overrun_is_never_silent(self):
         for sid, s, o in self._each():
             budget = s.get("budget", {}).get("monthly_infra_usd")
-            if budget:
+            if budget is not None:
                 codes = {w["code"] for w in o["warnings"]}
                 if o["estimated_monthly_cost_usd"]["min"] > budget:
                     self.assertIn("BUDGET_EXCEEDED", codes, sid)

@@ -205,7 +205,8 @@ def backend_candidates(ctx, host):
         if ctx["existing_db"] and ctx["existing_db"]["pattern"].get("engine") == "sqlserver":
             c.add("existing", (b["sqlserver"] - 3) * 2, "infrastructure.existing_systems",
                   "first-class SQL Server driver/ORM" if b["sqlserver"] >= 4 else "weaker SQL Server tooling")
-        if ctx["langs"] and ctx["web"] and not set(ctx["langs"]) & {"javascript", "typescript"} and set(b["langs"]) & {"javascript", "typescript"}:
+        if (ctx["langs"] and ctx["web"] and not set(ctx["langs"]) & {"javascript", "typescript"} and set(b["langs"]) & {"javascript", "typescript"}
+                and not set(ctx["hiring"]) & {"javascript", "typescript"}):  # hiring already earns lang credit
             c.add("one_new_language", 7 * ctx["lf"], "team.languages",  # cancels the language-mismatch penalty above: JS must be learned for the web UI regardless
                   "the web UI needs JavaScript/TypeScript anyway, so the team learns one new language instead of two")
         js_team = set(ctx["langs"]) & {"javascript", "typescript"}

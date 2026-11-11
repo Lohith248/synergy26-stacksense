@@ -207,7 +207,7 @@ def build(ctx, host, backend, db, mobile, warn):
             if p == "gcp" and not selfh:  # Google Cloud has no managed engine comparable to OpenSearch / Azure AI Search
                 src = src + ["gcp-vertex-search"]
                 alts.append(("Vertex AI Search", "Google positions it as generative-AI search for websites, enterprise data and media, not a general "
-                             "application search engine; Elastic Cloud on the Google Cloud Marketplace is the managed option to price if self-hosting is unwanted"))
+                             "application search engine; a managed Elasticsearch-compatible service (for example Elastic Cloud on the Google Cloud Marketplace) can be priced if self-hosting is unwanted"))
             out.append(svc("search", c, f"Search at {ctx['users']:,} users / {ctx['data_gb']:g} GB benefits from a dedicated engine with relevance tuning, kept in the same region as the data.",
                            dp + ["scale.users_12_months"] + res_path,
                            alts,

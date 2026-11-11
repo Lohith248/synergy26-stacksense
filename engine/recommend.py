@@ -439,7 +439,7 @@ def contradictions(ctx, W, assumptions, host, backend):
         W("SEO_ON_INTERNAL_TOOL", "warning", "seo_critical is true for an internal tool; pages behind a login are not indexed by search engines. Confirm whether a public site is meant, otherwise set it to false.",
           ["requirements.seo_critical", "project.type"])
     if "hipaa" in req["compliance"] and req["infrastructure.data_residency"] in ("india", "eu", "other"):
-        W("HIPAA_RESIDENCY", "warning", f"HIPAA covers US patient data, but data_residency is '{req['infrastructure.data_residency']}'. Data kept only in that region may conflict with US clinics' expectations, and a BAA with the cloud provider is still required; confirm which law governs which data.",
+        W("HIPAA_RESIDENCY", "warning", f"HIPAA covers US patient data, but data_residency is '{req['infrastructure.data_residency']}'. HIPAA does not require US storage, but it still needs a BAA with the cloud provider; confirm which law governs which data and whether any US patients' data must stay in the US.",
           ["compliance", "infrastructure.data_residency"])
     if req["requirements.seo_critical"] and not ctx["web"]:
         W("SEO_WITHOUT_WEB", "warning", "seo_critical is true but no web platform is listed; search engines cannot index native apps. Add a web landing site.",
@@ -450,7 +450,7 @@ def contradictions(ctx, W, assumptions, host, backend):
         if peak > top:
             W("PEAK_EXCEEDS_USERS", "warning", f"peak_concurrent_users ({peak:,}) exceeds the total user count ({top:,}); check the numbers.",
               ["scale.peak_concurrent_users", "scale.users_12_months"])
-        elif peak >= req["scale.users_at_launch"] > 0 and peak > 1000:
+        elif peak == req["scale.users_at_launch"] and peak > 1000:
             W("PEAK_EQUALS_LAUNCH_USERS", "info", f"Every launch user ({req['scale.users_at_launch']:,}) is assumed online at once at peak; sizing uses this conservative figure.",
               ["scale.peak_concurrent_users", "scale.users_at_launch"])
     if req["scale.users_12_months"] < req["scale.users_at_launch"]:

@@ -525,15 +525,6 @@
   },
   "warnings": [
     {
-      "code": "PEAK_EQUALS_LAUNCH_USERS",
-      "severity": "info",
-      "message": "Every launch user (1,000) is assumed online at once at peak; sizing uses this conservative figure.",
-      "fields": [
-        "scale.peak_concurrent_users",
-        "scale.users_at_launch"
-      ]
-    },
-    {
       "code": "LATENCY_TARGET_UNMEASURED",
       "severity": "info",
       "message": "p95 100 ms is achievable only with users near the Azure App Service (Linux, Premium v3, 2+ instances) region and no cross-region calls; the engine cannot measure it — load-test before launch.",
