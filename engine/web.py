@@ -27,8 +27,9 @@ def samples():
     out = []
     with open(os.path.join(ROOT, "scenarios", "stacksense_public_scenarios.json"), encoding="utf-8") as f:
         for s in json.load(f):
-            out.append({"id": s["scenario_id"], "label": f"{s['scenario_id']} {s['project']['name']}", "scenario": s})
-    for sub in ("edge_cases", "extras", "hidden_like"):
+            out.append({"id": s["scenario_id"], "label": f"{s['scenario_id']} {s['project']['name']}", "group": "Public scenarios", "scenario": s})
+    groups = {"edge_cases": "Edge cases", "extras": "Extra inputs", "hidden_like": "Probe scenarios"}
+    for sub in groups:
         edir = os.path.join(ROOT, "scenarios", sub)
         for name in sorted(os.listdir(edir)) if os.path.isdir(edir) else []:
             if name.endswith(".json"):
@@ -38,7 +39,7 @@ def samples():
                     data = json.loads(text)
                 except ValueError:
                     data = text  # malformed on purpose (an edge case); sent as raw text
-                out.append({"id": name[:-5], "label": name[:-5].replace("_", " "), "scenario": data})
+                out.append({"id": name[:-5], "label": name[:-5].replace("_", " "), "group": groups[sub], "scenario": data})
     return out
 
 
