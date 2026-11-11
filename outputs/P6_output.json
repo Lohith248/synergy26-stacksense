@@ -476,7 +476,7 @@
     "currency": "USD",
     "assumptions": [
       "Hosting Google Cloud Run: $0-10/month at the 'tiny' tier.",
-      "Database Cloud SQL for PostgreSQL 17: $10-30/month.",
+      "Database Cloud SQL for PostgreSQL 17: $10-30/month. Assumes a shared-core instance: Google excludes shared-core instances from the Cloud SQL SLA and advises against production use; price band not verified, and a dedicated-core instance costs more.",
       "storage: Google Cloud Storage (asia-south1 (Mumbai)) $0-2/month.",
       "queue: Google Cloud Pub/Sub / Cloud Tasks in asia-south1 (Mumbai) $0-1/month.",
       "ci_cd: GitHub Actions $0-4/month.",

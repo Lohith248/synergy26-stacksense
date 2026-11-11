@@ -665,6 +665,13 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         size = {"azure": " Sized for a Burstable B2s instance (about $72 compute); a General Purpose D2ds_v5 alone is about $183.",
                 "aws": " Sized for a burstable db.t4g.medium (about $61 compute); a db.m6g.large alone is about $165."}.get(db_c.vkey, "") \
             if t == 1 and db_c.item["id"] == "postgresql" else ""
+        if t <= 1 and db_c.item["id"] == "sqlserver" and db_c.vkey == "azure":  # review 11 Nov: Azure Retail Prices API, Central India
+            size += (f" Assumes serverless auto-pause outside working hours: about {dc[t][0] / 0.574:.0f}-{dc[t][1] / 0.574:.0f} active vCore-hours "
+                     "a month at ~$0.57/vCore-hour (Central India rate, 11 Nov 2026); a 0.5-vCore minimum that never pauses is about $210/month "
+                     "compute, and DTU Standard S0 (~$17/month) is the fixed-price alternative.")
+        if t == 0 and db_c.vkey == "gcp" and db_c.item["id"] in ("postgresql", "mysql"):  # Cloud SQL SLA page, 11 Nov 2026
+            size += (" Assumes a shared-core instance: Google excludes shared-core instances from the Cloud SQL SLA and advises against "
+                     "production use; price band not verified, and a dedicated-core instance costs more.")
         lines.append(f"Database {db_c.variant}: ${dlo}-{dhi}/month" + (" (HA doubles instances)" if ha else "") + "." + size)
     if ha:
         lo, hi = lo + host["cost"][t][0], hi + host["cost"][t][1]

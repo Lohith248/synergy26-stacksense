@@ -327,5 +327,26 @@ class WebContentLength(unittest.TestCase):
             srv.server_close()
 
 
+
+class SmallDatabasePlanBasis(unittest.TestCase):
+    def db_line(self, i):
+        out = evaluate(copy.deepcopy(PUBLIC[i]), counterfactuals=False)
+        return next(a for a in out['estimated_monthly_cost_usd']['assumptions'] if a.startswith('Database '))
+
+    def test_p5_azure_sql_serverless_band_states_its_auto_pause_basis(self):
+        line = self.db_line(4)
+        self.assertIn('$15-80', line)
+        self.assertIn('auto-pause', line)
+        self.assertIn('vCore-hours', line)
+        self.assertIn('S0', line)
+
+    def test_p6_cloud_sql_band_flags_shared_core_sla_and_unverified_price(self):
+        line = self.db_line(5)
+        self.assertIn('$10-30', line)
+        self.assertIn('shared-core', line)
+        self.assertIn('SLA', line)
+        self.assertIn('not verified', line)
+
+
 if __name__ == '__main__':
     unittest.main()

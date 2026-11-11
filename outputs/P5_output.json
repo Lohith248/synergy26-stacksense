@@ -460,7 +460,7 @@
     "currency": "USD",
     "assumptions": [
       "Hosting Azure App Service (Linux, Basic B2 / Standard S1): $30-150/month at the 'small' tier.",
-      "Database Azure SQL Database (serverless/General Purpose): $15-80/month.",
+      "Database Azure SQL Database (serverless/General Purpose): $15-80/month. Assumes serverless auto-pause outside working hours: about 26-139 active vCore-hours a month at ~$0.57/vCore-hour (Central India rate, 11 Nov 2026); a 0.5-vCore minimum that never pauses is about $210/month compute, and DTU Standard S0 (~$17/month) is the fixed-price alternative.",
       "storage: Azure Blob Storage (Central India (Pune)) $1-10/month.",
       "ci_cd: GitHub Actions $0-4/month.",
       "observability: Azure Monitor + Application Insights in Central India (Pune) $5-30/month.",
