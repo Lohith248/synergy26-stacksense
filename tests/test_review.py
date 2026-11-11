@@ -596,5 +596,31 @@ class MoreEndOfLife(unittest.TestCase):
                 self.assertEqual([m for m in self.eol(system) if 'reached end' in m or 'no longer' in m], [])
 
 
+class LegacyPlatformsEndOfLife(unittest.TestCase):
+    """Section 6: Oracle 11g/12c, Rails, Ruby and Elasticsearch 7 are flagged as end of life; Ubuntu 20.04 is
+    reported as extended (Ubuntu Pro) support. Vendor pages and Oracle's lifetime-support PDF read 12 Nov 2026."""
+    def codes(self, system):
+        s = copy.deepcopy(PUBLIC[4])
+        s['infrastructure']['existing_systems'] = [system]
+        return {w['code']: w['message'] for w in evaluate(s, counterfactuals=False)['warnings']}
+
+    def test_end_of_life(self):
+        cases = {'Oracle 11g database': '2020-12-31', 'Oracle Database 12c': '2022-07-31', 'Ruby on Rails 6.1': 'no longer supported',
+                 'Rails 8.0 app': '2026-11-07', 'Ruby 3.1 app': '2025-03-26', 'Ruby 2.7 scripts': '2023-03-31',
+                 'Elasticsearch 7.10': '2026-01-15', 'Elasticsearch 6.8 cluster': 'no longer supported'}
+        for system, needle in cases.items():
+            with self.subTest(system=system):
+                self.assertIn(needle, self.codes(system).get('END_OF_LIFE_SYSTEM', ''))
+
+    def test_ubuntu_2004_is_extended_support_only(self):
+        msg = self.codes('Ubuntu 20.04 VMs').get('EXISTING_SYSTEM_EXTENDED_SUPPORT', '')
+        self.assertIn('2030-05-31', msg)
+
+    def test_supported_versions_stay_quiet(self):
+        for system in ('Rails 8.1 app', 'Ruby 3.4', 'Elasticsearch 8.15', 'Oracle 19c database', 'Ubuntu 24.04'):
+            with self.subTest(system=system):
+                self.assertNotIn('END_OF_LIFE_SYSTEM', self.codes(system))
+
+
 if __name__ == '__main__':
     unittest.main()
