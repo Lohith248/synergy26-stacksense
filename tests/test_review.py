@@ -160,5 +160,26 @@ class OnPremCost(unittest.TestCase):
         self.assertTrue(any('Stored data' in x for x in out['estimated_monthly_cost_usd']['assumptions']))
 
 
+class ExplanationAccuracy(unittest.TestCase):
+    def test_skill_override_is_not_described_as_a_score_tie(self):
+        s = copy.deepcopy(PUBLIC[2])
+        s['team']['languages'] = ['php']
+        out = evaluate(s, counterfactuals=False)
+        backend = out['stack']['backend']
+        self.assertLess(backend['score_margin'], 0)
+        reason = backend['alternatives'][0]['why_not']
+        self.assertNotIn('Tied on score', reason)
+        self.assertIn('team-language preference', reason)
+        self.assertIn('higher', reason)
+
+    def test_tiny_positive_budget_does_not_crash(self):
+        for value in (1e-308, 5e-324):
+            s = copy.deepcopy(PUBLIC[1])
+            s['budget']['monthly_infra_usd'] = value
+            out = evaluate(s)
+            self.assertEqual(out['status'], 'ok_with_warnings')
+            self.assertIn('BUDGET_EXCEEDED', [w['code'] for w in out['warnings']])
+
+
 if __name__ == '__main__':
     unittest.main()
