@@ -475,7 +475,7 @@
       {
         "layer": "cdn",
         "choice": "Cloudflare (free plan) in front of Azure",
-        "justification": "Caches public pages and static assets near users; only public, non-personal content is cached at the edge. Azure Front Door's $35/month base fee would take 23% of the $150 budget, so the free plan is used.",
+        "justification": "Caches public pages and static assets near users; only public, non-personal content is cached at the edge. Azure Front Door's $35/month base fee would take more than 15% of the $150 budget, so the free plan is used.",
         "driven_by": [
           "project.platforms",
           "requirements.seo_critical",
