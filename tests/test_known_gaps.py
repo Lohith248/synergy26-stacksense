@@ -67,7 +67,7 @@ class SourcesFixed(unittest.TestCase):
         self.assertEqual(src["rn-hermes"]["status"], "verified")
         self.assertIn("about-api-gateway", src["gcp-api-gateway"]["url"])
         self.assertIn("models-region-compatibility", src["aws-bedrock"]["url"])
-        self.assertEqual(sum(v.get("status") == "official-unverified" and not v.get("note", "").startswith("added in round") for k, v in src.items() if k != "_note"), 3)  # 12 Nov: all but Fabric (Synapse claim), DPDP Act/Rules PDFs rendered
+        self.assertEqual(sum(v.get("status") == "official-unverified" and not v.get("note", "").startswith("added in round") for k, v in src.items() if k != "_note"), 0)  # 12 Nov: Fabric/Synapse rendered; DPDP Act/Rules PDFs read with pdftotext
 
 
 if __name__ == "__main__":

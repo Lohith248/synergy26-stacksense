@@ -346,7 +346,7 @@
         "data_location": null,
         "sources": [
           "https://msg91.com/in/pricing/otp",
-          "https://www.trai.gov.in/",
+          "https://www.trai.gov.in/advice-to-senders",
           "https://firebase.google.com/pricing",
           "https://www.twilio.com/en-us/verify/pricing"
         ]

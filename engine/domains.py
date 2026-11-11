@@ -120,7 +120,7 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
         else:
             wh, wprov, wsrc, wdep = {"gcp": (f"BigQuery{rtxt}", "gcp", ["bigquery-locations"], "managed"),
                                      "aws": (f"Amazon Redshift Serverless{rtxt}", "aws", ["redshift-serverless"], "managed"),
-                                     "azure": (f"Microsoft Fabric Warehouse{rtxt}", "azure", ["fabric-overview"], "managed")}[p]
+                                     "azure": (f"Microsoft Fabric Warehouse{rtxt}", "azure", ["fabric-overview", "synapse-to-fabric"], "managed")}[p]
         out.append(svc("other", "Analytics warehouse: " + wh,
                        f"Ad-hoc SQL and reports over ~{ctx['data_gb']:,.0f} GB run on a columnar warehouse, so analysts' heavy scans never slow the "
                        "application database; data is loaded on a schedule (ELT) from the operational store.",
