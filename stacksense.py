@@ -105,10 +105,14 @@ def cmd_run(args):
         print(f"error: cannot read {args.file}: {e}", file=sys.stderr)
         return 2
     docs = parse_text(text)
+    names = [out_name(doc, i, len(docs)) for i, doc in enumerate(docs)]
+    if len({name.casefold() for name in names}) != len(names):
+        print("error: scenario IDs produce duplicate output filenames; give each scenario a unique ID.", file=sys.stderr)
+        return 2
     os.makedirs(args.out, exist_ok=True)
     rc = 0
     for i, doc in enumerate(docs):
-        path = os.path.join(args.out, out_name(doc, i, len(docs)))
+        path = os.path.join(args.out, names[i])
         write_atomic(path, doc)
         print(f"{doc['status']:17} -> {path}")
         if args.explain:
@@ -200,7 +204,7 @@ def cmd_interactive(args):
             if v is not None:
                 s["requirements"][key] = v
     os.makedirs(args.out, exist_ok=True)
-    scen = os.path.join(args.out, f"{s['scenario_id']}_input.json")
+    scen = os.path.join(args.out, out_name(s, 0, 1)[:-len("_output.json")] + "_input.json")
     write_atomic(scen, s)
     print(f"Saved input -> {scen}")
     args.file = scen
@@ -237,7 +241,11 @@ def main(argv=None):
     if args.cmd == "serve":
         from engine.web import serve
         return serve(args.port)
-    return cmd_run(args) if args.cmd == "run" else cmd_interactive(args)
+    try:
+        return cmd_run(args) if args.cmd == "run" else cmd_interactive(args)
+    except OSError as e:
+        print(f"error: cannot write output: {e}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":
