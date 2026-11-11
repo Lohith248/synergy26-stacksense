@@ -34,7 +34,14 @@ def build(ctx, host, backend, db, mobile, warn):
     auth = req["requirements.auth"]
     if auth != "none":
         dp = ["requirements.auth"]
-        if auth == "enterprise_sso":
+        if auth == "social" and ctx["no_internet"]:
+            out.append(svc("auth", "Keycloak 26 (local accounts; social login deferred)",
+                           "An air-gapped network cannot reach social providers: use local accounts in Keycloak as the explicitly relaxed fallback.",
+                           dp + ["infrastructure.deployment_model"],
+                           [("Google/GitHub/Microsoft OAuth", "requires an external identity provider across the air gap")],
+                           ["Users need a separate local account until the network restriction changes"],
+                           "self_hosted", "neutral", True, Z, ["keycloak"], loc))
+        elif auth == "enterprise_sso":
             idp = ctx["existing_idp"]
             if idp and "entra" in idp["pattern"]["name"].lower() and not ctx["no_internet"]:
                 if ctx["self_host_only"]:

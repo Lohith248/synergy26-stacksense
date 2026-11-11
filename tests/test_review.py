@@ -110,5 +110,34 @@ class HardConstraintWarnings(unittest.TestCase):
         self.assertFalse(any(w['severity'] == 'critical' for w in out['warnings']))
 
 
+class RestrictedServices(unittest.TestCase):
+    def test_air_gap_social_login_really_uses_the_reported_local_fallback(self):
+        s = copy.deepcopy(PUBLIC[4])
+        s['infrastructure'].update(cloud_preference='none', deployment_model='air_gapped')
+        s['requirements']['auth'] = 'social'
+        out = evaluate(s, counterfactuals=False)
+        auth = next(x for x in out['stack']['supporting'] if x['layer'] == 'auth')
+        self.assertIn('Keycloak', auth['choice'])
+        self.assertIn('local accounts', auth['justification'])
+        self.assertNotIn('Google/GitHub', auth['choice'])
+        self.assertEqual(auth['deployment'], 'self_hosted')
+        self.assertTrue(any(w['code'] == 'SOCIAL_LOGIN_NEEDS_NETWORK' for w in out['warnings']))
+
+    def test_restricted_web3_never_silently_adds_a_managed_rpc(self):
+        for dep in ('on_premise', 'air_gapped'):
+            s = copy.deepcopy(PUBLIC[4])
+            s['infrastructure'].update(cloud_preference='none', deployment_model=dep, existing_systems=[])
+            s['project']['description'] = 'NFT ownership checks on a public blockchain.'
+            out = evaluate(s, counterfactuals=False)
+            self.assertFalse(any('managed blockchain RPC' in x['choice'] for x in out['stack']['supporting']))
+            self.assertTrue(any(w['code'] == 'BLOCKCHAIN_NEEDS_NETWORK' and w['severity'] == 'critical' for w in out['warnings']))
+
+    def test_connected_social_login_still_lists_oauth(self):
+        s = copy.deepcopy(PUBLIC[4])
+        s['requirements']['auth'] = 'social'
+        out = evaluate(s, counterfactuals=False)
+        self.assertTrue(any('OAuth' in x['choice'] for x in out['stack']['supporting'] if x['layer'] == 'auth'))
+
+
 if __name__ == '__main__':
     unittest.main()

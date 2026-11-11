@@ -172,7 +172,11 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
                        ["Make scheduled jobs idempotent: a schedule can fire twice"], sdep, sprov, False, [[0, 1], [0, 3], [1, 10], [5, 30]], ssrc))
 
     # ---------------- web3: on-chain access and payment caution
-    if d["web3"] and ctx["needs_backend"]:
+    if d["web3"] and ctx["needs_backend"] and ctx["self_host_only"]:
+        warn("BLOCKCHAIN_NEEDS_NETWORK", "critical",
+             "Public-chain reads and writes need external peers or an RPC service. Relaxed: live on-chain access is omitted under this restricted deployment; use imported snapshots or a separately approved connected gateway.",
+             ["project.description", "infrastructure.deployment_model"])
+    elif d["web3"] and ctx["needs_backend"]:
         warn("WEB3_CAUTION", "warning", "Crypto/NFT products: card processors may restrict or refuse some crypto businesses, so check the processor's restricted-business list before building the checkout; "
              "wallets and private keys stay with the user (never custody them by default); regulation (consumer, tax, anti-money-laundering) varies by country and is not assessed here.",
              ["project.description", "requirements.payments"])
