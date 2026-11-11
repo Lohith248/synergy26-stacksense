@@ -1,0 +1,64 @@
+{
+ "scenario_id": "H29",
+ "project": {
+  "name": "TenantDesk",
+  "type": "saas_b2b",
+  "description": "Multi-tenant helpdesk SaaS with full-text search across tickets and company SSO.",
+  "platforms": [
+   "web"
+  ]
+ },
+ "scale": {
+  "traffic_pattern": "steady",
+  "workload": "balanced",
+  "users_at_launch": 500,
+  "users_12_months": 50000,
+  "peak_concurrent_users": 3000,
+  "data_volume_gb_12_months": 300
+ },
+ "team": {
+  "has_devops": false,
+  "size": 6,
+  "experience": "senior",
+  "languages": [
+   "typescript"
+  ]
+ },
+ "budget": {
+  "monthly_infra_usd": 2500
+ },
+ "timeline": {
+  "mvp_weeks": 14
+ },
+ "infrastructure": {
+  "cloud_preference": "gcp",
+  "deployment_model": "managed_cloud",
+  "data_residency": "none",
+  "existing_systems": []
+ },
+ "requirements": {
+  "realtime": false,
+  "offline_support": false,
+  "full_text_search": true,
+  "file_media_storage": true,
+  "payments": false,
+  "auth": "enterprise_sso",
+  "multi_tenant": true,
+  "ml_features": "none",
+  "seo_critical": false,
+  "availability": "99.9",
+  "p95_latency_ms": null
+ },
+ "compliance": [
+  "soc2",
+  "gdpr"
+ ],
+ "priorities": {
+  "cost": 3,
+  "time_to_market": 3,
+  "scalability": 4,
+  "performance": 3,
+  "maintainability": 4,
+  "security": 4
+ }
+}

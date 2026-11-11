@@ -1,0 +1,64 @@
+{
+ "scenario_id": "H26",
+ "project": {
+  "name": "CareLoop",
+  "type": "healthtech",
+  "description": "Patient symptom diary and clinician messaging used in clinics with poor connectivity, EU patients only.",
+  "platforms": [
+   "ios",
+   "android"
+  ]
+ },
+ "scale": {
+  "traffic_pattern": "steady",
+  "workload": "balanced",
+  "users_at_launch": 3000,
+  "users_12_months": 40000,
+  "peak_concurrent_users": 2000,
+  "data_volume_gb_12_months": 500
+ },
+ "team": {
+  "has_devops": false,
+  "size": 5,
+  "experience": "mixed",
+  "languages": [
+   "typescript"
+  ]
+ },
+ "budget": {
+  "monthly_infra_usd": 1500
+ },
+ "timeline": {
+  "mvp_weeks": 16
+ },
+ "infrastructure": {
+  "cloud_preference": "any",
+  "deployment_model": "managed_cloud",
+  "data_residency": "eu",
+  "existing_systems": []
+ },
+ "requirements": {
+  "realtime": false,
+  "offline_support": true,
+  "full_text_search": false,
+  "file_media_storage": false,
+  "payments": false,
+  "auth": "email_password",
+  "multi_tenant": false,
+  "ml_features": "none",
+  "seo_critical": false,
+  "availability": "99.9",
+  "p95_latency_ms": null
+ },
+ "compliance": [
+  "gdpr"
+ ],
+ "priorities": {
+  "cost": 3,
+  "time_to_market": 3,
+  "scalability": 3,
+  "performance": 3,
+  "maintainability": 4,
+  "security": 5
+ }
+}

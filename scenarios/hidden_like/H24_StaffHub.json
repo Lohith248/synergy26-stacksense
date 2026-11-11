@@ -1,0 +1,65 @@
+{
+ "scenario_id": "H24",
+ "project": {
+  "name": "StaffHub",
+  "type": "internal_tool",
+  "description": "Internal leave, expenses and asset tracker for 50 staff, sign-in via company directory.",
+  "platforms": [
+   "web"
+  ]
+ },
+ "scale": {
+  "traffic_pattern": "steady",
+  "workload": "balanced",
+  "users_at_launch": 50,
+  "users_12_months": 60,
+  "peak_concurrent_users": 25,
+  "data_volume_gb_12_months": 5
+ },
+ "team": {
+  "has_devops": false,
+  "size": 3,
+  "experience": "intermediate",
+  "languages": [
+   "csharp",
+   ".net"
+  ]
+ },
+ "budget": {
+  "monthly_infra_usd": 400
+ },
+ "timeline": {
+  "mvp_weeks": 8
+ },
+ "infrastructure": {
+  "cloud_preference": "azure",
+  "deployment_model": "managed_cloud",
+  "data_residency": "india",
+  "existing_systems": [
+   "Microsoft Entra ID",
+   "Microsoft 365"
+  ]
+ },
+ "requirements": {
+  "realtime": false,
+  "offline_support": false,
+  "full_text_search": false,
+  "file_media_storage": false,
+  "payments": false,
+  "auth": "enterprise_sso",
+  "multi_tenant": false,
+  "ml_features": "none",
+  "seo_critical": false,
+  "availability": "99.9",
+  "p95_latency_ms": null
+ },
+ "compliance": [],
+ "priorities": {
+  "cost": 3,
+  "time_to_market": 3,
+  "scalability": 3,
+  "performance": 3,
+  "maintainability": 4,
+  "security": 4
+ }
+}

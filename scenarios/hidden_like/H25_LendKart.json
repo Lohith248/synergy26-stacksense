@@ -1,0 +1,68 @@
+{
+ "scenario_id": "H25",
+ "project": {
+  "name": "LendKart",
+  "type": "fintech",
+  "description": "Digital personal-loan lender with KYC, disbursal and repayments; customer data must stay in India.",
+  "platforms": [
+   "android",
+   "ios",
+   "web"
+  ]
+ },
+ "scale": {
+  "traffic_pattern": "steady",
+  "workload": "write_heavy",
+  "users_at_launch": 100000,
+  "users_12_months": 2000000,
+  "peak_concurrent_users": 20000,
+  "data_volume_gb_12_months": 3000
+ },
+ "team": {
+  "has_devops": true,
+  "size": 12,
+  "experience": "senior",
+  "languages": [
+   "java",
+   "kotlin"
+  ]
+ },
+ "budget": {
+  "monthly_infra_usd": 6000
+ },
+ "timeline": {
+  "mvp_weeks": 20
+ },
+ "infrastructure": {
+  "cloud_preference": "aws",
+  "deployment_model": "managed_cloud",
+  "data_residency": "india",
+  "existing_systems": []
+ },
+ "requirements": {
+  "realtime": false,
+  "offline_support": false,
+  "full_text_search": false,
+  "file_media_storage": true,
+  "payments": true,
+  "auth": "phone_otp",
+  "multi_tenant": false,
+  "ml_features": "none",
+  "seo_critical": false,
+  "availability": "99.95",
+  "p95_latency_ms": null
+ },
+ "compliance": [
+  "rbi_localisation",
+  "dpdp",
+  "pci_dss"
+ ],
+ "priorities": {
+  "cost": 3,
+  "time_to_market": 3,
+  "scalability": 4,
+  "performance": 3,
+  "maintainability": 4,
+  "security": 5
+ }
+}

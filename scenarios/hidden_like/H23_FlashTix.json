@@ -1,0 +1,64 @@
+{
+ "scenario_id": "H23",
+ "project": {
+  "name": "FlashTix",
+  "type": "ecommerce",
+  "description": "Flash ticket sales for concerts; 100k users hit at on-sale for about 10 minutes.",
+  "platforms": [
+   "web"
+  ]
+ },
+ "scale": {
+  "traffic_pattern": "spiky",
+  "workload": "write_heavy",
+  "users_at_launch": 50000,
+  "users_12_months": 300000,
+  "peak_concurrent_users": 100000,
+  "data_volume_gb_12_months": 200
+ },
+ "team": {
+  "has_devops": true,
+  "size": 8,
+  "experience": "intermediate",
+  "languages": [
+   "typescript",
+   "javascript"
+  ]
+ },
+ "budget": {
+  "monthly_infra_usd": 3000
+ },
+ "timeline": {
+  "mvp_weeks": 12
+ },
+ "infrastructure": {
+  "cloud_preference": "aws",
+  "deployment_model": "managed_cloud",
+  "data_residency": "none",
+  "existing_systems": []
+ },
+ "requirements": {
+  "realtime": false,
+  "offline_support": false,
+  "full_text_search": false,
+  "file_media_storage": false,
+  "payments": true,
+  "auth": "social",
+  "multi_tenant": false,
+  "ml_features": "none",
+  "seo_critical": false,
+  "availability": "99.95",
+  "p95_latency_ms": 400
+ },
+ "compliance": [
+  "pci_dss"
+ ],
+ "priorities": {
+  "cost": 2,
+  "time_to_market": 3,
+  "scalability": 5,
+  "performance": 4,
+  "maintainability": 3,
+  "security": 3
+ }
+}

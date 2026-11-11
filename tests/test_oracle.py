@@ -197,6 +197,60 @@ ORACLE = {
                 sup_has={"other": ["RPC", "indexer"]}, warn_has=["WEB3_CAUTION"], within_budget=True),
 }
 
+# ---- blind round 2 (H22-H29): scenarios and rows written by a separate agent that did not run the engine,
+# read its outputs or its scoring code (research/blind2/README.md). Pasted unchanged except the H27 key noted there.
+BIGINFRA = ["Kubernetes", "EKS", "GKE", "AKS", "Fargate", "ECS", "Lambda", "On-premises"]
+NOSQL = ["Dynamo", "Firestore", "Cosmos", "Mongo"]
+MOBILE_BAD = ["Unity", "Godot", "Electron", "WPF"]
+
+ORACLE2 = {
+    "H22": dict(frontend=w([], ["React Native", "Kotlin", "Unity", "Angular", "Flutter"]),
+                backend=w(["Django", "FastAPI"], langs_except("Django", "FastAPI")),
+                database=w(["PostgreSQL", "SQLite", "Supabase"], NOSQL),
+                hosting=w([], BIGINFRA),
+                sup_absent=["queue", "cache", "search", "realtime", "payments"]),
+    "H23": dict(frontend=w([], ["React Native", "Kotlin", "Unity", "Godot"]),
+                backend=w(["Node", "NestJS", "Go 1", "Spring"], ["Rails", "PHP"]),
+                database=w(["PostgreSQL", "Aurora", "DynamoDB", "MySQL"], ["SQLite", "Firestore", "Cosmos"]),
+                hosting=w(["ECS", "Fargate", "Lambda", "EKS", "Beanstalk"],
+                          ["Pages", "Static", "Azure", "Google", "On-premises", "EC2 VM", "Droplet"]),
+                sup_has={"cache": ["Redis", "ElastiCache", "Valkey"], "queue": ["SQS", "Kafka", "Kinesis", "RabbitMQ"]}),
+    "H24": dict(frontend=w([], ["React Native", "Kotlin", "Unity", "Flutter"]),
+                backend=w([".NET"], langs_except(".NET")),
+                database=w(["Azure SQL", "SQL Server", "PostgreSQL"], ["SQLite"] + NOSQL, INDIA),
+                hosting=w(["App Service", "Container Apps"],
+                          ["Lambda", "AWS", "Amazon", "Google", "Cloud Run", "Kubernetes", "Pages", "Static", "On-premises"], INDIA),
+                sup_has={"auth": ["Entra"]}),
+    "H25": dict(frontend=w([], MOBILE_BAD),
+                backend=w(["Spring", "Java", "Kotlin"], ["PHP", "Rails", ".NET", "Django"]),
+                database=w(["PostgreSQL", "Aurora", "MySQL", "SQL Server"], ["SQLite"] + NOSQL, ["Mumbai", "ap-south", "India"]),
+                hosting=w(["ECS", "Fargate", "EKS", "Beanstalk"],
+                          ["Lambda", "Pages", "Static", "Azure", "Google", "Cloud Run"], ["Mumbai", "ap-south", "India"]),
+                sup_has={"payments": ["Razorpay", "Cashfree", "PayU", "Juspay"]}),
+    "H26": dict(frontend=w(["React Native", "Flutter", "Capacitor", "Kotlin", "Swift"], MOBILE_BAD + ["Next.js", "Angular"]),
+                backend=w(["Node", "NestJS"], ["Rails", "PHP", "Spring", ".NET", "Go 1"]),
+                database=w(["PostgreSQL", "Supabase"], ["SQLite", "Dynamo"]),
+                hosting=w([], ["Pages", "Static", "On-premises", "Kubernetes"], EU)),
+    "H27": dict(frontend=w([], ["React Native", "Kotlin", "Unity", "Vite SPA"]),
+                backend=w(["Laravel", "PHP"], langs_except("PHP")),
+                database=w(["MySQL", "PostgreSQL"], ["SQLite"] + NOSQL),
+                hosting=w([], ["Pages", "Static", "Lambda", "Kubernetes", "On-premises"]),
+                sup_has={"cdn": ["CDN", "CloudFront", "Cloudflare", "Redis"]}),
+    "H28": dict(frontend=w([], ["React Native", "Kotlin", "Unity", "Flutter"] + CLOUD_NAMES),
+                backend=w([".NET"], langs_except(".NET")),
+                database=w(["SQL Server", "PostgreSQL"], CLOUD_NAMES + NOSQL),
+                hosting=w(["On-premises", "Docker"], CLOUD_NAMES + ["Render", "Railway", "DigitalOcean"]),
+                no_cloud=True),
+    "H29": dict(frontend=w([], ["React Native", "Kotlin", "Unity", "Flutter"]),
+                backend=w(["Node", "NestJS"], ["Rails", "PHP", ".NET", "Spring", "Django"]),
+                database=w(["PostgreSQL"], ["SQLite", "Dynamo", "Firestore"]),
+                hosting=w(["Cloud Run", "GKE", "Google", "Kubernetes", "Compute Engine"],
+                          ["Lambda", "AWS", "Amazon", "Azure", "Pages", "Static", "On-premises"], ["Google", "GCP", "Cloud Run"]),
+                sup_has={"search": ["Elasticsearch", "OpenSearch", "Typesense", "Meilisearch", "Algolia", "PostgreSQL", "full-text"],
+                         "auth": ["SSO", "OIDC", "SAML", "Auth0", "Okta", "WorkOS", "Keycloak", "Identity Platform", "Entra"]}),
+}
+ORACLE.update(ORACLE2)
+
 
 def _judge(sid, out):
     """Return a list of misses (empty = the output is acceptable)."""
