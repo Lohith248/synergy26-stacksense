@@ -102,5 +102,43 @@ class Confidence(unittest.TestCase):
         self.assertIn(" rather than ", text)
 
 
+class AdrExport(unittest.TestCase):
+    """Round 5 item 5: Architecture Decision Record per core layer (context, decision, options table, consequences)."""
+
+    def test_record_per_layer_with_options_and_consequences(self):
+        import stacksense
+        doc = pub(4)
+        md = stacksense.adr(doc)
+        for n, layer in enumerate(CORE, 1):
+            c = doc["stack"][layer]
+            self.assertIn(f"## ADR-{n}: {layer}", md)
+            self.assertIn(c["choice"], md)
+            for a in c["alternatives"]:
+                self.assertIn(f"| {a['choice']} |", md)
+            for t in c["tradeoffs"]:
+                self.assertIn(t, md)
+            self.assertIn(c["confidence"]["basis"], md)
+        self.assertEqual(md.count("| Option | Outcome | Why |"), 4)
+        for w in doc["warnings"]:
+            if w["severity"] != "info":
+                self.assertIn(w["code"], md)
+        self.assertIn(f"{doc['estimated_monthly_cost_usd']['min']}-{doc['estimated_monthly_cost_usd']['max']} USD/month", md)
+
+    def test_cli_writes_adr_only_when_asked_and_only_for_a_stack(self):
+        import subprocess
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            for args in ([], ["--adr"]):
+                subprocess.run([sys.executable, "-I", os.path.join(ROOT, "stacksense.py"), "run",
+                                os.path.join(ROOT, "scenarios", "stacksense_public_scenarios.json"), "--out", d] + args,
+                               check=True, capture_output=True)
+                if not args:
+                    self.assertFalse([f for f in os.listdir(d) if f.endswith(".md")])
+            self.assertEqual(sorted(f for f in os.listdir(d) if f.endswith(".md")), [f"P{i}_adr.md" for i in range(1, 7)])
+            subprocess.run([sys.executable, "-I", os.path.join(ROOT, "stacksense.py"), "run",
+                            os.path.join(ROOT, "scenarios", "edge_cases", "E2_invalid_values.json"), "--out", d, "--adr"], capture_output=True)
+            self.assertEqual(len([f for f in os.listdir(d) if f.endswith(".md")]), 6)
+
+
 if __name__ == "__main__":
     unittest.main()

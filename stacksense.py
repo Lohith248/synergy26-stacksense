@@ -68,6 +68,33 @@ def explain(doc):
     return "\n".join(lines)
 
 
+def adr(doc):
+    """Markdown Architecture Decision Records, one per core layer, from the output document alone."""
+    def cell(s):
+        return str(s).replace("|", "\\|").replace("\n", " ")
+    c = doc["estimated_monthly_cost_usd"]
+    status = "Accepted (relaxed: see assumptions)" if doc["summary"].startswith("Relaxed") else "Accepted"
+    md = [f"# Architecture decisions: {doc.get('scenario_id') or 'scenario'}", "", doc["summary"], "",
+          f"Style: {doc['architecture_style']}. Estimated cost: {c['min']}-{c['max']} USD/month (order of magnitude).", ""]
+    for n, layer in enumerate(("frontend", "backend", "database", "hosting"), 1):
+        x = doc["stack"][layer]
+        md += [f"## ADR-{n}: {layer}", "", f"**Status:** {status}", "",
+               f"**Context:** driven by {', '.join(x['driven_by'])}.", "",
+               f"**Decision:** {x['choice']}. {x['justification']}", "",
+               "| Option | Outcome | Why |", "|---|---|---|", f"| {cell(x['choice'])} | chosen | {cell(x['justification'])} |"]
+        md += [f"| {cell(a['choice'])} | {'excluded' if a['why_not'].startswith('Excluded') else 'rejected'} | {cell(a['why_not'])} |"
+               for a in x["alternatives"]]
+        md += ["", "**Consequences:**", ""] + [f"- Trade-off: {t}" for t in x["tradeoffs"]]
+        if x.get("confidence"):
+            md.append(f"- Confidence {x['confidence']['label']}: {x['confidence']['basis']}")
+        md += [f"- Revisit if {e['edit']} (would give {e['new_choice']})" for e in x.get("what_would_change", []) if e["path"]]
+        md.append("")
+    serious = [w for w in doc["warnings"] if w["severity"] != "info"]
+    if serious:
+        md += ["## Warnings that apply across decisions", ""] + [f"- **{w['code']}** ({w['severity']}): {w['message']}" for w in serious]
+    return "\n".join(md) + "\n"
+
+
 def cmd_run(args):
     try:
         with open(args.file, encoding="utf-8") as f:
@@ -84,6 +111,9 @@ def cmd_run(args):
         print(f"{doc['status']:17} -> {path}")
         if args.explain:
             print(explain(doc))
+        if getattr(args, "adr", False) and doc["stack"]:
+            with open(path[:-len("_output.json")] + "_adr.md", "w", encoding="utf-8", newline="\n") as f:
+                f.write(adr(doc))
         if doc["status"] == "invalid_input":
             rc = 1
     return rc
@@ -183,6 +213,7 @@ def main(argv=None):
     r.add_argument("file")
     r.add_argument("--out", default="outputs")
     r.add_argument("--explain", action="store_true", help="also print a readable explanation")
+    r.add_argument("--adr", action="store_true", help="also write <id>_adr.md: one decision record per core layer")
     r.add_argument("--no-llm", action="store_true", help="LLM-off switch (the engine never uses an LLM; accepted for the judge test)")
     i = sub.add_parser("interactive", help="answer prompts for every standard field, then evaluate")
     i.add_argument("--out", default="outputs")
