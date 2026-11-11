@@ -278,7 +278,7 @@
     {"pattern": "heroku free", "name": "Heroku free dynos", "eol": "2022-11-28", "src": "heroku-free"},
     {"pattern": "firebase dynamic links", "name": "Firebase Dynamic Links", "eol": "2025-08-25", "src": "firebase-dynamic-links"},
     {"pattern": "minio", "name": "MinIO (open-source repository)", "eol": "2026-04-25", "kind": "unmaintained", "src": "minio-archived"},
-    {"pattern": "app runner", "name": "AWS App Runner (closed to new customers)", "eol": "2026-01-01", "kind": "closed", "src": "aws-apprunner-closed"},
+    {"pattern": "app runner", "name": "AWS App Runner (closed to new customers)", "eol": "2026-04-30", "kind": "closed", "src": "aws-apprunner-closed"},
     {"pattern": "django 4.2", "name": "Django 4.2 LTS", "eol": "2026-04-07", "src": "django-download"},
     {"pattern": "spring boot 3.4", "name": "Spring Boot 3.4 (open-source support)", "eol": "2025-12-31", "src": "eol-spring-boot"},
     {"pattern": "spring boot 3.5", "name": "Spring Boot 3.5 (open-source support)", "eol": "2026-06-30", "src": "eol-spring-boot"},

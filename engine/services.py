@@ -279,7 +279,7 @@ def build(ctx, host, backend, db, mobile, warn):
             why.append("leaderboards and matchmaking queues on sorted sets")
         out.append(svc("cache", c, "Cache and pub/sub layer: " + "; ".join(why) + ".",
                        ["scale.peak_concurrent_users"] + (["scale.workload"] if read_hot else []) + (["requirements.realtime"] if req["requirements.realtime"] else []) + (["priorities.performance"] if ctx["prio"]["performance"] >= 5 else []),
-                       [("Redis (7.4+)", "now source-available (RSALv2/SSPL); Valkey keeps the BSD licence"),
+                       [("Redis (7.4+)", "7.4-7.8 are source-available (RSALv2/SSPLv1) and Redis 8+ adds an AGPLv3 option (copyleft for network use); Valkey keeps the BSD licence"),
                         ("Azure Cache for Redis", "being retired (Sept 2028); Azure Managed Redis is the replacement") if p == "azure" else ("No cache", "database absorbs every hot read and no cross-instance pub/sub")],
                        ["Another stateful component to size and monitor"], "managed" if prov in ("aws", "azure", "gcp") else "self_hosted", prov, False, cost, src))
 
@@ -363,7 +363,7 @@ def build(ctx, host, backend, db, mobile, warn):
                         ("Adyen", "enterprise pricing/onboarding for this size")]
                 src = ["stripe-billing-pricing"] + extra_src
                 prov = "stripe"
-            why = ("Hosted checkout keeps card data off your servers (PCI DSS SAQ A scope when fully outsourced). "
+            why = ("Hosted checkout keeps card data off your servers, which can qualify for PCI DSS SAQ A (your acquirer confirms; protect the checkout page from script attacks). "
                    "Payment confirmation is trusted only from signed server-side webhooks.")
             if d["upi"]:
                 why = "The description requires UPI. " + why

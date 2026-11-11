@@ -607,10 +607,10 @@ def contradictions(ctx, W, assumptions, host, backend):
           ["requirements.p95_latency_ms"])
     # compliance notes (never claims of certification)
     notes = {
-        "dpdp": ("DPDP_OBLIGATIONS", "info", "DPDP Act 2023: collect consent with a clear notice, support access/correction/erasure requests, keep breach-notification runbooks (72 h to the Board under the 2025 Rules) and delete data when the purpose ends. Hosting in India simplifies transfers; legal review still required.", ["compliance"]),
+        "dpdp": ("DPDP_OBLIGATIONS", "info", "DPDP Act 2023: collect consent with a clear notice, support access/correction/erasure requests, keep a breach runbook (the DPDP Rules 2025 require prompt intimation to the Board and affected people, then a detailed report within 72 hours; the Rules commence in phases, so confirm which apply on your launch date) and delete data when the purpose ends. Hosting in India simplifies transfers; legal review still required.", ["compliance"]),
         "gdpr": ("GDPR_OBLIGATIONS", "info", "GDPR: lawful basis and privacy notice, data-subject rights endpoints, DPAs with every processor (Art. 28), security of processing (Art. 32); transfers outside the EU need an adequacy decision or SCCs.", ["compliance"]),
-        "pci_dss": ("PCI_SCOPE", "info", "PCI DSS v4.0.1: card data handled only by the gateway's hosted fields/checkout keeps scope small (SAQ A when fully outsourced); still secure the pages that embed checkout.", ["compliance"]),
-        "rbi_localisation": ("RBI_LOCALISATION", "info", "RBI payment-data localisation: all payment data, backups and logs stay on systems in India; anything processed abroad must be deleted there and brought back within 24 hours.", ["compliance", "infrastructure.data_residency"]),
+        "pci_dss": ("PCI_SCOPE", "info", "PCI DSS v4.0.1: card data handled only by the gateway's hosted checkout or embedded payment form keeps scope small and can qualify for SAQ A; with an embedded form the page must also be protected from script attacks (Requirements 6.4.3/11.6.1, or the processor's confirmation), and your acquirer confirms which SAQ applies.", ["compliance"]),
+        "rbi_localisation": ("RBI_LOCALISATION", "info", "RBI storage of payment system data: payment system operators and the gateways and vendors in their chain store the end-to-end payment data only in India; data processed abroad must be deleted there and brought back within one business day or 24 hours, whichever is earlier.", ["compliance", "infrastructure.data_residency"]),
         "iso27001": ("ISO27001_CONTROLS", "info", "ISO/IEC 27001:2022 certifies your organisation's ISMS, not a cloud provider's badge: keep asset inventory, access reviews, logging and change management for this system.", ["compliance"]),
         "soc2": ("SOC2_CONTROLS", "info", "SOC 2 requires evidence of your own controls (access, change management, monitoring) over a review period; provider reports only cover their part.", ["compliance"]),
         "hipaa": ("HIPAA_BAA_REQUIRED", "warning", "HIPAA: sign a Business Associate Agreement with the cloud provider and use only HIPAA-eligible services for PHI; SaaS add-ons without a BAA (analytics, chat widgets) must not receive PHI.", ["compliance"]),
@@ -625,7 +625,7 @@ def contradictions(ctx, W, assumptions, host, backend):
         if life:
             if life["eol"] <= AS_OF:
                 what = {"unmaintained": f"is no longer maintained (repository archived {life['eol']})",
-                        "closed": "is closed to new customers", "deprecated": f"was deprecated on {life['eol']}"}.get(
+                        "closed": f"is closed to new customers (since {life['eol']})", "deprecated": f"was deprecated on {life['eol']}"}.get(
                     life.get("kind"), f"reached end of support on {life['eol']}")
                 W("END_OF_LIFE_SYSTEM", "warning",
                   f"'{e['raw']}' {what} ({life['name']}); keep it behind an isolated interface, do not build new features on it, and plan a migration.",

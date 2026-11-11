@@ -500,7 +500,7 @@
     {
       "code": "DPDP_OBLIGATIONS",
       "severity": "info",
-      "message": "DPDP Act 2023: collect consent with a clear notice, support access/correction/erasure requests, keep breach-notification runbooks (72 h to the Board under the 2025 Rules) and delete data when the purpose ends. Hosting in India simplifies transfers; legal review still required.",
+      "message": "DPDP Act 2023: collect consent with a clear notice, support access/correction/erasure requests, keep a breach runbook (the DPDP Rules 2025 require prompt intimation to the Board and affected people, then a detailed report within 72 hours; the Rules commence in phases, so confirm which apply on your launch date) and delete data when the purpose ends. Hosting in India simplifies transfers; legal review still required.",
       "fields": [
         "compliance"
       ]

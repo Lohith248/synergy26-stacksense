@@ -390,5 +390,41 @@ class StoredDataRate(unittest.TestCase):
         self.assertIn('object storage', line)
 
 
+
+class RenderedSourceWording(unittest.TestCase):
+    """Wording checked against pages rendered on 11 Nov 2026 (RBI FAQ 130, PCI FAQ 1588, redis.io licences,
+    aws.amazon.com/apprunner, spring.io support table, Oracle Java SE roadmap)."""
+    def warn(self, out, code):
+        return next(w['message'] for w in out['warnings'] if w['code'] == code)
+
+    def test_rbi_window_and_pci_saq_a_conditions(self):
+        s = copy.deepcopy(PUBLIC[3])  # P4: RBI + PCI fintech
+        s['compliance'] = sorted(set(s['compliance']) | {'rbi_localisation', 'pci_dss'})
+        out = evaluate(s, counterfactuals=False)
+        rbi = self.warn(out, 'RBI_LOCALISATION')
+        self.assertIn('one business day or 24 hours', rbi)
+        self.assertNotIn('backups and logs', rbi)
+        pci = self.warn(out, 'PCI_SCOPE')
+        self.assertIn('acquirer', pci)
+        self.assertIn('script', pci)
+
+    def test_dpdp_breach_note_is_not_an_unqualified_72_hour_rule(self):
+        s = copy.deepcopy(PUBLIC[1])
+        s['compliance'] = sorted(set(s['compliance']) | {'dpdp'})
+        dpdp = self.warn(evaluate(s, counterfactuals=False), 'DPDP_OBLIGATIONS')
+        self.assertNotIn('(72 h to the Board under the 2025 Rules)', dpdp)
+        self.assertIn('phases', dpdp)
+
+    def test_redis_licence_and_app_runner_date(self):
+        src = (ROOT / 'engine' / 'services.py').read_text(encoding='utf-8')
+        self.assertTrue('Redis 8+ adds an AGPLv3 option' in src)
+        rows = json.loads((ROOT / 'kb' / 'technologies.json').read_text(encoding='utf-8'))
+        text = json.dumps(rows)
+        self.assertTrue('"pattern": "app runner", "name": "AWS App Runner (closed to new customers)", "eol": "2026-04-30"' in text)
+        sources = json.loads((ROOT / 'kb' / 'sources.json').read_text(encoding='utf-8'))
+        self.assertIn('spring.io', sources['eol-spring-boot']['url'])
+        self.assertIn('oracle.com', sources['eol-oracle-jdk']['url'])
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -419,7 +419,7 @@
         "alternatives": [
           {
             "choice": "Redis (7.4+)",
-            "why_not": "now source-available (RSALv2/SSPL); Valkey keeps the BSD licence"
+            "why_not": "7.4-7.8 are source-available (RSALv2/SSPLv1) and Redis 8+ adds an AGPLv3 option (copyleft for network use); Valkey keeps the BSD licence"
           },
           {
             "choice": "Azure Cache for Redis",
@@ -465,7 +465,7 @@
       {
         "layer": "payments",
         "choice": "Stripe (Checkout) — Stripe Billing with per-seat subscription quantities",
-        "justification": "Hosted checkout keeps card data off your servers (PCI DSS SAQ A scope when fully outsourced). Payment confirmation is trusted only from signed server-side webhooks.",
+        "justification": "Hosted checkout keeps card data off your servers, which can qualify for PCI DSS SAQ A (your acquirer confirms; protect the checkout page from script attacks). Payment confirmation is trusted only from signed server-side webhooks.",
         "driven_by": [
           "requirements.payments",
           "project.description",

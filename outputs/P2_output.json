@@ -439,7 +439,7 @@
       {
         "layer": "payments",
         "choice": "Razorpay (UPI, cards, netbanking) — Route/RazorpayX Payouts to pay service providers",
-        "justification": "Hosted checkout keeps card data off your servers (PCI DSS SAQ A scope when fully outsourced). Payment confirmation is trusted only from signed server-side webhooks.",
+        "justification": "Hosted checkout keeps card data off your servers, which can qualify for PCI DSS SAQ A (your acquirer confirms; protect the checkout page from script attacks). Payment confirmation is trusted only from signed server-side webhooks.",
         "driven_by": [
           "requirements.payments",
           "project.description",
@@ -602,7 +602,7 @@
     {
       "code": "DPDP_OBLIGATIONS",
       "severity": "info",
-      "message": "DPDP Act 2023: collect consent with a clear notice, support access/correction/erasure requests, keep breach-notification runbooks (72 h to the Board under the 2025 Rules) and delete data when the purpose ends. Hosting in India simplifies transfers; legal review still required.",
+      "message": "DPDP Act 2023: collect consent with a clear notice, support access/correction/erasure requests, keep a breach runbook (the DPDP Rules 2025 require prompt intimation to the Board and affected people, then a detailed report within 72 hours; the Rules commence in phases, so confirm which apply on your launch date) and delete data when the purpose ends. Hosting in India simplifies transfers; legal review still required.",
       "fields": [
         "compliance"
       ]

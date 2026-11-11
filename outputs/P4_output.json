@@ -287,7 +287,7 @@
       "sources": [
         "https://aws.amazon.com/about-aws/global-infrastructure/regional-product-services/",
         "https://aws.amazon.com/fargate/pricing/",
-        "https://docs.aws.amazon.com/apprunner/latest/dg/apprunner-availability-change.html",
+        "https://aws.amazon.com/apprunner/",
         "https://aws.amazon.com/compliance/programs/"
       ],
       "stability": {
@@ -413,7 +413,7 @@
         "alternatives": [
           {
             "choice": "Redis (7.4+)",
-            "why_not": "now source-available (RSALv2/SSPL); Valkey keeps the BSD licence"
+            "why_not": "7.4-7.8 are source-available (RSALv2/SSPLv1) and Redis 8+ adds an AGPLv3 option (copyleft for network use); Valkey keeps the BSD licence"
           },
           {
             "choice": "No cache",
@@ -459,7 +459,7 @@
       {
         "layer": "payments",
         "choice": "Razorpay (UPI, cards, netbanking) — RazorpayX Payouts for UPI loan disbursals to borrowers; Subscriptions with UPI AutoPay / e-mandate for recurring collections",
-        "justification": "The description requires UPI. Hosted checkout keeps card data off your servers (PCI DSS SAQ A scope when fully outsourced). Payment confirmation is trusted only from signed server-side webhooks. For lending, disburse straight to the borrower's bank account and collect repayments directly into the lender's (regulated entity's) account — no pooled pass-through accounts (RBI Digital Lending Directions 2025). pci_dss: the gateway is PCI DSS Level 1; your scope still covers the pages that embed checkout.",
+        "justification": "The description requires UPI. Hosted checkout keeps card data off your servers, which can qualify for PCI DSS SAQ A (your acquirer confirms; protect the checkout page from script attacks). Payment confirmation is trusted only from signed server-side webhooks. For lending, disburse straight to the borrower's bank account and collect repayments directly into the lender's (regulated entity's) account — no pooled pass-through accounts (RBI Digital Lending Directions 2025). pci_dss: the gateway is PCI DSS Level 1; your scope still covers the pages that embed checkout.",
         "driven_by": [
           "requirements.payments",
           "project.description",
@@ -493,7 +493,7 @@
           "https://razorpay.com/x/payouts/",
           "https://razorpay.com/subscriptions/",
           "https://www.rbi.org.in/scripts/NotificationUser.aspx?Id=12848",
-          "https://www.pcisecuritystandards.org/faqs/",
+          "https://www.pcisecuritystandards.org/faqs/1588/",
           "https://blog.pcisecuritystandards.org/now-is-the-time-for-organizations-to-adopt-the-future-dated-requirements-of-pci-dss-v4-x"
         ]
       },
@@ -688,7 +688,7 @@
     {
       "code": "RBI_LOCALISATION",
       "severity": "info",
-      "message": "RBI payment-data localisation: all payment data, backups and logs stay on systems in India; anything processed abroad must be deleted there and brought back within 24 hours.",
+      "message": "RBI storage of payment system data: payment system operators and the gateways and vendors in their chain store the end-to-end payment data only in India; data processed abroad must be deleted there and brought back within one business day or 24 hours, whichever is earlier.",
       "fields": [
         "compliance",
         "infrastructure.data_residency"
@@ -697,7 +697,7 @@
     {
       "code": "PCI_SCOPE",
       "severity": "info",
-      "message": "PCI DSS v4.0.1: card data handled only by the gateway's hosted fields/checkout keeps scope small (SAQ A when fully outsourced); still secure the pages that embed checkout.",
+      "message": "PCI DSS v4.0.1: card data handled only by the gateway's hosted checkout or embedded payment form keeps scope small and can qualify for SAQ A; with an embedded form the page must also be protected from script attacks (Requirements 6.4.3/11.6.1, or the processor's confirmation), and your acquirer confirms which SAQ applies.",
       "fields": [
         "compliance"
       ]
@@ -705,7 +705,7 @@
     {
       "code": "DPDP_OBLIGATIONS",
       "severity": "info",
-      "message": "DPDP Act 2023: collect consent with a clear notice, support access/correction/erasure requests, keep breach-notification runbooks (72 h to the Board under the 2025 Rules) and delete data when the purpose ends. Hosting in India simplifies transfers; legal review still required.",
+      "message": "DPDP Act 2023: collect consent with a clear notice, support access/correction/erasure requests, keep a breach runbook (the DPDP Rules 2025 require prompt intimation to the Board and affected people, then a detailed report within 72 hours; the Rules commence in phases, so confirm which apply on your launch date) and delete data when the purpose ends. Hosting in India simplifies transfers; legal review still required.",
       "fields": [
         "compliance"
       ]
