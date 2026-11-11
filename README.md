@@ -58,8 +58,8 @@ Hard constraints (cloud preference, deployment model, data residency, compliance
 | `engine/web.py`, `web/index.html` | Optional local web UI (`serve`): standard-library HTTP server on 127.0.0.1 and one self-contained page |
 | `engine/kb.py` | Loads the knowledge base; an unknown source id fails loudly |
 | `tools/check_contract.py` | Independent checker of the Section 4 output contract |
-| `tools/perturb.py` | Robustness sweep: 943 one-field edits across P1-P6; reports crashes, contract/hard-constraint violations and which layers move |
-| `tests/` | 87 stdlib `unittest` tests: boundary set B01-B34, KB lint, deprecated-product guard, 96 hard-constraint mutations, interactive mode, improvement acceptance tests (language fit, serverless fit, static hosts, native mobile, low budget, relaxed labelling, explanations, KB breadth, counterfactuals, web UI, traffic shape, domain rules for games/IoT/analytics/API/B2B SSO, extra inputs) |
+| `tools/perturb.py` | Robustness sweep: 997 one-field edits across P1-P6; reports crashes, contract/hard-constraint violations and which layers move |
+| `tests/` | stdlib `unittest` tests: boundary set B01-B34, KB lint, deprecated-product guard, 96 hard-constraint mutations, interactive mode, improvement acceptance tests (language fit, serverless fit, static hosts, native mobile, low budget, relaxed labelling, explanations, KB breadth, counterfactuals, web UI, traffic shape, domain rules for games/IoT/analytics/API/B2B SSO, extra inputs) |
 
 ## Technology used
 
@@ -168,9 +168,9 @@ Example: `scenarios/extras/X1_p6_with_extras.json` (P6 plus the first four). The
 - **Soft conflicts:** budget, timeline and team conflicts give `ok_with_warnings` with a full stack and named warnings, never a silent violation.
 - **`cloud_preference: none`** means no public cloud.
 - **`on_premise` and `air_gapped`** both allow only self-hostable components, with no SaaS or CDN. Unavoidable external dependencies (a payment gateway, an existing cloud identity provider, an SMS carrier link) are kept only with an explicit warning.
-- **Extra output fields** (Section 4 allows them): each core component has `kb_id`, `score_margin` (gap to the runner-up; small means a near-tie) and `what_would_change` (up to three distinct outcomes, each with the first one-field edit that causes it and up to three other edits that lead there; `none in the probe set` when nothing tried flips it), `stability` (share of a fixed grid of 53-54 priority-weight vectors that keeps the choice, with the nearest single-priority flip point), `confidence` (`low` if stability < 0.7 or margin < 1.0, `high` if stability ≥ 0.9 and margin ≥ 2.0, else `medium`, with the numbers in `basis`) and `contrast` ("X rather than Y. Reason. Trade-off accepted: ..."), `pareto` (whether another eligible option rates at least as well on all six priorities, and if so what the choice wins on, usually team fit or an existing system). Components also carry `deployment`, `provider`, `data_bearing`, `data_location` and `sources`.
+- **Extra output fields** (Section 4 allows them): each core component has `kb_id`, `score_margin` (gap to the runner-up; small means a near-tie) and `what_would_change` (up to three distinct outcomes, each with the first one-field edit that causes it and up to three other edits that lead there; `none in the probe set` when nothing tried flips it), `stability` (share of a fixed grid of 45-54 priority-weight vectors that keeps the choice, with the nearest single-priority flip point), `confidence` (`low` if stability < 0.7 or margin < 1.0, `high` if stability ≥ 0.9 and margin ≥ 2.0, else `medium`, with the numbers in `basis`) and `contrast` ("X rather than Y. Reason. Trade-off accepted: ..."), `pareto` (whether another eligible option rates at least as well on all six priorities, and if so what the choice wins on, usually team fit or an existing system). Components also carry `deployment`, `provider`, `data_bearing`, `data_location` and `sources`.
 - **Relaxed recommendations:** when a critical conflict remains (for example a huge scale on a $0 budget), the summary starts with "Relaxed recommendation" and one `Relaxed:` assumption names each relaxed field.
-- **Description rules:** fixed, deterministic keyword rules on `project.description` shape supporting services and warnings only, for example UPI, EMI, payouts, ledger, KYC, offline sync and Microsoft 365. Core layers come from structured fields.
+- **Description rules:** fixed, deterministic keyword rules on `project.description` shape supporting services and warnings only, for example UPI, EMI, payouts, ledger, KYC, offline sync and Microsoft 365. Description signals can also affect core scores (ledger, Markdown, internal-only and low-end devices); the rules remain deterministic.
 
 ## Project structure
 
@@ -196,4 +196,6 @@ source/
 - **Datasets:** the organiser's `stacksense_public_scenarios.json`. No external datasets.
 - **APIs:** none called at runtime.
 - **Knowledge-base sources:** official vendor documentation, pricing and lifecycle pages and regulator pages. All are listed in `kb/sources.json` with URL, access date (2026-11-11) and verification status, and they are cited in the report.
-- **AI assistance:** Claude Code (Anthropic) was used as a coding and research assistant. It is declared in the report's AI-assistance section. Design decisions are recorded in `DECISIONS.md`.
+- **AI assistance:** Claude Code (Anthropic) and OpenAI Codex were used as coding and review assistants; a GPT-6.1 Terra research agent checked primary-source text during the 11 November review. It is declared in the report's AI-assistance section. Design decisions are recorded in `DECISIONS.md`.
+
+Review limitations: numeric inputs must fit the finite floating-point range used by sizing calculations. Duplicate sanitized output filenames are rejected before any output is replaced. Unresolved residency and retained on-premises SaaS dependencies carry critical warnings. Source verification labels reflect earlier research; the 11 November Codex web review could not independently inspect rendered vendor pages.
