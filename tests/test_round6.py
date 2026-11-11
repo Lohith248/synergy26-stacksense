@@ -236,5 +236,37 @@ class CostBands(unittest.TestCase):
         self.assertNotIn("$35", line)
 
 
+def hidden(name):
+    import glob
+    with open(glob.glob(os.path.join(ROOT, "scenarios", "hidden_like", name + "_*.json"))[0], encoding="utf-8") as f:
+        return json.load(f)
+
+
+class ServerTemplates(unittest.TestCase):
+    """Blind round 2: H27 (PHP team, SEO news site) got Node + Next.js because no web option let the backend render pages.
+    H20/H22 (solo beginner Python) got a React SPA plus an API. Reproduced on 757181e before the change."""
+
+    def test_php_seo_site_keeps_laravel(self):
+        st = evaluate(hidden("H27"), counterfactuals=False)["stack"]
+        self.assertIn("Laravel", st["backend"]["choice"])
+        self.assertIn("Blade", st["frontend"]["choice"])
+
+    def test_solo_beginner_python_gets_django_templates(self):
+        for sid in ("H20", "H22"):
+            st = evaluate(hidden(sid), counterfactuals=False)["stack"]
+            self.assertIn("Django templates", st["frontend"]["choice"], sid)
+
+    def test_js_team_and_app_heavy_projects_keep_a_js_framework(self):
+        for i in range(1, 7):
+            fe = pub(i)["stack"]["frontend"]["choice"]
+            self.assertFalse(any(t in fe for t in ("templates", "Blade", "Thymeleaf", "Razor Pages", "Hotwire")), (i, fe))
+        self.assertIn("React", evaluate(hidden("H29"), counterfactuals=False)["stack"]["frontend"]["choice"])
+
+    def test_ruby_team_at_a_scale_rails_does_not_fit_still_gets_node(self):
+        s = copy.deepcopy(PUBLIC[2])
+        s["team"]["languages"] = ["ruby"]
+        self.assertIn("Node", evaluate(s, counterfactuals=False)["stack"]["backend"]["choice"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -196,6 +196,7 @@ def _recommend(req, assumptions, sid):
     # ---- backend
     backend_c = None
     if ctx["needs_backend"]:
+        ctx["ui_needs_js"] = sl.ui_needs_js(ctx, SKILL_BAND)
         bs = sl.backend_candidates(ctx, None)
         b_ok, b_out = sl.rank(bs)
         backend_c = b_ok[0]

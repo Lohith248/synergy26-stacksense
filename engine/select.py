@@ -182,6 +182,25 @@ def hosting_candidates(ctx):
 
 
 # ---------------------------------------------------------------- backend
+def ui_needs_js(ctx, skill_band):
+    """Lookahead for the one_new_language bonus. Without the bonus, take the backend that would be chosen (team language
+    preferred within skill_band, as in recommend). The web UI needs JavaScript/TypeScript unless that backend is in the
+    team's language, renders templates, and its templates are the best web option."""
+    team = set(ctx["langs"])
+    if not (ctx["web"] and team):
+        return True
+    ctx["ui_needs_js"] = False
+    ok, _ = rank(backend_candidates(ctx, None))
+    top = ok[0]
+    fit = next((c for c in ok if set(c.item["langs"]) & team), None)
+    if fit and top.score - fit.score <= skill_band:
+        top = fit
+    if not (top.item.get("templates") and set(top.item["langs"]) & team):
+        return True
+    w_ok, _ = rank(web_candidates(ctx, top.item))
+    return w_ok[0].item["kind"] != "templates"
+
+
 def backend_candidates(ctx, host):
     req = ctx["req"]
     cands = []
@@ -205,7 +224,7 @@ def backend_candidates(ctx, host):
         if ctx["existing_db"] and ctx["existing_db"]["pattern"].get("engine") == "sqlserver":
             c.add("existing", (b["sqlserver"] - 3) * 2, "infrastructure.existing_systems",
                   "first-class SQL Server driver/ORM" if b["sqlserver"] >= 4 else "weaker SQL Server tooling")
-        if (ctx["langs"] and ctx["web"] and not set(ctx["langs"]) & {"javascript", "typescript"} and set(b["langs"]) & {"javascript", "typescript"}
+        if (ctx["ui_needs_js"] and ctx["langs"] and ctx["web"] and not set(ctx["langs"]) & {"javascript", "typescript"} and set(b["langs"]) & {"javascript", "typescript"}
                 and not set(ctx["hiring"]) & {"javascript", "typescript"}):  # hiring already earns lang credit
             c.add("one_new_language", 7 * ctx["lf"], "team.languages",  # cancels the language-mismatch penalty above: JS must be learned for the web UI regardless
                   "the web UI needs JavaScript/TypeScript anyway, so the team learns one new language instead of two")
@@ -322,7 +341,13 @@ def web_candidates(ctx, backend):
     req = ctx["req"]
     cands = []
     for f in TECH["frontend_web"]:
+        if f["kind"] == "templates":  # the backend framework renders the pages itself, in the backend's language
+            if not (backend and backend.get("templates")):
+                continue
+            f = dict(f, langs=backend["langs"], name=backend["templates"])
         c = Cand(f)
+        if f["kind"] == "templates" and ctx["mobile"]:
+            c.add("api_anyway", -3, "project.platforms", "the mobile app needs a JSON API anyway, so server-rendered pages add a second presentation layer")
         prio_terms(c, ctx, f["r"])
         lang_term(c, ctx, f["langs"], 5, "the UI")
         learn_term(c, ctx, f["learning"])
