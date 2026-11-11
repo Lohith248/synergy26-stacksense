@@ -8,6 +8,8 @@ from . import domains
 from .kb import cite
 
 Z = [[0, 0], [0, 0], [0, 0], [0, 0]]
+# cloudflare.com/plans rendered 11 Nov 2026
+CF_FREE = ("Cloudflare positions the Free plan for projects that are not business-critical and gives it no uptime SLA (the 100% SLA starts at Business); move to a paid plan when the site becomes business-critical")
 
 
 def svc(layer, choice, why, driven, alts, trade, deploy, provider, data_bearing, cost, src, location=None):
@@ -409,13 +411,14 @@ def build(ctx, host, backend, db, mobile, warn):
                            paths + ["budget.monthly_infra_usd"],
                            [("Azure Front Door", "the $35/month Standard base fee is too large a share of this budget; switch when the budget grows"),
                             ("No CDN", "every asset request hits the origin; slower for distant users")],
-                           ["Cache invalidation on deploys", "A second vendor for DNS/TLS, outside the Azure contract"],
+                           ["Cache invalidation on deploys", "A second vendor for DNS/TLS, outside the Azure contract", CF_FREE],
                            "saas", "cloudflare", False, [[0, 1], [0, 5], [0, 20], [20, 200]], ["cloudflare-plans"]))
         else:
             out.append(svc("cdn", name, why, paths,
                        [("No CDN", "every asset request hits the origin; slower for distant users")]
                        + ([("Cloudflare (free plan) in front of Azure", "cheaper for a small site, but a second vendor for DNS/TLS and outside the Azure contract")] if p == "azure" else []),
-                       ["Cache invalidation on deploys"] + (["Front Door Standard has a $35/month base fee before requests and egress"] if p == "azure" else []),
+                       ["Cache invalidation on deploys"] + (["Front Door Standard has a $35/month base fee before requests and egress"] if p == "azure" else [])
+                       + ([CF_FREE] if name.startswith("Cloudflare (free plan)") else []),
                        "managed", p if hyper else "cloudflare", False,
                        # Azure: the $35 base fee is verified (R11); request/egress growth in the larger tiers is an estimate
                        [[35, 40], [35, 60], [50, 200], [150, 900]] if p == "azure" else [[0, 1], [1, 15], [15, 120], [120, 800]],

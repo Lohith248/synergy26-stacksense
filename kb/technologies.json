@@ -80,7 +80,7 @@
     {"id": "azure-app-service", "scaling": "instances", "name": "Azure App Service (Linux)", "plans": ["Basic B1", "Basic B2 / Standard S1", "Premium v3, 2+ instances", "Premium v3, autoscale"], "plan_ha": "Premium v3, 2+ instances across zones", "provider": "azure", "deploy": "managed", "kind": "paas",
      "regions": {"india": "Central India (Pune)", "eu": "West Europe (Netherlands)", "us": "East US (Virginia)"},
      "r": [4, 5, 4, 4, 5, 5], "learning": 2, "ops": 1, "max_tier": 3, "sla": "99.95", "commercial_ok": true,
-     "cost": [[13, 30], [30, 150], [150, 800], [800, 4000]],
+     "cost": [[13, 30], [25, 150], [150, 800], [800, 4000]],
      "strengths": ["Managed PaaS with built-in Entra ID authentication", "Hybrid Connections reach on-premises TCP services (Basic tier and up)", "Deployment slots for safe releases"],
      "limits": ["Hybrid Connections limited to 5 per Basic plan", "Less control than containers for unusual runtimes"],
      "src": ["azure-regions", "azure-products-by-region", "azure-appservice-pricing", "azure-hybrid-connections", "azure-compliance"]},

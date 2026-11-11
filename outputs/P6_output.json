@@ -177,7 +177,7 @@
         "https://www.postgresql.org/docs/current/ddl-rowsecurity.html",
         "https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html",
         "https://supabase.com/docs/guides/platform/regions",
-        "https://postgis.net/documentation/"
+        "https://postgis.net/docs/using_postgis_dbmanagement.html"
       ],
       "stability": {
         "score": 1.0,

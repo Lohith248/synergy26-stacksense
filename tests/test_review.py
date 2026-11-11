@@ -451,5 +451,22 @@ class NoGenericJustification(unittest.TestCase):
                             self.assertNotIn('Best overall fit', out['stack'][layer]['justification'])
 
 
+
+class PublicCitedSources(unittest.TestCase):
+    """Every source cited by P1-P6 except TRAI DLT was rendered or read from vendor price data on 11 Nov 2026."""
+    def test_p2_free_cdn_and_app_service_band_follow_the_vendor_pages(self):
+        out = evaluate(copy.deepcopy(PUBLIC[1]), counterfactuals=False)
+        cdn = next(x for x in out['stack']['supporting'] if x['layer'] == 'cdn')
+        self.assertIn('business-critical', ' '.join(cdn['tradeoffs']))
+        host = next(a for a in out['estimated_monthly_cost_usd']['assumptions'] if a.startswith('Hosting'))
+        self.assertIn('$25-150/month', host)
+
+    def test_cited_sources_are_verified(self):
+        src = json.loads((ROOT / 'kb' / 'sources.json').read_text(encoding='utf-8'))
+        for key in ('azure-appservice-pricing', 'azure-sql-pricing', 'aws-sagemaker', 'cloudflare-plans', 'postgis'):
+            with self.subTest(key=key):
+                self.assertEqual(src[key]['status'], 'verified')
+
+
 if __name__ == '__main__':
     unittest.main()

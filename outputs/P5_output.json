@@ -2,7 +2,7 @@
   "scenario_id": "P5",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Hybrid cloud + on-premises integration: React (Vite SPA) (web) on .NET 10 LTS + ASP.NET Core with Azure SQL Database (serverless/General Purpose) — Central India (Pune), hosted on Azure App Service (Linux, Basic B2 / Standard S1) — Central India (Pune), at an estimated $51-276/month.",
+  "summary": "Hybrid cloud + on-premises integration: React (Vite SPA) (web) on .NET 10 LTS + ASP.NET Core with Azure SQL Database (serverless/General Purpose) — Central India (Pune), hosted on Azure App Service (Linux, Basic B2 / Standard S1) — Central India (Pune), at an estimated $46-276/month.",
   "architecture_style": "hybrid",
   "stack": {
     "frontend": {
@@ -215,7 +215,7 @@
       "alternatives": [
         {
           "choice": "Azure Container Apps",
-          "why_not": "Azure App Service (Linux, Basic B2 / Standard S1) is stronger on: good maintainability (priority 5/5) (priorities.maintainability); good fast delivery (priority 5/5) (priorities.time_to_market). Overall 15.6 points behind. Known limit of Azure Container Apps: more moving parts than App Service for a single web app."
+          "why_not": "Azure App Service (Linux, Basic B2 / Standard S1) is stronger on: good maintainability (priority 5/5) (priorities.maintainability); good fast delivery (priority 5/5) (priorities.time_to_market). Overall 15.7 points behind. Known limit of Azure Container Apps: more moving parts than App Service for a single web app."
         },
         {
           "choice": "Google Cloud Run",
@@ -231,7 +231,7 @@
         "Less control than containers for unusual runtimes"
       ],
       "kb_id": "azure-app-service",
-      "score_margin": 15.6,
+      "score_margin": 15.7,
       "pareto": {
         "optimal": true,
         "dominated_by": [],
@@ -258,7 +258,7 @@
       },
       "confidence": {
         "label": "high",
-        "basis": "stability 1.00 (robust) over 52 priority vectors; score margin 15.6 over the runner-up."
+        "basis": "stability 1.00 (robust) over 52 priority vectors; score margin 15.7 over the runner-up."
       },
       "contrast": "Azure App Service (Linux, Basic B2 / Standard S1) rather than Azure Container Apps. Azure App Service (Linux, Basic B2 / Standard S1) is stronger on: good maintainability (priority 5/5) (priorities.maintainability); good fast delivery (priority 5/5) (priorities.time_to_market). Trade-off accepted: Hybrid Connections limited to 5 per Basic plan.",
       "what_would_change": [
@@ -455,11 +455,11 @@
     ]
   },
   "estimated_monthly_cost_usd": {
-    "min": 51,
+    "min": 46,
     "max": 276,
     "currency": "USD",
     "assumptions": [
-      "Hosting Azure App Service (Linux, Basic B2 / Standard S1): $30-150/month at the 'small' tier.",
+      "Hosting Azure App Service (Linux, Basic B2 / Standard S1): $25-150/month at the 'small' tier.",
       "Database Azure SQL Database (serverless/General Purpose): $15-80/month. Assumes serverless auto-pause outside working hours: about 26-139 active vCore-hours a month at ~$0.57/vCore-hour (Central India rate, 11 Nov 2026); a 0.5-vCore minimum that never pauses is about $210/month compute, and DTU Standard S0 (~$17/month) is the fixed-price alternative.",
       "storage: Azure Blob Storage (Central India (Pune)) $1-10/month.",
       "ci_cd: GitHub Actions $0-4/month.",

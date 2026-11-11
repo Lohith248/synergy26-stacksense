@@ -2,7 +2,7 @@
   "scenario_id": "P2",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Modular monolith: Next.js (web) + React Native (Expo) (Android) on Node.js 24 LTS + NestJS (TypeScript) with Azure Database for PostgreSQL – Flexible Server 17 — Central India (Pune), hosted on Azure App Service (Linux, Basic B2 / Standard S1) — Central India (Pune), at an estimated $88-457/month.",
+  "summary": "Modular monolith: Next.js (web) + React Native (Expo) (Android) on Node.js 24 LTS + NestJS (TypeScript) with Azure Database for PostgreSQL – Flexible Server 17 — Central India (Pune), hosted on Azure App Service (Linux, Basic B2 / Standard S1) — Central India (Pune), at an estimated $83-457/month.",
   "architecture_style": "modular_monolith",
   "stack": {
     "frontend": {
@@ -236,11 +236,11 @@
       "alternatives": [
         {
           "choice": "Google Cloud Run",
-          "why_not": "Azure App Service (Linux, Basic B2 / Standard S1) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market); good maintainability (priority 3/5) (priorities.maintainability). Overall 3.0 points behind. Known limit of Google Cloud Run: cold starts unless min instances are paid for."
+          "why_not": "Azure App Service (Linux, Basic B2 / Standard S1) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market); good maintainability (priority 3/5) (priorities.maintainability). Overall 3.1 points behind. Known limit of Google Cloud Run: cold starts unless min instances are paid for."
         },
         {
           "choice": "Azure Container Apps",
-          "why_not": "Operations burden 2/5 with no dedicated DevOps person (team.has_devops). Azure App Service (Linux, Basic B2 / Standard S1) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market). Overall 10.1 points behind. Known limit of Azure Container Apps: more moving parts than App Service for a single web app."
+          "why_not": "Operations burden 2/5 with no dedicated DevOps person (team.has_devops). Azure App Service (Linux, Basic B2 / Standard S1) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market). Overall 10.2 points behind. Known limit of Azure Container Apps: more moving parts than App Service for a single web app."
         },
         {
           "choice": "Render (web service + workers)",
@@ -251,7 +251,7 @@
         "Less control than containers for unusual runtimes"
       ],
       "kb_id": "azure-app-service",
-      "score_margin": 3.0,
+      "score_margin": 3.1,
       "pareto": {
         "optimal": true,
         "dominated_by": [],
@@ -288,7 +288,7 @@
       },
       "confidence": {
         "label": "high",
-        "basis": "stability 0.91 (robust) over 54 priority vectors; score margin 3.0 over the runner-up."
+        "basis": "stability 0.91 (robust) over 54 priority vectors; score margin 3.1 over the runner-up."
       },
       "contrast": "Azure App Service (Linux, Basic B2 / Standard S1) rather than Google Cloud Run. Azure App Service (Linux, Basic B2 / Standard S1) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market); good maintainability (priority 3/5) (priorities.maintainability). Trade-off accepted: Less control than containers for unusual runtimes.",
       "what_would_change": [
@@ -493,7 +493,8 @@
         ],
         "tradeoffs": [
           "Cache invalidation on deploys",
-          "A second vendor for DNS/TLS, outside the Azure contract"
+          "A second vendor for DNS/TLS, outside the Azure contract",
+          "Cloudflare positions the Free plan for projects that are not business-critical and gives it no uptime SLA (the 100% SLA starts at Business); move to a paid plan when the site becomes business-critical"
         ],
         "deployment": "saas",
         "provider": "cloudflare",
@@ -582,11 +583,11 @@
     ]
   },
   "estimated_monthly_cost_usd": {
-    "min": 88,
+    "min": 83,
     "max": 457,
     "currency": "USD",
     "assumptions": [
-      "Hosting Azure App Service (Linux, Basic B2 / Standard S1): $30-150/month at the 'small' tier.",
+      "Hosting Azure App Service (Linux, Basic B2 / Standard S1): $25-150/month at the 'small' tier.",
       "Database Azure Database for PostgreSQL – Flexible Server 17: $30-120/month. Sized for a Burstable B2s instance (about $72 compute); a General Purpose D2ds_v5 alone is about $183.",
       "storage: Azure Blob Storage (Central India (Pune)) $1-10/month.",
       "cdn: Cloudflare (free plan) in front of Azure $0-5/month.",

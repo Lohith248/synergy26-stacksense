@@ -67,7 +67,7 @@ class SourcesFixed(unittest.TestCase):
         self.assertEqual(src["rn-hermes"]["status"], "verified")
         self.assertIn("about-api-gateway", src["gcp-api-gateway"]["url"])
         self.assertIn("models-region-compatibility", src["aws-bedrock"]["url"])
-        self.assertEqual(sum(v.get("status") == "official-unverified" and not v.get("note", "").startswith("added in round") for k, v in src.items() if k != "_note"), 15)
+        self.assertEqual(sum(v.get("status") == "official-unverified" and not v.get("note", "").startswith("added in round") for k, v in src.items() if k != "_note"), 11)  # 11 Nov: App Service, Azure SQL, SageMaker, Cloudflare plans verified
 
 
 if __name__ == "__main__":
