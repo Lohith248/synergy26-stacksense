@@ -525,5 +525,21 @@ class OnPremStoreBilling(unittest.TestCase):
                 self.assertTrue(any(w['code'] == 'EXTERNAL_PAYMENT_GATEWAY' and w['severity'] == 'critical' for w in out['warnings']))
 
 
+class RealtimeLocality(unittest.TestCase):
+    """Section 8 locality: realtime=true on P6 (spiky field sync, not a collaborative app) may change the backend,
+    but must not move hosting and the database to another cloud through a stacked WebSocket penalty."""
+    def test_p6_realtime_keeps_provider(self):
+        base = evaluate(copy.deepcopy(PUBLIC[5]), counterfactuals=False)['stack']
+        s = copy.deepcopy(PUBLIC[5])
+        s['requirements']['realtime'] = True
+        st = evaluate(s, counterfactuals=False)['stack']
+        for layer in ('hosting', 'database'):
+            self.assertEqual(st[layer]['choice'], base[layer]['choice'], layer)
+
+    def test_collaborative_p3_still_penalises_the_request_timeout(self):
+        st = evaluate(copy.deepcopy(PUBLIC[2]), counterfactuals=False)['stack']
+        self.assertIn('Azure App Service', st['hosting']['choice'])
+
+
 if __name__ == '__main__':
     unittest.main()

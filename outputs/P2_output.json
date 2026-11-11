@@ -236,7 +236,7 @@
       "alternatives": [
         {
           "choice": "Google Cloud Run",
-          "why_not": "Azure App Service (Linux, Basic B2 / Standard S1) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market); good maintainability (priority 3/5) (priorities.maintainability). Overall 3.1 points behind. Known limit of Google Cloud Run: cold starts unless min instances are paid for."
+          "why_not": "Azure App Service (Linux, Basic B2 / Standard S1) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market); good maintainability (priority 3/5) (priorities.maintainability). Overall 1.6 points behind. Known limit of Google Cloud Run: cold starts unless min instances are paid for."
         },
         {
           "choice": "Azure Container Apps",
@@ -251,7 +251,7 @@
         "Less control than containers for unusual runtimes"
       ],
       "kb_id": "azure-app-service",
-      "score_margin": 3.1,
+      "score_margin": 1.6,
       "pareto": {
         "optimal": true,
         "dominated_by": [],
@@ -270,25 +270,25 @@
         "https://learn.microsoft.com/en-us/azure/compliance/"
       ],
       "stability": {
-        "score": 0.91,
+        "score": 0.85,
         "vectors_tested": 54,
-        "label": "robust",
+        "label": "moderate",
         "alternatives": [
           {
             "choice": "Google Cloud Run — asia-south1 (Mumbai)",
-            "share": 0.09
+            "share": 0.15
           }
         ],
         "flip_point": {
           "priority": "time_to_market",
           "from": 5,
-          "value": 1,
+          "value": 2,
           "new_choice": "Google Cloud Run — asia-south1 (Mumbai)"
         }
       },
       "confidence": {
-        "label": "high",
-        "basis": "stability 0.91 (robust) over 54 priority vectors; score margin 3.1 over the runner-up."
+        "label": "medium",
+        "basis": "stability 0.85 (moderate) over 54 priority vectors; score margin 1.6 over the runner-up."
       },
       "contrast": "Azure App Service (Linux, Basic B2 / Standard S1) rather than Google Cloud Run. Azure App Service (Linux, Basic B2 / Standard S1) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market); good maintainability (priority 3/5) (priorities.maintainability). Trade-off accepted: Less control than containers for unusual runtimes.",
       "what_would_change": [

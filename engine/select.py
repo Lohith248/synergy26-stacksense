@@ -163,8 +163,10 @@ def hosting_candidates(ctx):
                 c.add("lock_in", -4, "infrastructure.lock_in_tolerance", "code is written against a provider-specific runtime, costly to move")
             elif kind in ("containers", "vm", "onprem"):
                 c.add("lock_in", 1, "infrastructure.lock_in_tolerance", "standard containers move to another cloud or on-prem unchanged")
-        if req["requirements.realtime"] and h.get("ws_timeout"):
-            c.add("realtime", -1.5, "requirements.realtime", "WebSocket connections end at the request timeout, so clients must reconnect")
+        if req["requirements.realtime"] and h.get("ws_timeout") and ctx["type"] in ("realtime_collab", "gaming"):
+            # ponytail: only long shared sessions pay this; short-lived realtime clients (feeds, notifications, mobile
+            # sync) reconnect anyway, and the "traffic" term above already prices connections that keep instances busy
+            c.add("realtime", -1.5, "project.type", "WebSocket connections end at the request timeout, so long shared sessions must reconnect")
         lat = req["requirements.p95_latency_ms"]
         if lat is not None and lat <= 150 and kind == "serverless":
             c.add("latency", -3, "requirements.p95_latency_ms", f"cold starts threaten a {lat} ms p95")

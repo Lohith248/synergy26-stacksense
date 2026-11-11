@@ -273,12 +273,11 @@
       "contrast": "Google Cloud Run rather than Azure App Service (Linux). Google Cloud Run is stronger on: good low running cost (priority 5/5) (priorities.cost); scales out with requests for traffic bursts and back down (to zero) afterwards, so idle periods cost little (scale.traffic_pattern). Trade-off accepted: Cold starts unless min instances are paid for.",
       "what_would_change": [
         {
-          "edit": "requirements.realtime: false -> true",
-          "path": "requirements.realtime",
-          "value": true,
+          "edit": "priorities.cost: 5 -> 3",
+          "path": "priorities.cost",
+          "value": 3,
           "new_choice": "Azure App Service (Linux, Basic B1) — Central India (Pune)",
           "also_by": [
-            "priorities.cost: 5 -> 3",
             "infrastructure.cloud_preference: any -> azure"
           ]
         },
