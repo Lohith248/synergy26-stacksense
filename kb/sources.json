@@ -191,5 +191,6 @@
   "eol-oracle-jdk": {"url": "https://endoflife.date/oracle-jdk", "title": "Oracle Java SE 17: premier support ended 2026-09-30, extended to 2029-09-30 (secondary; Oracle roadmap returned 403)", "status": "source-reported", "claims": ["R13"]},
   "htmx": {"url": "https://htmx.org/docs/", "title": "htmx: HTML-driven interactivity for server-rendered pages", "status": "verified", "note": "round 6: page rendered 2026-11-11; GitHub release v4.0.1 dated 2026-11-01 (docs page still describes 2.x)"},
   "hotwire": {"url": "https://hotwired.dev/", "title": "Hotwire (Turbo, Stimulus) for Rails views", "status": "verified", "note": "round 6: page rendered 2026-11-11; Turbo v8.0.23 is the latest GitHub release (year not shown)"},
-  "livewire": {"url": "https://livewire.laravel.com/docs", "title": "Laravel Livewire for Blade templates", "status": "verified", "note": "round 6: page rendered 2026-11-11 (docs default to 4.x); latest GitHub releases dated 21 Oct (year not shown)"}
+  "livewire": {"url": "https://livewire.laravel.com/docs", "title": "Laravel Livewire for Blade templates", "status": "verified", "note": "round 6: page rendered 2026-11-11 (docs default to 4.x); latest GitHub releases dated 21 Oct (year not shown)"},
+  "cloudflare-plans": {"url": "https://www.cloudflare.com/plans/", "title": "Cloudflare plans: Free plan includes the global CDN and TLS", "status": "official-unverified", "note": "added in round 6; page named, fact not yet checked in a research run"}
 }

@@ -213,7 +213,10 @@ class CostBands(unittest.TestCase):
     """Round 5 item 7 (R11, Azure Retail Prices API): Front Door Standard has a $35/month base fee; the old $1-15 band was too low."""
 
     def test_p2_front_door_band_includes_the_base_fee(self):
-        out = pub(2)
+        # P2 at a $600 budget: at its real $150 budget the free CDN is chosen instead (test below)
+        s = copy.deepcopy(PUBLIC[1])
+        s["budget"]["monthly_infra_usd"] = 600
+        out = evaluate(s, counterfactuals=False)
         cdn = next(s for s in out["stack"]["supporting"] if s["layer"] == "cdn")
         self.assertIn("Azure Front Door", cdn["choice"])
         line = next(a for a in out["estimated_monthly_cost_usd"]["assumptions"] if a.startswith("cdn:"))
@@ -229,6 +232,18 @@ class CostBands(unittest.TestCase):
         line = next(a for a in pub(2)["estimated_monthly_cost_usd"]["assumptions"] if a.startswith("Database "))
         self.assertIn("Burstable B2s", line)
         self.assertIn("$183", line)  # General Purpose D2ds_v5 compute alone (R11)
+
+    def test_tight_azure_budget_uses_the_free_cdn_and_names_front_door(self):
+        """P2: $150 budget; the $35 Front Door base fee alone is 23% of it. Above about $233 Front Door stays."""
+        cdn = next(s for s in pub(2)["stack"]["supporting"] if s["layer"] == "cdn")
+        self.assertIn("Cloudflare (free plan)", cdn["choice"])
+        self.assertTrue(any("Azure Front Door" in a["choice"] and "$35" in a["why_not"] for a in cdn["alternatives"]))
+        self.assertIn("project.platforms", cdn["driven_by"])
+        self.assertIn("budget.monthly_infra_usd", cdn["driven_by"])
+        rich = copy.deepcopy(PUBLIC[1])
+        rich["budget"]["monthly_infra_usd"] = 600
+        cdn = next(s for s in evaluate(rich, counterfactuals=False)["stack"]["supporting"] if s["layer"] == "cdn")
+        self.assertIn("Azure Front Door", cdn["choice"])
 
     def test_other_providers_keep_their_bands(self):
         out = pub(4)  # AWS: CloudFront band unchanged

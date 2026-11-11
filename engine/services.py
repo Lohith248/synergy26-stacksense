@@ -388,9 +388,21 @@ def build(ctx, host, backend, db, mobile, warn):
     if ((ctx["web"] or public_media) and ctx["needs_backend"] and not selfh and not d["internal_only"]
             and (req["requirements.seo_critical"] or ctx["tier"] >= 1 or ctx["geo"] in ("multi_region", "global"))):
         name = {"aws": "Amazon CloudFront", "azure": "Azure Front Door", "gcp": "Cloud CDN"}.get(p, "Cloudflare (free plan)")
-        out.append(svc("cdn", name, "Caches public pages and static assets near users; only public, non-personal content is cached at the edge.",
-                       ["project.platforms"] + (["requirements.seo_critical"] if req["requirements.seo_critical"] else ["scale.users_12_months"])
-                       + (["scale.geo_spread"] if ctx["geo"] in ("multi_region", "global") else []),
+        paths = (["project.platforms"] + (["requirements.seo_critical"] if req["requirements.seo_critical"] else ["scale.users_12_months"])
+                 + (["scale.geo_spread"] if ctx["geo"] in ("multi_region", "global") else []))
+        why = "Caches public pages and static assets near users; only public, non-personal content is cached at the edge."
+        # Front Door's $35 base fee (verified, R11) is more than 15% of a budget under ~$233; unless Azure was requested
+        # explicitly (a hard constraint), the free Cloudflare plan in front of Azure does the same job for a small site
+        if p == "azure" and req["infrastructure.cloud_preference"] != "azure" and ctx["budget"] < 35 / 0.15:
+            out.append(svc("cdn", "Cloudflare (free plan) in front of Azure", why + f" Azure Front Door's $35/month base fee would take "
+                           f"{round(3500 / ctx['budget']) if ctx['budget'] else 100}% of the ${ctx['budget']:g} budget, so the free plan is used.",
+                           paths + ["budget.monthly_infra_usd"],
+                           [("Azure Front Door", "the $35/month Standard base fee is too large a share of this budget; switch when the budget grows"),
+                            ("No CDN", "every asset request hits the origin; slower for distant users")],
+                           ["Cache invalidation on deploys", "A second vendor for DNS/TLS, outside the Azure contract"],
+                           "saas", "cloudflare", False, [[0, 1], [0, 5], [0, 20], [20, 200]], ["cloudflare-plans"]))
+        else:
+            out.append(svc("cdn", name, why, paths,
                        [("No CDN", "every asset request hits the origin; slower for distant users")]
                        + ([("Cloudflare (free plan) in front of Azure", "cheaper for a small site, but a second vendor for DNS/TLS and outside the Azure contract")] if p == "azure" else []),
                        ["Cache invalidation on deploys"] + (["Front Door Standard has a $35/month base fee before requests and egress"] if p == "azure" else []),
