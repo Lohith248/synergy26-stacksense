@@ -76,11 +76,13 @@ def hard_violations(doc, sc):
         if dep in ("on_premise", "air_gapped") and c.get("deployment") not in ("self_hosted", "client", "none", "library"):
             ok = (c.get("layer") == "payments" and "EXTERNAL_PAYMENT_GATEWAY" in codes) or (
                 c.get("layer") == "auth" and "EXTERNAL_IDENTITY_PROVIDER" in codes) or (
-                c.get("layer") == "other" and "EXTERNAL_EXISTING_SERVICE" in codes)
+                c.get("layer") == "other" and "EXTERNAL_EXISTING_SERVICE" in codes) or (
+                c is st["database"] and "EXTERNAL_EXISTING_DATABASE" in codes)
             if not ok:
                 out.append(f"{name} is {c.get('deployment')} under {dep}")
         if res in ("india", "eu", "us") and c.get("data_bearing") and c.get("data_location") not in (res, "device"):
-            if not (c.get("layer") == "payments" and "PAYMENT_DATA_LOCATION" in codes) and "RESIDENCY_UNVERIFIED_SERVICE" not in codes:
+            if not (c.get("layer") == "payments" and "PAYMENT_DATA_LOCATION" in codes) and "RESIDENCY_UNVERIFIED_SERVICE" not in codes \
+                    and not (c is st["database"] and "EXISTING_DB_RESIDENCY_CONFLICT" in codes):
                 out.append(f"{name} stores data in {c.get('data_location')} but residency is {res}")
     if dep in ("on_premise", "air_gapped") and any(s["layer"] == "cdn" for s in st.get("supporting", [])):
         out.append(f"CDN under {dep}")

@@ -417,6 +417,7 @@ def _recommend(req, assumptions, sid):
         if ctx["kept_db"]:
             db_c, db_cmp = kept_database(ctx, ctx["kept_db"], d_ok, loc)
             db_item = dict(db_c.item, _variant=db_c.variant)
+            kept_db_checks(ctx, ctx["kept_db"], db_c, db_cmp, W)
     else:
         db_cmp = none_component("database", "Content lives as Markdown/HTML files in the repository; there is no user data to store.",
                                 ["project.type", "requirements.auth"],
@@ -736,9 +737,21 @@ def contradictions(ctx, W, assumptions, host, backend):
         if not e["pattern"] and not life:
             W("EXISTING_SYSTEM_UNRECOGNISED", "info", f"'{e['raw']}' is not in the knowledge base; integration must be designed manually.",
               ["infrastructure.existing_systems"])
+    if ctx["other_kept_dbs"]:
+        W("SEVERAL_KEPT_DATABASES", "info",
+          f"Several databases must stay; '{ctx['kept_db']['raw']}' is reused as the application's database and "
+          + ", ".join(f"'{o['raw']}'" for o in ctx["other_kept_dbs"]) + " stays in place, reached through an integration (see supporting 'other').",
+          ["infrastructure.existing_systems"])
+    for kind, rest in ctx["unused_existing"].items():
+        if rest:
+            used = ctx["existing_idp"] if kind == "identity provider" else ctx["existing_queue"]
+            W("SEVERAL_EXISTING_SYSTEMS", "info",
+              f"Several existing {kind}s are listed; this design considers only '{used['raw']}', so "
+              + ", ".join(f"'{o['raw']}'" for o in rest) + " is not used by the application. Integrate it separately if it must take part.",
+              ["infrastructure.existing_systems"])
     idp = ctx["existing_idp"]
     if (idp and idp["pattern"].get("reuse") and req["requirements.auth"] not in ("enterprise_sso", "none")
-            and not (idp["pattern"].get("customer_login") and req["requirements.auth"] in ("email_password", "social"))):
+            and not (ctx["idp_customer_login"] and req["requirements.auth"] in ("email_password", "social"))):
         W("EXISTING_IDP_NOT_USED", "info", ("An Entra tenant" if ctx["ms_idp"] else f"An existing {idp['pattern']['name']} tenant")
           + " exists but auth is not enterprise_sso; consider SSO for staff users.",
           ["infrastructure.existing_systems", "requirements.auth"])
@@ -746,12 +759,46 @@ def contradictions(ctx, W, assumptions, host, backend):
         assumptions.append("Static public site: content is public and contains no personal data, so a global CDN host does not breach data residency.")
 
 
+# a provider-run database service (the entry names the service, or says managed)
+MANAGED_DB_RX = (r"\b(?:atlas|rds|aurora|cloud sql|azure sql|azure database|cosmos ?db|documentdb|alloydb|spanner|planetscale"
+                 r"|autonomous database|managed|dbaas)\b")
+
+
+def kept_db_checks(ctx, e, c, cmp, W):
+    """Contradictions between a database that must stay and the rest of the input."""
+    paths = ["infrastructure.existing_systems"]
+    where, res = cmp["data_location"], ctx["res_key"]
+    if where and where != "unverified" and res and where != res and (ctx["res_named"] or ctx["residency_from_rbi"]):
+        W("EXISTING_DB_RESIDENCY_CONFLICT", "critical",
+          f"'{e['raw']}' is in {cx.COUNTRIES[where][0] if where in cx.COUNTRIES else where.upper()}, but data_residency requires "
+          f"{ctx['res_label']}. Keeping it as the database breaks residency: move it to a {ctx['res_label']} region or relax the requirement.",
+          paths + ctx["res_paths"])
+    elif where == "unverified":
+        strict = "rbi_localisation" in ctx["compliance"]
+        W("RESIDENCY_UNVERIFIED_SERVICE", "critical" if strict else "warning",
+          f"{cmp['choice']} stores data but '{e['raw']}' does not state where it runs, so it could not be pinned to {ctx['res_label']}"
+          + (" as RBI localisation requires" if strict else "") + ". Add its region or data-centre location to the entry.",
+          paths + ctx["res_paths"] + (["compliance"] if strict else []))
+    if cmp["deployment"] == "managed" and ctx["self_host_only"]:
+        W("EXTERNAL_EXISTING_DATABASE", "critical",
+          f"'{e['raw']}' is a provider-run cloud service, but deployment_model is {ctx['deploy']}: the database that must stay is "
+          + ("unreachable across an air gap" if ctx["no_internet"] else "an external dependency of an otherwise on-premises stack")
+          + ". Move it on-premises or relax the deployment model.", paths + ["infrastructure.deployment_model"])
+    if ctx["desc"]["ledger"] and c.item.get("family") != "relational":
+        W("LEDGER_ON_NON_RELATIONAL_DB", "warning",
+          f"A ledger with double-entry postings on '{e['raw']}' (not relational): every posting pair needs one ACID transaction across "
+          "documents/rows. Use multi-document transactions with majority write concern, or keep the ledger in a relational store beside it.",
+          paths + ["project.description"])
+
+
 def kept_database(ctx, e, d_ok, loc):
     """An existing database the input says must stay is THE database: reused in place, the best new database becomes
     the migration-path alternative. Returns (candidate with vkey 'existing', component)."""
     pat, low = e["pattern"], e["raw"].lower()
-    managed = not re.search(r"self[- ]?(?:managed|hosted)|on[- ]?prem", low) and bool(
-        re.search(r"(?:atlas|rds|aurora|cloud sql|azure sql|azure database|managed)", low))
+    managed = not re.search(r"self[- ]?(?:managed|hosted)|on[- ]?prem", low) and bool(re.search(MANAGED_DB_RX, low))
+    # data location: none without a residency requirement; otherwise the location the entry states, else 'unverified'
+    where = cx.existing_location(e["raw"]) if loc else None
+    data_loc = (where or ("unverified" if ctx["res_named"] or ctx["residency_from_rbi"] else loc)) if loc else None
     label = f"Existing {pat['product']} ({'managed service' if managed else 'self-managed'}, reused)"
     item = next((d for d in TECH["database"] if d["id"] == pat["engine"]), None)
     # ponytail: an engine outside the KB (Oracle) is treated as a plain relational store; per-engine traits would need KB rows
@@ -774,9 +821,9 @@ def kept_database(ctx, e, d_ok, loc):
            "driven_by": order_paths(["infrastructure.existing_systems", e["keep"]]), "alternatives": alts,
            "tradeoffs": ["Schema changes are coordinated with the existing system's owners and its other consumers",
                          "The existing server's capacity, latency and availability limit the new application"]
-           + (["Confirm the existing database's location meets the data_residency requirement"] if loc else []),
+           + (["Confirm the existing database's location meets the data_residency requirement"] if loc and not where else []),
            "kb_id": item["id"], "pareto": {"optimal": True, "dominated_by": [], "note": "Not ranked: reused because the input says it must stay."},
-           "deployment": "managed" if managed else "self_hosted", "provider": "neutral", "data_bearing": True, "data_location": loc,
+           "deployment": "managed" if managed else "self_hosted", "provider": "neutral", "data_bearing": True, "data_location": data_loc,
            "sources": cite(pat["src"] + ([life["src"]] if life and life.get("src") else []))}
     return c, cmp
 

@@ -40,18 +40,78 @@ DESC_RULES = [
 ]
 
 # An existing system the input says must not be replaced (entry text or a description sentence naming it).
-KEEP_RX = (r"must (?:stay|remain|be kept|be retained|be reused)|\bstays?\b|\bremains?\b|system of record|source of truth"
-           r"|(?:cannot|can't|can not|won't|will not|must not) (?:be )?(?:migrat|replac)|\bkeep(?:s|ing)?\b|\bkept\b|\breus(?:e|ed|ing)\b|\bretain")
+# STRONG: a negated removal ("cannot be migrated") is a keep even though it contains a removal verb.
+# REMOVE: the system is going away ("replace", "migrate off", "must not remain", "retain no", "to be retired", "will not keep").
+# KEEP_RX: plain keep wording; in a description it must have the system itself as subject or object (see keep_in_text).
+STRONG_KEEP_RX = (r"(?:cannot|can't|can not|won't|will not|must not|may not|should not|is not to) (?:be )?"
+                  r"(?:migrat|replac|decommission|retir|remov|switch|mov|chang)\w*")
+REMOVE_RX = (r"\breplac(?:e|ed|es|ing|ement)\b|\bmigrat\w* (?:off|away|out|from)\b|\bmov(?:e|ing) (?:off|away from)\b|decommission"
+             r"|\bretir(?:e|ed|es|ing)\b|\bsunset|\bphas(?:e|ed|ing) out\b|\bretain no\b|\brewrit|\bend[- ]of[- ]life\b"
+             r"|\b(?:not|never|no longer|don't|won't|cannot|can't) (?:be )?(?:keep|kept|retain|reus|remain|stay|preserv)")
+KEEP_RX = (r"must (?:stay|remain|be kept|be retained|be reused|be preserved)|\bstays?\b|\bremains?\b|system of record|source of truth"
+           r"|\bkeep(?:s|ing)?\b|\bkept\b|\breus(?:e|ed|ing)\b|\bretain\w*|\bpreserv\w*|\bas[- ]is\b|" + STRONG_KEEP_RX)
+# words that may sit between a system's name and the keep wording without naming a different thing
+_DB_NOUN = r"(?:\s+(?:v?\d[\w.]*|database|db|server|cluster|instance|deployment|tenant|replica set|broker))*"
+_DETS = r"(?:(?:the|our|its|their|existing|current|legacy|old|same|this|that)\s+)*"
+_AFTER_OBJ = (r"(?=\s*$|\s*[,.;:)(]|\s+(?:for|as|in|and|to|with|on|at|from|unchanged|intact|running|alive|until|because|since|so|but|or"
+              r"|while|where|which|that|behind|beside|alongside)\b)")
+_KEEP_VERB = r"\b(?:keep(?:s|ing)?|reus(?:e|es|ed|ing)|retain(?:s|ed|ing)?|preserv(?:e|es|ed|ing))\s+"
+_KEEP_PRED = (r"\s+(?:must (?:stay|remain|be kept|be retained|be reused|be preserved)|(?:will |must |should )?(?:stays?|remains?)"
+              r"|(?:is|are|will be) (?:kept|retained|preserved|reused)|(?:is|remains|stays) (?:the |our )?(?:system of record|source of truth)"
+              r"|" + STRONG_KEEP_RX + r")")
+
+
+def word_rx(pats):
+    """Knowledge-base match patterns are regexes matched as whole words, case-insensitive ('teams' never in 'Teamspeak')."""
+    return re.compile(r"(?<![a-z0-9])(?:" + "|".join(pats) + r")(?![a-z0-9])", re.I)
+
+
+def keep_in_entry(low):
+    """An existing_systems entry speaks about one system: a removal phrase wins unless the keep is a negated removal."""
+    if re.search(STRONG_KEEP_RX, low):
+        return True
+    return not re.search(REMOVE_RX, low) and bool(re.search(KEEP_RX, low))
+
+
+def keep_in_text(name_rx, text):
+    """A description sentence keeps the system only when, within one clause, the system's own name is the object of a keep
+    verb ('keep the Oracle database') or the subject of a keep predicate ('the Oracle database cannot be migrated'). A clause
+    that removes it ('replace Oracle', 'migrate off MongoDB') or keeps something else ('reuse our Postgres dashboards') does not."""
+    for clause in re.split(r"[,;:]\s*|\s+(?:but|while|whereas)\s+", text):
+        if not re.search(name_rx, clause):
+            continue
+        name = r"(?:" + name_rx + r")" + _DB_NOUN
+        if re.search(name + r"\s+" + STRONG_KEEP_RX, clause):
+            return True
+        if re.search(REMOVE_RX, clause):
+            continue
+        if re.search(_KEEP_VERB + _DETS + name + _AFTER_OBJ, clause) or re.search(name + _KEEP_PRED, clause):
+            return True
+    return False
+
 
 # Server-side language named by an existing system (frameworks and app servers included; front-end frameworks are not).
+# Node needs a version or an app noun ('Kubernetes node pool' is not Node.js).
 EXISTING_LANG = {"java": r"\bjava\b|\btomcat\b|\bspring\b|\bjboss\b|\bwildfly\b|\bweblogic\b|\bwebsphere\b",
                  "python": r"\bpython\b|\bdjango\b|\bflask\b", "csharp": r"\.net\b|\bc#|\basp\.net\b",
                  "php": r"\bphp\b|\blaravel\b|\bsymfony\b", "ruby": r"\bruby\b|\brails\b", "go": r"\bgolang\b|\bgo \d",
-                 "javascript": r"\bnode(?:\.?js)?\b|\bexpress\.?js\b"}
+                 "javascript": r"\bnode\.?js\b|\bnode\s*v?\d|\bnode (?:api|app|application|service|backend|server)s?\b|\bexpress\.?js\b"}
+# 'Flask-shaped': a hyphenated modifier names a look, not the application; '-based'/'-powered' still name the stack
+_COMPOUND = re.compile(r"-(?!(?:based|powered|backed|built|driven)\b)[a-z]")
 
 
 def existing_langs(raws):
-    return {lang for lang, rx in EXISTING_LANG.items() for r in raws if re.search(rx, r.lower())}
+    """Languages of applications that keep running: an entry being decommissioned or rewritten does not count, and
+    neither does a word used as a modifier."""
+    out = set()
+    for r in raws:
+        low = r.lower()
+        if re.search(REMOVE_RX, low) and not re.search(STRONG_KEEP_RX, low):
+            continue
+        for lang, rx in EXISTING_LANG.items():
+            if any(not _COMPOUND.match(low, m.end()) for m in re.finditer(rx, low)):
+                out.add(lang)
+    return out
 
 
 # D12: data_residency 'other' -> jurisdiction. Ids, display names and keywords from ../research/R15-regions-other.md.
@@ -114,6 +174,32 @@ def detect_country(text):
         if not hits and re.search(r"(?<!\w)(?:" + rx + r")(?!\w)", text, re.I if flags else 0):
             plaus += [i for i in ids if i not in plaus]
     return None, None, plaus
+
+
+# Where an existing system says it runs: provider region codes/names and cities. London/Zurich regions are named first so
+# 'eu-west-2' is the UK, not the EU. Only an exact single location counts; several or none -> None (unverified).
+EXISTING_LOCATIONS = [
+    (r"eu-west-2|europe-west2|uk ?south|uk ?west", "united_kingdom"),
+    (r"eu-central-2|europe-west6|switzerland ?(?:north|west)", "switzerland"),
+    (r"ap-south-[12]|asia-south[12]|(?:central|south|west|jio) ?india(?: \w+)?|india|indian|mumbai|pune|hyderabad|chennai|delhi"
+     r"|bengaluru|bangalore|noida|gurugram|gurgaon|kolkata", "india"),
+    (r"eu-[a-z]+-\d|europe-[a-z]+\d+|(?:west|north) ?europe|germany ?(?:west ?central|north)|france ?(?:central|south)"
+     r"|sweden ?central|italy ?north|poland ?central|spain ?central|eu|europe|european union|frankfurt|dublin|ireland|paris"
+     r"|amsterdam|netherlands|germany|france|stockholm|milan|madrid|warsaw|belgium|finland|italy|spain|sweden|poland", "eu"),
+    (r"us-(?:east|west|central|north|south)[a-z]*-?\d|(?:east|west|central|north ?central|south ?central|west ?central) ?us ?\d?"
+     r"|usa|u\.s\.a?\.?|united states|virginia|ohio|oregon|california|iowa|texas|arizona|illinois", "us"),
+]
+
+
+def existing_location(raw):
+    """existing_systems entry -> 'india' / 'eu' / 'us' / a D12 country id, or None when no single location is stated."""
+    hits = {loc for rx, loc in EXISTING_LOCATIONS if re.search(r"(?<![a-z0-9])(?:" + rx + r")(?![a-z0-9])", raw, re.I)}
+    if "united_kingdom" in hits or "switzerland" in hits:
+        hits.discard("eu")
+    cid, _, _ = detect_country(raw)
+    if cid and not hits & {"united_kingdom", "switzerland"}:
+        hits.add(cid)
+    return next(iter(hits)) if len(hits) == 1 else None
 
 
 def lifecycle_text(low):
@@ -214,32 +300,45 @@ def build(req):
     sentences = re.split(r"(?<=[.!?;])\s+|\n", desc)
     for raw in req["infrastructure.existing_systems"]:
         low = f" {raw.lower()} "
-        hit = None
-        for pat in TECH["existing_patterns"]:
-            if any(m in low for m in pat["match"]):
-                hit = pat
-                break
+        hit = next((pat for pat in TECH["existing_patterns"] if word_rx(pat["match"]).search(low)), None)
         life = None
         norm = lifecycle_text(low)
         for lc in TECH["lifecycle"]:
-            if re.search(re.escape(lc["pattern"]) + r"(?!\d)", norm):
+            lead = r"(?<![a-z0-9])" if lc["pattern"][0].isalnum() else ""
+            if re.search(lead + re.escape(lc["pattern"]) + r"(?!\d)", norm):
                 life = lc
                 break
-        # "must stay": in the entry itself, or in a description sentence that names the same system
-        keep = "infrastructure.existing_systems" if re.search(KEEP_RX, low) else "project.description" if hit and any(
-            re.search(KEEP_RX, s) and any(m.strip() in s for m in hit["match"]) for s in sentences) else None
+        # "must stay": in the entry itself, or in a description sentence that names the same system (its patterns, or the
+        # product's first word: 'Keep the Oracle database' names 'Oracle 19c')
+        name_rx = None
+        if hit:
+            name_rx = r"(?<![a-z0-9])(?:" + "|".join(hit["match"] + ([re.escape(hit["product"].split()[0].lower())] if hit.get("product") else [])) + r")(?![a-z0-9])"
+        keep = "infrastructure.existing_systems" if keep_in_entry(low) else "project.description" if hit and any(
+            keep_in_text(name_rx, s) for s in sentences) else None
+        # a tenant described only as workforce/staff identity is not a customer login directory
+        workforce = bool(re.search(r"\b(?:workforce|employees?|staff)\b", low)) and not re.search(
+            r"\b(?:customers?|consumers?|ciam|b2c|external|partners?|public)\b", low)
         ex.append({"raw": raw, "pattern": hit, "life": life, "keep": keep, "onprem": "on-prem" in low or "on prem" in low
-                   or "onprem" in low or "on-premises" in low})
+                   or "onprem" in low or "on-premises" in low, "workforce": workforce})
     # list-order invariance: knowledge-base pattern order (identity, databases, brokers, ...), then name; unrecognised last
     order = {id(p): i for i, p in enumerate(TECH["existing_patterns"])}
     ex.sort(key=lambda e: (order[id(e["pattern"])] if e["pattern"] else len(order), e["raw"]))
     c["existing"] = ex
     c["existing_langs"] = existing_langs(req["infrastructure.existing_systems"])
-    c["existing_db"] = next((e for e in ex if e["pattern"] and e["pattern"]["kind"] == "database"), None)
+
+    def of_kind(kind):  # every recognised system of a kind, the ones the input says must stay first (then list order above)
+        return sorted((e for e in ex if e["pattern"] and e["pattern"]["kind"] == kind), key=lambda e: not e["keep"])
+    dbs = of_kind("database")
+    c["existing_db"] = dbs[0] if dbs else None
     # a database the input says must stay (system of record) is reused as THE database, not integrated beside a new one
     c["kept_db"] = c["existing_db"] if c["existing_db"] and c["existing_db"]["keep"] else None
-    c["existing_queue"] = next((e for e in ex if e["pattern"] and e["pattern"]["kind"] == "queue"), None)
-    c["existing_idp"] = next((e for e in ex if e["pattern"] and e["pattern"]["kind"] == "identity"), None)
+    c["other_kept_dbs"] = [e for e in dbs[1:] if e["keep"]]
+    queues, idps = of_kind("queue"), of_kind("identity")
+    c["existing_queue"] = queues[0] if queues else None
+    c["existing_idp"] = idps[0] if idps else None
+    c["unused_existing"] = {"identity provider": idps[1:], "message broker": queues[1:]}
+    c["idp_customer_login"] = bool(c["existing_idp"] and c["existing_idp"]["pattern"].get("customer_login")
+                                   and not c["existing_idp"]["workforce"])
     c["ms_idp"] = bool(c["existing_idp"] and c["existing_idp"]["pattern"].get("vendor") == "microsoft")
     c["existing_m365"] = next((e for e in ex if e["pattern"] and e["pattern"]["kind"] == "collaboration"), None)
     r = req

@@ -19,6 +19,10 @@ def svc(layer, choice, why, driven, alts, trade, deploy, provider, data_bearing,
             "data_location": location if data_bearing else None, "_cost": cost, "sources": cite(src)}
 
 
+# cloud an existing broker runs on, from its name (Amazon MSK / Amazon MQ, Azure Event Hubs, Google Pub/Sub)
+BROKER_CLOUD = [(r"\bmsk\b|\bamazon\b|\baws\b", "aws"), (r"\bazure\b|event hubs?", "azure"), (r"\bgoogle\b|\bgcp\b", "gcp")]
+
+
 def build(ctx, host, backend, db, mobile, warn):
     """host/backend/db/mobile: chosen KB items (db may be None). warn(code, sev, msg, fields)."""
     req = ctx["req"]
@@ -39,7 +43,7 @@ def build(ctx, host, backend, db, mobile, warn):
     # an existing identity provider is reused for SSO; one built for customer logins (Auth0, Okta, Keycloak) also serves
     # email/social sign-in. An air gap cannot reach a SaaS one.
     reuse_idp = bool(idp and idp["pattern"].get("reuse") and (auth == "enterprise_sso" or (
-        auth in ("email_password", "social") and idp["pattern"].get("customer_login")))
+        auth in ("email_password", "social") and ctx["idp_customer_login"]))
         and not (ctx["no_internet"] and idp["pattern"].get("deployment") == "saas"))
     if auth != "none":
         dp = ["requirements.auth"]
@@ -321,8 +325,17 @@ def build(ctx, host, backend, db, mobile, warn):
     need_queue = (req["requirements.payments"] and ctx["tier"] >= 2) or req["requirements.ml_features"] == "training" or (
         req["scale.workload"] == "write_heavy" and ctx["tier"] >= 2) or (req["requirements.offline_support"] and d["gps_media"]) or d["video_vod"]
     eq = ctx["existing_queue"]
-    if eq and ctx["needs_backend"]:
-        managed = bool(re.search(r"\bmsk\b|confluent cloud|amazon mq|cloudamqp", eq["raw"].lower()))
+    # an existing broker is reused when the design needs a queue, devices stream into it, or the input says it must stay;
+    # otherwise it is only noted (no queue layer the application would not use)
+    use_eq = bool(eq and ctx["needs_backend"] and (need_queue or ctx["type"] == "iot" or d["iot"] or eq["keep"]))
+    if eq and ctx["needs_backend"] and not use_eq:
+        warn("EXISTING_BROKER_AVAILABLE", "info",
+             f"'{eq['raw']}' already exists; nothing in this design needs a message queue yet, so none is added. When background "
+             "work or event fan-out appears, publish to that broker instead of adding a second one.", ["infrastructure.existing_systems"])
+    if use_eq:
+        low = eq["raw"].lower()
+        managed = bool(re.search(r"\bmsk\b|confluent cloud|amazon mq|cloudamqp", low))
+        bcloud = next((c for rx, c in BROKER_CLOUD if re.search(rx, low)), None)
         extra = [x for x, on in (("payment webhooks", req["requirements.payments"] and ctx["tier"] >= 2),
                                  ("write bursts", req["scale.workload"] == "write_heavy" and ctx["tier"] >= 2),
                                  ("training jobs", req["requirements.ml_features"] == "training"), ("video jobs", d["video_vod"])) if on]
@@ -330,7 +343,10 @@ def build(ctx, host, backend, db, mobile, warn):
                        f"'{eq['raw']}' already exists: {eq['pattern']['how']}" + (f" New background work ({', '.join(extra)}) uses the same broker." if extra else ""),
                        ["infrastructure.existing_systems"] + (["scale.workload"] if "write bursts" in extra else []),
                        [("A second managed queue on the hosting cloud", "a competing broker: events would be split across two systems")],
-                       ["Topic/queue naming, retention and access are agreed with the broker's owners", "Consumers must be idempotent"],
+                       ["Topic/queue naming, retention and access are agreed with the broker's owners", "Consumers must be idempotent"]
+                       + ([f"The broker runs on {bcloud.upper()} while the application runs on {p.upper() if hyper else host['name']}: "
+                           "messages cross clouds over TLS or a private interconnect, adding latency and egress charges"]
+                          if bcloud and bcloud != p else []),
                        "managed" if managed else "self_hosted", "neutral", True, Z, eq["pattern"]["src"], loc))
     elif need_queue and ctx["needs_backend"]:
         why = []
