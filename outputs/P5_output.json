@@ -465,7 +465,7 @@
       "storage: Azure Blob Storage (Central India (Pune)) $1-10/month.",
       "ci_cd: GitHub Actions $0-4/month.",
       "observability: Azure Monitor + Application Insights in Central India (Pune) $5-30/month.",
-      "Stored data ~20 GB after 12 months at ~$0.02-0.035/GB-month (year-end volume used as an upper bound, not an average); bulk files and media are assumed to sit in object storage, while database rows stay small.",
+      "Stored data ~20 GB after 12 months at ~$0.02-0.035/GB-month: $0-2/month (year-end volume used as an upper bound, not an average); bulk files and media are assumed to sit in object storage, while database rows stay small.",
       "Excluded: taxes, domain names, paid support plans and data-egress spikes. Order-of-magnitude band, not a quote."
     ]
   },

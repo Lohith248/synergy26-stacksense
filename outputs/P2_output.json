@@ -2,7 +2,7 @@
   "scenario_id": "P2",
   "engine_version": "1.0.0",
   "status": "ok_with_warnings",
-  "summary": "Modular monolith: Next.js (web) + React Native (Expo) (Android) on Node.js 24 LTS + NestJS (TypeScript) with Azure Database for PostgreSQL – Flexible Server 17 — Central India (Pune), hosted on Azure App Service (Linux, Basic B2 / Standard S1) — Central India (Pune), at an estimated $83-457/month. Review the warnings: some inputs conflict or carry risk.",
+  "summary": "Modular monolith: Next.js (web) + React Native (Expo) (Android) on Node.js 24 LTS + NestJS (TypeScript) with Azure Database for PostgreSQL – Flexible Server 17 — Central India (Pune), hosted on Azure App Service (Linux, Basic B2 / Standard S1) — Central India (Pune), at an estimated $84-457/month. Review the warnings: some inputs conflict or carry risk.",
   "architecture_style": "modular_monolith",
   "stack": {
     "frontend": {
@@ -584,17 +584,17 @@
     ]
   },
   "estimated_monthly_cost_usd": {
-    "min": 83,
+    "min": 84,
     "max": 457,
     "currency": "USD",
     "assumptions": [
       "Hosting Azure App Service (Linux, Basic B2 / Standard S1): $25-150/month at the 'small' tier.",
-      "Database Azure Database for PostgreSQL – Flexible Server 17: $30-120/month. Sized for a Burstable B2s instance (about $72 compute); a General Purpose D2ds_v5 alone is about $183.",
+      "Database Azure Database for PostgreSQL – Flexible Server 17: $30-120/month. Sized for Burstable B1ms (about $18 compute) to B2s (about $72 compute) plus storage; a General Purpose D2ds_v5 alone is about $183.",
       "storage: Azure Blob Storage (Central India (Pune)) $1-10/month.",
       "cdn: Cloudflare (free plan) in front of Azure $0-5/month.",
       "ci_cd: GitHub Actions $0-4/month.",
       "observability: Azure Monitor + Application Insights in Central India (Pune) $5-30/month.",
-      "Stored data ~50 GB after 12 months at ~$0.02-0.035/GB-month (year-end volume used as an upper bound, not an average); bulk files and media are assumed to sit in object storage, while database rows stay small.",
+      "Stored data ~50 GB after 12 months at ~$0.02-0.035/GB-month: $1-3/month (year-end volume used as an upper bound, not an average); bulk files and media are assumed to sit in object storage, while database rows stay small.",
       "Phone OTP: 30,000 users x 0.3-1.0 OTP logins/month at India SMS ~Rs 0.20-0.25 + GST per SMS = $22-135/month (long-lived sessions keep OTPs rare).",
       "Excluded: payment gateway fees (~2% per transaction) are a share of revenue, not infrastructure.",
       "Excluded: taxes, domain names, paid support plans and data-egress spikes. Order-of-magnitude band, not a quote."
@@ -612,7 +612,7 @@
     {
       "code": "BUDGET_AT_RISK",
       "severity": "warning",
-      "message": "Upper estimate $457/month is 3.0x the $150 budget at peak usage; the largest upper-bound items are Hosting Azure App Service (Linux, Basic B2 / Standard S1) (up to $150) and Phone OTP (up to $135). Launch near the $83 lower bound and set billing alerts at the budget.",
+      "message": "Upper estimate $457/month is 3.0x the $150 budget at peak usage; the largest upper-bound items are Hosting Azure App Service (Linux, Basic B2 / Standard S1) (up to $150) and Phone OTP (up to $135). Launch near the $84 lower bound and set billing alerts at the budget.",
       "fields": [
         "budget.monthly_infra_usd"
       ]

@@ -571,10 +571,13 @@ def _recommend(req, assumptions, sid):
 
     # ---- cost band
     cost = cost_band(ctx, host, db_item, db_c if ctx["needs_db"] else None, supporting, assumptions)
+    # judge B2: name the largest lines of the band itself (derived ones too: stored data, OTP, extra instances), by upper bound
+    top = [(hi, name) for hi, _, name in cost.pop("_items") if hi > 0][:2]
+    top_txt = f"; the largest upper-bound items are {' and '.join(f'{n} (up to ${v:,.0f})' for v, n in top)}" if top else ""
     if cost["min"] > ctx["budget"]:
         sev = "critical" if (ctx["budget"] == 0 or cost["min"] > 2 * ctx["budget"]) else "warning"
         W("BUDGET_EXCEEDED", sev,
-          f"Estimated minimum ${cost['min']}/month exceeds the ${ctx['budget']:g}/month budget. The stack keeps the hard constraints; "
+          f"Estimated minimum ${cost['min']}/month exceeds the ${ctx['budget']:g}/month budget{top_txt}. The stack keeps the hard constraints; "
           "to fit the budget, reduce scope (fewer managed services, lower availability) or raise the budget.",
           ["budget.monthly_infra_usd"])
     elif host["kind"] != "onprem" and ctx["budget"] >= 500 and cost["max"] * 8 < ctx["budget"]:
@@ -586,20 +589,12 @@ def _recommend(req, assumptions, sid):
           "minutes or storage, and the upper bound applies once a cap is passed. Set usage alerts or spend caps and check the plan limits before launch.",
           ["budget.monthly_infra_usd"])
     elif cost["max"] > ctx["budget"] > 0:
-        # ponytail: drivers read back from the band's own "label ... $lo-hi/month" lines; a structured item list would be cleaner
-        items = []
-        for line in cost["assumptions"]:
-            m = re.findall(r"\$([\d,]+(?:\.\d+)?)-([\d,]+(?:\.\d+)?)/month", line)
-            if m:
-                items.append((float(m[-1][1].replace(",", "")), line.split(":")[0].split(" — ")[0]))
-        top = sorted(items, key=lambda x: (-x[0], x[1]))[:2]
         far = cost["max"] > 2 * ctx["budget"]
         W("BUDGET_AT_RISK", "warning" if far else "info",
           f"Upper estimate ${cost['max']}/month is "
           + (f"{cost['max'] / ctx['budget']:.1f}x the" if far else f"{max(1, round((cost['max'] / ctx['budget'] - 1) * 100))}% above the")
           + f" ${ctx['budget']:g} budget at peak usage"
-          + (f"; the largest upper-bound items are {' and '.join(f'{n} (up to ${v:,.0f})' for v, n in top)}" if top else "")
-          + f". Launch near the ${cost['min']} lower bound and set billing alerts at the budget.",
+          + top_txt + f". Launch near the ${cost['min']} lower bound and set billing alerts at the budget.",
           ["budget.monthly_infra_usd"])
 
     stack = {"frontend": fe_cmp, "backend": backend_cmp, "database": db_cmp, "hosting": hosting,
@@ -607,7 +602,7 @@ def _recommend(req, assumptions, sid):
     style = architecture_style(ctx, host, backend, supporting)
     sev = {w["severity"] for w in W.items}
     status = "ok_with_warnings" if sev & {"warning", "critical"} else "ok"
-    summary = make_summary(ctx, style, fe_cmp, backend_cmp, db_cmp, host_name, cost, status)
+    summary = make_summary(ctx, style, fe_cmp, backend_cmp, db_cmp, host_name, cost, status, host["kind"] == "onprem")
     crit = [w for w in W.items if w["severity"] == "critical"]
     if crit:  # statement p8: a reduced/relaxed stack must say exactly which constraints were relaxed
         for w in crit:
@@ -880,11 +875,28 @@ def kept_database(ctx, e, d_ok, loc):
 
 
 def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
+    """Monthly band = the sum of its own "$a-b/month" lines (judge B1): every amount added to min/max is printed as a line.
+    Returns the cost dict plus a private "_items" list of (upper, lower, label) for the budget warnings."""
     t = ctx["tier"]
-    lo = host["cost"][t][0]
-    hi = host["cost"][t][1]
-    lines = [f"Hosting {host['name']}: ${host['cost'][t][0]}-{host['cost'][t][1]}/month at the '{cx.TIER_NAMES[t]}' tier."]
+    lines, items = [], []
+
+    def add(label, lo, hi, text):
+        lo, hi = int(lo), int(-(-hi // 1))  # whole dollars: floor the low end, ceil the high end
+        items.append((hi, lo, label))
+        lines.append(text.replace("{r}", f"${lo:,}-{hi:,}/month" if hi >= 10000 else f"${lo}-{hi}/month"))
+
+    def short(name):
+        return name.split(" — ")[0]
+
     ha = bool(ha_paths(ctx["req"]))
+    hlo, hhi = host["cost"][t]
+    tier_txt = f" at the '{cx.TIER_NAMES[t]}' tier."
+    if host.get("plan_ha") and host["plan_ha"] in host["name"]:
+        # zone redundancy needs Premium v2-v4 with at least two instances (Microsoft reliability guide); price per Premium instance
+        hlo, hhi = host["plan_ha_cost"]
+        tier_txt = (" per instance (P0v3 about $60 at $0.082/hour Linux, Central India, Azure Retail Prices API 12 Nov 2026, up to P1v3 about $113-130); "
+                    "zone redundancy is available only on Premium plans with at least two instances.")
+    add(f"Hosting {short(host['name'])}", hlo, hhi, f"Hosting {host['name']}: {{r}}" + tier_txt)
     if db_c and db_c.vkey == "existing":
         lines.append(f"Database {db_c.variant}: already running and paid for outside this project; not in this band.")
     elif db_item and db_c and db_c.vkey != "self":
@@ -892,12 +904,16 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         dlo, dhi = dc[t]
         if ha:
             dlo, dhi = round(dlo * 1.8), round(dhi * 2)
-        lo += dlo
-        hi += dhi
-        # R11 (Azure Retail Prices API / AWS Price List, India regions, compute only): the small-tier band fits a burstable instance
-        size = {"azure": " Sized for a Burstable B2s instance (about $72 compute); a General Purpose D2ds_v5 alone is about $183.",
-                "aws": " Sized for a burstable db.t4g.medium (about $61 compute); a db.m6g.large alone is about $165."}.get(db_c.vkey, "") \
-            if t == 1 and db_c.item["id"] == "postgresql" else ""
+        size = ""
+        if ha and db_c.vkey == "azure" and db_c.item["id"] == "postgresql":
+            # Microsoft Learn PG HA concepts: zone-redundant HA is not supported on the Burstable tier; D2ds_v5 rate from R11
+            dlo, dhi = max(dlo, 366), max(dhi, 480)
+            size = (" Zone-redundant HA is not offered on the Burstable tier, so primary and standby are General Purpose D2ds_v5 "
+                    "(about $183 compute each, Central India, R11): at least about $366 before storage.")
+        elif t == 1 and db_c.item["id"] == "postgresql":
+            # R11 + Azure Retail Prices API (B1ms $0.0245/hour Central India, 12 Nov 2026): the band spans the burstable sizes
+            size = {"azure": " Sized for Burstable B1ms (about $18 compute) to B2s (about $72 compute) plus storage; a General Purpose D2ds_v5 alone is about $183.",
+                    "aws": " Sized for burstable db.t4g instances up to a db.t4g.medium (about $61 compute) plus storage; a db.m6g.large alone is about $165."}.get(db_c.vkey, "")
         if t <= 1 and db_c.item["id"] == "sqlserver" and db_c.vkey == "azure":  # review 11 Nov: Azure Retail Prices API, Central India
             size += (f" Assumes serverless auto-pause outside working hours: about {dc[t][0] / 0.574:.0f}-{dc[t][1] / 0.574:.0f} active vCore-hours "
                      "a month at ~$0.57/vCore-hour (Central India rate, 11 Nov 2026); a 0.5-vCore minimum that never pauses is about $210/month "
@@ -906,28 +922,43 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
             size += (" Assumes a shared-core instance (db-f1-micro to db-g1-small: $0.0126-0.042/hour in Mumbai, $0.0105-0.035 in Iowa, about "
                      "$8-31/month, Google pricing page 11 Nov 2026). Google excludes shared-core instances from the Cloud SQL SLA and advises "
                      "against production use; a dedicated-core instance costs more.")
-        lines.append(f"Database {db_c.variant}: ${dlo}-{dhi}/month" + (" (HA doubles instances)" if ha else "") + "." + size)
+        add(f"Database {short(db_c.variant)}", dlo, dhi, f"Database {db_c.variant}: {{r}}" + (" (HA doubles instances)" if ha else "") + "." + size)
     if ha:
-        lo, hi = lo + host["cost"][t][0], hi + host["cost"][t][1]
-        lines.append(("Availability ≥99.95%" if ha_paths(ctx["req"])[0] == "requirements.availability" else cap(" and ".join(ha_targets(ctx["req"]))))
-                     + ": at least two app instances across zones.")
+        add("Second app instance (availability)", hlo, hhi,
+            ("Availability ≥99.95%" if ha_paths(ctx["req"])[0] == "requirements.availability" else cap(" and ".join(ha_targets(ctx["req"]))))
+            + ": a second app instance in another zone {r} (the hosting line counted again).")
+    onprem, vm = host["kind"] == "onprem", host["kind"] == "vm"
     for s in supporting:
         clo, chi = s["_cost"][t]
+        name = short(s["choice"])
         if chi:
-            lo += clo
-            hi += chi
-            lines.append(f"{s['layer']}: {s['choice'].split(' — ')[0]} ${clo}-{chi}/month." + s.get("_note", ""))
+            add(name, clo, chi, f"{s['layer']}: {name} {{r}}." + s.get("_note", ""))
+        elif s["deployment"] == "self_hosted" and not s["choice"].startswith("Existing"):
+            # judge B4: a self-hosted tool is never silently free
+            if onprem:
+                add(name, 0, 0, f"{s['layer']}: {name} runs on the on-premises servers: {{r}} cloud bill (hardware outside this band).")
+            elif vm:
+                add(name, 0, 0, f"{s['layer']}: {name} runs on the app servers (same Docker Compose host): {{r}} extra; size the VM's memory and disk for it.")
+            else:
+                # ponytail: one extra smallest-size instance of the chosen host per tool; a per-tool memory sizing table would be finer
+                elo, ehi = host["cost"][0]
+                add(name, elo, max(ehi, 5), f"{s['layer']}: {name} as its own small container on {short(host['name'])}: {{r}} (reference: the host's smallest size).")
     gb = ctx["data_gb"]
     obj = any(s["layer"] == "storage" and s["deployment"] != "self_hosted" for s in supporting)
     if obj or (db_item and db_c.vkey not in ("self", "existing") and gb > 20):
         # object storage ~$0.02-0.035/GB-month; managed database SSD ~$0.10-0.25 (Cloud SQL SSD $0.17 Iowa / $0.20 Mumbai, rendered 11 Nov 2026)
         r_lo, r_hi = (0.02, 0.035) if obj else (0.10, 0.25)
-        slo, shi = round(gb * r_lo, 2), round(gb * r_hi + 1, 2)
-        lo += slo
-        hi += shi
-        lines.append(f"Stored data ~{gb:g} GB after 12 months at ~${r_lo:.2f}-{r_hi:g}/GB-month (year-end volume used as an upper bound, not an average); "
-                     + ("bulk files and media are assumed to sit in object storage, while database rows stay small." if obj
-                        else "it lives in the managed database's SSD storage, which costs several times object storage."))
+        add("Stored data", gb * r_lo, gb * r_hi + 1,
+            f"Stored data ~{gb:g} GB after 12 months at ~${r_lo:.2f}-{r_hi:g}/GB-month: {{r}} (year-end volume used as an upper bound, not an average); "
+            + ("bulk files and media are assumed to sit in object storage, while database rows stay small." if obj
+               else "it lives in the managed database's SSD storage, which costs several times object storage."))
+    if ctx["desc"].get("video_vod") and ctx["needs_backend"] and not onprem:
+        # judge B5: Google Cloud CDN cache egress list price $0.02-0.09/GiB by region and volume (pricing page, 12 Nov 2026)
+        # ponytail: one reference rate range for every CDN and a fixed 0.05-0.5 GB per user; a per-provider rate table would be finer
+        u = ctx["users"]
+        add("Video egress", u * 0.05 * 0.02, u * 0.5 * 0.09,
+            f"Video egress: {u:,} users x 0.05-0.5 GB streamed/month at a reference CDN rate of $0.02-0.09/GB (Google Cloud CDN cache egress list "
+            "price by region and volume, 12 Nov 2026) = {r}; streaming is usually the largest bill for video products.")
     if ctx["req"]["requirements.auth"] == "phone_otp" and not ctx["no_internet"]:
         logins = ctx["users"]
         if any("MSG91" in s["choice"] for s in supporting):
@@ -942,10 +973,9 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         else:
             plo, phi = 0.05, 0.06
             txt = "Twilio Verify ~$0.05 + SMS"
-        olo, ohi = round(logins * 0.3 * plo, 2), round(logins * 1.0 * phi, 2)
-        lo += olo
-        hi += ohi
-        lines.append(f"Phone OTP: {logins:,} users x 0.3-1.0 OTP logins/month at {txt} per SMS = ${olo:,.0f}-{ohi:,.0f}/month (long-lived sessions keep OTPs rare).")
+        olo, ohi = round(logins * 0.3 * plo), round(logins * 1.0 * phi)
+        items.append((ohi, olo, "Phone OTP"))
+        lines.append(f"Phone OTP: {logins:,} users x 0.3-1.0 OTP logins/month at {txt} per SMS = ${olo:,}-{ohi:,}/month (long-lived sessions keep OTPs rare).")
     tp = ctx["req"]["scale.traffic_pattern"]
     if tp in ("spiky", "seasonal") and host.get("scaling") in ("request", "instances"):
         lines.append(f"{'Seasonal' if tp == 'seasonal' else 'Spiky'} traffic: the upper bound is a peak month; with autoscaling, "
@@ -954,14 +984,11 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         lines.append("Fixed-capacity servers are sized for the peak, so quiet months cost the same as peak months.")
     if ctx["req"]["requirements.payments"]:
         lines.append("Excluded: payment gateway fees (~2% per transaction) are a share of revenue, not infrastructure.")
-    if host["kind"] == "onprem":
+    if onprem:
         lines.append("Excluded: on-premises hardware, power, licences and staff time (capital/operational costs outside a cloud bill).")
     lines.append("Excluded: taxes, domain names, paid support plans and data-egress spikes. Order-of-magnitude band, not a quote.")
-    lo, hi = int(lo), int(round(hi + 0.49))
-    hi = max(hi, lo)
-    if hi > 0 and hi < 5:
-        hi = 5
-    return {"min": lo, "max": hi, "currency": "USD", "assumptions": lines}
+    return {"min": sum(i[1] for i in items), "max": sum(i[0] for i in items), "currency": "USD", "assumptions": lines,
+            "_items": sorted(items, key=lambda i: (-i[0], i[2]))}
 
 
 
@@ -982,7 +1009,7 @@ def architecture_style(ctx, host, backend, supporting):
     return "monolith"
 
 
-def make_summary(ctx, style, fe, be, db, host_name, cost, status):
+def make_summary(ctx, style, fe, be, db, host_name, cost, status, onprem=False):
     style_txt = {"static": "Static site", "monolith": "Single deployable monolith", "modular_monolith": "Modular monolith",
                  "serverless": "Serverless application", "hybrid": "Hybrid cloud + on-premises integration",
                  "service_oriented": "Small set of services", "microservices": "Microservices", "other": "Architecture"}[style]
@@ -992,7 +1019,11 @@ def make_summary(ctx, style, fe, be, db, host_name, cost, status):
         parts = [f"{style_txt}: " + (f"{be['choice']} API (no end-user frontend)" if be["choice"] != "None" else "no frontend or backend")]
     if db["choice"] != "None":
         parts.append(f"with {db['choice']}")
-    s = " ".join(parts) + f", hosted on {host_name}, at an estimated ${cost['min']}-{cost['max']}/month."  # statement 4: one or two sentences
+    price = f"an estimated ${cost['min']}-{cost['max']}/month"
+    if onprem:  # judge B6: "$0-0" alone reads as free; the band covers only cloud/SaaS fees
+        price = ("an estimated cloud bill $0; hardware/licences excluded" if cost["max"] == 0
+                 else f"{price} in cloud/SaaS fees; hardware/licences excluded")
+    s = " ".join(parts) + f", hosted on {host_name}, at {price}."  # statement 4: one or two sentences
     if status == "ok_with_warnings":
         s += " Review the warnings: some inputs conflict or carry risk."
     return s

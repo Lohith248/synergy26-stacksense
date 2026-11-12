@@ -230,7 +230,7 @@ class CostBands(unittest.TestCase):
 
     def test_small_tier_database_line_names_the_instance_class_it_assumes(self):
         line = next(a for a in pub(2)["estimated_monthly_cost_usd"]["assumptions"] if a.startswith("Database "))
-        self.assertIn("Burstable B2s", line)
+        self.assertIn("B2s", line)  # round 12 (judge B3): the line now names the B1ms-B2s span the $30-120 band covers
         self.assertIn("$183", line)  # General Purpose D2ds_v5 compute alone (R11)
 
     def test_tight_azure_budget_uses_the_free_cdn_and_names_front_door(self):

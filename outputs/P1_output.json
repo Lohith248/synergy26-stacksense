@@ -2,7 +2,7 @@
   "scenario_id": "P1",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Static site: Astro (web), hosted on Cloudflare Pages — Cloudflare edge network, at an estimated $0-5/month.",
+  "summary": "Static site: Astro (web), hosted on Cloudflare Pages — Cloudflare edge network, at an estimated $0-4/month.",
   "architecture_style": "static",
   "stack": {
     "frontend": {
@@ -338,7 +338,7 @@
   },
   "estimated_monthly_cost_usd": {
     "min": 0,
-    "max": 5,
+    "max": 4,
     "currency": "USD",
     "assumptions": [
       "Hosting Cloudflare Pages: $0-0/month at the 'tiny' tier.",
@@ -350,7 +350,7 @@
     {
       "code": "FREE_TIER_LIMITS",
       "severity": "info",
-      "message": "The $0 budget is met only on free tiers (estimate $0-5/month): free plans cap requests, bandwidth, build minutes or storage, and the upper bound applies once a cap is passed. Set usage alerts or spend caps and check the plan limits before launch.",
+      "message": "The $0 budget is met only on free tiers (estimate $0-4/month): free plans cap requests, bandwidth, build minutes or storage, and the upper bound applies once a cap is passed. Set usage alerts or spend caps and check the plan limits before launch.",
       "fields": [
         "budget.monthly_infra_usd"
       ]

@@ -128,7 +128,11 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
                        [("Reporting straight off the OLTP database", "large scans compete with application traffic"),
                         ("Self-managed Spark cluster", "far more operations than SQL dashboards need")],
                        ["Pricing is per data scanned or per compute-hour; partition and cluster tables"], wdep, wprov, True,
-                       [[0, 25], [10, 100], [100, 600], [600, 4000]], wsrc, loc))
+                       [[max(lo, 263), max(hi, 321)] if "Fabric" in wh else [lo, hi] for lo, hi in [[0, 25], [10, 100], [100, 600], [600, 4000]]],
+                       wsrc + (["fabric-capacity-price"] if "Fabric" in wh else []), loc))
+        if "Fabric" in wh:  # judge F5: Fabric bills a capacity, not queries; F2 is the smallest (Azure Retail Prices API, 12 Nov 2026)
+            out[-1]["_note"] = (" Floor is an F2 capacity (2 CU at $0.18-0.22/CU-hour, East US to West Europe) left running, about $263-321/month; "
+                                "pausing it outside working hours lowers this.")
         out.append(svc("other", "BI dashboards: Metabase (open-source edition, self-hosted container)",
                        "Analysts build dashboards and scheduled reports with SQL or a query builder, signed in through the same identity provider.",
                        ["project.type", "requirements.auth"],

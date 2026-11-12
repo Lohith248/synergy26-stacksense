@@ -2,7 +2,7 @@
   "scenario_id": "P4",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Small set of services: React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) on Java 21/25 LTS + Spring Boot with Amazon RDS for PostgreSQL 17 — ap-south-1 (Mumbai) (multi-AZ / zone-redundant HA), hosted on AWS ECS on Fargate (+ Application Load Balancer) — ap-south-1 (Mumbai), at an estimated $1220-6219/month.",
+  "summary": "Small set of services: React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) on Java 21/25 LTS + Spring Boot with Amazon RDS for PostgreSQL 17 — ap-south-1 (Mumbai) (multi-AZ / zone-redundant HA), hosted on AWS ECS on Fargate (+ Application Load Balancer) — ap-south-1 (Mumbai), at an estimated $1630-7564/month.",
   "architecture_style": "service_oriented",
   "stack": {
     "frontend": {
@@ -656,14 +656,14 @@
     ]
   },
   "estimated_monthly_cost_usd": {
-    "min": 1220,
-    "max": 6219,
+    "min": 1630,
+    "max": 7564,
     "currency": "USD",
     "assumptions": [
       "Hosting AWS ECS on Fargate (+ Application Load Balancer): $200-900/month at the 'medium' tier.",
       "Database Amazon RDS for PostgreSQL 17: $270-1400/month (HA doubles instances).",
-      "Availability ≥99.95%: at least two app instances across zones.",
-      "auth: Amazon Cognito user pool + Amazon SNS SMS OTP in ap-south-1 (Mumbai) $30-250/month.",
+      "Availability ≥99.95%: a second app instance in another zone $200-900/month (the hosting line counted again).",
+      "auth: Amazon Cognito user pool + Amazon SNS SMS OTP in ap-south-1 (Mumbai) $440-1595/month. Cognito Lite: 10,000 MAU free, then $0.0055 per MAU (Amazon Cognito pricing); SMS is counted once, in the Phone OTP line.",
       "storage: Amazon S3 (ap-south-1 (Mumbai)) $10-80/month.",
       "cache: Amazon ElastiCache for Valkey in ap-south-1 (Mumbai) $50-300/month.",
       "queue: Amazon SQS in ap-south-1 (Mumbai) $5-30/month.",
@@ -671,7 +671,7 @@
       "ml: Separate Python inference service (FastAPI + ONNX Runtime) in the same private network $40-200/month.",
       "ci_cd: GitHub Actions $0-20/month.",
       "observability: Amazon CloudWatch in ap-south-1 (Mumbai) (logs, metrics, alarms) $30-200/month.",
-      "Stored data ~500 GB after 12 months at ~$0.02-0.035/GB-month (year-end volume used as an upper bound, not an average); bulk files and media are assumed to sit in object storage, while database rows stay small.",
+      "Stored data ~500 GB after 12 months at ~$0.02-0.035/GB-month: $10-19/month (year-end volume used as an upper bound, not an average); bulk files and media are assumed to sit in object storage, while database rows stay small.",
       "Phone OTP: 300,000 users x 0.3-1.0 OTP logins/month at AWS India local SMS $0.004 (AWS SMS price list, 11 Nov 2026) plus DLT and retry overhead per SMS = $360-1,800/month (long-lived sessions keep OTPs rare).",
       "Spiky traffic: the upper bound is a peak month; with autoscaling, quiet months run near the lower bound.",
       "Excluded: payment gateway fees (~2% per transaction) are a share of revenue, not infrastructure.",
@@ -724,7 +724,7 @@
     {
       "code": "BUDGET_AT_RISK",
       "severity": "info",
-      "message": "Upper estimate $6219/month is 4% above the $6000 budget at peak usage; the largest upper-bound items are Phone OTP (up to $1,800) and Database Amazon RDS for PostgreSQL 17 (up to $1,400). Launch near the $1220 lower bound and set billing alerts at the budget.",
+      "message": "Upper estimate $7564/month is 26% above the $6000 budget at peak usage; the largest upper-bound items are Phone OTP (up to $1,800) and Amazon Cognito user pool + Amazon SNS SMS OTP in ap-south-1 (Mumbai) (up to $1,595). Launch near the $1630 lower bound and set billing alerts at the budget.",
       "fields": [
         "budget.monthly_infra_usd"
       ]
