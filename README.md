@@ -12,6 +12,17 @@ StackSense reads a project scenario in the official StackSense JSON format and r
 
 Hard constraints (cloud preference, deployment model, data residency, compliance) filter candidates before any scoring, so they are never broken silently. Selection is done entirely by rules and weighted scoring over a cited knowledge base. **No LLM is used anywhere.** The engine is pure Python standard library, so there is nothing to install beyond Python.
 
+## Validation at a glance
+
+| Check | Result |
+|---|---|
+| Unit and acceptance tests (`python -I -m unittest discover -s tests`) | 408 tests OK |
+| Public scenarios P1-P6 | outputs in `outputs/` reproduce byte-for-byte |
+| Output contract (`tools/check_contract.py`) | PASS 6/6 |
+| One-field perturbation sweep (`tools/perturb.py`) | 1,087 edits, 0 crashes, 0 violations |
+
+These are development checks, not a measure of accuracy on unseen scenarios.
+
 ## Architecture and data flow
 
 ```

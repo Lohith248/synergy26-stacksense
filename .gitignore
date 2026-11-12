@@ -3,3 +3,7 @@ __pycache__/
 .env
 .venv/
 outputs/*.tmp
+
+# local agent/review notes (not part of the published entry)
+CLAUDE.md
+review/
