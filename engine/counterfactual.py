@@ -109,7 +109,7 @@ def confidence(doc):
         c["confidence"] = {"label": label, "basis": basis + "."}
         if c["alternatives"]:
             alt = c["alternatives"][0]
-            why = alt["why_not"].split(" Overall ")[0].split(" Known limit ")[0].rstrip(".")
+            why = alt["why_not"].split(" Known limit ")[0].rstrip(".")
             subject = f"No {layer}" if c.get("kb_id") in (None, "none") or c["choice"] == "None" else c["choice"].split(" — ")[0]
             s = f"{subject} rather than {alt['choice']}. {why[:1].upper() + why[1:]}."
             if c["tradeoffs"]:
@@ -152,9 +152,9 @@ def annotate(doc, req, run):
                 found[k].append({"edit": edit, "path": path, "value": val, "new_choice": new["choice"], "also_by": []})
     stability(doc, req, run)
     confidence(doc)
-    for k in LAYERS:
-        doc["stack"][k]["what_would_change"] = found[k] or [
-            {"edit": "none in the probe set", "path": None, "value": None, "also_by": [],
-             "new_choice": "No single-field edit among the probed priorities, requirements, numbers and constraints changes this choice"
-                           + (" (the managed provider still follows the hosting choice)." if k == "database" else ".")}]
+    for k in LAYERS:  # F18: nothing in the probe set flips it -> the nearest single-priority flip from the wider grid, or none
+        fp = doc["stack"][k]["stability"]["flip_point"]
+        doc["stack"][k]["what_would_change"] = found[k] or ([
+            {"edit": f"priorities.{fp['priority']}: {fp['from']} -> {fp['value']}", "path": f"priorities.{fp['priority']}",
+             "value": fp["value"], "new_choice": fp["new_choice"], "also_by": []}] if fp else [])
     return doc

@@ -2,12 +2,12 @@
   "scenario_id": "P6",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Single deployable monolith: React Native (Expo) (Android) on Python 3.13 + Django 5.2 LTS with Cloud SQL for PostgreSQL 17 — asia-south1 (Mumbai), hosted on Google Cloud Run — asia-south1 (Mumbai), at an estimated $13-66/month.",
+  "summary": "Single deployable monolith: React Native (Expo) (Android) on Python 3.13 + Django 5.2 LTS with Cloud SQL for PostgreSQL 17, hosted on Google Cloud Run — asia-south1 (Mumbai), at an estimated $13-66/month.",
   "architecture_style": "monolith",
   "stack": {
     "frontend": {
       "choice": "React Native (Expo) (Android)",
-      "justification": "Mobile: React Native (Expo) — Team already writes javascript for the mobile app; mature on-device storage and background sync; good fast delivery (priority 4/5); good low running cost (priority 5/5). Low-end devices: React Native (Expo) adds a JavaScript runtime, so keep the bundle small, use the default Hermes engine, lazy-load screens and profile memory on a 2 GB phone; Kotlin + Jetpack Compose (native Android) (6.0 points behind) is the fallback if memory is tight.",
+      "justification": "Team already writes javascript for the mobile app; mature on-device storage and background sync; good fast delivery (priority 4/5); good low running cost (priority 5/5). Low-end devices: React Native (Expo) adds a JavaScript runtime, so keep the bundle small, use the default Hermes engine, lazy-load screens and profile memory on a 2 GB phone; Kotlin + Jetpack Compose (native Android) (6.0 points behind) is the fallback if memory is tight.",
       "driven_by": [
         "project.platforms",
         "team.languages",
@@ -19,11 +19,11 @@
       "alternatives": [
         {
           "choice": "Kotlin + Jetpack Compose (native Android)",
-          "why_not": "Team lists javascript, python but this needs kotlin/java (team.languages). React Native (Expo) is stronger on: good fast delivery (priority 4/5) (priorities.time_to_market). Overall 6.0 points behind. Known limit of Kotlin + Jetpack Compose: android only; iOS needs a second codebase."
+          "why_not": "Team lists javascript, python but this needs kotlin/java (team.languages=javascript,python); with priorities.time_to_market=4, React Native is faster to deliver with."
         },
         {
           "choice": "Ionic Capacitor (web app wrapped)",
-          "why_not": "Heavier runtime on low-end phones (project.description); weaker performance (priority 3/5) (priorities.performance). Overall 6.6 points behind. Known limit of Ionic Capacitor: WebView performance on low-end devices."
+          "why_not": "Heavier runtime on low-end phones (project.description); with priorities.performance=3, React Native is faster at runtime. Known limit of Ionic Capacitor: WebView performance on low-end devices."
         }
       ],
       "tradeoffs": [
@@ -55,16 +55,8 @@
         "label": "high",
         "basis": "stability 0.96 (robust) over 54 priority vectors."
       },
-      "contrast": "React Native (Expo) (Android) rather than Kotlin + Jetpack Compose (native Android). Team lists javascript, python but this needs kotlin/java (team.languages). React Native (Expo) is stronger on: good fast delivery (priority 4/5) (priorities.time_to_market). Trade-off accepted: JS runtime overhead on very low-end phones.",
-      "what_would_change": [
-        {
-          "edit": "none in the probe set",
-          "path": null,
-          "value": null,
-          "also_by": [],
-          "new_choice": "No single-field edit among the probed priorities, requirements, numbers and constraints changes this choice."
-        }
-      ]
+      "contrast": "React Native (Expo) (Android) rather than Kotlin + Jetpack Compose (native Android). Team lists javascript, python but this needs kotlin/java (team.languages=javascript,python); with priorities.time_to_market=4, React Native is faster to deliver with. Trade-off accepted: JS runtime overhead on very low-end phones.",
+      "what_would_change": []
     },
     "backend": {
       "choice": "Python 3.13 + Django 5.2 LTS",
@@ -79,11 +71,11 @@
       "alternatives": [
         {
           "choice": "Node.js 24 LTS + NestJS (TypeScript)",
-          "why_not": "Python 3.13 + Django 5.2 LTS is stronger on: good fast delivery (priority 4/5) (priorities.time_to_market); good security (priority 3/5) (priorities.security). Overall 1.8 points behind. Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
+          "why_not": "With priorities.time_to_market=4 and priorities.security=3, Python 3.13 + Django 5.2 LTS is faster to deliver with and stronger on security. Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
         },
         {
           "choice": "Python 3.13 + FastAPI",
-          "why_not": "Python 3.13 + Django 5.2 LTS is stronger on: good maintainability (priority 4/5) (priorities.maintainability); good fast delivery (priority 4/5) (priorities.time_to_market). Overall 5.6 points behind. Known limit of Python 3.13 + FastAPI: bring-your-own admin/auth pieces."
+          "why_not": "With priorities.maintainability=4 and priorities.time_to_market=4, Python 3.13 + Django 5.2 LTS is easier to maintain and faster to deliver with. Known limit of Python 3.13 + FastAPI: bring-your-own admin/auth pieces."
         }
       ],
       "tradeoffs": [
@@ -125,7 +117,7 @@
         "label": "medium",
         "basis": "stability 0.87 (moderate) over 54 priority vectors; score margin 1.8 over the runner-up."
       },
-      "contrast": "Python 3.13 + Django 5.2 LTS rather than Node.js 24 LTS + NestJS (TypeScript). Python 3.13 + Django 5.2 LTS is stronger on: good fast delivery (priority 4/5) (priorities.time_to_market); good security (priority 3/5) (priorities.security). Trade-off accepted: WebSockets need Django Channels.",
+      "contrast": "Python 3.13 + Django 5.2 LTS rather than Node.js 24 LTS + NestJS (TypeScript). With priorities.time_to_market=4 and priorities.security=3, Python 3.13 + Django 5.2 LTS is faster to deliver with and stronger on security. Trade-off accepted: WebSockets need Django Channels.",
       "what_would_change": [
         {
           "edit": "requirements.realtime: false -> true",
@@ -150,11 +142,11 @@
       "alternatives": [
         {
           "choice": "Cloud SQL for MySQL 8.4",
-          "why_not": "Cloud SQL for PostgreSQL 17 is stronger on: good maintainability (priority 4/5) (priorities.maintainability); good security (priority 3/5) (priorities.security). Overall 5.6 points behind. Known limit of Cloud SQL for MySQL 8.4: 8.0 moved to Sustaining Support (Apr 2026); no row-level security."
+          "why_not": "With priorities.maintainability=4 and priorities.security=3, Cloud SQL for PostgreSQL 17 is easier to maintain and stronger on security. Known limit of Cloud SQL for MySQL 8.4: 8.0 moved to Sustaining Support (Apr 2026); no row-level security."
         },
         {
-          "choice": "Cloud SQL for SQL Server",
-          "why_not": "Cloud SQL for PostgreSQL 17 is stronger on: good low running cost (priority 5/5) (priorities.cost). Overall 8.0 points behind. Known limit of Cloud SQL for SQL Server: licence cost outside Azure SQL; Windows-centric tooling."
+          "choice": "Supabase Postgres",
+          "why_not": "With priorities.cost=5 and priorities.maintainability=4, Cloud SQL for PostgreSQL 17 is cheaper to run and easier to maintain. Known limit of Supabase Postgres: free projects pause after 1 week of inactivity; production needs Pro."
         }
       ],
       "tradeoffs": [
@@ -190,16 +182,8 @@
         "label": "high",
         "basis": "stability 1.00 (robust) over 54 priority vectors; score margin 5.6 over the runner-up."
       },
-      "contrast": "Cloud SQL for PostgreSQL 17 rather than Cloud SQL for MySQL 8.4. Cloud SQL for PostgreSQL 17 is stronger on: good maintainability (priority 4/5) (priorities.maintainability); good security (priority 3/5) (priorities.security). Trade-off accepted: Vertical write scaling; sharding needs extensions.",
-      "what_would_change": [
-        {
-          "edit": "none in the probe set",
-          "path": null,
-          "value": null,
-          "also_by": [],
-          "new_choice": "No single-field edit among the probed priorities, requirements, numbers and constraints changes this choice (the managed provider still follows the hosting choice)."
-        }
-      ]
+      "contrast": "Cloud SQL for PostgreSQL 17 rather than Cloud SQL for MySQL 8.4. With priorities.maintainability=4 and priorities.security=3, Cloud SQL for PostgreSQL 17 is easier to maintain and stronger on security. Trade-off accepted: Vertical write scaling; sharding needs extensions.",
+      "what_would_change": []
     },
     "hosting": {
       "choice": "Google Cloud Run — asia-south1 (Mumbai)",
@@ -217,15 +201,11 @@
       "alternatives": [
         {
           "choice": "Azure App Service (Linux)",
-          "why_not": "Google Cloud Run is stronger on: good low running cost (priority 5/5) (priorities.cost); scales out with requests for traffic bursts and back down (to zero) afterwards, so idle periods cost little (scale.traffic_pattern). Overall 1.5 points behind. Known limit of Azure App Service: hybrid Connections limited to 5 per Basic plan."
+          "why_not": "With priorities.cost=5, Google Cloud Run is cheaper to run; it fits better: scales out with requests for traffic bursts and back down (to zero) afterwards, so idle periods cost little (scale.traffic_pattern=spiky)."
         },
         {
           "choice": "Azure Container Apps",
-          "why_not": "Operations burden 2/5 with no dedicated DevOps person (team.has_devops). Google Cloud Run is stronger on: good low running cost (priority 5/5) (priorities.cost). Overall 9.1 points behind. Known limit of Azure Container Apps: more moving parts than App Service for a single web app."
-        },
-        {
-          "choice": "Render (web service + workers)",
-          "why_not": "Excluded: no INDIA region for application data (infrastructure.data_residency)."
+          "why_not": "With priorities.cost=5, Google Cloud Run is cheaper to run; operations burden 2/5 with no dedicated DevOps person (team.has_devops=false)."
         }
       ],
       "tradeoffs": [
@@ -271,7 +251,7 @@
         "label": "medium",
         "basis": "stability 0.85 (moderate) over 54 priority vectors; score margin 1.5 over the runner-up."
       },
-      "contrast": "Google Cloud Run rather than Azure App Service (Linux). Google Cloud Run is stronger on: good low running cost (priority 5/5) (priorities.cost); scales out with requests for traffic bursts and back down (to zero) afterwards, so idle periods cost little (scale.traffic_pattern). Trade-off accepted: Cold starts unless min instances are paid for.",
+      "contrast": "Google Cloud Run rather than Azure App Service (Linux). With priorities.cost=5, Google Cloud Run is cheaper to run; it fits better: scales out with requests for traffic bursts and back down (to zero) afterwards, so idle periods cost little (scale.traffic_pattern=spiky). Trade-off accepted: Cold starts unless min instances are paid for.",
       "what_would_change": [
         {
           "edit": "priorities.cost: 5 -> 3",
@@ -343,7 +323,7 @@
         "alternatives": [
           {
             "choice": "Storing files in the database",
-            "why_not": "bloats backups and costs more per GB"
+            "why_not": "with ~100 GB of data expected in 12 months (scale.data_volume_gb_12_months), files inside the database bloat every backup and cost more per GB than object storage"
           },
           {
             "choice": "Cloudflare R2",
@@ -398,7 +378,7 @@
         "alternatives": [
           {
             "choice": "GitLab CI",
-            "why_not": "equivalent; GitHub chosen for its marketplace of deploy actions"
+            "why_not": "equally capable; for a team of 2 without a DevOps engineer (team.has_devops=false), ready-made GitHub deploy actions for Google Cloud Run mean less pipeline code to maintain"
           }
         ],
         "tradeoffs": [

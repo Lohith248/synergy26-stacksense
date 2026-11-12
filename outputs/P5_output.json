@@ -2,12 +2,12 @@
   "scenario_id": "P5",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Hybrid cloud + on-premises integration: React (Vite SPA) (web) on .NET 10 LTS + ASP.NET Core with Azure SQL Database (serverless/General Purpose) — Central India (Pune), hosted on Azure App Service (Linux, Basic B2 / Standard S1) — Central India (Pune), at an estimated $46-276/month.",
+  "summary": "Hybrid cloud + on-premises integration: React (Vite SPA) (web) on .NET 10 LTS + ASP.NET Core with Azure SQL Database, hosted on Azure App Service — Central India (Pune), at an estimated $46-276/month.",
   "architecture_style": "hybrid",
   "stack": {
     "frontend": {
       "choice": "React (Vite SPA) (web)",
-      "justification": "Web: React (Vite SPA) — Rich interactive app screens; team already writes javascript for the UI; internal app behind login needs no SEO; good fast delivery (priority 5/5); good maintainability (priority 5/5).",
+      "justification": "Rich interactive app screens; team already writes javascript for the UI; internal app behind login needs no SEO; good fast delivery (priority 5/5); good maintainability (priority 5/5).",
       "driven_by": [
         "project.type",
         "project.description",
@@ -21,11 +21,11 @@
       "alternatives": [
         {
           "choice": "Blazor (ASP.NET Core 10)",
-          "why_not": "React (Vite SPA) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market); rich interactive app screens (project.type). Overall 2.2 points behind. Known limit of Blazor: smaller component ecosystem than React."
+          "why_not": "With priorities.time_to_market=5, React is faster to deliver with; it fits better: rich interactive app screens (project.type=internal_tool)."
         },
         {
           "choice": "Vue 3 (Vite SPA)",
-          "why_not": "React (Vite SPA) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market). Overall 4.0 points behind. Known limit of Vue 3: smaller hiring pool and component ecosystem than React."
+          "why_not": "With priorities.time_to_market=5, React is faster to deliver with."
         }
       ],
       "tradeoffs": [
@@ -60,7 +60,7 @@
         "label": "medium",
         "basis": "stability 0.87 (moderate) over 52 priority vectors."
       },
-      "contrast": "React (Vite SPA) (web) rather than Blazor (ASP.NET Core 10). React (Vite SPA) is stronger on: good fast delivery (priority 5/5) (priorities.time_to_market); rich interactive app screens (project.type). Trade-off accepted: Client-rendered pages are weak for SEO.",
+      "contrast": "React (Vite SPA) (web) rather than Blazor (ASP.NET Core 10). With priorities.time_to_market=5, React is faster to deliver with; it fits better: rich interactive app screens (project.type=internal_tool). Trade-off accepted: Client-rendered pages are weak for SEO.",
       "what_would_change": [
         {
           "edit": "requirements.seo_critical: false -> true",
@@ -87,11 +87,11 @@
       "alternatives": [
         {
           "choice": "Node.js 24 LTS + NestJS (TypeScript)",
-          "why_not": ".NET 10 LTS + ASP.NET Core is stronger on: first-class SQL Server driver/ORM (infrastructure.existing_systems); good security (priority 4/5) (priorities.security). Overall 9.2 points behind. Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
+          "why_not": ".NET 10 LTS + ASP.NET Core fits better: first-class SQL Server driver/ORM (infrastructure.existing_systems); with priorities.security=4, it is stronger on security. Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
         },
         {
           "choice": "Node.js 24 LTS: Next.js route handlers + server actions (same app as the UI)",
-          "why_not": "Weaker SQL Server tooling (infrastructure.existing_systems). .NET 10 LTS + ASP.NET Core is stronger on: good maintainability (priority 5/5) (priorities.maintainability). Overall 12.4 points behind. Known limit of Node.js 24 LTS: Next.js route handlers + server actions: no long-lived WebSocket connections on serverless hosts."
+          "why_not": "With priorities.maintainability=5, .NET 10 LTS + ASP.NET Core is easier to maintain; weaker SQL Server tooling (infrastructure.existing_systems)."
         }
       ],
       "tradeoffs": [
@@ -122,16 +122,8 @@
         "label": "high",
         "basis": "stability 1.00 (robust) over 52 priority vectors; score margin 9.2 over the runner-up."
       },
-      "contrast": ".NET 10 LTS + ASP.NET Core rather than Node.js 24 LTS + NestJS (TypeScript). .NET 10 LTS + ASP.NET Core is stronger on: first-class SQL Server driver/ORM (infrastructure.existing_systems); good security (priority 4/5) (priorities.security). Trade-off accepted: Smaller open-source hosting choice outside Azure.",
-      "what_would_change": [
-        {
-          "edit": "none in the probe set",
-          "path": null,
-          "value": null,
-          "also_by": [],
-          "new_choice": "No single-field edit among the probed priorities, requirements, numbers and constraints changes this choice."
-        }
-      ]
+      "contrast": ".NET 10 LTS + ASP.NET Core rather than Node.js 24 LTS + NestJS (TypeScript). .NET 10 LTS + ASP.NET Core fits better: first-class SQL Server driver/ORM (infrastructure.existing_systems); with priorities.security=4, it is stronger on security. Trade-off accepted: Smaller open-source hosting choice outside Azure.",
+      "what_would_change": []
     },
     "database": {
       "choice": "Azure SQL Database (serverless/General Purpose) — Central India (Pune)",
@@ -146,15 +138,11 @@
       "alternatives": [
         {
           "choice": "Azure Database for PostgreSQL – Flexible Server 17",
-          "why_not": "Azure SQL Database (serverless/General Purpose) is stronger on: matches the existing On-prem SQL Server 2019 the team already runs (infrastructure.existing_systems); EF Core + SQL Server is the default .NET pairing (team.languages). Overall 6.7 points behind. Known limit of Azure Database for PostgreSQL – Flexible Server 17: vertical write scaling; sharding needs extensions."
+          "why_not": "Azure SQL Database fits better: matches the existing On-prem SQL Server 2019 the team already runs (infrastructure.existing_systems); it fits better: EF Core + SQL Server is the default .NET pairing (team.languages=csharp,javascript,sql)."
         },
         {
           "choice": "Azure Database for MySQL – Flexible Server 8.4",
-          "why_not": "Azure SQL Database (serverless/General Purpose) is stronger on: matches the existing On-prem SQL Server 2019 the team already runs (infrastructure.existing_systems); good maintainability (priority 5/5) (priorities.maintainability). Overall 13.9 points behind. Known limit of Azure Database for MySQL – Flexible Server 8.4: 8.0 moved to Sustaining Support (Apr 2026); no row-level security."
-        },
-        {
-          "choice": "Supabase Postgres",
-          "why_not": "Excluded: a separate vendor outside the explicit cloud_preference azure (infrastructure.cloud_preference)."
+          "why_not": "Azure SQL Database fits better: matches the existing On-prem SQL Server 2019 the team already runs (infrastructure.existing_systems); with priorities.maintainability=5, it is easier to maintain. Known limit of Azure Database for MySQL – Flexible Server 8.4: 8.0 moved to Sustaining Support (Apr 2026); no row-level security."
         }
       ],
       "tradeoffs": [
@@ -188,16 +176,8 @@
         "label": "high",
         "basis": "stability 1.00 (robust) over 52 priority vectors; score margin 6.7 over the runner-up."
       },
-      "contrast": "Azure SQL Database (serverless/General Purpose) rather than Azure Database for PostgreSQL – Flexible Server 17. Azure SQL Database (serverless/General Purpose) is stronger on: matches the existing On-prem SQL Server 2019 the team already runs (infrastructure.existing_systems); EF Core + SQL Server is the default .NET pairing (team.languages). Trade-off accepted: Licence cost outside Azure SQL; Windows-centric tooling.",
-      "what_would_change": [
-        {
-          "edit": "none in the probe set",
-          "path": null,
-          "value": null,
-          "also_by": [],
-          "new_choice": "No single-field edit among the probed priorities, requirements, numbers and constraints changes this choice (the managed provider still follows the hosting choice)."
-        }
-      ]
+      "contrast": "Azure SQL Database (serverless/General Purpose) rather than Azure Database for PostgreSQL – Flexible Server 17. Azure SQL Database fits better: matches the existing On-prem SQL Server 2019 the team already runs (infrastructure.existing_systems); it fits better: EF Core + SQL Server is the default .NET pairing (team.languages=csharp,javascript,sql). Trade-off accepted: Licence cost outside Azure SQL; Windows-centric tooling.",
+      "what_would_change": []
     },
     "hosting": {
       "choice": "Azure App Service (Linux, Basic B2 / Standard S1) — Central India (Pune)",
@@ -215,15 +195,11 @@
       "alternatives": [
         {
           "choice": "Azure Container Apps",
-          "why_not": "Azure App Service (Linux, Basic B2 / Standard S1) is stronger on: good maintainability (priority 5/5) (priorities.maintainability); good fast delivery (priority 5/5) (priorities.time_to_market). Overall 15.7 points behind. Known limit of Azure Container Apps: more moving parts than App Service for a single web app."
+          "why_not": "With priorities.maintainability=5 and priorities.time_to_market=5, Azure App Service is easier to maintain and faster to deliver with."
         },
         {
           "choice": "Google Cloud Run",
-          "why_not": "Excluded: runs on gcp, but cloud_preference is azure (infrastructure.cloud_preference)."
-        },
-        {
-          "choice": "Render (web service + workers)",
-          "why_not": "Excluded: runs on render, but cloud_preference is azure (infrastructure.cloud_preference)."
+          "why_not": "Excluded: infrastructure.cloud_preference=azure rules out Google Cloud Run (runs on gcp)."
         }
       ],
       "tradeoffs": [
@@ -261,7 +237,7 @@
         "label": "high",
         "basis": "stability 1.00 (robust) over 52 priority vectors; score margin 15.7 over the runner-up."
       },
-      "contrast": "Azure App Service (Linux, Basic B2 / Standard S1) rather than Azure Container Apps. Azure App Service (Linux, Basic B2 / Standard S1) is stronger on: good maintainability (priority 5/5) (priorities.maintainability); good fast delivery (priority 5/5) (priorities.time_to_market). Trade-off accepted: Hybrid Connections limited to 5 per Basic plan.",
+      "contrast": "Azure App Service (Linux, Basic B2 / Standard S1) rather than Azure Container Apps. With priorities.maintainability=5 and priorities.time_to_market=5, Azure App Service is easier to maintain and faster to deliver with. Trade-off accepted: Hybrid Connections limited to 5 per Basic plan.",
       "what_would_change": [
         {
           "edit": "infrastructure.cloud_preference: azure -> aws",
@@ -327,7 +303,7 @@
         "alternatives": [
           {
             "choice": "Storing files in the database",
-            "why_not": "bloats backups and costs more per GB"
+            "why_not": "with ~20 GB of data expected in 12 months (scale.data_volume_gb_12_months), files inside the database bloat every backup and cost more per GB than object storage"
           },
           {
             "choice": "Cloudflare R2",
@@ -358,7 +334,7 @@
         "alternatives": [
           {
             "choice": "GitLab CI",
-            "why_not": "equivalent; GitHub chosen for its marketplace of deploy actions"
+            "why_not": "equally capable; for a team of 2 without a DevOps engineer (team.has_devops=false), ready-made GitHub deploy actions for Azure App Service mean less pipeline code to maintain"
           }
         ],
         "tradeoffs": [

@@ -7,7 +7,7 @@
   "stack": {
     "frontend": {
       "choice": "Astro (web)",
-      "justification": "Web: Astro — Team already writes css, html, javascript for the UI; server-rendered/static HTML that search engines index; pre-built static pages, no server needed; good low running cost (priority 5/5); good fast delivery (priority 4/5).",
+      "justification": "Team already writes css, html, javascript for the UI; server-rendered/static HTML that search engines index; pre-built static pages, no server needed; good low running cost (priority 5/5); good fast delivery (priority 4/5).",
       "driven_by": [
         "project.type",
         "project.description",
@@ -21,11 +21,11 @@
       "alternatives": [
         {
           "choice": "Hugo",
-          "why_not": "Astro is stronger on: good fast delivery (priority 4/5) (priorities.time_to_market). Overall 1.6 points behind. Known limit of Hugo: go templating is unfamiliar to JS developers."
+          "why_not": "With priorities.time_to_market=4, Astro is faster to deliver with. Known limit of Hugo: go templating is unfamiliar to JS developers."
         },
         {
           "choice": "SvelteKit",
-          "why_not": "Needs a server runtime for a site that does not (project.type). Astro is stronger on: good low running cost (priority 5/5) (priorities.cost). Overall 17.2 points behind. Known limit of SvelteKit: smaller hiring pool than React."
+          "why_not": "Needs a server runtime for a site that does not (project.type=content_site); with priorities.cost=5, Astro is cheaper to run. Known limit of SvelteKit: smaller hiring pool than React."
         }
       ],
       "tradeoffs": [
@@ -60,7 +60,7 @@
         "label": "medium",
         "basis": "stability 0.79 (moderate) over 53 priority vectors."
       },
-      "contrast": "Astro (web) rather than Hugo. Astro is stronger on: good fast delivery (priority 4/5) (priorities.time_to_market). Trade-off accepted: Interactive widgets need islands.",
+      "contrast": "Astro (web) rather than Hugo. With priorities.time_to_market=4, Astro is faster to deliver with. Trade-off accepted: Interactive widgets need islands.",
       "what_would_change": [
         {
           "edit": "requirements.realtime: false -> true",
@@ -199,15 +199,11 @@
       "alternatives": [
         {
           "choice": "Firebase Hosting (Google Cloud)",
-          "why_not": "Close runner-up (score 33.2 vs 33.6): many small differences, none above half a point, add up to the 0.4-point gap, so either is defensible. Known limit of Firebase Hosting: spark plan: 10 GB storage and 10 GB/month transfer, site disabled when exceeded unless upgraded to Blaze."
+          "why_not": "With priorities.scalability=1, Cloudflare Pages is built to scale further (close call)."
         },
         {
           "choice": "Amazon S3 + CloudFront (static site)",
-          "why_not": "Cloudflare Pages is stronger on: good fast delivery (priority 4/5) (priorities.time_to_market). Overall 1.6 points behind. Known limit of Amazon S3 + CloudFront: more setup than a git-push host (bucket policy, distribution, cache invalidation)."
-        },
-        {
-          "choice": "On-premises Linux servers (Docker Compose)",
-          "why_not": "Excluded: self-managed infrastructure, but deployment_model is managed_cloud (infrastructure.deployment_model)."
+          "why_not": "With priorities.time_to_market=4, Cloudflare Pages is faster to deliver with. Known limit of Amazon S3 + CloudFront: more setup than a git-push host (bucket policy, distribution, cache invalidation)."
         }
       ],
       "tradeoffs": [
@@ -251,7 +247,7 @@
         "label": "low",
         "basis": "stability 0.75 (moderate) over 53 priority vectors; score margin 0.4 over the runner-up (near-tie)."
       },
-      "contrast": "Cloudflare Pages rather than Firebase Hosting (Google Cloud). Close runner-up (score 33.2 vs 33.6): many small differences, none above half a point, add up to the 0.4-point gap, so either is defensible. Trade-off accepted: 500 builds/month and 20,000 files per site on Free.",
+      "contrast": "Cloudflare Pages rather than Firebase Hosting (Google Cloud). With priorities.scalability=1, Cloudflare Pages is built to scale further (close call). Trade-off accepted: 500 builds/month and 20,000 files per site on Free.",
       "what_would_change": [
         {
           "edit": "requirements.realtime: false -> true",
@@ -296,7 +292,7 @@
         "alternatives": [
           {
             "choice": "GitLab CI",
-            "why_not": "equivalent; GitHub chosen for its marketplace of deploy actions"
+            "why_not": "equally capable; for a team of 1 without a DevOps engineer (team.has_devops=false), ready-made GitHub deploy actions for Cloudflare Pages mean less pipeline code to maintain"
           }
         ],
         "tradeoffs": [

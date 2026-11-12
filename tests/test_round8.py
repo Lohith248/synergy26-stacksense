@@ -140,9 +140,11 @@ class ExplicitCountry(unittest.TestCase):
         # tiny budget would normally pick Supabase; Supabase has no Indonesia region (R15)
         out = run(**{"infrastructure.residency_country": "indonesia", "budget.monthly_infra_usd": 10})
         self.assertNotIn("Supabase", out["stack"]["database"]["choice"])
-        self.assertTrue(any("Supabase" in a["choice"] and "Indonesia" in a["why_not"]
-                            for a in out["stack"]["database"]["alternatives"]),
-                        out["stack"]["database"]["alternatives"])
+        # round 13: an excluded option is listed only when fewer than two eligible alternatives exist
+        alts = out["stack"]["database"]["alternatives"]
+        sb = [a for a in alts if "Supabase" in a["choice"]]
+        self.assertTrue(all("Indonesia" in a["why_not"] for a in sb), alts)
+        self.assertTrue(sb or len([a for a in alts if not a["why_not"].startswith("Excluded")]) >= 2, alts)
 
     def test_supabase_kept_where_listed(self):
         out = run(**{"infrastructure.residency_country": "japan", "budget.monthly_infra_usd": 10})

@@ -24,7 +24,10 @@ def evaluate(raw, counterfactuals=True):
     req, errors, assumptions = validate(raw)
     unknown = description_warnings(raw) + null_warnings(raw) + unknown_key_warnings(raw)
     if errors:
-        out = invalid_output(errors, sid, assumptions)
+        # no stack is built, so per-field defaults would describe nothing; one line says they were not used (D3 applies to built stacks)
+        n = sum(1 for a in assumptions if " absent" in a)
+        out = invalid_output(errors, sid, [a for a in assumptions if " absent" not in a]
+                             + ([f"{n} optional field(s) absent; their documented defaults were not applied because no stack was built."] if n else []))
     else:
         from .recommend import recommend
         out = recommend(req, assumptions, sid, probe=not counterfactuals)

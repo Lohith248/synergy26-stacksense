@@ -239,7 +239,7 @@ class Counterfactuals(unittest.TestCase):  # item 9
             self.assertFalse(errs)
             for layer in ("frontend", "backend", "database", "hosting"):
                 wwc = out["stack"][layer]["what_would_change"]
-                self.assertTrue(1 <= len(wwc) <= 3, (i, layer))
+                self.assertTrue(0 <= len(wwc) <= 3, (i, layer))  # round 13 F18: empty when no probe or grid flip exists
                 for e in wwc:
                     if e["path"] is None:
                         continue

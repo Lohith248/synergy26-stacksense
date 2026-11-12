@@ -228,7 +228,8 @@ def build(ctx, host, backend, db, mobile, warn):
         else:
             name = {"aws": "Amazon S3", "azure": "Azure Blob Storage", "gcp": "Google Cloud Storage"}.get(p, "Cloudflare R2" if not loc else "Amazon S3")
             prov = p if hyper else ("cloudflare" if not loc else "aws")
-            alt = [("Storing files in the database", "bloats backups and costs more per GB")]
+            alt = [("Storing files in the database", f"with ~{ctx['data_gb']:g} GB of data expected in 12 months (scale.data_volume_gb_12_months), "
+                    "files inside the database bloat every backup and cost more per GB than object storage")]
             if hyper:
                 alt.append(("Cloudflare R2", f"zero egress fees, but a second vendor outside {p.upper()}"))
             reg = region or (host["regions"].get("india") if loc == "india" else None)
@@ -528,12 +529,14 @@ def build(ctx, host, backend, db, mobile, warn):
                            + f" the ${ctx['budget']:g} budget, so the free plan is used.",
                            paths + ["budget.monthly_infra_usd"],
                            [("Azure Front Door", "the $35/month Standard base fee is too large a share of this budget; switch when the budget grows"),
-                            ("No CDN", "every asset request hits the origin; slower for distant users")],
+                            ("No CDN", f"every asset request from the {ctx['users']:,} expected users would hit the origin"
+                            + (f"; with scale.geo_spread={ctx['geo']}, distant users wait longest" if ctx["geo"] != "single_region" else ", adding latency and origin load"))],
                            ["Cache invalidation on deploys", "A second vendor for DNS/TLS, outside the Azure contract", CF_FREE],
                            "saas", "cloudflare", False, [[0, 1], [0, 5], [0, 20], [20, 200]], ["cloudflare-plans"]))
         else:
             out.append(svc("cdn", name, why, paths,
-                       [("No CDN", "every asset request hits the origin; slower for distant users")]
+                       [("No CDN", f"every asset request from the {ctx['users']:,} expected users would hit the origin"
+                            + (f"; with scale.geo_spread={ctx['geo']}, distant users wait longest" if ctx["geo"] != "single_region" else ", adding latency and origin load"))]
                        + ([("Cloudflare (free plan) in front of Azure", "cheaper for a small site, but a second vendor for DNS/TLS and outside the Azure contract")] if p == "azure" else []),
                        ["Cache invalidation on deploys"] + (["Front Door Standard has a $35/month base fee before requests and egress"] if p == "azure" else [])
                        + ([CF_FREE] if name.startswith("Cloudflare (free plan)") else []),
@@ -617,7 +620,9 @@ def build(ctx, host, backend, db, mobile, warn):
     else:
         ci_cost = [0, 4] if ctx["size"] <= 3 else ([0, 20] if ctx["size"] <= 8 else [20, 100])  # minutes scale with engineers, not users
         out.append(svc("ci_cd", "GitHub Actions", f"Automated tests and deploys on every push{' to ' + host['name'] if host else ''}; free minutes cover a team of {ctx['size']}.",
-                       ["team.size", "team.has_devops"], [("GitLab CI", "equivalent; GitHub chosen for its marketplace of deploy actions")],
+                       ["team.size", "team.has_devops"], [("GitLab CI", f"equally capable; for a team of {ctx['size']} " + ("with" if ctx["devops"] else "without")
+                                     + f" a DevOps engineer (team.has_devops={'true' if ctx['devops'] else 'false'}), ready-made GitHub deploy actions"
+                                     + (f" for {host['name'].split(' (')[0]}" if host else "") + " mean less pipeline code to maintain")],
                        ["Secrets must be stored as encrypted environment secrets"], "saas", "github", False,
                        [ci_cost] * 4, ["gha-billing"]))
         ob = {"aws": (f"Amazon CloudWatch{rtxt} (logs, metrics, alarms)", "aws"),
@@ -626,7 +631,8 @@ def build(ctx, host, backend, db, mobile, warn):
         if ctx["needs_backend"]:
             out.append(svc("observability", ob[0], f"Logs and metrics stay with the host provider{rtxt}; alerts on error rate and latency{(' against the ' + str(req['requirements.p95_latency_ms']) + ' ms p95 target') if req['requirements.p95_latency_ms'] else ''}.",
                            ["requirements.availability"] + (["requirements.p95_latency_ms"] if req["requirements.p95_latency_ms"] else []) + res_path,
-                           [("Sentry (SaaS)", "stores data only in the US or EU" if loc == "india" or ctx["country"] else "extra vendor; add later for richer error grouping")],
+                           [("Sentry (SaaS)", "stores data only in the US or EU" if loc == "india" or ctx["country"] else f"an extra vendor account for a team of {ctx['size']}" + ("" if ctx["devops"] else " with no DevOps engineer")
+                            + f"; {ob[0].split(' (')[0]} already covers {req['requirements.availability']}% availability alerting, add Sentry later for richer error grouping")],
                            ["Log retention costs grow with traffic"], "managed" if hyper else "self_hosted", ob[1], True,
                            [[0, 5], [5, 30], [30, 200], [200, 1200]], ["sentry-regions"], loc))
 

@@ -124,17 +124,16 @@ def component(cand, ranked_ok, ranked_out, extra_paths, extras, name=None, base_
         if fact:
             reasons = reasons + [fact[:1].lower() + fact[1:] if not any(ch.isupper() for ch in fact.split(" ")[0][1:]) else fact]
     why = base_why + (cap("; ".join(reasons)) + "." if reasons else "")
-    alts = []
-    for a in ranked_ok[1:3]:
-        alts.append({"choice": a.item["name"], "why_not": why_not(cand, a)})
-    # excluded options are shown when a hard constraint removed them (that teaches the reader something);
-    # options excluded only for not fitting the project shape are used just to reach the required minimum
-    hard = [a for a in ranked_out if all(r[1] in HARD_PATHS + ("compliance",) for r in a.reasons)]
-    shape = [a for a in ranked_out if a not in hard]
-    for a in hard + (shape if len(alts) < 2 else []):
-        if len(alts) >= 3 or (a in shape and len(alts) >= 2):
-            break
-        alts.append({"choice": a.item["name"], "why_not": f"Excluded: {a.excluded[0]} ({a.excluded[1]})."})
+    # F11: an engine with a licence cost is offered as an alternative only when the team or its systems name it
+    real = [a for a in ranked_ok[1:] if not _licence_filler(a, ctx)][:2]
+    alts = [{"choice": a.item["name"], "why_not": why_not(cand, a, ctx)} for a in real]
+    # at most one excluded option, and only to reach two alternatives (statement: at least one per component);
+    # a hard constraint teaches more than a shape mismatch, so it goes first
+    if len(alts) < 2:
+        hard = [a for a in ranked_out if all(r[1] in HARD_PATHS + ("compliance",) for r in a.reasons)]
+        a = next(iter(hard + [a for a in ranked_out if a not in hard]), None)
+        if a:
+            alts.append({"choice": a.item["name"], "why_not": excluded_text(a, ctx)})
     driven = [t[2] for t in cand.terms if abs(t[1]) >= (2.5 if t[0].startswith("prio_") else 1)] + list(extra_paths)
     out = {"choice": name or item["name"], "justification": why.strip() or "Best overall fit for the stated inputs.",
            "driven_by": order_paths(driven) or ["project.type"], "alternatives": alts,
@@ -169,40 +168,129 @@ def pareto(cand, ranked_ok):
                     + (f"this choice wins on project fit: {'; '.join(texts)}." if texts else "this choice still scores higher overall.")}
 
 
-def why_not(win, alt):
-    keys = sorted({t[0] for t in win.terms} | {t[0] for t in alt.terms})
-    gaps = []
-    for k in keys:
-        g = win.term(k) - alt.term(k)
-        if g > 0.5:
-            gaps.append((g, k))
-    gaps.sort(key=lambda x: (-x[0], x[1]))
-    weak, strong = [], []
-    for g, k in gaps[:2]:
-        neg = [t for t in alt.terms if t[0] == k and t[1] < 0]
-        pos = [t for t in win.terms if t[0] == k and t[1] > 0]
-        if neg:
-            weak.append(f"{neg[0][3]} ({neg[0][2]})")
-        elif pos:
-            strong.append(f"{pos[0][3]} ({pos[0][2]})")
+PRIO_BETTER = {"cost": "cheaper to run", "time_to_market": "faster to deliver with", "scalability": "built to scale further",
+               "performance": "faster at runtime", "maintainability": "easier to maintain", "security": "stronger on security"}
+CLOSE_CALL = 1.5  # a gap below this many score points is reported as "(close call)"; the number itself is in score_margin
+
+
+def _licence_filler(a, ctx):
+    """F11: an engine whose KB limit is a licence cost, with no team, .NET or existing-system signal for it."""
+    if not any("licence cost" in x.lower() for x in a.item.get("limits") or []):
+        return False
+    return not (a.term("existing") > 0 or a.term("synergy") > 0 or (ctx and "csharp" in ctx["langs"]))
+
+
+def _val(ctx, path):
+    """Short printable input value for 'path=value' (None for absent paths and long free text)."""
+    if not ctx or path not in ctx["req"]:
+        return None
+    v = ctx["req"][path]
+    if isinstance(v, bool):
+        s = "true" if v else "false"
+    elif isinstance(v, list):
+        s = ",".join(map(str, v)) or "[]"
+    elif isinstance(v, float) and v.is_integer():
+        s = str(int(v))
+    else:
+        s = str(v)
+    return s if len(s) <= 40 else None
+
+
+def ground(path, ctx):
+    v = _val(ctx, path)
+    return f"{path}={v}" if v is not None else path
+
+
+def _short(item):
+    return item["name"].split(" — ")[0].split(" (")[0]
+
+
+def _lower1(s):
+    return s if any(ch.isupper() for ch in s.split(" ")[0][1:]) else s[:1].lower() + s[1:]
+
+
+# ponytail: keyword match of a KB limit against switched-on inputs; a curated limit->input map is the upgrade path
+def _limit_words(ctx):
+    req = ctx["req"]
+    words = [w for path, ws in FACT_WORDS if _flag_on(req, path) for w in ws]
+    if ctx["res_key"]:
+        words += ["region", "residency"]
+    if req["requirements.p95_latency_ms"] or ctx["prio"]["performance"] >= 4:
+        words += ["cold", "latency", "runtime", "overhead", "webview", "performance", "memory"]
+    if ctx["prio"]["cost"] >= 4 or ctx["budget"] < 50:
+        words += ["cost", "licence", "fee", "free", "pay", "price"]
+    if ctx["prio"]["maintainability"] >= 4 or ctx["prio"]["time_to_market"] >= 4:
+        words += ["boilerplate", "structure", "setup", "learning", "templating", "support"]
+    if ctx["exp"] in ("beginner", "mixed") or req.get("team.hiring_languages"):
+        words += ["learning", "hiring", "talent", "pool", "unfamiliar"]
+    if not ctx["devops"]:
+        words += ["devops", "platform", "patch", "overkill", "operate"]
+    if ctx["desc"].get("low_end"):
+        words += ["low-end", "memory", "webview"]
+    return words
+
+
+def known_limit(alt, ctx, always=False):
+    """' Known limit of X: ...' when the alternative's first KB limit touches an input this scenario switched on."""
+    lim = (alt.item.get("limits") or [None])[0]
+    if not lim or not (always or ctx is None or any(_word(w, lim) for w in _limit_words(ctx))):
+        return ""
+    return f" Known limit of {alt.item['name'].split(' (')[0]}: {_lower1(lim)}."
+
+
+def _gap_reason(win, alt, k, ctx, also=()):
+    """One decisive score term in plain words, tied to the input value behind it; also: further priority keys
+    folded into the same clause ('with priorities.a=4 and priorities.b=5, X is ... and ...')."""
+    if k.startswith("prio_"):
+        ps = [k[5:]] + [x[5:] for x in also]
+        ws = " and ".join(f"priorities.{p}={ctx['prio'][p] if ctx else '?'}" for p in ps)
+        return f"with {ws}, {_short(win.item)} is {' and '.join(PRIO_BETTER[p] for p in ps)}"
+    neg = next((t for t in alt.terms if t[0] == k and t[1] < 0), None)
+    if neg:
+        return f"{_lower1(neg[3])} ({ground(neg[2], ctx)})"
+    pos = next((t for t in win.terms if t[0] == k and t[1] > 0), None)
+    if pos:
+        return f"{_short(win.item)} fits better: {_lower1(pos[3])} ({ground(pos[2], ctx)})"
+    return None
+
+
+def why_not(win, alt, ctx=None):
+    """F9: lead with the largest score term the alternative loses on, in words tied to the input value; then
+    '(close call)' when the gap is small; the KB known limit only when it touches an active input. No score numbers
+    (the gap to the runner-up is in score_margin)."""
+    gaps = sorted(((win.term(k) - alt.term(k), k) for k in {t[0] for t in win.terms} | {t[0] for t in alt.terms}
+                   if win.term(k) - alt.term(k) > 0.05), key=lambda x: (-x[0], x[1]))
     total = round(win.score - alt.score, 1)
-    lim = alt.item.get("limits") or []
-    tail = f" Known limit of {alt.item['name'].split(' (')[0]}: {lim[0] if any(ch.isupper() for ch in lim[0].split(' ')[0][1:]) else lim[0][:1].lower() + lim[0][1:]}." if lim else ""
+    wn = _short(win.item)
     if total < 0:
-        return (f"Scores {-total} points higher ({alt.score} vs {win.score}), but the team-language preference keeps "
-                f"{win.item['name']} within the {SKILL_BAND}-point switching-cost band." + tail)
+        langs = ctx and ",".join(ctx["langs"])
+        return (f"Rates higher on the weighted priorities, but the team-language preference keeps {win.item['name']}"
+                + (f" (team.languages={langs})" if langs else "") + f" within the {SKILL_BAND}-point switching-cost band."
+                + known_limit(alt, ctx, always=True))
     if total < 0.1:
-        return (f"Tied on score ({alt.score}) with {win.item['name'].split(' (')[0]}; the stable id-based tie-break keeps the result "
-                "deterministic, so either is a defensible choice." + tail)
-    if not weak and not strong:
-        return (f"Close runner-up (score {alt.score} vs {win.score}): many small differences, none above half a point, add up to "
-                f"the {total}-point gap, so either is defensible." + tail)
-    parts = []
-    if weak:
-        parts.append(cap("; ".join(weak)))
-    if strong:
-        parts.append(f"{win.item['name'].split(' — ')[0]} is stronger on: " + "; ".join(strong))
-    return ". ".join(parts) + f". Overall {total} points behind." + tail
+        return (f"Tied with {wn}; the stable id-based tie-break keeps the result deterministic, so either is defensible."
+                + known_limit(alt, ctx, always=True))
+    # the largest term always leads (a small one in a close call); a second one only when it is itself >= 1 point
+    keys = [k for g, k in gaps[:2] if g >= 1 or k == gaps[0][1]]
+    prios = [k for k in keys if k.startswith("prio_")]
+    reasons = [r for r in (_gap_reason(win, alt, k, ctx, prios[1:] if k == (prios or [None])[0] else ())
+                           for k in keys if not (k in prios[1:])) if r]
+    if len(reasons) > 1 and wn in reasons[0]:  # name the winner once
+        reasons[1] = reasons[1].replace(f"{wn} ", "it ", 1)
+    if not reasons:
+        return (f"Many small differences, none decisive, separate it from {wn} (close call)."
+                + known_limit(alt, ctx, always=True))
+    return cap("; ".join(reasons)) + (" (close call)" if total < CLOSE_CALL else "") + "." + known_limit(alt, ctx)
+
+
+def excluded_text(a, ctx):
+    """Excluded alternative phrased as the constraint that removed it ('deployment_model=managed_cloud rules out ...')."""
+    reason, path = a.excluded
+    reason = reason.split(", but ")[0]
+    v = _val(ctx, path)
+    if v is not None:
+        return f"Excluded: {path}={v} rules out {_short(a.item)} ({reason})."
+    return f"Excluded: {reason} ({path})."
 
 
 def ha_paths(req):
@@ -336,7 +424,7 @@ def _recommend(req, assumptions, sid):
         fit = next((c for c in b_ok if set(c.item["langs"]) & set(ctx["langs"])), None)
         W("SKILL_MISMATCH", "warning",
           f"{backend['name']} is not in the team's languages ({', '.join(ctx['langs'])}); it was chosen for the stated priorities and requirements. "
-          + (f"The best skill-matched option, {fit.item['name']}, scored {round(backend_c.score - fit.score, 1)} points lower ({why_not(backend_c, fit)}) — "
+          + (f"The best skill-matched option, {fit.item['name']}, scored {round(backend_c.score - fit.score, 1)} points lower ({why_not(backend_c, fit, ctx)}) — "
              "choose it if ramp-up time matters more." if fit else "No option in the knowledge base uses the team's languages.")
           + " Budget training time into the timeline.",
           ["team.languages", "team.experience"])
@@ -539,6 +627,8 @@ def _recommend(req, assumptions, sid):
             fe_paths.append("team.languages")
             fe_src += cite(dsrc)
             fe_alts += [{"choice": c, "why_not": w} for c, w in dalts]
+    if len(parts) == 1 and " — " in fe_why[0]:  # one platform: the label and name would only repeat the choice
+        fe_why[0] = fe_why[0].split(" — ", 1)[1]
     if parts:
         fe_cmp = {"choice": " + ".join(parts), "justification": " ".join(fe_why), "driven_by": order_paths(fe_paths),
                   "alternatives": fe_alts[:4], "tradeoffs": fe_trade[:4], "deployment": "client", "provider": "neutral",
@@ -860,9 +950,9 @@ def kept_database(ctx, e, d_ok, loc):
     if eol:
         why += (f" It is past end of support ({life['name']}): upgrade it in place to a supported release before building on it "
                 "(see END_OF_LIFE_SYSTEM).")
-    alts = [{"choice": f"Migrate to {a.variant}", "why_not": f"{'best-scoring' if i == 0 else 'runner-up'} new database for these inputs, "
-             f"but '{e['raw']}' must remain; treat it as a later migration (change-data-capture or dual writes, then cut-over) once the new app is stable."}
-            for i, a in enumerate(d_ok[:2])]
+    alts = [{"choice": f"Migrate to {a.variant}", "why_not": f"infrastructure.existing_systems=['{e['raw']}'] must remain, so the "
+             f"{'best-scoring' if i == 0 else 'runner-up'} new database for these inputs is a later migration (change-data-capture or dual writes, then cut-over) once the new app is stable."}
+            for i, a in enumerate([a for a in d_ok if not _licence_filler(a, ctx)][:2])]
     cmp = {"choice": label, "justification": why,
            "driven_by": order_paths(["infrastructure.existing_systems", e["keep"]]), "alternatives": alts,
            "tradeoffs": ["Schema changes are coordinated with the existing system's owners and its other consumers",
@@ -1017,13 +1107,20 @@ def make_summary(ctx, style, fe, be, db, host_name, cost, status, onprem=False):
         parts = [f"{style_txt}: {fe['choice']}"] + ([f"on {be['choice']}"] if be["choice"] != "None" else [])
     else:  # API-only: no end-user client, lead with the backend
         parts = [f"{style_txt}: " + (f"{be['choice']} API (no end-user frontend)" if be["choice"] != "None" else "no frontend or backend")]
+    # readability: the region is named once (after the host), and tier/HA details in brackets stay in the components
+    host, _, region = host_name.rpartition(" — ") if " — " in host_name else (host_name, "", "")
     if db["choice"] != "None":
-        parts.append(f"with {db['choice']}")
+        parts.append(f"with {_no_paren(db['choice'].replace(' — ' + region, '') if region else db['choice'])}")
     price = f"an estimated ${cost['min']}-{cost['max']}/month"
     if onprem:  # judge B6: "$0-0" alone reads as free; the band covers only cloud/SaaS fees
         price = ("an estimated cloud bill $0; hardware/licences excluded" if cost["max"] == 0
                  else f"{price} in cloud/SaaS fees; hardware/licences excluded")
-    s = " ".join(parts) + f", hosted on {host_name}, at {price}."  # statement 4: one or two sentences
+    s = " ".join(parts) + f", hosted on {_no_paren(host)}{' — ' + region if region else ''}, at {price}."  # statement 4: one or two sentences
     if status == "ok_with_warnings":
-        s += " Review the warnings: some inputs conflict or carry risk."
+        s += " Review the warnings."
     return s
+
+
+def _no_paren(name):
+    """Drop one trailing bracketed detail: 'Azure App Service (Linux, Basic B1)' -> 'Azure App Service'."""
+    return name[:name.rindex(" (")] if name.endswith(")") and " (" in name else name

@@ -2,12 +2,12 @@
   "scenario_id": "P3",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Modular monolith: React (Vite SPA) (web) on Go 1.27 (net/http + chi) with Azure Database for PostgreSQL – Flexible Server 17 — West Europe (Netherlands), hosted on Azure App Service (Linux, Premium v3, 2+ instances) — West Europe (Netherlands), at an estimated $497-2568/month.",
+  "summary": "Modular monolith: React (Vite SPA) (web) on Go 1.27 (net/http + chi) with Azure Database for PostgreSQL – Flexible Server 17, hosted on Azure App Service — West Europe (Netherlands), at an estimated $497-2568/month.",
   "architecture_style": "modular_monolith",
   "stack": {
     "frontend": {
       "choice": "React (Vite SPA) (web)",
-      "justification": "Web: React (Vite SPA) — Rich interactive app screens; team already writes typescript for the UI; good performance (priority 5/5); good scalability (priority 5/5).",
+      "justification": "Rich interactive app screens; team already writes typescript for the UI; good performance (priority 5/5); good scalability (priority 5/5).",
       "driven_by": [
         "project.type",
         "project.platforms",
@@ -21,11 +21,11 @@
       "alternatives": [
         {
           "choice": "Vue 3 (Vite SPA)",
-          "why_not": "React (Vite SPA) is stronger on: good fast delivery (priority 3/5) (priorities.time_to_market). Overall 2.4 points behind. Known limit of Vue 3: smaller hiring pool and component ecosystem than React."
+          "why_not": "With priorities.time_to_market=3, React is faster to deliver with."
         },
         {
           "choice": "Next.js",
-          "why_not": "Learning curve 3/5 for a senior team (team.experience). React (Vite SPA) is stronger on: good low running cost (priority 2/5) (priorities.cost). Overall 2.4 points behind. Known limit of Next.js: server runtime needed for SSR; more moving parts than a static site."
+          "why_not": "With priorities.cost=2, React is cheaper to run. Known limit of Next.js: server runtime needed for SSR; more moving parts than a static site."
         }
       ],
       "tradeoffs": [
@@ -60,7 +60,7 @@
         "label": "high",
         "basis": "stability 0.91 (robust) over 54 priority vectors."
       },
-      "contrast": "React (Vite SPA) (web) rather than Vue 3 (Vite SPA). React (Vite SPA) is stronger on: good fast delivery (priority 3/5) (priorities.time_to_market). Trade-off accepted: Client-rendered pages are weak for SEO.",
+      "contrast": "React (Vite SPA) (web) rather than Vue 3 (Vite SPA). With priorities.time_to_market=3, React is faster to deliver with. Trade-off accepted: Client-rendered pages are weak for SEO.",
       "what_would_change": [
         {
           "edit": "requirements.seo_critical: false -> true",
@@ -93,11 +93,11 @@
       "alternatives": [
         {
           "choice": "Node.js 24 LTS + NestJS (TypeScript)",
-          "why_not": "Go 1.27 (net/http + chi) is stronger on: good performance (priority 5/5) (priorities.performance); good security (priority 3/5) (priorities.security). Overall 0.8 points behind. Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
+          "why_not": "With priorities.performance=5 and priorities.security=3, Go 1.27 is faster at runtime and stronger on security (close call). Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
         },
         {
           "choice": ".NET 10 LTS + ASP.NET Core",
-          "why_not": "Team lists go, typescript but this needs csharp (team.languages). Go 1.27 (net/http + chi) is stronger on: good low running cost (priority 2/5) (priorities.cost). Overall 10.0 points behind. Known limit of .NET 10 LTS + ASP.NET Core: smaller open-source hosting choice outside Azure."
+          "why_not": "Team lists go, typescript but this needs csharp (team.languages=go,typescript); with priorities.cost=2, Go 1.27 is cheaper to run."
         }
       ],
       "tradeoffs": [
@@ -138,7 +138,7 @@
         "label": "low",
         "basis": "stability 0.59 (sensitive) over 54 priority vectors; score margin 0.8 over the runner-up (near-tie)."
       },
-      "contrast": "Go 1.27 (net/http + chi) rather than Node.js 24 LTS + NestJS (TypeScript). Go 1.27 (net/http + chi) is stronger on: good performance (priority 5/5) (priorities.performance); good security (priority 3/5) (priorities.security). Trade-off accepted: More hand-written code than batteries-included frameworks.",
+      "contrast": "Go 1.27 (net/http + chi) rather than Node.js 24 LTS + NestJS (TypeScript). With priorities.performance=5 and priorities.security=3, Go 1.27 is faster at runtime and stronger on security (close call). Trade-off accepted: More hand-written code than batteries-included frameworks.",
       "what_would_change": [
         {
           "edit": "priorities.time_to_market: 3 -> 5",
@@ -168,12 +168,12 @@
       ],
       "alternatives": [
         {
-          "choice": "Azure SQL Database (serverless/General Purpose)",
-          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 is stronger on: good low running cost (priority 2/5) (priorities.cost). Overall 3.2 points behind. Known limit of Azure SQL Database: licence cost outside Azure SQL; Windows-centric tooling."
+          "choice": "Supabase Postgres",
+          "why_not": "With priorities.maintainability=4 and priorities.security=3, Azure Database for PostgreSQL – Flexible Server 17 is easier to maintain and stronger on security."
         },
         {
-          "choice": "Supabase Postgres",
-          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 is stronger on: good maintainability (priority 4/5) (priorities.maintainability); good security (priority 3/5) (priorities.security). Overall 6.8 points behind. Known limit of Supabase Postgres: free projects pause after 1 week of inactivity; production needs Pro."
+          "choice": "Azure Cosmos DB (NoSQL API)",
+          "why_not": "With priorities.maintainability=4, Azure Database for PostgreSQL – Flexible Server 17 is easier to maintain; it fits better: strict ACID transactions for payments and the records they change (requirements.payments=true)."
         }
       ],
       "tradeoffs": [
@@ -208,16 +208,8 @@
         "label": "high",
         "basis": "stability 1.00 (robust) over 54 priority vectors; score margin 3.2 over the runner-up."
       },
-      "contrast": "Azure Database for PostgreSQL – Flexible Server 17 rather than Azure SQL Database (serverless/General Purpose). Azure Database for PostgreSQL – Flexible Server 17 is stronger on: good low running cost (priority 2/5) (priorities.cost). Trade-off accepted: Vertical write scaling; sharding needs extensions.",
-      "what_would_change": [
-        {
-          "edit": "none in the probe set",
-          "path": null,
-          "value": null,
-          "also_by": [],
-          "new_choice": "No single-field edit among the probed priorities, requirements, numbers and constraints changes this choice (the managed provider still follows the hosting choice)."
-        }
-      ]
+      "contrast": "Azure Database for PostgreSQL – Flexible Server 17 rather than Supabase Postgres. With priorities.maintainability=4 and priorities.security=3, Azure Database for PostgreSQL – Flexible Server 17 is easier to maintain and stronger on security. Trade-off accepted: Vertical write scaling; sharding needs extensions.",
+      "what_would_change": []
     },
     "hosting": {
       "choice": "Azure App Service (Linux, Premium v3, 2+ instances) — West Europe (Netherlands)",
@@ -233,15 +225,11 @@
       "alternatives": [
         {
           "choice": "Google Cloud Run",
-          "why_not": "Azure App Service (Linux, Premium v3, 2+ instances) is stronger on: good maintainability (priority 4/5) (priorities.maintainability); good fast delivery (priority 3/5) (priorities.time_to_market). Overall 2.4 points behind. Known limit of Google Cloud Run: cold starts unless min instances are paid for."
+          "why_not": "With priorities.maintainability=4 and priorities.time_to_market=3, Azure App Service is easier to maintain and faster to deliver with. Known limit of Google Cloud Run: cold starts unless min instances are paid for."
         },
         {
           "choice": "Azure Container Apps",
-          "why_not": "Azure App Service (Linux, Premium v3, 2+ instances) is stronger on: good maintainability (priority 4/5) (priorities.maintainability); good fast delivery (priority 3/5) (priorities.time_to_market). Overall 4.0 points behind. Known limit of Azure Container Apps: more moving parts than App Service for a single web app."
-        },
-        {
-          "choice": "On-premises Kubernetes (k3s / RKE2)",
-          "why_not": "Excluded: self-managed infrastructure, but deployment_model is managed_cloud (infrastructure.deployment_model)."
+          "why_not": "With priorities.maintainability=4 and priorities.time_to_market=3, Azure App Service is easier to maintain and faster to deliver with."
         }
       ],
       "tradeoffs": [
@@ -288,7 +276,7 @@
         "label": "high",
         "basis": "stability 0.91 (robust) over 54 priority vectors; score margin 2.4 over the runner-up."
       },
-      "contrast": "Azure App Service (Linux, Premium v3, 2+ instances) rather than Google Cloud Run. Azure App Service (Linux, Premium v3, 2+ instances) is stronger on: good maintainability (priority 4/5) (priorities.maintainability); good fast delivery (priority 3/5) (priorities.time_to_market). Trade-off accepted: Less control than containers for unusual runtimes.",
+      "contrast": "Azure App Service (Linux, Premium v3, 2+ instances) rather than Google Cloud Run. With priorities.maintainability=4 and priorities.time_to_market=3, Azure App Service is easier to maintain and faster to deliver with. Trade-off accepted: Less control than containers for unusual runtimes.",
       "what_would_change": [
         {
           "edit": "requirements.realtime: true -> false",
@@ -356,7 +344,7 @@
         "alternatives": [
           {
             "choice": "Storing files in the database",
-            "why_not": "bloats backups and costs more per GB"
+            "why_not": "with ~200 GB of data expected in 12 months (scale.data_volume_gb_12_months), files inside the database bloat every backup and cost more per GB than object storage"
           },
           {
             "choice": "Cloudflare R2",
@@ -512,7 +500,7 @@
         "alternatives": [
           {
             "choice": "No CDN",
-            "why_not": "every asset request hits the origin; slower for distant users"
+            "why_not": "every asset request from the 50,000 expected users would hit the origin; with scale.geo_spread=None, distant users wait longest"
           },
           {
             "choice": "Cloudflare (free plan) in front of Azure",
@@ -542,7 +530,7 @@
         "alternatives": [
           {
             "choice": "GitLab CI",
-            "why_not": "equivalent; GitHub chosen for its marketplace of deploy actions"
+            "why_not": "equally capable; for a team of 5 with a DevOps engineer (team.has_devops=true), ready-made GitHub deploy actions for Azure App Service mean less pipeline code to maintain"
           }
         ],
         "tradeoffs": [
@@ -568,7 +556,7 @@
         "alternatives": [
           {
             "choice": "Sentry (SaaS)",
-            "why_not": "extra vendor; add later for richer error grouping"
+            "why_not": "an extra vendor account for a team of 5; Azure Monitor + Application Insights in West Europe already covers 99.9% availability alerting, add Sentry later for richer error grouping"
           }
         ],
         "tradeoffs": [
