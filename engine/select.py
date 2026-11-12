@@ -56,13 +56,18 @@ def prio_terms(c, ctx, r):
                   f"{word} {PRIO_LABEL[k]} (priority {w}/5)")
 
 
-def lang_term(c, ctx, langs, weight, what):
+def lang_term(c, ctx, langs, weight, what, primary=()):
+    """primary: languages the description names as the team's own server language (F1); a listed language outside
+    them earns half credit for this layer."""
     team = ctx["langs"]
     if not team:
         return
     hit = sorted(set(langs) & set(team))
     hire = sorted(set(langs) & set(ctx["hiring"]))
-    if hit:
+    if hit and primary and not set(langs) & set(primary):
+        c.add("lang", weight * ctx["lf"] * 0.5, "project.description",
+              f"team writes {', '.join(hit)}, but project.description names {'/'.join(sorted(primary))} as its server language")
+    elif hit:
         c.add("lang", weight * ctx["lf"], "team.languages", f"team already writes {', '.join(hit)} for {what}")
     elif hire:
         c.add("lang", weight * ctx["lf"] * 0.5, "team.hiring_languages", f"the team plans to hire {', '.join(hire)} developers for {what}")
@@ -73,6 +78,7 @@ def lang_term(c, ctx, langs, weight, what):
 
 def learn_term(c, ctx, learning, new_lang=False):
     """new_lang: no team language fits any option in this layer, so the language itself is new too."""
+    new_lang = new_lang and bool(ctx["langs"])  # F17: an empty team.languages says nothing about which language is new
     if learning > 2:
         c.add("learning", -(learning - 2) * ctx["xf"] * 1.2 * (2 if new_lang else 1), "team.experience",
               f"learning curve {learning}/5 for {'an' if ctx['exp'][0] in 'aeiou' else 'a'} {ctx['exp']} team"
@@ -141,9 +147,10 @@ def hosting_candidates(ctx):
         if ctx["weeks"] <= 6 and h["r"][1] >= 4:
             c.add("timeline", 1.5, "timeline.mvp_weeks", f"quick to set up for a {ctx['weeks']}-week MVP")
         avail = req["requirements.availability"]
-        if avail in ("99.95", "99.99") and (h["sla"] is None or "single" in str(h["sla"])):
+        # F6: zone redundancy is a KB fact (multi_zone, with sources); a single VM/Droplet is never "across zones"
+        if avail in ("99.95", "99.99") and (h["sla"] is None or "single" in str(h["sla"]) or h.get("multi_zone") is False):
             c.add("availability", -6, "requirements.availability", f"no multi-zone SLA for a {avail}% target")
-        elif avail in ("99.95", "99.99") and kind not in ("static", "onprem"):
+        elif avail in ("99.95", "99.99") and kind not in ("static", "onprem") and h.get("multi_zone"):
             c.add("availability", 1, "requirements.availability", f"runs across availability zones for the {avail}% target")
         regulated = [x for x in ctx["compliance"] if x in ("pci_dss", "hipaa", "rbi_localisation", "iso27001", "soc2")]
         if regulated and h.get("host_os") == "customer":
@@ -211,10 +218,16 @@ def backend_candidates(ctx, host):
     cands = []
     known = set(ctx["langs"]) | set(ctx["hiring"])
     new_lang = not any(set(b["langs"]) & known for b in TECH["backend"])  # empty, or client-only languages (swift, dart)
+    js = {"javascript", "typescript"}
+    # F1: project.description names a non-JS server language as the team's own and a backend in it is comfortable at this
+    # scale -> that language is primary for the API; the team's other languages (JS/TS for the clients) count as secondary.
+    # Without such a statement a team listing JS/TS beside another server language stays ambiguous and keeps both credits.
+    primary = {l for l in ctx.get("primary_langs", []) if l not in js
+               and any(l in b["langs"] and b["max_tier"] >= ctx["tier"] and not b.get("fullstack") for b in TECH["backend"])}
     for b in TECH["backend"]:
         c = Cand(b)
         prio_terms(c, ctx, b["r"])
-        lang_term(c, ctx, b["langs"], 7, "the API")
+        lang_term(c, ctx, b["langs"], 7, "the API", primary)
         learn_term(c, ctx, b["learning"], new_lang)
         tier_term(c, ctx, b["max_tier"], b["name"])
         if b.get("fullstack"):  # the UI app is the backend: only for small web-only apps
@@ -246,8 +259,13 @@ def backend_candidates(ctx, host):
                   "the web UI needs JavaScript/TypeScript anyway, so the team learns one new language instead of two" if ctx["langs"] else
                   "no team language given: the web UI needs JavaScript/TypeScript anyway, so the backend should not add a second new language")
         js_team = set(ctx["langs"]) & {"javascript", "typescript"}
-        if js_team and (ctx["web"] or ctx["mobile"]) and set(b["langs"]) & {"javascript", "typescript"}:
+        # F1: a team that also writes a non-JS server language with a mature backend here uses JS for the clients; the
+        # one-language bonus would reward JS a second time on top of the language-fit term
+        if js_team and (ctx["web"] or ctx["mobile"]) and set(b["langs"]) & {"javascript", "typescript"} and not primary:
             c.add("one_language", 2, "team.languages", "one language (TypeScript/JavaScript) across clients and server")
+        prim = sorted(set(b["langs"]) & set(ctx.get("primary_langs", [])))
+        if prim:  # F1: project.description names this language as the team's own ("Rails shop", "team writes Elixir")
+            c.add("primary_lang", 2, "project.description", f"project.description names {'/'.join(prim)} as the team's own stack")
         cont = sorted(set(b["langs"]) & ctx["existing_langs"] & set(ctx["langs"]))
         if cont:  # same weight as one_language: existing domain code, libraries and runbooks carry over to the new API
             c.add("existing_lang", 2, "infrastructure.existing_systems",
@@ -390,12 +408,20 @@ def web_candidates(ctx, backend):
             c.add("markdown", 2, "project.description", "renders the owner's Markdown files directly")
         if backend and set(backend["langs"]) & set(f["langs"]) & set(ctx["langs"]):
             c.add("shared_lang", 1.5, "team.languages", "same language as the backend")
-        if ctx["mobile"] and f["id"] in ("nextjs", "react-vite") and set(ctx["langs"]) & {"javascript", "typescript"}:
+        if ctx["mobile"] and f["id"] in ("nextjs", "react-vite") and set(ctx["langs"]) & {"javascript", "typescript"} and rn_mobile(ctx):
             c.add("react_mobile", 1.5, "project.platforms", "same React component model as a React Native mobile app")
         if ctx["desc"]["internal_only"] and f["kind"] == "spa":
             c.add("internal", 1, "project.description", "internal app behind login needs no SEO")
         cands.append(c)
     return cands
+
+
+def rn_mobile(ctx):
+    """F8: React Native would be the mobile choice beside a React web app (lookahead; the bonus names it)."""
+    if "rn_mobile" not in ctx:
+        ok, _ = rank(mobile_candidates(ctx, {"langs": ["javascript", "typescript"]}))
+        ctx["rn_mobile"] = bool(ok) and ok[0].id == "react-native-expo"
+    return ctx["rn_mobile"]
 
 
 def mobile_candidates(ctx, web_choice):

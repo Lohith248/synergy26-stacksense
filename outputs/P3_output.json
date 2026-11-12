@@ -2,7 +2,7 @@
   "scenario_id": "P3",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Modular monolith: React (Vite SPA) (web) on Go 1.27 (net/http + chi) with Azure Database for PostgreSQL – Flexible Server 17 — West Europe (Netherlands), hosted on Azure App Service (Linux, Premium v3, 2+ instances) — West Europe (Netherlands), at an estimated $459-2388/month.",
+  "summary": "Modular monolith: React (Vite SPA) (web) on Go 1.27 (net/http + chi) with Azure Database for PostgreSQL – Flexible Server 17 — West Europe (Netherlands), hosted on Azure App Service (Linux, Premium v3, 2+ instances) — West Europe (Netherlands), at an estimated $484-2538/month.",
   "architecture_style": "modular_monolith",
   "stack": {
     "frontend": {
@@ -221,7 +221,7 @@
     },
     "hosting": {
       "choice": "Azure App Service (Linux, Premium v3, 2+ instances) — West Europe (Netherlands)",
-      "justification": "Satisfies the hard constraints (managed_cloud (no servers to patch)). Good maintainability (priority 4/5); good performance (priority 5/5).",
+      "justification": "Satisfies the hard constraints (managed_cloud (no servers to patch)). Good maintainability (priority 4/5); good performance (priority 5/5); deployment slots for safe releases.",
       "driven_by": [
         "infrastructure.deployment_model",
         "priorities.time_to_market",
@@ -264,7 +264,8 @@
         "https://learn.microsoft.com/en-us/azure/reliability/regions-list",
         "https://azure.microsoft.com/en-us/pricing/details/app-service/linux/",
         "https://learn.microsoft.com/en-us/azure/app-service/app-service-hybrid-connections",
-        "https://learn.microsoft.com/en-us/azure/compliance/"
+        "https://learn.microsoft.com/en-us/azure/compliance/",
+        "https://learn.microsoft.com/en-us/azure/reliability/reliability-app-service"
       ],
       "stability": {
         "score": 0.91,
@@ -378,7 +379,7 @@
       {
         "layer": "realtime",
         "choice": "Yjs CRDT documents + Hocuspocus WebSocket server",
-        "justification": "Many people edit the same board at once: CRDTs merge concurrent edits without conflicts and broadcast cursors/presence (awareness); Hocuspocus persists document updates to the database.",
+        "justification": "Many people edit the same board at once: CRDTs merge concurrent edits without conflicts and broadcast cursors/presence (awareness); Hocuspocus persists document updates to the database. The knowledge base has no Yjs-compatible server for Go 1.27, so Hocuspocus runs as a separate Node.js service.",
         "driven_by": [
           "requirements.realtime",
           "project.type",
@@ -392,9 +393,14 @@
           {
             "choice": "Plain WebSocket broadcast",
             "why_not": "last-write-wins loses concurrent edits"
+          },
+          {
+            "choice": "A sync server in the backend's language",
+            "why_not": "no Yjs-compatible server for it in the knowledge base"
           }
         ],
         "tradeoffs": [
+          "An extra Node.js runtime beside Go 1.27: its own deploys, dependency updates and monitoring; it must verify the API's auth tokens",
           "Stateful socket servers need sticky routing or a Redis pub/sub backplane when scaled out"
         ],
         "deployment": "library",
@@ -603,13 +609,14 @@
     ]
   },
   "estimated_monthly_cost_usd": {
-    "min": 459,
-    "max": 2388,
+    "min": 484,
+    "max": 2538,
     "currency": "USD",
     "assumptions": [
       "Hosting Azure App Service (Linux, Premium v3, 2+ instances): $150-800/month at the 'medium' tier.",
       "Database Azure Database for PostgreSQL – Flexible Server 17: $150-700/month.",
       "storage: Azure Blob Storage (West Europe (Netherlands)) $10-80/month.",
+      "realtime: Yjs CRDT documents + Hocuspocus WebSocket server $25-150/month. Basis: one extra small always-on instance for the Node.js sync server at the host's entry price (estimate).",
       "cache: Azure Managed Redis in West Europe (Netherlands) $60-350/month.",
       "queue: Azure Service Bus in West Europe (Netherlands) $5-30/month.",
       "cdn: Azure Front Door $50-200/month.",
@@ -641,7 +648,7 @@
     {
       "code": "BUDGET_AT_RISK",
       "severity": "info",
-      "message": "Upper estimate $2388/month is 59% above the $1500 budget at peak usage; the largest upper-bound items are Hosting Azure App Service (Linux, Premium v3, 2+ instances) (up to $800) and Database Azure Database for PostgreSQL – Flexible Server 17 (up to $700). Launch near the $459 lower bound and set billing alerts at the budget.",
+      "message": "Upper estimate $2538/month is 69% above the $1500 budget at peak usage; the largest upper-bound items are Hosting Azure App Service (Linux, Premium v3, 2+ instances) (up to $800) and Database Azure Database for PostgreSQL – Flexible Server 17 (up to $700). Launch near the $484 lower bound and set billing alerts at the budget.",
       "fields": [
         "budget.monthly_infra_usd"
       ]

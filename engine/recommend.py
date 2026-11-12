@@ -68,13 +68,61 @@ def short(cid):
     return n[4:] if n.startswith("the ") else n
 
 
-def component(cand, ranked_ok, ranked_out, extra_paths, extras, name=None, base_why=""):
+def prio_weight(term):
+    m = re.search(r"\(priority (\d)/5\)", term[3])
+    return int(m.group(1)) if m else 3
+
+
+# F10: input flag -> words that make a KB strength relevant to this scenario
+FACT_WORDS = [("requirements.realtime", ("websocket", "realtime", "signalr", "channels", "fan-out")),
+              ("requirements.ml_features", ("ml", "python", "inference")),
+              ("requirements.offline_support", ("offline", "on-device", "sync")),
+              ("requirements.payments", ("transaction", "ledger", "money")),
+              ("requirements.seo_critical", ("seo", "server-rendered", "static", "html")),
+              ("requirements.auth", ("entra", "sso", "identity", "auth")),
+              ("requirements.multi_tenant", ("tenant", "row-level")),
+              ("requirements.full_text_search", ("search",))]
+
+
+def kb_fact(item, ctx):
+    """The KB strength of a choice most relevant to the inputs (first strength when none matches)."""
+    strengths = item.get("strengths") or []
+    if not strengths:
+        return None
+    req = ctx["req"] if ctx else {}
+    for path, words in FACT_WORDS:
+        if _flag_on(req, path) and not (path == "requirements.auth" and req.get(path) != "enterprise_sso"):
+            hit = next((x for x in strengths if any(_word(w, x) for w in words)), None)
+            if hit:
+                return hit
+    # fallback: first strength that does not advertise a feature these inputs switched off (Entra, on-prem, offline, ...)
+    off = [w for path, words in FACT_WORDS if not _flag_on(req, path) for w in words if w not in ("static", "html", "python")]
+    off += [] if req.get("infrastructure.existing_systems") else ["on-prem", "on-premises", "hybrid"]
+    off += [] if req.get("requirements.auth") == "enterprise_sso" else ["entra", "sso"]
+    return next((x for x in strengths if not any(_word(w, x) for w in off)), None)
+
+
+def _word(w, text):
+    return re.search(r"\b" + re.escape(w) + r"\b", text.lower()) is not None
+
+
+def _flag_on(req, path):
+    v = req.get(path)
+    return bool(v and v not in ("none", "email_password") or (path == "requirements.auth" and v == "enterprise_sso"))
+
+
+def component(cand, ranked_ok, ranked_out, extra_paths, extras, name=None, base_why="", ctx=None):
     """Build the official component object from a winning candidate and its competitors."""
     item = cand.item
     pos = sorted([t for t in cand.terms if t[1] > 0], key=lambda t: (t[0].startswith("prio_"), -t[1], t[0]))
     domain = [t for t in pos if not t[0].startswith("prio_")][:3]
-    prios = [t for t in pos if t[0].startswith("prio_") and "(priority 3/5)" not in t[3]][:2]
-    reasons = [t[3] for t in domain + prios] or [t[3] for t in pos if t[0].startswith("prio_")][:2]  # balanced (3/5) priorities still decide
+    # F10: a priority is cited as a strength only at 4-5/5 (3/5 only when nothing else decides); 1-2/5 never
+    prios = [t for t in pos if t[0].startswith("prio_") and prio_weight(t) >= 4][:2]
+    reasons = [t[3] for t in domain + prios] or [t[3] for t in pos if t[0].startswith("prio_") and prio_weight(t) >= 3][:2]
+    if not domain:  # F10: at least one scenario-specific reason: the KB fact about this choice most relevant to the inputs
+        fact = kb_fact(item, ctx)
+        if fact:
+            reasons = reasons + [fact[:1].lower() + fact[1:] if not any(ch.isupper() for ch in fact.split(" ")[0][1:]) else fact]
     why = base_why + (cap("; ".join(reasons)) + "." if reasons else "")
     alts = []
     for a in ranked_ok[1:3]:
@@ -177,7 +225,7 @@ def cap(s):
     return s[:1].upper() + s[1:] if s else s
 
 
-def envelope_text(ctx, region):
+def envelope_text(ctx, region, host=None):
     if ctx["residency"] == "other":
         return "Deployment/provider filters are met, but residency is unresolved until a jurisdiction is supplied. "
     bits = []
@@ -186,7 +234,10 @@ def envelope_text(ctx, region):
     if ctx["deploy"] != "managed_cloud":
         bits.append(f"deployment_model {ctx['deploy']}")
     else:
-        bits.append("managed_cloud (no servers to patch)")
+        # F6: only when the KB says the provider patches the host OS; host_os 'customer' (EC2 under Elastic Beanstalk)
+        # keeps the instance OS in the customer's patch scope even on a managed platform
+        bits.append("managed_cloud (managed platform; the instance OS stays in your patching scope)" if host and host.get("host_os") == "customer"
+                    else "managed_cloud (no servers to patch)")
     if ctx["res_named"] or ctx["residency_from_rbi"]:
         bits.append(f"data_residency {ctx['residency'] if not ctx['country'] else 'other (' + short(ctx['country']) + ')'}" + (f" -> {region}" if region else ""))
     return "Satisfies the hard constraints (" + ", ".join(bits) + "). " if bits else ""
@@ -297,7 +348,7 @@ def _recommend(req, assumptions, sid):
             continue
         if backend["id"] in ("java-spring", "dotnet-aspnet"):
             c.add("runtime", -7, "team.languages",
-                  f"{backend['name'].split(' + ')[-1]} is a long-running JVM/.NET server: slow cold starts and per-invocation connection pools on functions")
+                  f"{backend['name'].split(' + ')[-1]} is a long-running {'JVM' if backend['id'] == 'java-spring' else '.NET'} server: slow cold starts and per-invocation connection pools on functions")
         elif backend["id"] == "elixir-phoenix":
             c.add("runtime", -7, "team.languages",
                   "Phoenix runs on the long-lived BEAM VM (Channels, PubSub, Presence hold state in processes): not suited to per-invocation functions")
@@ -350,14 +401,14 @@ def _recommend(req, assumptions, sid):
     hosting = component(host_c, h_ok, h_out, host_extra_paths,
                         {"deployment": host["deploy"], "provider": host["provider"], "data_bearing": ctx["needs_backend"],
                          "data_location": loc if ctx["needs_backend"] else None, "region": region}, name=host_name,
-                        base_why=envelope_text(ctx, region) if ctx["needs_backend"] else "")
+                        base_why=envelope_text(ctx, region, host) if ctx["needs_backend"] else "", ctx=ctx)
     if ctx["country"]:
         hosting["sources"] = hosting["sources"] + [u for u in cite([REGION_SRC.get(host["provider"], "aws-regions-list")]) if u not in hosting["sources"]]
 
     # ---- backend component
     if backend_c:
         backend_cmp = component(backend_c, b_ok, b_out, [], {"deployment": "self_hosted" if host["kind"] in ("vm", "onprem") else "library",
-                                                              "provider": "neutral", "data_bearing": False, "data_location": None})
+                                                              "provider": "neutral", "data_bearing": False, "data_location": None}, ctx=ctx)
     else:
         backend_cmp = none_component("backend", "No application server is needed: there are no accounts, payments, uploads or dynamic data; pages are pre-built at deploy time.",
                                      ["project.type", "requirements.auth", "requirements.payments"],
@@ -378,7 +429,7 @@ def _recommend(req, assumptions, sid):
             c.item = dict(c.item, name=c.variant or c.item["name"])
         db_cmp = component(db_c, d_ok, d_out, [], {"deployment": "self_hosted" if db_c.vkey == "self" else "managed",
                                                    "provider": host["provider"] if db_c.vkey not in ("any", "self") else (db_c.id if db_c.vkey == "any" else "neutral"),
-                                                   "data_bearing": True, "data_location": loc}, name=vname)
+                                                   "data_bearing": True, "data_location": loc}, name=vname, ctx=ctx)
         if ctx["country"]:
             db_cmp["driven_by"] = order_paths(db_cmp["driven_by"] + ctx["res_paths"])
             src = REGION_SRC.get(db_c.id if db_c.vkey == "any" else host["provider"])
@@ -438,7 +489,7 @@ def _recommend(req, assumptions, sid):
         wc = sl.web_candidates(ctx, backend)
         w_ok, w_out = sl.rank(wc)
         web = w_ok[0]
-        wcmp = component(web, w_ok, w_out, [], {})
+        wcmp = component(web, w_ok, w_out, [], {}, ctx=ctx)
         parts.append(f"{web.item['name']} (web)")
         fe_alts += wcmp["alternatives"][:2]
         fe_paths += wcmp["driven_by"]
@@ -450,7 +501,7 @@ def _recommend(req, assumptions, sid):
         mc = sl.mobile_candidates(ctx, web.item if web else None)
         m_ok, m_out = sl.rank(mc)
         mob = m_ok[0]
-        mcmp = component(mob, m_ok, m_out, [], {})
+        mcmp = component(mob, m_ok, m_out, [], {}, ctx=ctx)
         parts.append(f"{mob.item['name']} ({' + '.join(p.capitalize() if p != 'ios' else 'iOS' for p in ctx['mobile'])})")
         fe_alts += mcmp["alternatives"][:2]
         fe_paths += mcmp["driven_by"]

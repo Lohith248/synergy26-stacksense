@@ -7,7 +7,7 @@
   "stack": {
     "frontend": {
       "choice": "React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS)",
-      "justification": "Web: React (Vite SPA) — Rich interactive app screens; team already writes typescript for the UI; same React component model as a React Native mobile app; good security (priority 5/5); good low running cost (priority 2/5). Mobile: Kotlin Multiplatform + Compose Multiplatform — Team already writes java, kotlin for the mobile app; one codebase for Android and iOS; good security (priority 5/5); good maintainability (priority 4/5).",
+      "justification": "Web: React (Vite SPA) — Rich interactive app screens; team already writes typescript for the UI; good security (priority 5/5); good maintainability (priority 4/5). Mobile: Kotlin Multiplatform + Compose Multiplatform — Team already writes java, kotlin for the mobile app; one codebase for Android and iOS; good security (priority 5/5); good maintainability (priority 4/5).",
       "driven_by": [
         "project.type",
         "project.platforms",
@@ -23,11 +23,11 @@
       "alternatives": [
         {
           "choice": "Angular",
-          "why_not": "Learning curve 4/5 for a senior team (team.experience). React (Vite SPA) is stronger on: good fast delivery (priority 3/5) (priorities.time_to_market). Overall 2.4 points behind. Known limit of Angular: steeper learning curve; 24-month support per major."
+          "why_not": "Learning curve 4/5 for a senior team (team.experience). React (Vite SPA) is stronger on: good fast delivery (priority 3/5) (priorities.time_to_market). Overall 0.9 points behind. Known limit of Angular: steeper learning curve; 24-month support per major."
         },
         {
-          "choice": "Next.js",
-          "why_not": "Learning curve 3/5 for a senior team (team.experience). React (Vite SPA) is stronger on: good low running cost (priority 2/5) (priorities.cost). Overall 2.4 points behind. Known limit of Next.js: server runtime needed for SSR; more moving parts than a static site."
+          "choice": "Vue 3 (Vite SPA)",
+          "why_not": "React (Vite SPA) is stronger on: good fast delivery (priority 3/5) (priorities.time_to_market). Overall 2.4 points behind. Known limit of Vue 3: smaller hiring pool and component ecosystem than React."
         },
         {
           "choice": "React Native (Expo)",
@@ -52,7 +52,7 @@
       ],
       "kb_id": "react-vite+kmp-compose",
       "stability": {
-        "score": 0.54,
+        "score": 0.5,
         "vectors_tested": 54,
         "label": "sensitive",
         "alternatives": [
@@ -62,22 +62,31 @@
           },
           {
             "choice": "Angular (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS)",
-            "share": 0.09
+            "share": 0.13
           }
         ],
         "flip_point": {
           "priority": "time_to_market",
           "from": 3,
-          "value": 4,
-          "new_choice": "React (Vite SPA) (web) + React Native (Expo) (Android + iOS)"
+          "value": 2,
+          "new_choice": "Angular (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS)"
         }
       },
       "confidence": {
         "label": "low",
-        "basis": "stability 0.54 (sensitive) over 54 priority vectors."
+        "basis": "stability 0.50 (sensitive) over 54 priority vectors."
       },
       "contrast": "React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) rather than Angular. Learning curve 4/5 for a senior team (team.experience). React (Vite SPA) is stronger on: good fast delivery (priority 3/5) (priorities.time_to_market). Trade-off accepted: Client-rendered pages are weak for SEO.",
       "what_would_change": [
+        {
+          "edit": "priorities.time_to_market: 3 -> 2",
+          "path": "priorities.time_to_market",
+          "value": 2,
+          "new_choice": "Angular (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS)",
+          "also_by": [
+            "priorities.time_to_market: 3 -> 1"
+          ]
+        },
         {
           "edit": "priorities.time_to_market: 3 -> 4",
           "path": "priorities.time_to_market",
@@ -94,13 +103,6 @@
           "path": "requirements.seo_critical",
           "value": true,
           "new_choice": "Next.js (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS)",
-          "also_by": []
-        },
-        {
-          "edit": "priorities.time_to_market: 3 -> 1",
-          "path": "priorities.time_to_market",
-          "value": 1,
-          "new_choice": "Angular (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS)",
           "also_by": []
         }
       ]
@@ -261,7 +263,7 @@
         },
         {
           "choice": "AWS Lambda + API Gateway",
-          "why_not": "Spring Boot is a long-running JVM/.NET server: slow cold starts and per-invocation connection pools on functions (team.languages); ~10,000 concurrent users would open relational connections per function instance; needs a connection proxy (scale.peak_concurrent_users). Overall 7.8 points behind. Known limit of AWS Lambda + API Gateway: cold starts hurt tight p95 targets."
+          "why_not": "Spring Boot is a long-running JVM server: slow cold starts and per-invocation connection pools on functions (team.languages); ~10,000 concurrent users would open relational connections per function instance; needs a connection proxy (scale.peak_concurrent_users). Overall 7.8 points behind. Known limit of AWS Lambda + API Gateway: cold starts hurt tight p95 targets."
         },
         {
           "choice": "Google Cloud Run",
@@ -288,7 +290,8 @@
         "https://aws.amazon.com/about-aws/global-infrastructure/regional-product-services/",
         "https://aws.amazon.com/fargate/pricing/",
         "https://aws.amazon.com/apprunner/",
-        "https://aws.amazon.com/compliance/programs/"
+        "https://aws.amazon.com/compliance/programs/",
+        "https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service-rebalancing.html"
       ],
       "stability": {
         "score": 0.78,

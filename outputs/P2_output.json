@@ -267,7 +267,8 @@
         "https://learn.microsoft.com/en-us/azure/reliability/regions-list",
         "https://azure.microsoft.com/en-us/pricing/details/app-service/linux/",
         "https://learn.microsoft.com/en-us/azure/app-service/app-service-hybrid-connections",
-        "https://learn.microsoft.com/en-us/azure/compliance/"
+        "https://learn.microsoft.com/en-us/azure/compliance/",
+        "https://learn.microsoft.com/en-us/azure/reliability/reliability-app-service"
       ],
       "stability": {
         "score": 0.85,

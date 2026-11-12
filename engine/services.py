@@ -19,6 +19,15 @@ def svc(layer, choice, why, driven, alts, trade, deploy, provider, data_bearing,
             "data_location": location if data_bearing else None, "_cost": cost, "sources": cite(src)}
 
 
+# F2: jurisdiction a gateway's own processing is based in (verified source). A residency equal to it needs no
+# PAYMENT_DATA_LOCATION warning; any other residency keeps the critical check.
+GATEWAY_HOME = {"stripe": ("us", "stripe-privacy",
+                           "Stripe's privacy policy also names India among the countries personal data may be transferred to; if processing "
+                           "must stay inside the US by contract, confirm it in Stripe's data processing terms")}
+# F2: (provider, residency) -> region where a current chat + embeddings model is offered as a Standard (regional)
+# deployment, from the provider's model-region table. Missing pairs keep LLM_REGION_CHECK critical.
+LLM_REGIONS = {("azure", "us"): ("East US", "azure-openai-regions"), ("azure", "eu"): ("Sweden Central", "azure-openai-regions")}
+
 # cloud an existing broker runs on, from its name (Amazon MSK / Amazon MQ, Azure Event Hubs, Google Pub/Sub)
 BROKER_CLOUD = [(r"\bmsk\b|\bamazon\b|\baws\b", "aws"), (r"\bazure\b|event hubs?", "azure"), (r"\bgoogle\b|\bgcp\b", "gcp")]
 
@@ -262,13 +271,46 @@ def build(ctx, host, backend, db, mobile, warn):
     if req["requirements.realtime"] and ctx["type"] != "gaming":  # games: dedicated game servers (domains.py)
         dp = ["requirements.realtime"]
         if collab:
-            out.append(svc("realtime", "Yjs CRDT documents + Hocuspocus WebSocket server",
-                           "Many people edit the same board at once: CRDTs merge concurrent edits without conflicts and broadcast cursors/presence (awareness); Hocuspocus persists document updates to the database.",
-                           dp + ["project.type", "project.description"],
+            # F3: the CRDT sync server runs in the backend's own language/runtime when the KB has a Yjs-compatible port;
+            # otherwise Hocuspocus (Node) is an extra runtime beside the API, named and costed
+            bid = backend["id"] if backend else ""
+            bname = backend["name"].split(" (")[0] if backend else "the API"
+            node = bool(backend and set(backend["langs"]) & {"javascript", "typescript"})
+            port = {"python-django": ("Yjs CRDT documents + pycrdt-websocket (Python, Yrs-based) beside the Django app",
+                                      "pycrdt-websocket syncs the shared documents from Python", ["pycrdt", "pycrdt-websocket", "y-crdt"]),
+                    "python-fastapi": ("Yjs CRDT documents + pycrdt-websocket (Python, Yrs-based) in the FastAPI service",
+                                       "pycrdt-websocket syncs the shared documents from Python", ["pycrdt", "pycrdt-websocket", "y-crdt"]),
+                    "elixir-phoenix": ("Yjs CRDT documents synced over Phoenix Channels (y_ex, the Elixir wrapper for Yjs)",
+                                       "Phoenix Channels carry the document updates and presence; y_ex merges and persists them in Elixir",
+                                       ["y_ex", "phoenix-channels"]),
+                    "rust-axum": ("Yjs CRDT documents + yrs (Rust port of Yjs) over Axum WebSockets",
+                                  "yrs, binary-compatible with Yjs, merges updates inside the Rust API", ["y-crdt"])}.get(bid)
+            base = "Many people edit the same board at once: CRDTs merge concurrent edits without conflicts and broadcast cursors/presence (awareness); "
+            trade = ["Stateful socket servers need sticky routing or a Redis pub/sub backplane when scaled out"]
+            rcost, rnote, ralts = Z, "", []
+            if port:
+                rname, rhow, rsrc = port
+                rwhy = base + rhow + ", so no second runtime is added."
+            elif node:
+                rname, rsrc = "Yjs CRDT documents + Hocuspocus WebSocket server (inside the Node API)", ["hocuspocus"]
+                rwhy = base + "Hocuspocus runs in the same Node.js runtime as the API and persists document updates to the database."
+            else:
+                rname, rsrc = "Yjs CRDT documents + Hocuspocus WebSocket server", ["hocuspocus"]
+                rwhy = (base + "Hocuspocus persists document updates to the database. The knowledge base has no Yjs-compatible server for "
+                        + bname + ", so Hocuspocus runs as a separate Node.js service.")
+                trade = ["An extra Node.js runtime beside " + bname + ": its own deploys, dependency updates and monitoring; it must verify the API's auth tokens"] + trade
+                ralts = [("A sync server in the backend's language", "no Yjs-compatible server for it in the knowledge base")]
+                if not selfh:  # its own small always-on instance on the same platform; on a VM it shares the server
+                    e0, e1 = host["cost"][0], host["cost"][1]
+                    rcost = [e0, e0, e1, e1]
+                    rnote = " Basis: one extra small always-on instance for the Node.js sync server at the host's entry price (estimate)."
+            out.append(svc("realtime", rname, rwhy, dp + ["project.type", "project.description"],
                            [("Liveblocks (managed)", "fastest to start but per-room pricing and board data held by a third party"),
-                            ("Plain WebSocket broadcast", "last-write-wins loses concurrent edits")],
-                           ["Stateful socket servers need sticky routing or a Redis pub/sub backplane when scaled out"],
-                           "self_hosted" if not hyper else "library", "neutral", False, Z, ["yjs", "hocuspocus", "liveblocks-pricing"]))
+                            ("Plain WebSocket broadcast", "last-write-wins loses concurrent edits")] + ralts,
+                           trade, "self_hosted" if not hyper else "library", "neutral", False, rcost,
+                           ["yjs"] + rsrc + ["liveblocks-pricing"]))
+            if rnote:
+                out[-1]["_note"] = rnote
         else:
             bid = backend["id"] if backend else ""
             native = {"dotnet-aspnet": "ASP.NET Core SignalR", "java-spring": "Spring WebSocket (STOMP)",
@@ -442,7 +484,11 @@ def build(ctx, host, backend, db, mobile, warn):
                      + ("(app-store billing and receipt validation run on Google/Apple servers)." if store
                         else "(card/UPI networks are external by nature). Card data never touches your servers."),
                      ["requirements.payments", "infrastructure.deployment_model"])
-            if not store and not india and ((ctx["res_key"] in ("eu", "us") and ctx["req"]["infrastructure.data_residency"] in ("eu", "us")) or ctx["country"]):
+            home = GATEWAY_HOME.get(prov) if not store and not india else None
+            home_ok = bool(home and not ctx["country"] and ctx["res_key"] == home[0])
+            if home_ok:
+                src = src + [home[1]]
+            if not store and not india and not home_ok and ((ctx["res_key"] in ("eu", "us") and ctx["req"]["infrastructure.data_residency"] in ("eu", "us")) or ctx["country"]):
                 warn("PAYMENT_DATA_LOCATION", "critical",
                      f"{name.split(' (')[0]} processes payer data; its storage location for {ctx['res_label']} residency is not verified in the knowledge base — confirm the data-processing terms.",
                      ["requirements.payments"] + ctx["res_paths"])
@@ -458,8 +504,8 @@ def build(ctx, host, backend, db, mobile, warn):
                 out.append(svc("payments", name + (" — " + "; ".join(feats) if feats else ""), why,
                                dp + (["project.description"] if (feats or d["upi"]) else []) + (["compliance"] if pci or via_compliance else []) + res_path,
                                alts, ["Per-transaction fees (~2% domestic cards) are charged on revenue, not in the infrastructure band",
-                                      "Webhook handling must be idempotent"],
-                               "saas", prov, True, Z, src, "india" if india else None))
+                                      "Webhook handling must be idempotent"] + ([home[2]] if home_ok else []),
+                               "saas", prov, True, Z, src, "india" if india else (home[0] if home_ok else None)))
 
     # ---------------- cdn
     public_media = ctx["mobile"] and not ctx["web"] and req["requirements.file_media_storage"] and (d["video_vod"] or ctx["type"] == "social")
@@ -520,7 +566,11 @@ def build(ctx, host, backend, db, mobile, warn):
                 c, prov, src = {"aws": (f"Amazon Bedrock{rtxt} + pgvector", "aws", ["aws-bedrock"]),
                                 "azure": ("Azure OpenAI (Foundry) + Azure AI Search vectors", "azure", ["azure-ai-search"]),
                                 "gcp": ("Vertex AI Gemini + pgvector", "gcp", ["gcp-locations"])}.get(p, ("Hosted LLM API + pgvector", "neutral", ["postgres-versioning"]))
-                if loc:
+                llm_region = LLM_REGIONS.get((p, loc)) if loc else None
+                if llm_region:
+                    c = c.replace(" (Foundry)", f" (Foundry, Standard regional deployment in {llm_region[0]})")
+                    src = src + [llm_region[1]]
+                elif loc:
                     warn("LLM_REGION_CHECK", "critical", f"Confirm the chosen LLM model is served in {ctx['res_label']} before sending personal data to it.",
                          ["requirements.ml_features", "infrastructure.data_residency"])
             out.append(svc("ml", c, "Retrieval-augmented generation: embeddings stored next to the data, "
@@ -579,11 +629,19 @@ def build(ctx, host, backend, db, mobile, warn):
                        "client", "neutral", False, Z, ["workbox"], None))
     elif req["requirements.offline_support"]:
         mid = mobile["id"] if mobile else ""
-        local = {"kotlin-compose": "Room (SQLite) + WorkManager", "kmp-compose": "SQLDelight + WorkManager",
-                 "react-native-expo": "expo-sqlite + background task", "flutter": "drift (SQLite) + workmanager plugin",
-                 "capacitor": "SQLite plugin + background runner"}.get(mid, "Service worker + IndexedDB (Workbox)")
+        # F3: the on-device store follows the chosen client; the service worker is only for a web-only client
+        local, lsrc = {"kotlin-compose": ("Room (SQLite) + WorkManager", ["android-offline-first", "workmanager"]),
+                       "kmp-compose": ("SQLDelight + WorkManager (Android) / background tasks (iOS)", ["kotlin", "workmanager"]),
+                       "react-native-expo": ("expo-sqlite + background task", ["expo"]),
+                       "flutter": ("drift (SQLite) + workmanager plugin", ["flutter"]),
+                       "capacitor": ("SQLite plugin + background runner", ["capacitor"]),
+                       "swiftui": ("SwiftData (on-device store) + BGTaskScheduler background sync", ["swiftdata", "bgtaskscheduler"])}.get(
+            mid, ("on-device SQLite store + background sync", []) if mobile else ("Service worker + IndexedDB (Workbox)", ["workbox"]))
+        crdt = req["requirements.realtime"] and collab and ctx["type"] != "gaming"
         bits = ["writes go to an on-device database first", "an outbox queue retries uploads when signal returns",
-                "each record carries a client-generated UUID so retries are idempotent", "server applies last-writer-wins per field with an edit log"]
+                "each record carries a client-generated UUID so retries are idempotent",
+                "shared documents keep offline edits as CRDT updates and merge them on reconnect" if crdt
+                else "server applies last-writer-wins per field with an edit log"]
         if d["gps_media"]:
             bits.append("photos are compressed on-device and uploaded with resumable chunks")
         if d["low_bandwidth"]:
@@ -594,7 +652,7 @@ def build(ctx, host, backend, db, mobile, warn):
                        [("Firebase Firestore offline cache", "convenient but ties data to Google's global service and its pricing"),
                         ("Online-only app", "fails the stated offline requirement")],
                        ["Conflict resolution rules must be agreed with field teams", "Device storage limits on low-end phones"],
-                       "client", "neutral", True, Z, ["android-offline-first", "workmanager"], "device"))
+                       "client", "neutral", True, Z, lsrc, "device"))
     if ctx["mobile"] and (d["jobs_dispatch"] or d["notifications"] or d["chat"]) and not ctx["self_host_only"] and "hipaa" in ctx["compliance"]:
         warn("PHI_IN_PUSH", "warning",
              "Firebase Cloud Messaging is not on Google Cloud's HIPAA covered-products list: push payloads must carry no PHI (send an opaque id; "

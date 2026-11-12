@@ -1,4 +1,5 @@
 """Derived signals from validated input. Every derived value records the input paths it came from."""
+import functools
 import re
 
 from .kb import TECH
@@ -216,6 +217,35 @@ def lifecycle_text(low):
                   r"\1 ", low)
 
 
+# F1 (round 11): the team's own server language named in project.description ("Rails shop", "the team writes Elixir",
+# "our Django team"). Language or framework word -> language id. Whole words only; a match marks a primary language.
+PRIMARY_WORDS = {"ruby": r"ruby(?: on rails)?|rails", "elixir": r"elixir|phoenix", "python": r"python|django|fastapi|flask",
+                 "java": r"java|spring(?: boot)?", "kotlin": r"kotlin", "csharp": r"c#|\.net|asp\.net(?: core)?|dotnet",
+                 "php": r"php|laravel|symfony", "go": r"golang|go", "rust": r"rust",
+                 "javascript": r"node(?:\.?js)?|javascript|express", "typescript": r"typescript|nestjs"}
+_TEAM_NOUN = r"(?:shop|team|house|developers|engineers|devs|programmers)"
+_TEAM_VERB = (r"(?:team|we|developers|engineers)\s+(?:mostly |mainly |only |already |all )?(?:writes?|codes?|works?|builds?|knows?|uses?|is fluent|are fluent)"
+              r"(?:\s+(?:in|with))?\s+(?:mostly |mainly |only )?")
+
+
+def primary_langs(text):
+    """Languages project.description names as the team's own (sorted ids)."""
+    low = (text or "").lower()
+    out = set()
+    for lang, w in PRIMARY_WORDS.items():
+        word = r"(?<![\w.#])(?:" + w + r")(?![\w#])"
+        if re.search(word + r"\s+" + _TEAM_NOUN + r"\b", low) or re.search(_TEAM_VERB + word, low):
+            out.add(lang)
+    return sorted(out)
+
+
+@functools.lru_cache(maxsize=8)
+def desc_signals(desc):
+    """Description flags and primary languages, computed once per description: counterfactual reruns rebuild the
+    context ~125 times with the same (up to 20,000-character) text."""
+    return {flag: bool(re.search(rx, desc)) for flag, rx in DESC_RULES}, tuple(primary_langs(desc))
+
+
 def lang_norm(langs):
     return sorted({LANG_ALIASES.get(x, x) for x in langs})
 
@@ -295,7 +325,8 @@ def build(req):
     c["prio"] = {k: req[f"priorities.{k}"] for k in ("cost", "time_to_market", "scalability", "performance",
                                                        "maintainability", "security")}
     desc = (req["project.description"] or "").lower()
-    c["desc"] = {flag: bool(re.search(rx, desc)) for flag, rx in DESC_RULES}
+    flags, prim = desc_signals(desc)
+    c["desc"], c["primary_langs"] = dict(flags), list(prim)
     ex = []
     sentences = re.split(r"(?<=[.!?;])\s+|\n", desc)
     for raw in req["infrastructure.existing_systems"]:
