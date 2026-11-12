@@ -39,6 +39,20 @@ DESC_RULES = [
     ("analytics", r"dashboards?|\breports?\b|analysts?|\bbi\b|ad-hoc (?:sql|quer)|data warehouse"),
 ]
 
+# An existing system the input says must not be replaced (entry text or a description sentence naming it).
+KEEP_RX = (r"must (?:stay|remain|be kept|be retained|be reused)|\bstays?\b|\bremains?\b|system of record|source of truth"
+           r"|(?:cannot|can't|can not|won't|will not|must not) (?:be )?(?:migrat|replac)|\bkeep(?:s|ing)?\b|\bkept\b|\breus(?:e|ed|ing)\b|\bretain")
+
+# Server-side language named by an existing system (frameworks and app servers included; front-end frameworks are not).
+EXISTING_LANG = {"java": r"\bjava\b|\btomcat\b|\bspring\b|\bjboss\b|\bwildfly\b|\bweblogic\b|\bwebsphere\b",
+                 "python": r"\bpython\b|\bdjango\b|\bflask\b", "csharp": r"\.net\b|\bc#|\basp\.net\b",
+                 "php": r"\bphp\b|\blaravel\b|\bsymfony\b", "ruby": r"\bruby\b|\brails\b", "go": r"\bgolang\b|\bgo \d",
+                 "javascript": r"\bnode(?:\.?js)?\b|\bexpress\.?js\b"}
+
+
+def existing_langs(raws):
+    return {lang for lang, rx in EXISTING_LANG.items() for r in raws if re.search(rx, r.lower())}
+
 
 # D12: data_residency 'other' -> jurisdiction. Ids, display names and keywords from ../research/R15-regions-other.md.
 # Whole-word, case-insensitive; acronyms in ACRONYMS match upper-case only (as written) so "mas", "sama" or "nia" in prose
@@ -197,6 +211,7 @@ def build(req):
     desc = (req["project.description"] or "").lower()
     c["desc"] = {flag: bool(re.search(rx, desc)) for flag, rx in DESC_RULES}
     ex = []
+    sentences = re.split(r"(?<=[.!?;])\s+|\n", desc)
     for raw in req["infrastructure.existing_systems"]:
         low = f" {raw.lower()} "
         hit = None
@@ -210,11 +225,22 @@ def build(req):
             if re.search(re.escape(lc["pattern"]) + r"(?!\d)", norm):
                 life = lc
                 break
-        ex.append({"raw": raw, "pattern": hit, "life": life, "onprem": "on-prem" in low or "on prem" in low
+        # "must stay": in the entry itself, or in a description sentence that names the same system
+        keep = "infrastructure.existing_systems" if re.search(KEEP_RX, low) else "project.description" if hit and any(
+            re.search(KEEP_RX, s) and any(m.strip() in s for m in hit["match"]) for s in sentences) else None
+        ex.append({"raw": raw, "pattern": hit, "life": life, "keep": keep, "onprem": "on-prem" in low or "on prem" in low
                    or "onprem" in low or "on-premises" in low})
+    # list-order invariance: knowledge-base pattern order (identity, databases, brokers, ...), then name; unrecognised last
+    order = {id(p): i for i, p in enumerate(TECH["existing_patterns"])}
+    ex.sort(key=lambda e: (order[id(e["pattern"])] if e["pattern"] else len(order), e["raw"]))
     c["existing"] = ex
+    c["existing_langs"] = existing_langs(req["infrastructure.existing_systems"])
     c["existing_db"] = next((e for e in ex if e["pattern"] and e["pattern"]["kind"] == "database"), None)
+    # a database the input says must stay (system of record) is reused as THE database, not integrated beside a new one
+    c["kept_db"] = c["existing_db"] if c["existing_db"] and c["existing_db"]["keep"] else None
+    c["existing_queue"] = next((e for e in ex if e["pattern"] and e["pattern"]["kind"] == "queue"), None)
     c["existing_idp"] = next((e for e in ex if e["pattern"] and e["pattern"]["kind"] == "identity"), None)
+    c["ms_idp"] = bool(c["existing_idp"] and c["existing_idp"]["pattern"].get("vendor") == "microsoft")
     c["existing_m365"] = next((e for e in ex if e["pattern"] and e["pattern"]["kind"] == "collaboration"), None)
     r = req
     typ = r["project.type"]

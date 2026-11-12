@@ -160,6 +160,20 @@ def null_paths(raw):
     return out
 
 
+# Keyword rules (D7/D12) read only this many characters of project.description: enough for any real brief, and it keeps
+# a multi-megabyte paste from slowing every regex pass (1.9 MB took 73 s before the cap).
+DESC_LIMIT = 20000
+
+
+def description_warnings(raw):
+    d = raw.get("project") if isinstance(raw, dict) else None
+    d = d.get("description") if isinstance(d, dict) else None
+    if isinstance(d, str) and len(d) > DESC_LIMIT:
+        return [{"code": "DESCRIPTION_TRUNCATED", "severity": "info", "fields": ["project.description"],
+                 "message": f"project.description has {len(d):,} characters; only the first {DESC_LIMIT:,} were read by the keyword rules."}]
+    return []
+
+
 def null_warnings(raw):
     paths = null_paths(raw)
     return [{"code": "NULL_TREATED_AS_ABSENT", "severity": "info", "fields": paths,
@@ -211,6 +225,9 @@ def validate(raw):
         if kind == "str":
             if not isinstance(val, str):
                 msg = "Must be a string."
+            elif path == "project.description" and len(val) > DESC_LIMIT:
+                assumptions.append(f"project.description is {len(val):,} characters: only the first {DESC_LIMIT:,} were parsed for keyword rules.")
+                val = val[:DESC_LIMIT]
         elif kind in ("enum", "xenum"):
             if not isinstance(val, str) or val not in extra:
                 msg = f"Must be one of {', '.join(extra)} (got {_fmt(val)})." + _did_you_mean(val, extra)
@@ -225,7 +242,7 @@ def validate(raw):
                     msg = f"Unknown value(s) {bad}; allowed: {', '.join(extra)}." + "".join(_did_you_mean(x, extra) for x in bad)
                 elif len(set(val)) != len(val):
                     assumptions.append(f"{path}: duplicate values ignored.")
-                    val = sorted(set(val), key=val.index)
+                val = sorted(set(val))  # a set, not a sequence: canonical order so outputs never depend on input order
         elif kind in ("int", "xint"):
             if not _is_int(val):
                 msg = "Must be an integer (JSON number without fraction)."
@@ -260,7 +277,7 @@ def validate(raw):
                 norm = [x.strip().lower() for x in val if x.strip()]
                 if norm != val:
                     assumptions.append(f"{path} normalised to lower-case trimmed names.")
-                val = sorted(set(norm), key=norm.index)
+                val = sorted(set(norm))  # canonical order (list-order invariance)
         if msg:
             errors.append({"field": path, "message": msg})
         else:

@@ -34,6 +34,13 @@ def build(ctx, host, backend, db, mobile, warn):
 
     # ---------------- auth
     auth = req["requirements.auth"]
+    idp = ctx["existing_idp"]
+    ms = ctx["ms_idp"]
+    # an existing identity provider is reused for SSO; one built for customer logins (Auth0, Okta, Keycloak) also serves
+    # email/social sign-in. An air gap cannot reach a SaaS one.
+    reuse_idp = bool(idp and idp["pattern"].get("reuse") and (auth == "enterprise_sso" or (
+        auth in ("email_password", "social") and idp["pattern"].get("customer_login")))
+        and not (ctx["no_internet"] and idp["pattern"].get("deployment") == "saas"))
     if auth != "none":
         dp = ["requirements.auth"]
         if auth == "social" and ctx["no_internet"]:
@@ -43,9 +50,24 @@ def build(ctx, host, backend, db, mobile, warn):
                            [("Google/GitHub/Microsoft OAuth", "requires an external identity provider across the air gap")],
                            ["Users need a separate local account until the network restriction changes"],
                            "self_hosted", "neutral", True, Z, ["keycloak"], loc))
+        elif reuse_idp and not ms:
+            ip = idp["pattern"]
+            saas = ip["deployment"] == "saas"
+            if saas and ctx["self_host_only"]:
+                warn("EXTERNAL_IDENTITY_PROVIDER", "critical",
+                     f"The company's existing identity provider ({ip['name']}) is a cloud service; reusing it is kept as the one external dependency of an otherwise on-premises stack. Use a self-hosted Keycloak federated to it if no cloud dependency is acceptable.",
+                     ["infrastructure.existing_systems", "infrastructure.deployment_model"])
+            other = [("Keycloak (self-hosted)", "duplicates an identity provider the company already operates")] if ip["name"] != "Keycloak" else [
+                ("Okta / Microsoft Entra ID (SaaS)", "a second identity provider next to the one the company already operates")]
+            out.append(svc("auth", f"{ip['name']} (existing {'tenant' if saas else 'deployment'}) via OpenID Connect/SAML",
+                           f"{auth} sign-in is required and '{idp['raw']}' already exists: the app becomes one more OIDC/SAML client of it, so "
+                           "people keep one login and groups/roles in the token drive authorisation; no second user store.",
+                           dp + ["infrastructure.existing_systems"],
+                           other + [("A new managed identity service on the hosting cloud", "a second directory to administer and users to migrate")],
+                           [f"Depends on the {ip['name']} administrators for the app registration, claims and group mapping"],
+                           "saas" if saas else "self_hosted", ip["provider"], False, Z, ip["src"]))
         elif auth == "enterprise_sso":
-            idp = ctx["existing_idp"]
-            if idp and "entra" in idp["pattern"]["name"].lower() and not ctx["no_internet"]:
+            if reuse_idp:
                 if ctx["self_host_only"]:
                     warn("EXTERNAL_IDENTITY_PROVIDER", "critical",
                          "The company's existing identity provider (Microsoft Entra ID) is a cloud service; reusing it is kept as the one external dependency of an otherwise on-premises stack. Use Keycloak federated to on-prem AD if no cloud dependency is acceptable.",
@@ -92,11 +114,12 @@ def build(ctx, host, backend, db, mobile, warn):
                                "managed" if hyper else "self_hosted", p if hyper else "neutral", True,
                                [[0, 0], [0, 20], [20, 150], [150, 800]], ["keycloak", "entra-sso"], loc))
         elif auth == "phone_otp":
+            india = loc == "india" or ctx["residency"] == "india" or ctx["india_users"]  # MSG91 / TRAI DLT apply to Indian numbers only
             if ctx["no_internet"]:
                 out.append(svc("auth", "Keycloak 26 with an on-premises SMS gateway (reduced scope)",
                                "phone_otp needs an SMS carrier link that an air-gapped network does not have; the stack keeps OTP only if a dedicated telecom gateway is installed on-site.",
                                dp + ["infrastructure.deployment_model"],
-                               [("MSG91 / Twilio Verify", "internet SaaS, forbidden in an air-gapped deployment")],
+                               [("MSG91 / Twilio Verify" if india else "Twilio Verify", "internet SaaS, forbidden in an air-gapped deployment")],
                                ["Relaxed: OTP availability depends on an on-site gateway"], "self_hosted", "neutral", True, Z, ["keycloak"], loc))
                 warn("PHONE_OTP_NEEDS_NETWORK", "critical",
                      "Phone OTP needs a telecom/SMS link, which contradicts an air-gapped deployment. Relaxed: OTP only via an on-site SMS gateway; otherwise use username/password + hardware tokens.",
@@ -105,20 +128,23 @@ def build(ctx, host, backend, db, mobile, warn):
                 out.append(svc("auth", "Keycloak 26 (self-hosted) with OTP over an SMPP link to a licensed SMS aggregator",
                                f"phone_otp on {ctx['deploy']}: identity stays on your servers; only the OTP text leaves through a telecom SMPP connection, not a SaaS identity product.",
                                dp + ["infrastructure.deployment_model"],
-                               [("MSG91 / Twilio Verify APIs", "SaaS identity services, excluded by the on-premise rule")],
-                               ["Needs a contract with an SMS aggregator and DLT-registered templates in India"], "self_hosted", "neutral", True, Z, ["keycloak", "trai-dlt"], loc))
+                               [("MSG91 / Twilio Verify APIs" if india else "Twilio Verify API", "SaaS identity services, excluded by the on-premise rule")],
+                               ["Needs a contract with an SMS aggregator and DLT-registered templates in India" if india else "Needs a contract with a licensed SMS aggregator"],
+                               "self_hosted", "neutral", True, Z, ["keycloak"] + (["trai-dlt"] if india else []), loc))
                 warn("EXTERNAL_TELECOM_LINK", "warning", "Phone OTP on-premises still needs an outbound telecom (SMPP) link to an SMS aggregator; this is the only external dependency of the auth layer.",
                      ["requirements.auth", "infrastructure.deployment_model"])
             elif p == "aws":
                 out.append(svc("auth", f"Amazon Cognito user pool + Amazon SNS SMS OTP{rtxt}",
                                f"phone_otp with cloud_preference aws: Cognito custom-auth issues OTP via SNS SMS inside AWS{rtxt}, keeping identity data in the chosen region.",
                                dp + ["infrastructure.cloud_preference"] + res_path,
-                               [("MSG91 OTP", "cheaper Indian SMS, but a second vendor outside the requested AWS footprint"),
-                                ("Firebase Authentication (phone)", "Google service outside the AWS preference")],
-                               ["India SMS needs DLT-registered sender ID and templates", "SMS cost scales with logins"],
+                               ([("MSG91 OTP", "cheaper Indian SMS, but a second vendor outside the requested AWS footprint")] if india else
+                                [("Twilio Verify", "managed fraud checks, but a second vendor outside the requested AWS footprint")])
+                               + [("Firebase Authentication (phone)", "Google service outside the AWS preference")],
+                               (["India SMS needs DLT-registered sender ID and templates"] if india else ["Sender ID rules differ per destination country"])
+                               + ["SMS cost scales with logins"],
                                "managed", "aws", True, [[0, 5], [5, 40], [30, 250], [250, 1500]],
-                               ["aws-cognito-pricing", "aws-sns-sms", "trai-dlt"], loc))
-            elif loc == "india" or ctx["residency"] == "india" or ctx["india_users"]:
+                               ["aws-cognito-pricing", "aws-sns-sms"] + (["trai-dlt"] if india else []), loc))
+            elif india:
                 in_res = loc == "india" or ctx["residency"] == "india"
                 out.append(svc("auth", "Backend-issued sessions + MSG91 OTP API (India)",
                                "phone_otp for Indian users: an Indian SMS provider with DLT-registered templates is the cheapest reliable OTP route (about Rs 0.20 per SMS); "
@@ -294,7 +320,19 @@ def build(ctx, host, backend, db, mobile, warn):
     # ---------------- queue
     need_queue = (req["requirements.payments"] and ctx["tier"] >= 2) or req["requirements.ml_features"] == "training" or (
         req["scale.workload"] == "write_heavy" and ctx["tier"] >= 2) or (req["requirements.offline_support"] and d["gps_media"]) or d["video_vod"]
-    if need_queue and ctx["needs_backend"]:
+    eq = ctx["existing_queue"]
+    if eq and ctx["needs_backend"]:
+        managed = bool(re.search(r"\bmsk\b|confluent cloud|amazon mq|cloudamqp", eq["raw"].lower()))
+        extra = [x for x, on in (("payment webhooks", req["requirements.payments"] and ctx["tier"] >= 2),
+                                 ("write bursts", req["scale.workload"] == "write_heavy" and ctx["tier"] >= 2),
+                                 ("training jobs", req["requirements.ml_features"] == "training"), ("video jobs", d["video_vod"])) if on]
+        out.append(svc("queue", f"Existing {eq['pattern']['name']} ({'managed' if managed else 'self-managed'}, reused)",
+                       f"'{eq['raw']}' already exists: {eq['pattern']['how']}" + (f" New background work ({', '.join(extra)}) uses the same broker." if extra else ""),
+                       ["infrastructure.existing_systems"] + (["scale.workload"] if "write bursts" in extra else []),
+                       [("A second managed queue on the hosting cloud", "a competing broker: events would be split across two systems")],
+                       ["Topic/queue naming, retention and access are agreed with the broker's owners", "Consumers must be idempotent"],
+                       "managed" if managed else "self_hosted", "neutral", True, Z, eq["pattern"]["src"], loc))
+    elif need_queue and ctx["needs_backend"]:
         why = []
         if req["requirements.payments"] and ctx["tier"] >= 2:
             why.append("payment webhooks and ledger postings processed idempotently with retries")
@@ -552,13 +590,13 @@ def build(ctx, host, backend, db, mobile, warn):
                        [("Polling from the app", "drains battery and misses events when the app is closed")],
                        ["Delivery is best-effort; critical updates also appear in-app"], "saas", "google", False, Z,
                        ["firebase-pricing"] + (["gcp-hipaa-products"] if "hipaa" in ctx["compliance"] else [])))
-    if (ctx["existing_m365"] or (d["approvals"] and ctx["existing_idp"])) and ctx["no_internet"]:
+    if (ctx["existing_m365"] or (d["approvals"] and ms)) and ctx["no_internet"]:
         out.append(svc("other", "Approval notifications through the on-premises SMTP relay",
                        "Approvals must notify managers, but an air-gapped network cannot reach Microsoft 365; the internal mail relay carries notifications.",
                        ["infrastructure.existing_systems", "infrastructure.deployment_model"],
                        [("Microsoft Graph", "cloud API unreachable from an air-gapped network")], ["Depends on an internal mail server"],
                        "self_hosted", "neutral", False, Z, ["statement"]))
-    elif ctx["existing_m365"] or (d["approvals"] and ctx["existing_idp"]):
+    elif ctx["existing_m365"] or (d["approvals"] and ms):
         if ctx["self_host_only"]:
             warn("EXTERNAL_EXISTING_SERVICE", "critical",
                  "Microsoft 365 is an existing cloud service; calling Microsoft Graph for notifications is kept as an integration with an existing system, not a new SaaS dependency.",
@@ -591,7 +629,7 @@ def build(ctx, host, backend, db, mobile, warn):
                        ["Non-technical editors would need a CMS later"], "library", "neutral", False, Z, ["astro"]))
     for e in ctx["existing"]:
         pat = e["pattern"]
-        if pat and pat["kind"] == "database" and db:
+        if pat and pat["kind"] == "database" and db and e is not ctx["kept_db"]:
             via = "App Service Hybrid Connection (outbound 443 relay, no inbound ports)" if p == "azure" else (
                 "site-to-site VPN / private link" if not selfh else "the local network")
             out.append(svc("other", f"Integration with existing {e['raw']} via {via}",

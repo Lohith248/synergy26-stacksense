@@ -346,7 +346,16 @@
       "Excluded: taxes, domain names, paid support plans and data-egress spikes. Order-of-magnitude band, not a quote."
     ]
   },
-  "warnings": [],
+  "warnings": [
+    {
+      "code": "FREE_TIER_LIMITS",
+      "severity": "info",
+      "message": "The $0 budget is met only on free tiers (estimate $0-5/month): free plans cap requests, bandwidth, build minutes or storage, and the upper bound applies once a cap is passed. Set usage alerts or spend caps and check the plan limits before launch.",
+      "fields": [
+        "budget.monthly_infra_usd"
+      ]
+    }
+  ],
   "assumptions": [
     "requirements.p95_latency_ms absent or null: no explicit latency target; typical web latency assumed.",
     "Knowledge base as of 2026-11-11; lifecycle and pricing judgements use that date, not the run date.",

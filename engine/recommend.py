@@ -414,6 +414,9 @@ def _recommend(req, assumptions, sid):
             db_cmp["driven_by"] = order_paths(db_cmp["driven_by"] + ["scale.data_volume_gb_12_months"])
         if ctx["existing_db"] and ctx["existing_db"]["pattern"].get("engine") == db_c.id and ctx["existing_db"]["onprem"] and not ctx["self_host_only"]:
             db_cmp["justification"] += " New application data lives in the cloud database; the on-prem server is integrated, not migrated (see supporting 'other')."
+        if ctx["kept_db"]:
+            db_c, db_cmp = kept_database(ctx, ctx["kept_db"], d_ok, loc)
+            db_item = dict(db_c.item, _variant=db_c.variant)
     else:
         db_cmp = none_component("database", "Content lives as Markdown/HTML files in the repository; there is no user data to store.",
                                 ["project.type", "requirements.auth"],
@@ -524,6 +527,11 @@ def _recommend(req, assumptions, sid):
           ["budget.monthly_infra_usd"])
     elif host["kind"] != "onprem" and ctx["budget"] >= 500 and cost["max"] * 8 < ctx["budget"]:
         W("BUDGET_FAR_ABOVE_NEED", "info", f"The ${ctx['budget']:g}/month budget is far above the estimated ${cost['min']}-{cost['max']}/month need. The stack was not inflated to use it; spare budget could buy redundancy, support plans or monitoring.",
+          ["budget.monthly_infra_usd"])
+    elif ctx["budget"] == 0 and cost["max"] > 0:  # statement's own example code: $0 lower bound rests on free plans
+        W("FREE_TIER_LIMITS", "info",
+          f"The $0 budget is met only on free tiers (estimate ${cost['min']}-{cost['max']}/month): free plans cap requests, bandwidth, build "
+          "minutes or storage, and the upper bound applies once a cap is passed. Set usage alerts or spend caps and check the plan limits before launch.",
           ["budget.monthly_infra_usd"])
     elif cost["max"] > ctx["budget"] > 0:
         # ponytail: drivers read back from the band's own "label ... $lo-hi/month" lines; a structured item list would be cleaner
@@ -728,11 +736,49 @@ def contradictions(ctx, W, assumptions, host, backend):
         if not e["pattern"] and not life:
             W("EXISTING_SYSTEM_UNRECOGNISED", "info", f"'{e['raw']}' is not in the knowledge base; integration must be designed manually.",
               ["infrastructure.existing_systems"])
-    if ctx["existing_idp"] and req["requirements.auth"] not in ("enterprise_sso", "none") and "entra" in ctx["existing_idp"]["pattern"]["name"].lower():
-        W("EXISTING_IDP_NOT_USED", "info", "An Entra tenant exists but auth is not enterprise_sso; consider SSO for staff users.",
+    idp = ctx["existing_idp"]
+    if (idp and idp["pattern"].get("reuse") and req["requirements.auth"] not in ("enterprise_sso", "none")
+            and not (idp["pattern"].get("customer_login") and req["requirements.auth"] in ("email_password", "social"))):
+        W("EXISTING_IDP_NOT_USED", "info", ("An Entra tenant" if ctx["ms_idp"] else f"An existing {idp['pattern']['name']} tenant")
+          + " exists but auth is not enterprise_sso; consider SSO for staff users.",
           ["infrastructure.existing_systems", "requirements.auth"])
     if not ctx["needs_backend"] and ctx["res_key"]:
         assumptions.append("Static public site: content is public and contains no personal data, so a global CDN host does not breach data residency.")
+
+
+def kept_database(ctx, e, d_ok, loc):
+    """An existing database the input says must stay is THE database: reused in place, the best new database becomes
+    the migration-path alternative. Returns (candidate with vkey 'existing', component)."""
+    pat, low = e["pattern"], e["raw"].lower()
+    managed = not re.search(r"self[- ]?(?:managed|hosted)|on[- ]?prem", low) and bool(
+        re.search(r"(?:atlas|rds|aurora|cloud sql|azure sql|azure database|managed)", low))
+    label = f"Existing {pat['product']} ({'managed service' if managed else 'self-managed'}, reused)"
+    item = next((d for d in TECH["database"] if d["id"] == pat["engine"]), None)
+    # ponytail: an engine outside the KB (Oracle) is treated as a plain relational store; per-engine traits would need KB rows
+    item = dict(item or {"id": "existing-" + pat["product"].split()[0].lower(), "family": "relational", "rls": False, "r": [3] * 6},
+                name=label)
+    c = sl.Cand(item)
+    c.vkey, c.variant = "existing", label
+    life = e["life"]
+    eol = bool(life and life["eol"] <= AS_OF)
+    why = (f"'{e['raw']}' must stay ({e['keep']}): the new application reads and writes the existing {pat['product']} in place "
+           "instead of creating a second primary database, so existing consumers and batch jobs keep working. It is reached over a "
+           "private network path (VPN / private link) with credentials in a secret store; new tables or collections only with the owners' agreement.")
+    if eol:
+        why += (f" It is past end of support ({life['name']}): upgrade it in place to a supported release before building on it "
+                "(see END_OF_LIFE_SYSTEM).")
+    alts = [{"choice": f"Migrate to {a.variant}", "why_not": f"{'best-scoring' if i == 0 else 'runner-up'} new database for these inputs, "
+             f"but '{e['raw']}' must remain; treat it as a later migration (change-data-capture or dual writes, then cut-over) once the new app is stable."}
+            for i, a in enumerate(d_ok[:2])]
+    cmp = {"choice": label, "justification": why,
+           "driven_by": order_paths(["infrastructure.existing_systems", e["keep"]]), "alternatives": alts,
+           "tradeoffs": ["Schema changes are coordinated with the existing system's owners and its other consumers",
+                         "The existing server's capacity, latency and availability limit the new application"]
+           + (["Confirm the existing database's location meets the data_residency requirement"] if loc else []),
+           "kb_id": item["id"], "pareto": {"optimal": True, "dominated_by": [], "note": "Not ranked: reused because the input says it must stay."},
+           "deployment": "managed" if managed else "self_hosted", "provider": "neutral", "data_bearing": True, "data_location": loc,
+           "sources": cite(pat["src"] + ([life["src"]] if life and life.get("src") else []))}
+    return c, cmp
 
 
 def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
@@ -741,7 +787,9 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
     hi = host["cost"][t][1]
     lines = [f"Hosting {host['name']}: ${host['cost'][t][0]}-{host['cost'][t][1]}/month at the '{cx.TIER_NAMES[t]}' tier."]
     ha = bool(ha_paths(ctx["req"]))
-    if db_item and db_c and db_c.vkey != "self":
+    if db_c and db_c.vkey == "existing":
+        lines.append(f"Database {db_c.variant}: already running and paid for outside this project; not in this band.")
+    elif db_item and db_c and db_c.vkey != "self":
         dc = sl.db_cost(db_c.item, db_c.vkey)
         dlo, dhi = dc[t]
         if ha:
@@ -773,7 +821,7 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
             lines.append(f"{s['layer']}: {s['choice'].split(' — ')[0]} ${clo}-{chi}/month." + s.get("_note", ""))
     gb = ctx["data_gb"]
     obj = any(s["layer"] == "storage" and s["deployment"] != "self_hosted" for s in supporting)
-    if obj or (db_item and db_c.vkey != "self" and gb > 20):
+    if obj or (db_item and db_c.vkey not in ("self", "existing") and gb > 20):
         # object storage ~$0.02-0.035/GB-month; managed database SSD ~$0.10-0.25 (Cloud SQL SSD $0.17 Iowa / $0.20 Mumbai, rendered 11 Nov 2026)
         r_lo, r_hi = (0.02, 0.035) if obj else (0.10, 0.25)
         slo, shi = round(gb * r_lo, 2), round(gb * r_hi + 1, 2)
@@ -787,6 +835,9 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         if any("MSG91" in s["choice"] for s in supporting):
             plo, phi = 0.0024, 0.0045
             txt = "India SMS ~Rs 0.20-0.25 + GST"
+        elif any("SNS" in s["choice"] for s in supporting) and not (ctx["india_users"] or ctx["residency"] == "india"):
+            plo, phi = 0.004, 0.006  # ponytail: only one AWS SMS rate is in the KB; per-country rates would need a price table
+            txt = "AWS SMS ~$0.004-0.006 (AWS SMS price list, 11 Nov 2026; rates vary by destination country, check the target country)"
         elif any("SNS" in s["choice"] for s in supporting):
             plo, phi = 0.004, 0.006  # AWS End User Messaging SMS price CSV: India local $0.004 (11 Nov 2026)
             txt = "AWS India local SMS $0.004 (AWS SMS price list, 11 Nov 2026) plus DLT and retry overhead"
@@ -837,9 +888,10 @@ def make_summary(ctx, style, fe, be, db, host_name, cost, status):
     style_txt = {"static": "Static site", "monolith": "Single deployable monolith", "modular_monolith": "Modular monolith",
                  "serverless": "Serverless application", "hybrid": "Hybrid cloud + on-premises integration",
                  "service_oriented": "Small set of services", "microservices": "Microservices", "other": "Architecture"}[style]
-    parts = [f"{style_txt}: {fe['choice']}"]
-    if be["choice"] != "None":
-        parts.append(f"on {be['choice']}")
+    if fe["choice"] != "None":
+        parts = [f"{style_txt}: {fe['choice']}"] + ([f"on {be['choice']}"] if be["choice"] != "None" else [])
+    else:  # API-only: no end-user client, lead with the backend
+        parts = [f"{style_txt}: " + (f"{be['choice']} API (no end-user frontend)" if be["choice"] != "None" else "no frontend or backend")]
     if db["choice"] != "None":
         parts.append(f"with {db['choice']}")
     s = " ".join(parts) + f", hosted on {host_name}, at an estimated ${cost['min']}-{cost['max']}/month."  # statement 4: one or two sentences

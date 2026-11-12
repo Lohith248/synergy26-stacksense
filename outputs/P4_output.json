@@ -257,7 +257,7 @@
       "alternatives": [
         {
           "choice": "AWS Elastic Beanstalk (managed platform on EC2)",
-          "why_not": "The EC2/VM operating system stays in your patching and hardening scope for rbi_localisation, pci_dss, iso27001 (compliance). AWS ECS on Fargate (+ Application Load Balancer) is stronger on: good security (priority 5/5) (priorities.security). Overall 2.1 points behind. Known limit of AWS Elastic Beanstalk: you still pay for and size the EC2 instances underneath."
+          "why_not": "The EC2/VM operating system stays in your patching and hardening scope for iso27001, pci_dss, rbi_localisation (compliance). AWS ECS on Fargate (+ Application Load Balancer) is stronger on: good security (priority 5/5) (priorities.security). Overall 2.1 points behind. Known limit of AWS Elastic Beanstalk: you still pay for and size the EC2 instances underneath."
         },
         {
           "choice": "AWS Lambda + API Gateway",
@@ -311,7 +311,7 @@
         "label": "medium",
         "basis": "stability 0.78 (moderate) over 54 priority vectors; score margin 2.1 over the runner-up."
       },
-      "contrast": "AWS ECS on Fargate (+ Application Load Balancer) rather than AWS Elastic Beanstalk (managed platform on EC2). The EC2/VM operating system stays in your patching and hardening scope for rbi_localisation, pci_dss, iso27001 (compliance). AWS ECS on Fargate (+ Application Load Balancer) is stronger on: good security (priority 5/5) (priorities.security). Trade-off accepted: Load balancer and NAT add fixed monthly cost.",
+      "contrast": "AWS ECS on Fargate (+ Application Load Balancer) rather than AWS Elastic Beanstalk (managed platform on EC2). The EC2/VM operating system stays in your patching and hardening scope for iso27001, pci_dss, rbi_localisation (compliance). AWS ECS on Fargate (+ Application Load Balancer) is stronger on: good security (priority 5/5) (priorities.security). Trade-off accepted: Load balancer and NAT add fixed monthly cost.",
       "what_would_change": [
         {
           "edit": "infrastructure.cloud_preference: aws -> any",
@@ -686,23 +686,6 @@
       ]
     },
     {
-      "code": "RBI_LOCALISATION",
-      "severity": "info",
-      "message": "RBI storage of payment system data: payment system operators and the gateways and vendors in their chain store the end-to-end payment data only in India; data processed abroad must be deleted there and brought back within one business day or 24 hours, whichever is earlier.",
-      "fields": [
-        "compliance",
-        "infrastructure.data_residency"
-      ]
-    },
-    {
-      "code": "PCI_SCOPE",
-      "severity": "info",
-      "message": "PCI DSS v4.0.1: card data handled only by the gateway's hosted checkout or embedded payment form keeps scope small and can qualify for SAQ A; with an embedded form the page must also be protected from script attacks (Requirements 6.4.3/11.6.1, or the processor's confirmation), and your acquirer confirms which SAQ applies.",
-      "fields": [
-        "compliance"
-      ]
-    },
-    {
       "code": "DPDP_OBLIGATIONS",
       "severity": "info",
       "message": "DPDP Act 2023: collect consent with a clear notice, support access/correction/erasure requests, keep a breach runbook (the DPDP Rules 2025 require prompt intimation to the Board and affected people, then a detailed report within 72 hours; the Rules commence in phases, so confirm which apply on your launch date) and delete data when the purpose ends. Hosting in India simplifies transfers; legal review still required.",
@@ -716,6 +699,23 @@
       "message": "ISO/IEC 27001:2022 certifies your organisation's ISMS, not a cloud provider's badge: keep asset inventory, access reviews, logging and change management for this system.",
       "fields": [
         "compliance"
+      ]
+    },
+    {
+      "code": "PCI_SCOPE",
+      "severity": "info",
+      "message": "PCI DSS v4.0.1: card data handled only by the gateway's hosted checkout or embedded payment form keeps scope small and can qualify for SAQ A; with an embedded form the page must also be protected from script attacks (Requirements 6.4.3/11.6.1, or the processor's confirmation), and your acquirer confirms which SAQ applies.",
+      "fields": [
+        "compliance"
+      ]
+    },
+    {
+      "code": "RBI_LOCALISATION",
+      "severity": "info",
+      "message": "RBI storage of payment system data: payment system operators and the gateways and vendors in their chain store the end-to-end payment data only in India; data processed abroad must be deleted there and brought back within one business day or 24 hours, whichever is earlier.",
+      "fields": [
+        "compliance",
+        "infrastructure.data_residency"
       ]
     },
     {

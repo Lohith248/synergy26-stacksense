@@ -248,7 +248,11 @@ def backend_candidates(ctx, host):
         js_team = set(ctx["langs"]) & {"javascript", "typescript"}
         if js_team and (ctx["web"] or ctx["mobile"]) and set(b["langs"]) & {"javascript", "typescript"}:
             c.add("one_language", 2, "team.languages", "one language (TypeScript/JavaScript) across clients and server")
-        if ctx["existing_idp"] and b["id"] == "dotnet-aspnet":
+        cont = sorted(set(b["langs"]) & ctx["existing_langs"] & set(ctx["langs"]))
+        if cont:  # same weight as one_language: existing domain code, libraries and runbooks carry over to the new API
+            c.add("existing_lang", 2, "infrastructure.existing_systems",
+                  f"continues the existing {'/'.join(cont)} application the team already runs (shared domain code, libraries and operations know-how)")
+        if ctx["ms_idp"] and b["id"] == "dotnet-aspnet":  # Microsoft identity only; Okta/Auth0/... are framework-neutral OIDC
             c.add("existing_idp", 2, "infrastructure.existing_systems", "Microsoft.Identity.Web for Entra ID")
         if ctx["desc"]["ledger"] or req["project.type"] == "fintech":
             c.add("ledger", (b["enterprise"] - 3) * 1.0, "project.type",
@@ -285,7 +289,7 @@ DB_COST = {
 
 def db_cost(item, vkey):
     """Monthly [low, high] per tier for a database offering; self-hosted runs on the app servers."""
-    if vkey == "self":
+    if vkey in ("self", "existing"):  # existing: already running and paid for outside this project
         return [[0, 0]] * 4
     if "cost" in item:
         return item["cost"]
