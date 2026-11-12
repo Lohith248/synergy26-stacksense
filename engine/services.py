@@ -5,6 +5,7 @@ cost per tier, sources). Choices respect the same envelope as the core layers.
 """
 import re
 from . import domains
+from . import context as cx
 from .kb import cite
 
 Z = [[0, 0], [0, 0], [0, 0], [0, 0]]
@@ -228,7 +229,7 @@ def build(ctx, host, backend, db, mobile, warn):
         else:
             name = {"aws": "Amazon S3", "azure": "Azure Blob Storage", "gcp": "Google Cloud Storage"}.get(p, "Cloudflare R2" if not loc else "Amazon S3")
             prov = p if hyper else ("cloudflare" if not loc else "aws")
-            alt = [("Storing files in the database", f"with ~{ctx['data_gb']:g} GB of data expected in 12 months (scale.data_volume_gb_12_months), "
+            alt = [("Storing files in the database", f"with ~{cx.num(ctx['data_gb'])} GB of data expected in 12 months (scale.data_volume_gb_12_months), "
                     "files inside the database bloat every backup and cost more per GB than object storage")]
             if hyper:
                 alt.append(("Cloudflare R2", f"zero egress fees, but a second vendor outside {p.upper()}"))
@@ -266,7 +267,7 @@ def build(ctx, host, backend, db, mobile, warn):
                 src = src + ["gcp-vertex-search"]
                 alts.append(("Vertex AI Search", "Google positions it as generative-AI search for websites, enterprise data and media, not a general "
                              "application search engine; a managed Elasticsearch-compatible service (for example Elastic Cloud on the Google Cloud Marketplace) can be priced if self-hosting is unwanted"))
-            out.append(svc("search", c, f"Search at {ctx['users']:,} users / {ctx['data_gb']:g} GB benefits from a dedicated engine with relevance tuning, kept in the same region as the data.",
+            out.append(svc("search", c, f"Search at {ctx['users']:,} users / {cx.num(ctx['data_gb'])} GB benefits from a dedicated engine with relevance tuning, kept in the same region as the data.",
                            dp + ["scale.users_12_months"] + res_path,
                            alts,
                            ["Index must be kept in sync with the database (outbox/CDC)"],
@@ -526,17 +527,17 @@ def build(ctx, host, backend, db, mobile, warn):
         if p == "azure" and req["infrastructure.cloud_preference"] != "azure" and ctx["budget"] < 35 / 0.15:
             out.append(svc("cdn", "Cloudflare (free plan) in front of Azure", why + f" Azure Front Door's $35/month base fee would take "
                            + (f"{3500 / ctx['budget']:.0f}% of" if ctx["budget"] >= 35 else "more than all of")
-                           + f" the ${ctx['budget']:g} budget, so the free plan is used.",
+                           + f" the ${cx.num(ctx['budget'])} budget, so the free plan is used.",
                            paths + ["budget.monthly_infra_usd"],
                            [("Azure Front Door", "the $35/month Standard base fee is too large a share of this budget; switch when the budget grows"),
                             ("No CDN", f"every asset request from the {ctx['users']:,} expected users would hit the origin"
-                            + (f"; with scale.geo_spread={ctx['geo']}, distant users wait longest" if ctx["geo"] != "single_region" else ", adding latency and origin load"))],
+                            + (f"; with scale.geo_spread={ctx['geo']}, distant users wait longest" if ctx["geo"] in ("multi_region", "global") else ", adding latency and origin load"))],
                            ["Cache invalidation on deploys", "A second vendor for DNS/TLS, outside the Azure contract", CF_FREE],
                            "saas", "cloudflare", False, [[0, 1], [0, 5], [0, 20], [20, 200]], ["cloudflare-plans"]))
         else:
             out.append(svc("cdn", name, why, paths,
                        [("No CDN", f"every asset request from the {ctx['users']:,} expected users would hit the origin"
-                            + (f"; with scale.geo_spread={ctx['geo']}, distant users wait longest" if ctx["geo"] != "single_region" else ", adding latency and origin load"))]
+                            + (f"; with scale.geo_spread={ctx['geo']}, distant users wait longest" if ctx["geo"] in ("multi_region", "global") else ", adding latency and origin load"))]
                        + ([("Cloudflare (free plan) in front of Azure", "cheaper for a small site, but a second vendor for DNS/TLS and outside the Azure contract")] if p == "azure" else []),
                        ["Cache invalidation on deploys"] + (["Front Door Standard has a $35/month base fee before requests and egress"] if p == "azure" else [])
                        + ([CF_FREE] if name.startswith("Cloudflare (free plan)") else []),
@@ -654,11 +655,15 @@ def build(ctx, host, backend, db, mobile, warn):
                        "capacitor": ("SQLite plugin + background runner", ["capacitor"]),
                        "swiftui": ("SwiftData (on-device store) + BGTaskScheduler background sync", ["swiftdata", "bgtaskscheduler"])}.get(
             mid, ("on-device SQLite store + background sync", []) if mobile else ("Service worker + IndexedDB (Workbox)", ["workbox"]))
+        if mobile and ctx["web"]:  # the web client needs its own offline mechanism next to the mobile store
+            local, lsrc = local + "; web: service worker + IndexedDB (Workbox)", lsrc + ["workbox"]
         crdt = req["requirements.realtime"] and collab and ctx["type"] != "gaming"
         bits = ["writes go to an on-device database first", "an outbox queue retries uploads when signal returns",
                 "each record carries a client-generated UUID so retries are idempotent",
                 "shared documents keep offline edits as CRDT updates and merge them on reconnect" if crdt
                 else "server applies last-writer-wins per field with an edit log"]
+        if mobile and ctx["web"]:
+            bits.append("the web client caches its app shell with a service worker and queues writes in IndexedDB with the same outbox rules")
         if d["gps_media"]:
             bits.append("photos are compressed on-device and uploaded with resumable chunks")
         if d["low_bandwidth"]:
@@ -723,7 +728,7 @@ def build(ctx, host, backend, db, mobile, warn):
         if pat and pat["kind"] == "database" and db and e is not ctx["kept_db"]:
             via = "App Service Hybrid Connection (outbound 443 relay, no inbound ports)" if p == "azure" else (
                 "site-to-site VPN / private link" if not selfh else "the local network")
-            out.append(svc("other", f"Integration with existing {e['raw']} via {via}",
+            out.append(svc("other", f"Integration with existing {re.sub(r'(?i)^(?:the |our )?existing ', '', e['raw'])} via {via}",
                            f"{pat['how']} The new application keeps its own tables in {db['_variant']} and reads the existing data through {via}.",
                            ["infrastructure.existing_systems"],
                            [("Migrate everything into the new database now", "risky in the MVP timeline and breaks existing consumers"),
@@ -731,7 +736,7 @@ def build(ctx, host, backend, db, mobile, warn):
                            ["Cross-network latency on queries to the on-prem server", "Credentials for the on-prem database must live in a secret store"],
                            "library", "neutral", False, Z, pat["src"] + (["azure-hybrid-connections"] if p == "azure" else [])))
         elif pat and pat["kind"] in ("erp", "crm", "legacy_app", "payments"):
-            out.append(svc("other", f"Integration with existing {e['raw']}", pat["how"], ["infrastructure.existing_systems"],
+            out.append(svc("other", f"Integration with existing {re.sub(r'(?i)^(?:the |our )?existing ', '', e['raw'])}", pat["how"], ["infrastructure.existing_systems"],
                            [("Replacing it", "outside MVP scope")], ["Depends on the existing system's API limits"], "library", "neutral", False, Z, pat["src"]))
     domains.build(ctx, host, backend, db, svc, warn, Z, out)
     return out

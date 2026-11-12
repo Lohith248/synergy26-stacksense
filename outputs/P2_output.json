@@ -477,7 +477,7 @@
           },
           {
             "choice": "No CDN",
-            "why_not": "every asset request from the 30,000 expected users would hit the origin; with scale.geo_spread=None, distant users wait longest"
+            "why_not": "every asset request from the 30,000 expected users would hit the origin, adding latency and origin load"
           }
         ],
         "tradeoffs": [

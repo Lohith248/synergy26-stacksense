@@ -181,6 +181,24 @@ def detect_country(text):
 CONTINENTS = [("north_america", r"\bnorth america(?:n)?\b"), ("south_america", r"\b(?:south|latin) america(?:n)?\b|\blatam\b"),
               ("europe", r"\beurope(?:an)?\b"), ("asia", r"\basia(?:n)?\b|\bapac\b|\basia[- ]pacific\b"),
               ("africa", r"\bafrica(?:n)?\b"), ("oceania", r"\boceania\b"), ("middle_east", r"\bmiddle east\b")]
+# "the Americas" names both American continents
+_AMERICAS = r"\bamericas\b"
+# a continent counts only in a sentence about who uses the product ("teams in Europe and Asia", not "Asian art styles")
+_AUDIENCE = (r"\b(?:users?|customers?|clients?|traffic|teams?|visitors?|buyers?|players?|audiences?|subscribers?"
+             r"|partners?|merchants?|sellers?|shoppers?|members?|consumers?|students?|patients?|tenants?|people"
+             r"|used by|sell(?:s|ing)?|sold|serv(?:e|es|ed|ing))\b")
+
+
+def continents_in(text):
+    """F13: continents named in project.description sentences that also name the product's users or market."""
+    found = set()
+    for clause in re.split(r"(?<=[.!?;])\s+|\n", text or ""):
+        if not re.search(_AUDIENCE, clause, re.I):
+            continue
+        found |= {k for k, rx in CONTINENTS if re.search(rx, clause, re.I)}
+        if re.search(_AMERICAS, clause, re.I):
+            found |= {"north_america", "south_america"}
+    return [k for k, _ in CONTINENTS if k in found]
 
 
 # D12a: a sentence states a data-residency requirement when it has a data noun and a residency verb phrase.
@@ -190,24 +208,51 @@ RES_VERB = (r"\b(?:must|shall|should|has to|have to|needs? to|required to|is to|
             r"|\bnever leaves?\b|\b(?:stored|hosted|kept|held|localised|localized|resident)\s+(?:only\s+)?(?:in|within)\b")
 
 
+# a residency verb preceded by a negation in its sentence ("does not need to stay", "need not be stored") or a sentence that
+# allows any location states no requirement
+RES_NEGATED = r"\bnot\b|n't\b|\bno need\b|\bnever (?:need|has|have)\b"
+RES_ANYWHERE = r"\bany (?:region|country|location|jurisdiction)\b|\banywhere\b"
+# data_residency enum values the knowledge base covers directly (a country inside them, e.g. Germany -> eu)
+RES_ENUM = ("india", "eu", "us")  # patterns: EXISTING_LOCATIONS below
+_RES_PLACE = r"\b(?:in|within|inside)\s+(?:the\s+)?((?-i:[A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)?))"
+
+
+def _residency_stated(sent):
+    """A sentence states residency when a data noun and an un-negated residency verb appear and it allows no 'anywhere'."""
+    if not re.search(RES_DATA, sent, re.I) or re.search(RES_ANYWHERE, sent, re.I):
+        return False
+    return any(not re.search(RES_NEGATED, sent[:m.start()], re.I) for m in re.finditer(RES_VERB, sent, re.I))
+
+
 def residency_from_description(text):
     """D12a: project.description -> {'country', 'sentence', 'hints', 'ambiguous', 'conflict'}. A country is pinned only
     when residency sentences (data noun + residency verb) name exactly one country between them; regional words or
     two countries keep it unresolved ('ambiguous' / 'conflict' list the candidates). Place names elsewhere are 'hints'."""
     text = text or ""
-    found, ambiguous = [], []
+    found, ambiguous, enum, unsupported = [], [], [], []
     for sent in re.split(r"(?<=[.!?;])\s+|\n", text):
-        if not (re.search(RES_DATA, sent, re.I) and re.search(RES_VERB, sent, re.I)):
+        if not _residency_stated(sent):
             continue
         cid, _, plaus = detect_country(sent)
         if cid:
             found.append((cid, sent.strip()))
-        else:
+        elif plaus:
             ambiguous += [p for p in plaus if p not in ambiguous]
+        else:  # D12a: an enum-covered place (India, Germany -> eu, the US) or a country the knowledge base does not cover
+            hits = [loc for rx, loc in EXISTING_LOCATIONS if loc in RES_ENUM and re.search(r"(?<![a-z0-9])(?:" + rx + r")(?![a-z0-9])", sent, re.I)]
+            if re.search(r"(?<![A-Za-z])US(?![A-Za-z])", sent) and "us" not in hits:
+                hits.append("us")
+            if hits:
+                enum += [(h, sent.strip()) for h in hits if h not in [e[0] for e in enum]]
+            else:
+                m = re.search(_RES_PLACE, sent)
+                if m and m.group(1) not in unsupported:
+                    unsupported.append(m.group(1))
     countries = list(dict.fromkeys(c for c, _ in found))
     cid, _, plaus = detect_country(text)
     hints = [cid] if cid else plaus
-    out = {"country": None, "sentence": None, "hints": hints, "ambiguous": ambiguous, "conflict": []}
+    out = {"country": None, "sentence": None, "hints": hints, "ambiguous": ambiguous, "conflict": [],
+           "enum": enum, "unsupported": unsupported}
     if len(countries) == 1 and not ambiguous:
         out["country"], out["sentence"] = countries[0], found[0][1]
     elif len(countries) > 1:
@@ -259,31 +304,71 @@ def lifecycle_text(low):
 
 # F1 (round 11): the team's own server language named in project.description ("Rails shop", "the team writes Elixir",
 # "our Django team"). Language or framework word -> language id. Whole words only; a match marks a primary language.
+# Common English words count only in their language spelling: "Go"/"Golang" (never "go"), "Rust" (never "rust"), Express
+# only as Express.js or "Express framework".
 PRIMARY_WORDS = {"ruby": r"ruby(?: on rails)?|rails", "elixir": r"elixir|phoenix", "python": r"python|django|fastapi|flask",
                  "java": r"java|spring(?: boot)?", "kotlin": r"kotlin", "csharp": r"c#|\.net|asp\.net(?: core)?|dotnet",
-                 "php": r"php|laravel|symfony", "go": r"golang|go", "rust": r"rust",
-                 "javascript": r"node(?:\.?js)?|javascript|express", "typescript": r"typescript|nestjs"}
-_TEAM_NOUN = r"(?:shop|team|house|developers|engineers|devs|programmers)"
-_TEAM_VERB = (r"(?:team|we|developers|engineers)\s+(?:mostly |mainly |only |already |all )?(?:writes?|codes?|works?|builds?|knows?|uses?|is fluent|are fluent)"
-              r"(?:\s+(?:in|with))?\s+(?:mostly |mainly |only )?")
+                 "php": r"php|laravel|symfony", "go": r"golang|(?-i:Go|GO)", "rust": r"(?-i:Rust)",
+                 "javascript": r"node(?:\.?js)?|javascript|express(?:\.?js| framework)", "typescript": r"typescript|nestjs"}
+_PRIMARY_RX = {lang: re.compile(r"(?<![\w.#])(?:" + w + r")(?![\w#])", re.I) for lang, w in PRIMARY_WORDS.items()}
+_TEAM_NOUN = re.compile(r"\s+(?:shop|team|house|developers|engineers|devs|programmers)\b", re.I)
+_TEAM_VERB = re.compile(r"(?:team|we|developers|engineers)\s+(?:mostly |mainly |only |already |all )?(?:writes?|codes?|works?|builds?"
+                        r"|knows?|uses?|is fluent|are fluent)(?:\s+(?:in|with))?\s+(?:mostly |mainly |only )?", re.I)
+# a clause that negates, contrasts, looks back or plans hiring does not state the team's current language
+_NOT_OWN = re.compile(r"\bnot\b|n't\b|\bnever\b|\bno longer\b|\bunlike\b|\bprevious(?:ly)?\b|\bformer(?:ly)?\b|\bleft\b"
+                      r"|\bused to\b|\bhir(?:e|es|ed|ing)\b|\brecruit\w*|\bavoid\w*|\bmov(?:e|ed|ing) away\b|\bmigrat\w* away\b"
+                      r"|\binstead of\b|\brather than\b", re.I)
+_LIST_SEP = re.compile(r"\s*(?:,\s*(?:and\s+|or\s+)?|\s+and\s+|\s+or\s+|&\s*|/\s*)", re.I)
+
+
+def _lang_at(clause, pos):
+    """(language id, end) of a language word starting exactly at pos, or None; hyphen compounds ('go-live') do not count."""
+    for lang, rx in _PRIMARY_RX.items():
+        m = rx.match(clause, pos)
+        if m and not _COMPOUND.match(clause.lower(), m.end()):
+            return lang, m.end()
+    return None
 
 
 def primary_langs(text):
-    """Languages project.description names as the team's own (sorted ids)."""
-    low = (text or "").lower()
+    """Languages project.description names as the team's own (sorted ids): '<lang> shop/team/developers' or 'the team
+    writes <lang>[, <lang> and <lang>]', only in a clause without negation, contrast, past or hiring words."""
     out = set()
-    for lang, w in PRIMARY_WORDS.items():
-        word = r"(?<![\w.#])(?:" + w + r")(?![\w#])"
-        if re.search(word + r"\s+" + _TEAM_NOUN + r"\b", low) or re.search(_TEAM_VERB + word, low):
-            out.add(lang)
+    for clause in re.split(r"(?<=[.!?;])\s+|\n|\s+but\s+|,\s+(?=(?:and |so |while |whereas )?(?:we|our|the|they|their|it|its|this|i)\b)",
+                           text or "", flags=re.I):
+        if _NOT_OWN.search(clause):
+            continue
+        for lang, rx in _PRIMARY_RX.items():
+            if any(not _COMPOUND.match(clause.lower(), m.end()) and _TEAM_NOUN.match(clause, m.end()) for m in rx.finditer(clause)):
+                out.add(lang)
+        for v in _TEAM_VERB.finditer(clause):
+            pos = v.end()
+            while True:
+                hit = _lang_at(clause, pos)
+                if not hit:
+                    break
+                out.add(hit[0])
+                sep = _LIST_SEP.match(clause, hit[1])
+                if not sep:
+                    break
+                pos = sep.end()
     return sorted(out)
 
 
 @functools.lru_cache(maxsize=8)
 def desc_signals(desc):
-    """Description flags and primary languages, computed once per description: counterfactual reruns rebuild the
-    context ~125 times with the same (up to 20,000-character) text."""
-    return {flag: bool(re.search(rx, desc)) for flag, rx in DESC_RULES}, tuple(primary_langs(desc))
+    """Description flags (lower-cased text) and primary languages (original case: 'Go' vs 'go'), computed once per
+    description: counterfactual reruns rebuild the context ~125 times with the same (up to 20,000-character) text."""
+    low = desc.lower()
+    return {flag: bool(re.search(rx, low)) for flag, rx in DESC_RULES}, tuple(primary_langs(desc))
+
+
+def num(x):
+    """Plain number for prose: never an exponent; thousands separators from 10,000 (as the cost lines)."""
+    if float(x).is_integer():
+        n = int(x)
+        return f"{n:,}" if abs(n) >= 10000 else str(n)
+    return f"{x:,.2f}".rstrip("0").rstrip(".")
 
 
 def lang_norm(langs):
@@ -322,7 +407,7 @@ def build(req):
     c["hiring"] = [x for x in lang_norm(req["team.hiring_languages"]) if x not in c["langs"]]
     c["geo"] = req["scale.geo_spread"]
     # F13: continents the description says users are on; geo_spread 'global' or two or more -> users span continents
-    c["continents"] = [k for k, rx in CONTINENTS if re.search(rx, req["project.description"] or "", re.I)]
+    c["continents"] = continents_in(req["project.description"])
     c["multi_continent"] = c["geo"] == "global" or len(c["continents"]) >= 2
     c["lock"] = req["infrastructure.lock_in_tolerance"]
     c["exp"] = req["team.experience"]
@@ -370,9 +455,10 @@ def build(req):
     c["no_internet"] = c["deploy"] == "air_gapped"
     c["prio"] = {k: req[f"priorities.{k}"] for k in ("cost", "time_to_market", "scalability", "performance",
                                                        "maintainability", "security")}
+    flags, prim = desc_signals(req["project.description"] or "")
     desc = (req["project.description"] or "").lower()
-    flags, prim = desc_signals(desc)
-    c["desc"], c["primary_langs"] = dict(flags), list(prim)
+    # the description only promotes a language team.languages already lists; it never adds one
+    c["desc"], c["primary_langs"] = dict(flags), [x for x in prim if x in c["langs"]]
     ex = []
     sentences = re.split(r"(?<=[.!?;])\s+|\n", desc)
     for raw in req["infrastructure.existing_systems"]:

@@ -3,6 +3,9 @@
 Every candidate gets a list of terms (key, points, input path, sentence). The winner is the highest total;
 ties break by id. Excluded candidates carry the hard reason. Nothing here reads the clock or the network.
 """
+import re
+
+from . import context as cx
 from .kb import TECH
 
 PRIO_LABEL = {"cost": "low running cost", "time_to_market": "fast delivery", "scalability": "scalability",
@@ -138,9 +141,10 @@ def hosting_candidates(ctx):
         if lo > ctx["budget"]:
             over = (lo - ctx["budget"]) / max(ctx["budget"], 10)
             c.add("budget", -(4 + min(8, over * 4)), "budget.monthly_infra_usd",
-                  f"entry cost about ${lo}/month exceeds the ${ctx['budget']:g} budget")
+                  f"entry cost about ${lo}/month exceeds the ${cx.num(ctx['budget'])} budget")
         elif ctx["budget"] == 0 and lo == 0:
-            c.add("budget", 3, "budget.monthly_infra_usd", "fits a zero budget on its free plan")
+            c.add("budget", 3, "budget.monthly_infra_usd", "fits a zero budget: no hosting fee on the team's own servers"
+                  if h["kind"] in ("onprem", "vm") else "fits a zero budget on its free plan")
         elif lo > 0:  # inside budget, a cheaper entry point still matters in proportion to the cost priority
             c.add("budget_share", -min(3, 3 * lo / max(ctx["budget"], 20)) * ctx["prio"]["cost"] / 3, "budget.monthly_infra_usd",
                   f"entry cost about ${lo}/month uses {round(100 * lo / max(ctx['budget'], 1))}% of the budget")
@@ -263,7 +267,7 @@ def backend_candidates(ctx, host):
         # one-language bonus would reward JS a second time on top of the language-fit term
         if js_team and (ctx["web"] or ctx["mobile"]) and set(b["langs"]) & {"javascript", "typescript"} and not primary:
             c.add("one_language", 2, "team.languages", "one language (TypeScript/JavaScript) across clients and server")
-        prim = sorted(set(b["langs"]) & set(ctx.get("primary_langs", [])))
+        prim = sorted(set(b["langs"]) & primary)  # non-JS server languages only, as above
         if prim:  # F1: project.description names this language as the team's own ("Rails shop", "team writes Elixir")
             c.add("primary_lang", 2, "project.description", f"project.description names {'/'.join(prim)} as the team's own stack")
         cont = sorted(set(b["langs"]) & ctx["existing_langs"] & set(ctx["langs"]))
@@ -341,9 +345,10 @@ def database_candidates(ctx, host, backend):
             if lo > left:
                 over = (lo - left) / max(left, 10)
                 c.add("budget", -(3 + min(6, over * 3)), "budget.monthly_infra_usd",
-                      f"entry cost about ${lo}/month leaves no room in the ${ctx['budget']:g} budget after hosting")
+                      f"entry cost about ${lo}/month leaves no room in the ${cx.num(ctx['budget'])} budget after hosting")
             elif lo == 0 and ctx["budget"] < 25:
-                c.add("budget", 2, "budget.monthly_infra_usd", f"has a free plan that fits the ${ctx['budget']:g} budget")
+                c.add("budget", 2, "budget.monthly_infra_usd", f"no licence or subscription fee, so it fits the ${cx.num(ctx['budget'])} budget"
+                      if vkey == "self" else f"has a free plan that fits the ${cx.num(ctx['budget'])} budget")
         prio_terms(c, ctx, d["r"])
         learn_term(c, ctx, d["learning"])
         tier_term(c, ctx, d["max_tier"], d["name"])
@@ -363,7 +368,7 @@ def database_candidates(ctx, host, backend):
             c.add("fts", 1.5 if d["fts"] else -1, "requirements.full_text_search", "built-in full-text search avoids a separate search service")
         ed = ctx["existing_db"]
         if ed and ed["pattern"].get("engine") == d["id"]:
-            c.add("existing", 9, "infrastructure.existing_systems", f"matches the existing {ed['raw']} the team already runs")
+            c.add("existing", 9, "infrastructure.existing_systems", f"matches the existing {re.sub(r'(?i)^(?:the |our )?existing ', '', ed['raw'])} the team already runs")
         if ctx["lock"] == "low" and d.get("lock_in") == "high":
             c.add("lock_in", -5, "infrastructure.lock_in_tolerance", "proprietary data model and API; leaving means rewriting data access")
         if "sql" in ctx["langs"] and d["family"] == "relational":

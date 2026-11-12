@@ -199,7 +199,7 @@
       "alternatives": [
         {
           "choice": "Firebase Hosting (Google Cloud)",
-          "why_not": "With priorities.scalability=1, Cloudflare Pages is built to scale further (close call)."
+          "why_not": "Close on everything this input rates important; the remaining difference is a low priority (priorities.scalability=1), on which Cloudflare Pages is built to scale further (close call)."
         },
         {
           "choice": "Amazon S3 + CloudFront (static site)",
@@ -247,7 +247,7 @@
         "label": "low",
         "basis": "stability 0.75 (moderate) over 53 priority vectors; score margin 0.4 over the runner-up (near-tie)."
       },
-      "contrast": "Cloudflare Pages rather than Firebase Hosting (Google Cloud). With priorities.scalability=1, Cloudflare Pages is built to scale further (close call). Trade-off accepted: 500 builds/month and 20,000 files per site on Free.",
+      "contrast": "Cloudflare Pages rather than Firebase Hosting (Google Cloud). Close on everything this input rates important; the remaining difference is a low priority (priorities.scalability=1), on which Cloudflare Pages is built to scale further (close call). Trade-off accepted: 500 builds/month and 20,000 files per site on Free.",
       "what_would_change": [
         {
           "edit": "requirements.realtime: false -> true",

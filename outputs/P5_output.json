@@ -138,7 +138,7 @@
       "alternatives": [
         {
           "choice": "Azure Database for PostgreSQL – Flexible Server 17",
-          "why_not": "Azure SQL Database fits better: matches the existing On-prem SQL Server 2019 the team already runs (infrastructure.existing_systems); it fits better: EF Core + SQL Server is the default .NET pairing (team.languages=csharp,javascript,sql)."
+          "why_not": "Azure SQL Database fits better: matches the existing On-prem SQL Server 2019 the team already runs (infrastructure.existing_systems); EF Core + SQL Server is the default .NET pairing (team.languages=csharp,javascript,sql)."
         },
         {
           "choice": "Azure Database for MySQL – Flexible Server 8.4",
@@ -176,7 +176,7 @@
         "label": "high",
         "basis": "stability 1.00 (robust) over 52 priority vectors; score margin 6.7 over the runner-up."
       },
-      "contrast": "Azure SQL Database (serverless/General Purpose) rather than Azure Database for PostgreSQL – Flexible Server 17. Azure SQL Database fits better: matches the existing On-prem SQL Server 2019 the team already runs (infrastructure.existing_systems); it fits better: EF Core + SQL Server is the default .NET pairing (team.languages=csharp,javascript,sql). Trade-off accepted: Licence cost outside Azure SQL; Windows-centric tooling.",
+      "contrast": "Azure SQL Database (serverless/General Purpose) rather than Azure Database for PostgreSQL – Flexible Server 17. Azure SQL Database fits better: matches the existing On-prem SQL Server 2019 the team already runs (infrastructure.existing_systems); EF Core + SQL Server is the default .NET pairing (team.languages=csharp,javascript,sql). Trade-off accepted: Licence cost outside Azure SQL; Windows-centric tooling.",
       "what_would_change": []
     },
     "hosting": {

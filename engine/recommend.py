@@ -100,7 +100,12 @@ def kb_fact(item, ctx):
     off = [w for path, words in FACT_WORDS if not _flag_on(req, path) for w in words if w not in ("static", "html", "python")]
     off += [] if req.get("infrastructure.existing_systems") else ["on-prem", "on-premises", "hybrid"]
     off += [] if req.get("requirements.auth") == "enterprise_sso" else ["entra", "sso"]
-    return next((x for x in strengths if not any(_word(w, x) for w in off)), None)
+    # a version or support-window fact (LTS dates, supported majors, EOL) is lifecycle data, not a reason to choose
+    usable = [x for x in strengths if not re.search(LIFECYCLE_FACT, x)]
+    return next((x for x in usable if not any(_word(w, x) for w in off)), usable[0] if usable else None)
+
+
+LIFECYCLE_FACT = r"(?i)\bLTS\b|\bsupported (?:to|until|through|majors)\b|\bsupport ends\b|\bEOL\b|end[- ]of[- ]life|long-term supported"
 
 
 def _word(w, text):
@@ -112,8 +117,9 @@ def _flag_on(req, path):
     return bool(v and v not in ("none", "email_password") or (path == "requirements.auth" and v == "enterprise_sso"))
 
 
-def component(cand, ranked_ok, ranked_out, extra_paths, extras, name=None, base_why="", ctx=None):
-    """Build the official component object from a winning candidate and its competitors."""
+def component(cand, ranked_ok, ranked_out, extra_paths, extras, name=None, base_why="", ctx=None, must_alt=None):
+    """Build the official component object from a winning candidate and its competitors. must_alt: an eligible
+    option that is always listed (the best skill-matched backend when the winner is outside the team's languages)."""
     item = cand.item
     pos = sorted([t for t in cand.terms if t[1] > 0], key=lambda t: (t[0].startswith("prio_"), -t[1], t[0]))
     domain = [t for t in pos if not t[0].startswith("prio_")][:3]
@@ -127,6 +133,8 @@ def component(cand, ranked_ok, ranked_out, extra_paths, extras, name=None, base_
     why = base_why + (cap("; ".join(reasons)) + "." if reasons else "")
     # F11: an engine with a licence cost is offered as an alternative only when the team or its systems name it
     real = [a for a in ranked_ok[1:] if not _licence_filler(a, ctx)][:2]
+    if must_alt is not None and must_alt is not cand and must_alt not in real:
+        real = real[:1] + [must_alt]
     alts = [{"choice": a.item["name"], "why_not": why_not(cand, a, ctx)} for a in real]
     # at most one excluded option, and only to reach two alternatives (statement: at least one per component);
     # a hard constraint teaches more than a shape mismatch, so it goes first
@@ -271,11 +279,22 @@ def why_not(win, alt, ctx=None):
     if total < 0.1:
         return (f"Tied with {wn}; the stable id-based tie-break keeps the result deterministic, so either is defensible."
                 + known_limit(alt, ctx, always=True))
+    # a priority the input rates 1-2/5 never leads a reason; when only such priorities separate the two, say so
+    high = [(g, k) for g, k in gaps if not (ctx and k.startswith("prio_") and ctx["prio"][k[5:]] <= 2)]
+    if gaps and not high:
+        p = gaps[0][1][5:]
+        return (f"Close on everything this input rates important; the remaining difference is a low priority "
+                f"(priorities.{p}={ctx['prio'][p]}), on which {wn} is {PRIO_BETTER[p]}"
+                + (" (close call)." if total < CLOSE_CALL else ".") + known_limit(alt, ctx))
+    gaps = high
     # the largest term always leads (a small one in a close call); a second one only when it is itself >= 1 point
-    keys = [k for g, k in gaps[:2] if g >= 1 or k == gaps[0][1]]
+    keys = [k for g, k in gaps[:2] if g >= 1 or k == gaps[0][1]] if gaps else []
     prios = [k for k in keys if k.startswith("prio_")]
     reasons = [r for r in (_gap_reason(win, alt, k, ctx, prios[1:] if k == (prios or [None])[0] else ())
                            for k in keys if not (k in prios[1:])) if r]
+    fits = f"{wn} fits better: "
+    if len(reasons) > 1 and reasons[0].startswith(fits) and reasons[1].startswith(fits):  # one "fits better", two reasons
+        reasons = [reasons[0] + "; " + reasons[1][len(fits):]]
     if len(reasons) > 1 and wn in reasons[0]:  # name the winner once
         reasons[1] = reasons[1].replace(f"{wn} ", "it ", 1)
     if not reasons:
@@ -387,22 +406,35 @@ def _recommend(req, assumptions, sid):
     elif ctx["req"]["infrastructure.data_residency"] == "other":
         r = ctx["country_res"]
         names = lambda ids: ", ".join(short(p) for p in ids)  # noqa: E731
+        lead = "data_residency 'other': "
+        unverified = "regions could not be verified."
+        default = "data_residency 'other' does not name a jurisdiction; " + unverified + " State the country so every data store can be pinned."
+        enum_name = {"india": "India", "eu": "the EU", "us": "the US"}
+        # one lead sentence per case: a conflict or an enum-covered place is not "no jurisdiction named"
         if r["conflict"] and r.get("conflict_field"):
-            extra = (f" infrastructure.residency_country '{rc}' ({short(rc)}) conflicts with the data-residency requirement in "
-                     f"project.description ({names(r['conflict'][1:])}); make them agree to pin one.")
+            msg = (lead + f"infrastructure.residency_country '{rc}' ({short(rc)}) conflicts with the data-residency requirement in "
+                   f"project.description ({names(r['conflict'][1:])}), so {unverified} Make them agree to pin one.")
         elif r["conflict"]:
-            extra = (f" project.description states conflicting data-residency requirements ({names(r['conflict'])}); "
-                     "set infrastructure.residency_country to pin one.")
+            msg = (lead + f"project.description states conflicting data-residency requirements ({names(r['conflict'])}), so "
+                   f"{unverified} Set infrastructure.residency_country to pin one.")
         elif r["ambiguous"]:
-            extra = (f" project.description states a data-residency requirement that points to more than one jurisdiction "
-                     f"(plausible: {names(r['ambiguous'])}); set infrastructure.residency_country to pin one.")
+            msg = (lead + f"the data-residency requirement in project.description points to more than one jurisdiction "
+                   f"(plausible: {names(r['ambiguous'])}), so {unverified} Set infrastructure.residency_country to pin one.")
+        elif r.get("enum"):
+            vals = [v for v, _ in r["enum"]]
+            msg = (lead + f"project.description requires data to stay in {' and '.join(enum_name[v] for v in vals)} (\"{r['enum'][0][1]}\"), "
+                   + (f"which data_residency '{vals[0]}' covers directly: set infrastructure.data_residency to '{vals[0]}' so every data store is pinned there."
+                      if len(vals) == 1 else f"which data_residency values {', '.join(repr(v) for v in vals)} cover; set infrastructure.data_residency to the one that applies."))
+        elif r.get("unsupported"):
+            msg = (lead + f"project.description requires data to stay in {' and '.join(r['unsupported'])}, which is not in the knowledge "
+                   f"base's supported jurisdictions, so {unverified} Choose and confirm in-country regions with each provider.")
         elif r["hints"]:
-            extra = (f" project.description mentions a location but states no data-residency requirement for it (plausible: "
-                     f"{names(r['hints'])}); set infrastructure.residency_country to pin one.")
+            msg = default + (f" project.description mentions a location but states no data-residency requirement for it (plausible: "
+                             f"{names(r['hints'])}); set infrastructure.residency_country to pin one.")
         else:
-            extra = ""
-        W("RESIDENCY_UNSPECIFIED", "critical", "data_residency 'other' does not name a jurisdiction; regions could not be verified. State the country so every data store can be pinned."
-          + extra,
+            msg = default
+        extra = msg != default
+        W("RESIDENCY_UNSPECIFIED", "critical", msg,
           ["infrastructure.data_residency"] + (["project.description"] if extra else [])
           + (["infrastructure.residency_country"] if r.get("conflict_field") else []))
         assumptions.append("data_residency 'other': no region pinning applied; choose regions in the required jurisdiction.")
@@ -441,8 +473,8 @@ def _recommend(req, assumptions, sid):
         fit = next((c for c in b_ok if set(c.item["langs"]) & set(ctx["langs"])), None)
         W("SKILL_MISMATCH", "warning",
           f"{backend['name']} is not in the team's languages ({', '.join(ctx['langs'])}); it was chosen for the stated priorities and requirements. "
-          + (f"The best skill-matched option, {fit.item['name']}, scored {round(backend_c.score - fit.score, 1)} points lower ({why_not(backend_c, fit, ctx)}) — "
-             "choose it if ramp-up time matters more." if fit else "No option in the knowledge base uses the team's languages.")
+          + (f"The best skill-matched option, {fit.item['name']}, scored {round(backend_c.score - fit.score, 1)} points lower: "
+             f"{why_not(backend_c, fit, ctx)} Choose it if ramp-up time matters more." if fit else "No option in the knowledge base uses the team's languages.")
           + " Budget training time into the timeline.",
           ["team.languages", "team.experience"])
 
@@ -512,8 +544,12 @@ def _recommend(req, assumptions, sid):
 
     # ---- backend component
     if backend_c:
+        skill_fit = None
+        if ctx["langs"] and not set(backend["langs"]) & set(ctx["langs"]):  # SKILL_MISMATCH: the skill-matched option is always listed
+            skill_fit = next((c for c in b_ok if set(c.item["langs"]) & set(ctx["langs"])), None)
         backend_cmp = component(backend_c, b_ok, b_out, [], {"deployment": "self_hosted" if host["kind"] in ("vm", "onprem") else "library",
-                                                              "provider": "neutral", "data_bearing": False, "data_location": None}, ctx=ctx)
+                                                              "provider": "neutral", "data_bearing": False, "data_location": None}, ctx=ctx,
+                                must_alt=skill_fit)
     else:
         backend_cmp = none_component("backend", "No application server is needed: there are no accounts, payments, uploads or dynamic data; pages are pre-built at deploy time.",
                                      ["project.type", "requirements.auth", "requirements.payments"],
@@ -662,7 +698,7 @@ def _recommend(req, assumptions, sid):
 
     # ---- supporting services
     supporting = sv.build(ctx, host, backend, db_item, mob.item if mob else None, W)
-    supporting += multi_region(ctx, host, db_c if ctx["needs_db"] else None, supporting, W)
+    supporting += multi_region(ctx, host, db_c if ctx["needs_db"] else None, supporting, W, region)
     second = None if ctx.get("active_active") else second_region(ctx, host, db_c if ctx["needs_db"] else None)
     if second:
         supporting.append(second)
@@ -685,11 +721,11 @@ def _recommend(req, assumptions, sid):
     if cost["min"] > ctx["budget"]:
         sev = "critical" if (ctx["budget"] == 0 or cost["min"] > 2 * ctx["budget"]) else "warning"
         W("BUDGET_EXCEEDED", sev,
-          f"Estimated minimum ${cost['min']}/month exceeds the ${ctx['budget']:g}/month budget{top_txt}. The stack keeps the hard constraints; "
+          f"Estimated minimum ${cost['min']}/month exceeds the ${cx.num(ctx['budget'])}/month budget{top_txt}. The stack keeps the hard constraints; "
           "to fit the budget, reduce scope (fewer managed services, lower availability) or raise the budget.",
           ["budget.monthly_infra_usd"])
     elif host["kind"] != "onprem" and ctx["budget"] >= 500 and cost["max"] * 8 < ctx["budget"]:
-        W("BUDGET_FAR_ABOVE_NEED", "info", f"The ${ctx['budget']:g}/month budget is far above the estimated ${cost['min']}-{cost['max']}/month need. The stack was not inflated to use it; spare budget could buy redundancy, support plans or monitoring.",
+        W("BUDGET_FAR_ABOVE_NEED", "info", f"The ${cx.num(ctx['budget'])}/month budget is far above the estimated ${cost['min']}-{cost['max']}/month need. The stack was not inflated to use it; spare budget could buy redundancy, support plans or monitoring.",
           ["budget.monthly_infra_usd"])
     elif ctx["budget"] == 0 and cost["max"] > 0:  # statement's own example code: $0 lower bound rests on free plans
         W("FREE_TIER_LIMITS", "info",
@@ -701,7 +737,7 @@ def _recommend(req, assumptions, sid):
         W("BUDGET_AT_RISK", "warning" if far else "info",
           f"Upper estimate ${cost['max']}/month is "
           + (f"{cost['max'] / ctx['budget']:.1f}x the" if far else f"{max(1, round((cost['max'] / ctx['budget'] - 1) * 100))}% above the")
-          + f" ${ctx['budget']:g} budget at peak usage"
+          + f" ${cx.num(ctx['budget'])} budget at peak usage"
           + top_txt + f". Launch near the ${cost['min']} lower bound and set billing alerts at the budget.",
           ["budget.monthly_infra_usd"])
 
@@ -758,7 +794,22 @@ GLOBAL_ENTRY = {"aws": ("Amazon CloudFront + Route 53 latency-based routing", ["
                 "gcp": ("Cloud CDN on a global external Application Load Balancer", ["gcp-locations"])}
 
 
-def multi_region(ctx, host, db_c, supporting, W):
+# residency / region key of a host region -> its continent (the host's own region serves that continent)
+KEY_CONTINENT = {"india": "asia", "singapore": "asia", "japan": "asia", "south_korea": "asia", "indonesia": "asia",
+                 "eu": "europe", "united_kingdom": "europe", "switzerland": "europe", "us": "north_america",
+                 "canada": "north_america", "mexico": "north_america", "australia": "oceania", "brazil": "south_america",
+                 "south_africa": "africa", "uae": "middle_east", "qatar": "middle_east", "israel": "middle_east",
+                 "saudi_arabia": "middle_east"}
+# an edge/CDN already chosen that does not itself send users to the nearest region -> the routing it needs (name, cost by tier, source)
+ROUTING_ADDON = {"Amazon CloudFront": ("Route 53 latency-based routing records for the regional load balancers",
+                                       [[1, 2], [1, 5], [5, 20], [20, 100]], ["aws-regional"]),
+                 "Cloudflare (free plan) in front of Azure": ("Cloudflare Load Balancing (geo steering across the regional origins)",
+                                                              [[5, 10], [5, 20], [20, 60], [60, 300]], ["cloudflare-plans"]),
+                 "Cloudflare (free plan)": ("Cloudflare Load Balancing (geo steering across the regional origins)",
+                                            [[5, 10], [5, 20], [20, 60], [60, 300]], ["cloudflare-plans"])}
+
+
+def multi_region(ctx, host, db_c, supporting, W, region=None):
     """F13: users on several continents with p95 <= 50 ms -> the API and a database read replica run in one region per
     continent (active-active for reads, writes to the primary), behind a global edge entry. Residency or a non-hyperscaler
     host keeps one region and a warning instead."""
@@ -781,11 +832,17 @@ def multi_region(ctx, host, db_c, supporting, W):
           + ("." if pinned else ", or choose a hyperscaler (cloud_preference 'any') to run one copy per continent."),
           paths + (ctx["res_paths"] if pinned and ctx["res_named"] else []))
         return []
-    regions = [CONTINENT_REGION[p][c] for c in conts]
+    # the region the hosting already runs in serves its own continent; the others are added
+    home = next((KEY_CONTINENT.get(k) for k, v in host["regions"].items() if v == region), None) if region else None
+    regions = [region if c == home else CONTINENT_REGION[p][c] for c in conts]
     ctx["active_active"] = regions
-    extra = len(regions) - 1
+    extra_regions = [r for c, r in zip(conts, regions) if c != home] if home in conts else regions[1:]
+    extra = len(extra_regions)
+    t = ctx["tier"]
     dbc = sl.db_cost(db_c.item, db_c.vkey) if db_c and db_c.vkey != "self" else [[0, 0]] * 4
     cost = [[extra * (host["cost"][i][0] + dbc[i][0]), extra * (host["cost"][i][1] + dbc[i][1])] for i in range(4)]
+    per = (f"hosting ${host['cost'][t][0]}-{host['cost'][t][1]}" + (f" + database replica ${dbc[t][0]}-{dbc[t][1]}" if db_c else ""))
+    note = " Each extra region (" + ", ".join(r.split(" (")[0] for r in extra_regions) + f"): {per}/month."
     entry, entry_src = GLOBAL_ENTRY[p]
     out = [sv.svc("other", f"Multi-region active-active in {', '.join(f'{CONTINENT_NAME[c]} ({r})' for c, r in zip(conts, regions))}: "
                   "API in every region + cross-region database read replicas",
@@ -798,8 +855,18 @@ def multi_region(ctx, host, db_c, supporting, W):
                   [f"Writes still travel to the primary region; keep write paths out of the {lat} ms budget or accept higher write latency",
                    "Replica lag: reads in far regions can be a second or so stale",
                    f"{extra} extra regions of hosting and database replicas in the cost band"],
-                  "managed", p, True, cost, ["aws-regional"] if p == "aws" else ["azure-regions"] if p == "azure" else ["gcp-locations"])]
-    if not any(s["layer"] == "cdn" for s in supporting):
+                  "managed", p, True, cost, ["aws-regional"] if p == "aws" else ["azure-regions"] if p == "azure" else ["gcp-locations"],
+                  ", ".join(r.split(" (")[0] for r in regions))]
+    out[0]["_note"] = note
+    cdn = next((s for s in supporting if s["layer"] == "cdn"), None)
+    if cdn and cdn["choice"] in ROUTING_ADDON:
+        name, rcost, rsrc = ROUTING_ADDON[cdn["choice"]]
+        out.append(sv.svc("other", name, f"{cdn['choice']} caches content at the edge but does not by itself send each user to the nearest "
+                          f"healthy region; {name.split(' (')[0]} does that for users in {who}, with health checks per region.",
+                          paths, [(entry, f"replaces the chosen CDN ({cdn['choice']}) instead of adding routing to it")],
+                          ["Health checks and routing rules must be tested per region"], "managed",
+                          "aws" if name.startswith("Route 53") else "cloudflare", False, rcost, rsrc))
+    if not cdn:
         out.append(sv.svc("cdn", entry, f"Global entry point for users in {who}: TLS ends at the nearest edge location, traffic is routed "
                           "to the closest healthy region, and public, non-personal responses can be cached for a short time.",
                           paths, [("Regional load balancers only", "each user's TLS handshake and routing would start in a far region")],
@@ -864,6 +931,10 @@ def contradictions(ctx, W, assumptions, host, backend):
             W("AVAILABILITY_SINGLE_REGION", "info", why + f"Addressed: a warm standby in {ctx['second_region']} with a cross-region database "
               "replica and health-checked failover (see supporting). Rehearse the failover; replica lag means a few seconds of writes can be lost.",
               ["requirements.availability"])
+        elif host["kind"] == "static":
+            W("AVAILABILITY_SINGLE_REGION", "info", why + f"Static hosting on {host['name'].split(' (')[0]} serves files from a CDN's many "
+              "edge locations, so it is multi-location by design; the remaining risk is the CDN provider itself (check its SLA, or "
+              "publish to a second static host behind DNS failover).", ["requirements.availability"])
         else:
             W("AVAILABILITY_SINGLE_REGION", "warning", why +
               "This stack runs multi-zone in one region; add a second region with tested failover, or plan on 99.95%."
@@ -905,7 +976,7 @@ def contradictions(ctx, W, assumptions, host, backend):
         W("USERS_SHRINK", "info", "users_12_months is lower than users_at_launch; sizing uses the larger number.", ["scale.users_12_months"])
     big = ctx["users"] >= 500000 or ctx["peak"] >= 20000
     if big and ctx["budget"] < 100 and ctx["needs_backend"]:
-        W("SCALE_VS_BUDGET", "critical", f"{ctx['users']:,} users with a ${ctx['budget']:g}/month budget cannot run a dynamic application reliably.",
+        W("SCALE_VS_BUDGET", "critical", f"{ctx['users']:,} users with a ${cx.num(ctx['budget'])}/month budget cannot run a dynamic application reliably.",
           ["scale.users_12_months", "budget.monthly_infra_usd"])
     if ctx["exp"] == "beginner" and ctx["size"] == 1 and (req["requirements.payments"] or req["requirements.multi_tenant"] or req["requirements.realtime"]) and ctx["weeks"] <= 4:
         W("SCOPE_VS_TEAM", "warning", "A solo beginner building payments/realtime/multi-tenancy in a few weeks is high risk; managed services were preferred, but consider cutting scope.",
@@ -1111,7 +1182,9 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
                      "$8-31/month, Google pricing page 11 Nov 2026). Google excludes shared-core instances from the Cloud SQL SLA and advises "
                      "against production use; a dedicated-core instance costs more.")
         add(f"Database {short(db_c.variant)}", dlo, dhi, f"Database {db_c.variant}: {{r}}" + (" (HA doubles instances)" if ha else "") + "." + size)
-    if ha:
+    if ha and host["kind"] == "static":
+        lines.append("Availability: static files on a CDN are served from many edge locations by design, so nothing extra is billed for it.")
+    elif ha:
         add("Second app instance (availability)", hlo, hhi,
             ("Availability ≥99.95%" if ha_paths(ctx["req"])[0] == "requirements.availability" else cap(" and ".join(ha_targets(ctx["req"]))))
             + ": a second app instance in another zone {r} (the hosting line counted again).")
@@ -1127,17 +1200,20 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
                 add(name, 0, 0, f"{s['layer']}: {name} runs on the on-premises servers: {{r}} cloud bill (hardware outside this band).")
             elif vm:
                 add(name, 0, 0, f"{s['layer']}: {name} runs on the app servers (same Docker Compose host): {{r}} extra; size the VM's memory and disk for it.")
+            elif host.get("plans"):
+                # a plan-based host (App Service) runs several apps on the instances already paid for
+                add(name, 0, 0, f"{s['layer']}: {name} runs as another app on the same {short(host['name'])} plan: {{r}} extra; size the plan's memory for it.")
             else:
-                # ponytail: one extra smallest-size instance of the chosen host per tool; a per-tool memory sizing table would be finer
+                # ponytail: one extra entry-tier instance of the chosen host per tool; a per-tool memory sizing table would be finer
                 elo, ehi = host["cost"][0]
-                add(name, elo, max(ehi, 5), f"{s['layer']}: {name} as its own small container on {short(host['name'])}: {{r}} (reference: the host's smallest size).")
+                add(name, elo, max(ehi, 5), f"{s['layer']}: {name} as its own small container on {short(host['name'])}: {{r}} (the host's entry tier).")
     gb = ctx["data_gb"]
     obj = any(s["layer"] == "storage" and s["deployment"] != "self_hosted" for s in supporting)
     if obj or (db_item and db_c.vkey not in ("self", "existing") and gb > 20):
         # object storage ~$0.02-0.035/GB-month; managed database SSD ~$0.10-0.25 (Cloud SQL SSD $0.17 Iowa / $0.20 Mumbai, rendered 11 Nov 2026)
         r_lo, r_hi = (0.02, 0.035) if obj else (0.10, 0.25)
         add("Stored data", gb * r_lo, gb * r_hi + 1,
-            f"Stored data ~{gb:g} GB after 12 months at ~${r_lo:.2f}-{r_hi:g}/GB-month: {{r}} (year-end volume used as an upper bound, not an average); "
+            f"Stored data ~{cx.num(gb)} GB after 12 months at ~${r_lo:.2f}-{r_hi:g}/GB-month: {{r}} (year-end volume used as an upper bound, not an average); "
             + ("bulk files and media are assumed to sit in object storage, while database rows stay small." if obj
                else "it lives in the managed database's SSD storage, which costs several times object storage."))
     if ctx["desc"].get("video_vod") and ctx["needs_backend"] and not onprem:

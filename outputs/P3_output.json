@@ -2,7 +2,7 @@
   "scenario_id": "P3",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Modular monolith: React (Vite SPA) (web) on Go 1.27 (net/http + chi) with Azure Database for PostgreSQL – Flexible Server 17, hosted on Azure App Service — West Europe (Netherlands), at an estimated $497-2568/month.",
+  "summary": "Modular monolith: React (Vite SPA) (web) on Go 1.27 (net/http + chi) with Azure Database for PostgreSQL – Flexible Server 17, hosted on Azure App Service — West Europe (Netherlands), at an estimated $484-2538/month.",
   "architecture_style": "modular_monolith",
   "stack": {
     "frontend": {
@@ -25,7 +25,7 @@
         },
         {
           "choice": "Next.js",
-          "why_not": "With priorities.cost=2, React is cheaper to run. Known limit of Next.js: server runtime needed for SSR; more moving parts than a static site."
+          "why_not": "Learning curve 3/5 for a senior team (team.experience=senior). Known limit of Next.js: server runtime needed for SSR; more moving parts than a static site."
         }
       ],
       "tradeoffs": [
@@ -97,7 +97,7 @@
         },
         {
           "choice": ".NET 10 LTS + ASP.NET Core",
-          "why_not": "Team lists go, typescript but this needs csharp (team.languages=go,typescript); with priorities.cost=2, Go 1.27 is cheaper to run."
+          "why_not": "Team lists go, typescript but this needs csharp (team.languages=go,typescript)."
         }
       ],
       "tradeoffs": [
@@ -500,7 +500,7 @@
         "alternatives": [
           {
             "choice": "No CDN",
-            "why_not": "every asset request from the 50,000 expected users would hit the origin; with scale.geo_spread=None, distant users wait longest"
+            "why_not": "every asset request from the 50,000 expected users would hit the origin, adding latency and origin load"
           },
           {
             "choice": "Cloudflare (free plan) in front of Azure",
@@ -597,13 +597,13 @@
     ]
   },
   "estimated_monthly_cost_usd": {
-    "min": 497,
-    "max": 2568,
+    "min": 484,
+    "max": 2538,
     "currency": "USD",
     "assumptions": [
       "Hosting Azure App Service (Linux, Premium v3, 2+ instances): $150-800/month at the 'medium' tier.",
       "Database Azure Database for PostgreSQL – Flexible Server 17: $150-700/month.",
-      "auth: Keycloak 26 (container next to the API) with Google/GitHub/Microsoft OAuth as its own small container on Azure App Service (Linux, Premium v3, 2+ instances): $13-30/month (reference: the host's smallest size).",
+      "auth: Keycloak 26 (container next to the API) with Google/GitHub/Microsoft OAuth runs as another app on the same Azure App Service (Linux, Premium v3, 2+ instances) plan: $0-0/month extra; size the plan's memory for it.",
       "storage: Azure Blob Storage (West Europe (Netherlands)) $10-80/month.",
       "realtime: Yjs CRDT documents + Hocuspocus WebSocket server $25-150/month. Basis: one extra small always-on instance for the Node.js sync server at the host's entry price (estimate).",
       "cache: Azure Managed Redis in West Europe (Netherlands) $60-350/month.",
@@ -637,7 +637,7 @@
     {
       "code": "BUDGET_AT_RISK",
       "severity": "info",
-      "message": "Upper estimate $2568/month is 71% above the $1500 budget at peak usage; the largest upper-bound items are Hosting Azure App Service (Linux, Premium v3, 2+ instances) (up to $800) and Database Azure Database for PostgreSQL – Flexible Server 17 (up to $700). Launch near the $497 lower bound and set billing alerts at the budget.",
+      "message": "Upper estimate $2538/month is 69% above the $1500 budget at peak usage; the largest upper-bound items are Hosting Azure App Service (Linux, Premium v3, 2+ instances) (up to $800) and Database Azure Database for PostgreSQL – Flexible Server 17 (up to $700). Launch near the $484 lower bound and set billing alerts at the budget.",
       "fields": [
         "budget.monthly_infra_usd"
       ]
