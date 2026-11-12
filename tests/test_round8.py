@@ -84,7 +84,8 @@ class FromDescription(unittest.TestCase):
         w = warn(out, "RESIDENCY_FROM_DESCRIPTION")
         self.assertEqual(w["severity"], "warning")
         self.assertIn("Australia", w["message"])
-        self.assertIn("Australian", w["message"])
+        # round 14 (participant decision D12a): the residency sentence is cited, not the first matched place word
+        self.assertIn('"data stored in Australia."', w["message"])
         self.assertIn("infrastructure.residency_country", w["message"])
         self.assertIn("project.description", w["fields"])
         for c in (out["stack"]["database"], out["stack"]["hosting"]):

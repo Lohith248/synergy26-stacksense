@@ -177,6 +177,46 @@ def detect_country(text):
     return None, None, plaus
 
 
+# F13: continent words in the description (whole words; country names do not count as a continent)
+CONTINENTS = [("north_america", r"\bnorth america(?:n)?\b"), ("south_america", r"\b(?:south|latin) america(?:n)?\b|\blatam\b"),
+              ("europe", r"\beurope(?:an)?\b"), ("asia", r"\basia(?:n)?\b|\bapac\b|\basia[- ]pacific\b"),
+              ("africa", r"\bafrica(?:n)?\b"), ("oceania", r"\boceania\b"), ("middle_east", r"\bmiddle east\b")]
+
+
+# D12a: a sentence states a data-residency requirement when it has a data noun and a residency verb phrase.
+RES_DATA = r"\b(?:data|records?|backups?|pii|databases?|information|files?|documents?)\b"
+RES_VERB = (r"\b(?:must|shall|should|has to|have to|needs? to|required to|is to|are to|to|will|may only|can only)\s+(?:only\s+)?"
+            r"(?:stay|remain|reside|be (?:stored|hosted|kept|held|located|localised|localized|processed)|not (?:leave|be (?:stored|hosted|kept) outside))\b"
+            r"|\bnever leaves?\b|\b(?:stored|hosted|kept|held|localised|localized|resident)\s+(?:only\s+)?(?:in|within)\b")
+
+
+def residency_from_description(text):
+    """D12a: project.description -> {'country', 'sentence', 'hints', 'ambiguous', 'conflict'}. A country is pinned only
+    when residency sentences (data noun + residency verb) name exactly one country between them; regional words or
+    two countries keep it unresolved ('ambiguous' / 'conflict' list the candidates). Place names elsewhere are 'hints'."""
+    text = text or ""
+    found, ambiguous = [], []
+    for sent in re.split(r"(?<=[.!?;])\s+|\n", text):
+        if not (re.search(RES_DATA, sent, re.I) and re.search(RES_VERB, sent, re.I)):
+            continue
+        cid, _, plaus = detect_country(sent)
+        if cid:
+            found.append((cid, sent.strip()))
+        else:
+            ambiguous += [p for p in plaus if p not in ambiguous]
+    countries = list(dict.fromkeys(c for c, _ in found))
+    cid, _, plaus = detect_country(text)
+    hints = [cid] if cid else plaus
+    out = {"country": None, "sentence": None, "hints": hints, "ambiguous": ambiguous, "conflict": []}
+    if len(countries) == 1 and not ambiguous:
+        out["country"], out["sentence"] = countries[0], found[0][1]
+    elif len(countries) > 1:
+        out["conflict"] = countries
+    elif countries:  # one country sentence plus a regional / multi-country one
+        out["ambiguous"] = countries + [p for p in ambiguous if p not in countries]
+    return out
+
+
 # Where an existing system says it runs: provider region codes/names and cities. London/Zurich regions are named first so
 # 'eu-west-2' is the UK, not the EU. Only an exact single location counts; several or none -> None (unverified).
 EXISTING_LOCATIONS = [
@@ -281,6 +321,9 @@ def build(req):
     c["langs"] = lang_norm(req["team.languages"])
     c["hiring"] = [x for x in lang_norm(req["team.hiring_languages"]) if x not in c["langs"]]
     c["geo"] = req["scale.geo_spread"]
+    # F13: continents the description says users are on; geo_spread 'global' or two or more -> users span continents
+    c["continents"] = [k for k, rx in CONTINENTS if re.search(rx, req["project.description"] or "", re.I)]
+    c["multi_continent"] = c["geo"] == "global" or len(c["continents"]) >= 2
     c["lock"] = req["infrastructure.lock_in_tolerance"]
     c["exp"] = req["team.experience"]
     c["xf"] = EXP_FACTOR[c["exp"]]
@@ -303,17 +346,20 @@ def build(req):
     # people in India even without a residency requirement); drives Indian SMS and payment providers
     c["india_users"] = res == "india" or "dpdp" in comp or "rbi_localisation" in comp
     c["res_key"] = res if res in ("india", "eu", "us") else None
-    # D12: 'other' resolved to one jurisdiction from the extra field, else from the description
-    c["country"] = c["country_path"] = c["country_word"] = None
-    c["country_plausible"] = []
+    # D12a: 'other' resolved from the extra field, else from one explicit residency sentence in the description
+    c["country"] = c["country_path"] = c["country_sentence"] = None
+    c["country_res"] = {"country": None, "sentence": None, "hints": [], "ambiguous": [], "conflict": []}
     if res == "other":
-        if req.get("infrastructure.residency_country"):
-            c["country"], c["country_path"] = req["infrastructure.residency_country"], "infrastructure.residency_country"
-        else:
-            cid, word, plaus = detect_country(req["project.description"])
-            c["country_plausible"] = plaus
-            if cid:
-                c["country"], c["country_path"], c["country_word"] = cid, "project.description", word
+        r = c["country_res"] = residency_from_description(req["project.description"])
+        rc = req.get("infrastructure.residency_country")
+        stated = r["conflict"] or ([r["country"]] if r["country"] else [])
+        if rc and any(x != rc for x in stated):
+            r["conflict"] = [rc] + [x for x in stated if x != rc]
+            r["conflict_field"] = True
+        elif rc:
+            c["country"], c["country_path"] = rc, "infrastructure.residency_country"
+        elif r["country"]:
+            c["country"], c["country_path"], c["country_sentence"] = r["country"], "project.description", r["sentence"]
     if c["country"]:
         c["residency"] = c["res_key"] = c["country"]
     c["res_label"] = COUNTRIES[c["country"]][0] if c["country"] else (c["residency"] or "").upper()

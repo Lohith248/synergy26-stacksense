@@ -34,8 +34,9 @@ def hard_conflicts(ctx):
     cloud, dep = ctx["cloud"], ctx["deploy"]
     if cloud == "none" and dep in ("managed_cloud", "self_hosted_cloud_vm"):
         out.append(("CLOUD_NONE_VS_CLOUD_DEPLOYMENT",
-                    f"cloud_preference 'none' (no public cloud) contradicts deployment_model '{dep}', which runs on a public cloud. "
-                    "Change one: choose on_premise/air_gapped, or allow a cloud provider.",
+                    f"cloud_preference 'none' means no public cloud and contradicts deployment_model '{dep}', which runs on a public cloud. "
+                    "To resolve: choose cloud_preference 'any' if public cloud is acceptable, or a deployment_model that keeps the stack "
+                    "on your own infrastructure ('on_premise' or 'air_gapped').",
                     ["infrastructure.cloud_preference", "infrastructure.deployment_model"]))
     if cloud in ("aws", "azure", "gcp") and dep in ("on_premise", "air_gapped"):
         out.append(("CLOUD_PROVIDER_VS_ONPREM",
@@ -53,8 +54,8 @@ def hard_conflicts(ctx):
                          if h["provider"] in PROVIDER_NAME and ctx["country"] in h["regions"]})
         out.append(("RESIDENCY_NO_PROVIDER_REGION",
                     f"cloud_preference '{cloud}' has no region in {ctx['res_label']} ({PROVIDER_NAME[cloud]} region list, R15, 12 Nov 2026), so data "
-                    f"cannot stay in {ctx['res_label']} on {PROVIDER_NAME[cloud]}. Change one: "
-                    + (f"a provider with a region there ({', '.join(others)}), or " if others else "")
+                    f"cannot stay in {ctx['res_label']} on {PROVIDER_NAME[cloud]}. To resolve: "
+                    + (f"choose a provider with a region there ({', '.join(others)}) or cloud_preference 'any', or " if others else "")
                     + "a different residency jurisdiction.",
                     ["infrastructure.cloud_preference"] + ctx["res_paths"]))
     return out
@@ -376,18 +377,34 @@ def _recommend(req, assumptions, sid):
                            "the R15 provider region lists (12 Nov 2026). A region is a data-location control, not proof of compliance; "
                            "product availability inside that region is not checked per service.")
     elif ctx["country"]:
+        cite_txt = f"data_residency 'other' resolved to {short(ctx['country'])} from the description: \"{ctx['country_sentence']}\""
         W("RESIDENCY_FROM_DESCRIPTION", "warning",
-          f"data_residency 'other' read as {short(ctx['country'])} from project.description ('{ctx['country_word']}'); every data store is pinned "
-          f"to regions in {ctx['res_label']}. Confirm, or set infrastructure.residency_country.", ctx["res_paths"])
-        assumptions.append(f"data_residency 'other' read as {short(ctx['country'])} from project.description ('{ctx['country_word']}'), the only "
-                           "jurisdiction it names; regions come from the R15 provider region lists (12 Nov 2026). A region is a data-location "
-                           "control, not proof of compliance; product availability inside that region is not checked per service.")
+          f"{cite_txt}; every data store is pinned to regions in {ctx['res_label']}. Confirm, or set infrastructure.residency_country.",
+          ctx["res_paths"])
+        assumptions.append(f"{cite_txt} (project.description: an explicit data-residency sentence naming one jurisdiction, D12a); regions come from the R15 provider "
+                           "region lists (12 Nov 2026). A region is a data-location control, not proof of compliance; product availability "
+                           "inside that region is not checked per service.")
     elif ctx["req"]["infrastructure.data_residency"] == "other":
-        plaus = ctx["country_plausible"]
+        r = ctx["country_res"]
+        names = lambda ids: ", ".join(short(p) for p in ids)  # noqa: E731
+        if r["conflict"] and r.get("conflict_field"):
+            extra = (f" infrastructure.residency_country '{rc}' ({short(rc)}) conflicts with the data-residency requirement in "
+                     f"project.description ({names(r['conflict'][1:])}); make them agree to pin one.")
+        elif r["conflict"]:
+            extra = (f" project.description states conflicting data-residency requirements ({names(r['conflict'])}); "
+                     "set infrastructure.residency_country to pin one.")
+        elif r["ambiguous"]:
+            extra = (f" project.description states a data-residency requirement that points to more than one jurisdiction "
+                     f"(plausible: {names(r['ambiguous'])}); set infrastructure.residency_country to pin one.")
+        elif r["hints"]:
+            extra = (f" project.description mentions a location but states no data-residency requirement for it (plausible: "
+                     f"{names(r['hints'])}); set infrastructure.residency_country to pin one.")
+        else:
+            extra = ""
         W("RESIDENCY_UNSPECIFIED", "critical", "data_residency 'other' does not name a jurisdiction; regions could not be verified. State the country so every data store can be pinned."
-          + (f" project.description points to more than one jurisdiction (plausible: {', '.join(short(p) for p in plaus)}); "
-             "set infrastructure.residency_country to pin one." if plaus else ""),
-          ["infrastructure.data_residency"] + (["project.description"] if plaus else []))
+          + extra,
+          ["infrastructure.data_residency"] + (["project.description"] if extra else [])
+          + (["infrastructure.residency_country"] if r.get("conflict_field") else []))
         assumptions.append("data_residency 'other': no region pinning applied; choose regions in the required jurisdiction.")
     if not ctx["langs"]:
         assumptions.append("team.languages is empty: no language preference applied; mainstream options ranked on other factors.")
@@ -645,7 +662,8 @@ def _recommend(req, assumptions, sid):
 
     # ---- supporting services
     supporting = sv.build(ctx, host, backend, db_item, mob.item if mob else None, W)
-    second = second_region(ctx, host, db_c if ctx["needs_db"] else None)
+    supporting += multi_region(ctx, host, db_c if ctx["needs_db"] else None, supporting, W)
+    second = None if ctx.get("active_active") else second_region(ctx, host, db_c if ctx["needs_db"] else None)
     if second:
         supporting.append(second)
 
@@ -722,6 +740,77 @@ FAILOVER = {"aws": "Route 53 health-checked failover records", "azure": "Azure F
             "gcp": "a global external Application Load Balancer with backends in both regions"}
 
 
+# F13: one public region per user continent (provider region lists); routing that sends each user to the nearest copy
+CONTINENT_REGION = {
+    "aws": {"north_america": "us-east-1 (N. Virginia)", "europe": "eu-west-1 (Ireland)", "asia": "ap-southeast-1 (Singapore)",
+            "south_america": "sa-east-1 (São Paulo)", "africa": "af-south-1 (Cape Town)", "oceania": "ap-southeast-2 (Sydney)",
+            "middle_east": "me-central-1 (UAE)"},
+    "azure": {"north_america": "East US (Virginia)", "europe": "West Europe (Netherlands)", "asia": "Southeast Asia (Singapore)",
+              "south_america": "Brazil South (São Paulo)", "africa": "South Africa North (Johannesburg)",
+              "oceania": "Australia East (New South Wales)", "middle_east": "UAE North (Dubai)"},
+    "gcp": {"north_america": "us-east4 (N. Virginia)", "europe": "europe-west1 (Belgium)", "asia": "asia-southeast1 (Singapore)",
+            "south_america": "southamerica-east1 (São Paulo)", "africa": "africa-south1 (Johannesburg)",
+            "oceania": "australia-southeast1 (Sydney)", "middle_east": "me-central1 (Doha)"}}
+CONTINENT_NAME = {"north_america": "North America", "europe": "Europe", "asia": "Asia", "south_america": "South America",
+                  "africa": "Africa", "oceania": "Oceania", "middle_east": "the Middle East"}
+GLOBAL_ENTRY = {"aws": ("Amazon CloudFront + Route 53 latency-based routing", ["aws-regional"]),
+                "azure": ("Azure Front Door (global entry, latency-based routing)", ["azure-frontdoor-pricing"]),
+                "gcp": ("Cloud CDN on a global external Application Load Balancer", ["gcp-locations"])}
+
+
+def multi_region(ctx, host, db_c, supporting, W):
+    """F13: users on several continents with p95 <= 50 ms -> the API and a database read replica run in one region per
+    continent (active-active for reads, writes to the primary), behind a global edge entry. Residency or a non-hyperscaler
+    host keeps one region and a warning instead."""
+    req = ctx["req"]
+    lat = req["requirements.p95_latency_ms"]
+    if not (ctx["multi_continent"] and lat is not None and lat <= 50 and ctx["needs_backend"]):
+        return []
+    conts = ctx["continents"] if len(ctx["continents"]) >= 2 else ["north_america", "europe", "asia"]
+    who = ", ".join(CONTINENT_NAME[c] for c in conts)
+    paths = ["requirements.p95_latency_ms"] + (["scale.geo_spread"] if ctx["geo"] == "global" else []) \
+        + (["project.description"] if len(ctx["continents"]) >= 2 else [])
+    p = host["provider"]
+    pinned = req["infrastructure.data_residency"] != "none" or ctx["residency_from_rbi"]
+    if pinned or p not in CONTINENT_REGION or host["kind"] in ("vm", "onprem", "static"):
+        why = (f"data_residency '{req['infrastructure.data_residency']}' keeps every data store in one jurisdiction" if pinned
+               else f"{host['name']} is not a multi-region hyperscaler platform")
+        W("LATENCY_FAR_USERS", "warning",
+          f"p95 {lat} ms for users in {who} is not reachable from one region: {why}, so users on other continents add roughly "
+          "100-250 ms per round trip. Cache public, non-personal responses at the edge, or relax the latency target for distant users"
+          + ("." if pinned else ", or choose a hyperscaler (cloud_preference 'any') to run one copy per continent."),
+          paths + (ctx["res_paths"] if pinned and ctx["res_named"] else []))
+        return []
+    regions = [CONTINENT_REGION[p][c] for c in conts]
+    ctx["active_active"] = regions
+    extra = len(regions) - 1
+    dbc = sl.db_cost(db_c.item, db_c.vkey) if db_c and db_c.vkey != "self" else [[0, 0]] * 4
+    cost = [[extra * (host["cost"][i][0] + dbc[i][0]), extra * (host["cost"][i][1] + dbc[i][1])] for i in range(4)]
+    entry, entry_src = GLOBAL_ENTRY[p]
+    out = [sv.svc("other", f"Multi-region active-active in {', '.join(f'{CONTINENT_NAME[c]} ({r})' for c, r in zip(conts, regions))}: "
+                  "API in every region + cross-region database read replicas",
+                  f"A p95 of {lat} ms for users in {who} cannot be met from one region: a round trip between continents alone takes "
+                  "roughly 100-250 ms. The API runs in each region and serves reads from a local read replica; writes go to the "
+                  f"primary database, and {entry} sends each user to the nearest healthy region, which also covers the "
+                  + ("99.99% availability target." if req["requirements.availability"] == "99.99" else "loss of one region."),
+                  paths, [("Single region + CDN", "edge caching helps public responses only; every uncached call still crosses continents"),
+                          ("Globally distributed database (multi-region writes)", "needed only if writes must also be fast everywhere; far more cost and complexity")],
+                  [f"Writes still travel to the primary region; keep write paths out of the {lat} ms budget or accept higher write latency",
+                   "Replica lag: reads in far regions can be a second or so stale",
+                   f"{extra} extra regions of hosting and database replicas in the cost band"],
+                  "managed", p, True, cost, ["aws-regional"] if p == "aws" else ["azure-regions"] if p == "azure" else ["gcp-locations"])]
+    if not any(s["layer"] == "cdn" for s in supporting):
+        out.append(sv.svc("cdn", entry, f"Global entry point for users in {who}: TLS ends at the nearest edge location, traffic is routed "
+                          "to the closest healthy region, and public, non-personal responses can be cached for a short time.",
+                          paths, [("Regional load balancers only", "each user's TLS handshake and routing would start in a far region")],
+                          ["Cache only public, non-personal responses; personal or per-customer quotes must bypass the cache",
+                           "Health checks and routing rules must be tested per region"],
+                          "managed", p, False,
+                          [[35, 40], [35, 60], [50, 200], [150, 900]] if p == "azure" else [[0, 1], [1, 15], [15, 120], [120, 800]],
+                          entry_src))
+    return out
+
+
 def second_region(ctx, host, db_c):
     """99.99% on hyperscaler managed hosting: warm standby (smaller app footprint + cross-region DB replica) in a second
     region of the same residency area, with health-checked failover. Cost: half to all of the hosting band plus one
@@ -766,7 +855,12 @@ def contradictions(ctx, W, assumptions, host, backend):
     if avail == "99.99":
         why = ("A 99.99% target (about 4.4 minutes of downtime a month) is beyond what one region of managed services is designed to deliver, "
                "and service SLAs compose to a lower number. ")
-        if ctx.get("second_region"):
+        if ctx.get("active_active"):
+            W("AVAILABILITY_SINGLE_REGION", "info", why + f"Addressed: the API runs active-active in {len(ctx['active_active'])} regions "
+              "with health-checked global routing and cross-region database replicas (see supporting). Rehearse promoting a replica if "
+              "the primary region fails; replica lag means a few seconds of writes can be lost.",
+              ["requirements.availability"])
+        elif ctx.get("second_region"):
             W("AVAILABILITY_SINGLE_REGION", "info", why + f"Addressed: a warm standby in {ctx['second_region']} with a cross-region database "
               "replica and health-checked failover (see supporting). Rehearse the failover; replica lag means a few seconds of writes can be lost.",
               ["requirements.availability"])
@@ -826,14 +920,18 @@ def contradictions(ctx, W, assumptions, host, backend):
           ["requirements.auth", "infrastructure.deployment_model"])
     if ctx["no_internet"] and req["requirements.ml_features"] in ("llm_rag", "inference_api"):
         assumptions.append("air_gapped: models and package mirrors must be imported into the network manually.")
-    if ctx["geo"] in ("multi_region", "global") and ctx["needs_backend"]:
+    if ctx["geo"] in ("multi_region", "global") and ctx["needs_backend"] and not ctx.get("active_active"):
         W("GLOBAL_USERS_ONE_REGION", "info",
           f"scale.geo_spread '{ctx['geo']}': the API and database run in one region ({host['name']}), so distant users add roughly 100-250 ms per round trip. "
           "Static assets go through the CDN; " + ("data stays in the residency region, so keep APIs chatty-free and cache public responses at the edge."
                                                  if ctx["res_named"] else "add a read replica or a second region when distant traffic grows."),
           ["scale.geo_spread"] + (ctx["res_paths"] if ctx["res_named"] else []))
     lat = req["requirements.p95_latency_ms"]
-    if lat is not None and lat <= 100:
+    if lat is not None and lat <= 100 and ctx.get("active_active"):
+        W("LATENCY_TARGET_UNMEASURED", "info", f"p95 {lat} ms is planned for with the API in {len(ctx['active_active'])} regions and nearest-region "
+          "routing; reads are local, writes reach the primary region. The engine cannot measure it — load-test from each continent before launch.",
+          ["requirements.p95_latency_ms"])
+    elif lat is not None and lat <= 100:
         W("LATENCY_TARGET_UNMEASURED", "info", f"p95 {lat} ms is achievable only with users near the {host['name']} region and no cross-region calls; the engine cannot measure it — load-test before launch.",
           ["requirements.p95_latency_ms"])
     # compliance notes (never claims of certification)
