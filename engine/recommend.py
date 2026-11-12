@@ -347,7 +347,11 @@ def envelope_text(ctx, region, host=None):
         bits.append("managed_cloud (managed platform; the instance OS stays in your patching scope)" if host and host.get("host_os") == "customer"
                     else "managed_cloud (no servers to patch)")
     if ctx["res_named"] or ctx["residency_from_rbi"]:
-        bits.append(f"data_residency {ctx['residency'] if not ctx['country'] else 'other (' + short(ctx['country']) + ')'}" + (f" -> {region}" if region else ""))
+        if ctx["res_stated"] and ctx["res_stated"]["pin"]:
+            where = short(ctx["country"]) if ctx["country"] else ctx["residency"]
+            bits.append(f"residency {where} stated in project.description" + (f" -> {region}" if region else ""))
+        else:
+            bits.append(f"data_residency {ctx['residency'] if not ctx['country'] else 'other (' + short(ctx['country']) + ')'}" + (f" -> {region}" if region else ""))
     return "Satisfies the hard constraints (" + ", ".join(bits) + "). " if bits else ""
 
 
@@ -389,13 +393,43 @@ def _recommend(req, assumptions, sid):
           f"'{req['infrastructure.data_residency']}' stays authoritative" + ("" if req["infrastructure.data_residency"] == "none"
                                                                              else f" (so data is not pinned to {short(rc)})") + ".",
           ["infrastructure.data_residency", "infrastructure.residency_country"])
+    st = ctx["res_stated"]
+    if st:
+        field = req["infrastructure.data_residency"]
+        head = (f"infrastructure.data_residency is '{field}', but project.description states a data-residency requirement: "
+                f"\"{st['sentence']}\"" + ("" if st["sentence"][-1:] in ".!?" else ".") + " ")
+        if st["pin"]:
+            where = short(ctx["country"]) if ctx["country"] else {"india": "India", "eu": "the EU", "us": "the US"}[st["pin"]]
+            set_to = f"'other' with infrastructure.residency_country '{ctx['country']}'" if ctx["country"] else f"'{st['pin']}'"
+            W("RESIDENCY_STATED_IN_DESCRIPTION", "warning",
+              head + f"The stricter reading wins: every data store is pinned to {where}. Set infrastructure.data_residency to "
+              f"{set_to} to confirm, or drop the sentence if it does not apply.",
+              ["infrastructure.data_residency", "project.description"])
+            assumptions.append(f"data_residency '{field}' read as {where} from an explicit residency sentence in project.description "
+                               "(stricter interpretation wins). A region is a data-location control, not proof of compliance.")
+        else:
+            eu = "eu" in st["enum"] or re.search(r"\beurope(?:an)?\b", st["sentence"], re.I)
+            places = ((["the EU"] if eu else []) + [short(p) for p in st["ambiguous"]]
+                      + [v.upper() if v != "india" else "India" for v in st["enum"] if v != "eu"] + st["unsupported"])
+            W("RESIDENCY_STATED_IN_DESCRIPTION", "warning",
+              head + "It does not name one jurisdiction the knowledge base can pin" + (f" (plausible: {', '.join(places)})" if places else "")
+              + f", so data_residency '{field}' stays and regions are not pinned by it. Set infrastructure.data_residency "
+              "(or 'other' with infrastructure.residency_country) to the jurisdiction that applies.",
+              ["infrastructure.data_residency", "project.description"])
+    # Round 16: French health-data hosting certification (HDS) named in the description; a region does not provide it
+    if re.search(r"(?-i:\bHDS\b)|health[- ]data hosting|h[ée]bergeur de donn[ée]es de sant[ée]|h[ée]bergement de donn[ée]es de sant[ée]",
+                 req["project.description"] or "", re.I):
+        W("HEALTH_DATA_HOSTING_CERT", "info",
+          "project.description requires French health-data hosting (HDS) certification. A region is a data-location control, not "
+          "that certificate: confirm the chosen provider's HDS certificate covers every data-bearing service and region in this stack "
+          "before storing patient data.", ["project.description"])
     if ctx["country"] and ctx["country_path"] == "infrastructure.residency_country":
         W("RESIDENCY_COUNTRY", "info", f"data_residency 'other' with infrastructure.residency_country '{rc}': every data store is pinned to "
           f"regions in {ctx['res_label']}.", ctx["res_paths"])
         assumptions.append(f"data_residency 'other' read as {short(ctx['country'])} from infrastructure.residency_country; regions come from "
                            "the R15 provider region lists (12 Nov 2026). A region is a data-location control, not proof of compliance; "
                            "product availability inside that region is not checked per service.")
-    elif ctx["country"]:
+    elif ctx["country"] and not st:
         cite_txt = f"data_residency 'other' resolved to {short(ctx['country'])} from the description: \"{ctx['country_sentence']}\""
         W("RESIDENCY_FROM_DESCRIPTION", "warning",
           f"{cite_txt}; every data store is pinned to regions in {ctx['res_label']}. Confirm, or set infrastructure.residency_country.",

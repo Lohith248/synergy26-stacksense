@@ -1,4 +1,5 @@
 """Derived signals from validated input. Every derived value records the input paths it came from."""
+import copy
 import functools
 import re
 
@@ -23,7 +24,9 @@ DESC_RULES = [
     ("chat", r"\bchat|messag"),
     ("collab", r"same board|collaborat|live cursor|multiplayer|co-edit|whiteboard"),
     ("markdown", r"markdown|\bmdx?\b"),
-    ("gps_media", r"\bgps\b|photo|camera|geo-?tag"),
+    # "GPs" (doctors) is not GPS: lower-case gps needs a location word; upper-case GPS is added in desc_signals
+    ("gps_media", r"\bgps[- ](?:track\w*|coordinates?|locations?|positions?|fix(?:es)?|pings?|tag\w*|enabled|data|traces?)\b"
+                  r"|\bphotos?\b|\bphotograph\w*|\bcameras?\b|\bgeo-?tag"),
     ("low_bandwidth", r"\b2g\b|\b3g\b|intermittent|low bandwidth|poor (?:network|connectivity)|no signal|signal is available"),
     ("low_end", r"low-end|low end|2 ?gb ram|1 ?gb ram|budget phones?"),
     ("approvals", r"approv|leave request|workflow"),
@@ -227,12 +230,18 @@ def _residency_stated(sent):
 def residency_from_description(text):
     """D12a: project.description -> {'country', 'sentence', 'hints', 'ambiguous', 'conflict'}. A country is pinned only
     when residency sentences (data noun + residency verb) name exactly one country between them; regional words or
-    two countries keep it unresolved ('ambiguous' / 'conflict' list the candidates). Place names elsewhere are 'hints'."""
-    text = text or ""
-    found, ambiguous, enum, unsupported = [], [], [], []
+    two countries keep it unresolved ('ambiguous' / 'conflict' list the candidates). Place names elsewhere are 'hints'.
+    Cached per text (counterfactual reruns rebuild the context ~125 times); callers get a copy they may change."""
+    return copy.deepcopy(_residency_from_description(text or ""))
+
+
+@functools.lru_cache(maxsize=8)
+def _residency_from_description(text):
+    found, ambiguous, enum, unsupported, stated = [], [], [], [], []
     for sent in re.split(r"(?<=[.!?;])\s+|\n", text):
         if not _residency_stated(sent):
             continue
+        stated.append(sent.strip())
         cid, _, plaus = detect_country(sent)
         if cid:
             found.append((cid, sent.strip()))
@@ -252,7 +261,7 @@ def residency_from_description(text):
     cid, _, plaus = detect_country(text)
     hints = [cid] if cid else plaus
     out = {"country": None, "sentence": None, "hints": hints, "ambiguous": ambiguous, "conflict": [],
-           "enum": enum, "unsupported": unsupported}
+           "enum": enum, "unsupported": unsupported, "stated": stated}
     if len(countries) == 1 and not ambiguous:
         out["country"], out["sentence"] = countries[0], found[0][1]
     elif len(countries) > 1:
@@ -319,6 +328,19 @@ _NOT_OWN = re.compile(r"\bnot\b|n't\b|\bnever\b|\bno longer\b|\bunlike\b|\bprevi
                       r"|\bused to\b|\bhir(?:e|es|ed|ing)\b|\brecruit\w*|\bavoid\w*|\bmov(?:e|ed|ing) away\b|\bmigrat\w* away\b"
                       r"|\binstead of\b|\brather than\b", re.I)
 _LIST_SEP = re.compile(r"\s*(?:,\s*(?:and\s+|or\s+)?|\s+and\s+|\s+or\s+|&\s*|/\s*)", re.I)
+# Round 16: experience phrasing. A team subject (we/team/developers/engineers...) earlier in the clause, then "have built
+# [and maintained] <X> apps", "have been writing <X>", "years of <X>" or "experience(d) in/with <X>". After "have built" each
+# listed language/framework must be followed by a product noun or the clause end ("We have run Spring sales" is not Java).
+_EXP_SUBJ = re.compile(r"\b(?:we|i|team|developers|engineers|devs|programmers|founders)\b", re.I)
+_EXP_VERB = r"(?:built|maintained|shipped|run|written|developed|delivered|operated)"
+_EXP_BUILT = re.compile(r"(?:\bhave|\bhas|'ve)\s+(?:all\s+|both\s+|long\s+)?" + _EXP_VERB + r"(?:(?:\s*,\s*|\s+and\s+)" + _EXP_VERB
+                        + r")*\s+(?:(?:with|in|on)\s+)?", re.I)
+_EXP_OTHER = re.compile(r"(?:\bhave|\bhas|'ve)\s+been\s+(?:writing|coding|using|building|shipping|running|maintaining|working)(?:\s+(?:with|in|on))?\s+"
+                        r"|\byears of\s+(?:(?:professional|production|hands-on|commercial)\s+)?(?:experience\s+(?:in|with)\s+)?"
+                        r"|\b(?:experienced|experience|expertise|skilled|proficient)\s+(?:in|with)\s+", re.I)
+_EXP_NOUN = re.compile(r"\s+(?:apps?|applications?|services?|sites?|websites?|backends?|apis?|projects?|systems?|platforms?|products?"
+                       r"|code(?:bases?)?|monoliths?|microservices?|stacks?|servers?)\b", re.I)
+_EXP_END = re.compile(r"\s+(?:for|since|professionally|in production)\b|\s*(?:[.,;:)]|$)", re.I)
 
 
 def _lang_at(clause, pos):
@@ -332,7 +354,8 @@ def _lang_at(clause, pos):
 
 def primary_langs(text):
     """Languages project.description names as the team's own (sorted ids): '<lang> shop/team/developers' or 'the team
-    writes <lang>[, <lang> and <lang>]', only in a clause without negation, contrast, past or hiring words."""
+    writes <lang>[, <lang> and <lang>]' or experience phrasing ('our developers have built Laravel apps for years', 'years
+    of Django'), only in a clause without negation, contrast, past or hiring words."""
     out = set()
     for clause in re.split(r"(?<=[.!?;])\s+|\n|\s+but\s+|,\s+(?=(?:and |so |while |whereas )?(?:we|our|the|they|their|it|its|this|i)\b)",
                            text or "", flags=re.I):
@@ -342,17 +365,30 @@ def primary_langs(text):
             if any(not _COMPOUND.match(clause.lower(), m.end()) and _TEAM_NOUN.match(clause, m.end()) for m in rx.finditer(clause)):
                 out.add(lang)
         for v in _TEAM_VERB.finditer(clause):
-            pos = v.end()
-            while True:
-                hit = _lang_at(clause, pos)
-                if not hit:
-                    break
-                out.add(hit[0])
-                sep = _LIST_SEP.match(clause, hit[1])
-                if not sep:
-                    break
-                pos = sep.end()
+            _walk_langs(clause, v.end(), out, False)
+        for rx, need_noun in ((_EXP_BUILT, True), (_EXP_OTHER, False)):
+            for v in rx.finditer(clause):
+                if _EXP_SUBJ.search(clause[:v.start()]):
+                    _walk_langs(clause, v.end(), out, need_noun)
     return sorted(out)
+
+
+def _walk_langs(clause, pos, out, need_noun):
+    """Add each language in a list starting at pos ('Python, Go and Rust'; 'Laravel apps and Django services'). With
+    need_noun every item must be followed by a product noun or the clause end."""
+    while True:
+        hit = _lang_at(clause, pos)
+        if not hit:
+            return
+        end = hit[1]
+        noun = _EXP_NOUN.match(clause, end)
+        if need_noun and not noun and not _EXP_END.match(clause, end):
+            return
+        out.add(hit[0])
+        sep = _LIST_SEP.match(clause, noun.end() if noun else end)
+        if not sep:
+            return
+        pos = sep.end()
 
 
 @functools.lru_cache(maxsize=8)
@@ -360,7 +396,9 @@ def desc_signals(desc):
     """Description flags (lower-cased text) and primary languages (original case: 'Go' vs 'go'), computed once per
     description: counterfactual reruns rebuild the context ~125 times with the same (up to 20,000-character) text."""
     low = desc.lower()
-    return {flag: bool(re.search(rx, low)) for flag, rx in DESC_RULES}, tuple(primary_langs(desc))
+    flags = {flag: bool(re.search(rx, low)) for flag, rx in DESC_RULES}
+    flags["gps_media"] = flags["gps_media"] or bool(re.search(r"\bGPS\b", desc))
+    return flags, tuple(primary_langs(desc))
 
 
 def num(x):
@@ -445,12 +483,33 @@ def build(req):
             c["country"], c["country_path"] = rc, "infrastructure.residency_country"
         elif r["country"]:
             c["country"], c["country_path"], c["country_sentence"] = r["country"], "project.description", r["sentence"]
+    # Round 16: data_residency 'none' (or absent) while a D12a residency sentence in project.description states a
+    # requirement. The stricter reading wins when the sentences name one supported jurisdiction (an enum-covered place such
+    # as Germany -> eu, or one D12 country); a regional word ("Europe"), several places or an unsupported country keep
+    # the field, and recommend.py only warns.
+    c["res_stated"] = None
+    if res == "none":
+        r = residency_from_description(req["project.description"])
+        if r["stated"]:
+            vals = list(dict.fromkeys(v for v, _ in r["enum"]))
+            pin, sent = None, r["stated"][0]
+            if r["country"] and not vals and not r["unsupported"]:
+                pin, sent = r["country"], r["sentence"]
+                c["country"], c["country_path"], c["country_sentence"] = pin, "project.description", sent
+            elif len(vals) == 1 and not (r["country"] or r["conflict"] or r["ambiguous"] or r["unsupported"]):
+                pin, sent = vals[0], r["enum"][0][1]
+                res = c["residency"] = c["res_key"] = pin
+                c["india_users"] = c["india_users"] or pin == "india"
+            c["res_stated"] = {"sentence": sent, "pin": pin, "ambiguous": r["ambiguous"] or r["conflict"],
+                               "enum": vals, "unsupported": r["unsupported"]}
     if c["country"]:
         c["residency"] = c["res_key"] = c["country"]
     c["res_label"] = COUNTRIES[c["country"]][0] if c["country"] else (c["residency"] or "").upper()
     # a named jurisdiction (india/eu/us or a resolved 'other'); rbi-derived India stays separate as before
     c["res_named"] = res in ("india", "eu", "us") or bool(c["country"])
     c["res_paths"] = ["infrastructure.data_residency"] + ([c["country_path"]] if c["country"] else [])
+    if c["res_stated"] and c["res_stated"]["pin"] and not c["country"]:
+        c["res_paths"].append("project.description")
     c["self_host_only"] = c["deploy"] in ("on_premise", "air_gapped")
     c["no_internet"] = c["deploy"] == "air_gapped"
     c["prio"] = {k: req[f"priorities.{k}"] for k in ("cost", "time_to_market", "scalability", "performance",

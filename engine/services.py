@@ -495,7 +495,8 @@ def build(ctx, host, backend, db, mobile, warn):
             home_ok = bool(home and not ctx["country"] and ctx["res_key"] == home[0])
             if home_ok:
                 src = src + [home[1]]
-            if not store and not india and not home_ok and ((ctx["res_key"] in ("eu", "us") and ctx["req"]["infrastructure.data_residency"] in ("eu", "us")) or ctx["country"]):
+            if not store and not india and not home_ok and ((ctx["res_key"] in ("eu", "us") and (ctx["req"]["infrastructure.data_residency"] in ("eu", "us")
+                                                                                       or (ctx["res_stated"] or {}).get("pin") in ("eu", "us"))) or ctx["country"]):
                 warn("PAYMENT_DATA_LOCATION", "critical",
                      f"{name.split(' (')[0]} processes payer data; its storage location for {ctx['res_label']} residency is not verified in the knowledge base — confirm the data-processing terms.",
                      ["requirements.payments"] + ctx["res_paths"])
