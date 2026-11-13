@@ -322,6 +322,16 @@ class ReviewFixes(unittest.TestCase):
                   "Leaflet search; no clinical questions are answered."):
             self.assertIsNone(sev(run(d, **base), "LLM_ADVICE_DISCLAIMER"), d)
 
+    def test_full_target_figure_equals_the_unrelaxed_band(self):
+        """The 'at the requested target' figure is what the same inputs cost when nothing is relaxed (here: a 2-person team)."""
+        for cloud in ("azure", "gcp", "aws"):
+            kw = dict(requirements__availability="99.99", infrastructure__cloud_preference=cloud, project__type="marketplace")
+            relaxed = run("Local marketplace.", **dict(kw, **SOLO))
+            plain = run("Local marketplace.", **dict(kw, team__size=2, team__experience="intermediate", team__has_devops=False))
+            note = next(l for l in lines(relaxed) if l.startswith("At full scale / full target"))
+            lo, hi = [int(x.replace(",", "")) for x in re.findall(r"\$([\d,]+)", note)][:2]
+            self.assertEqual((lo, hi), (plain["estimated_monthly_cost_usd"]["min"], plain["estimated_monthly_cost_usd"]["max"]), cloud)
+
 
 if __name__ == "__main__":
     unittest.main()

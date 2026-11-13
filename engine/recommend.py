@@ -686,6 +686,7 @@ def _recommend(req, assumptions, sid):
     plan = ""
     if host.get("plans") and not ctx["local_first"]:
         ha_need = sreq["requirements.availability"] in ("99.95", "99.99")
+        ctx["host_unplanned"] = host  # A10: the full-target figure re-picks the plan from the asked availability
         plan = host["plan_ha"] if ha_need and ctx["tier"] <= 1 else host["plans"][ctx["tier"]]
         host_c.item = host = dict(host, name=f"{host['name'][:-1]}, {plan})")
     host_name = host["name"] + (f" — {region}" if region else "")
@@ -1157,7 +1158,12 @@ def relax_note(ctx, pctx, host, db_item, db_c, supporting, cost, assumptions):
                            "suit full scale, but their size and price are the entry tier's"
                            + ("; the one-region-per-continent layout was left out (one region at pilot scale)" if ctx.get("multi_region_dropped") else "")
                            + "; move up a tier as real usage and revenue arrive.")
-    full = cost_band(full_ctx, host, db_item, db_c, full_sup, [])
+    full_host = host
+    if ctx.get("host_unplanned"):  # the plan named in the stack was picked from the sized availability; the asked target may need the HA plan
+        h0 = ctx["host_unplanned"]
+        plan = h0["plan_ha"] if req["requirements.availability"] in ("99.95", "99.99") and ctx["tier"] <= 1 else h0["plans"][ctx["tier"]]
+        full_host = dict(h0, name=f"{h0['name'][:-1]}, {plan})")
+    full = cost_band(full_ctx, full_host, db_item, db_c, full_sup, [])
     full.pop("_items")
     what = " and ".join(x for x, on in ((f"at the requested {req['requirements.availability']}% availability", ctx["avail_relaxed"]),
                                        (f"at full scale ({ctx['users']:,} users, '{cx.TIER_NAMES[ctx['tier']]}' tier)", ctx["scale_relaxed"])) if on)
