@@ -134,7 +134,9 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
             "native monthly partitions + BRIN index on the timestamp"
         out.append(svc("other", f"Time-series storage: {ts}",
                        # E9: "readings" only when the input is an IoT/sensor workload; otherwise the premise is the write-heavy workload
-                       (f"~{ctx['data_gb']:,.0f} GB of append-only readings" if iot else f"~{ctx['data_gb']:,.0f} GB in a write-heavy workload (scale.workload=write_heavy)")
+                       (f"~{ctx['data_gb']:,.0f} GB of append-only readings" if iot else
+                        f"A write-heavy workload (scale.workload=write_heavy) with ~{ctx['data_gb']:,.0f} GB in 12 months in total"
+                        + (" (the uploaded files sit in object storage, so only the rows that grow by time are partitioned)" if req["requirements.file_media_storage"] else ""))
                        + (": time partitions keep inserts fast, old partitions are dropped or archived "
                           "to object storage, and " + ("dashboards" if iot or d["analytics"] else "reports") + " read pre-aggregated rollups instead of raw rows."
                           if iot else ": for the tables that grow by time (events, logs, sensor-style rows), monthly partitions keep inserts fast and old partitions can be dropped "
