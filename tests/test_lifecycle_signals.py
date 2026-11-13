@@ -167,5 +167,49 @@ class ExistingSystemText(unittest.TestCase):
                 self.assertIn("read them in place", comp[0]["justification"])
 
 
+class UiSkillMismatch(unittest.TestCase):
+    """B: SKILL_MISMATCH also covers the web and mobile UI layer for a small non-senior or beginner team."""
+
+    def ui(self, out):
+        return [w for w in warns(out, "SKILL_MISMATCH") if w["message"].startswith(("Web UI", "Mobile UI"))]
+
+    def test_fires_on_three_project_types(self):
+        cases = [
+            dict(project__type="saas_b2b", project__platforms=["web", "android"], team__languages=["ruby"], team__size=2, team__experience="intermediate"),
+            dict(project__type="web_app", project__platforms=["web"], team__languages=["swift"], team__size=3, team__experience="intermediate"),
+            dict(project__type="internal_tool", project__platforms=["web"], team__languages=["r", "matlab"], team__size=3, team__experience="beginner"),
+            dict(project__type="data_analytics", project__platforms=["web"], team__languages=["r"], team__size=14, team__experience="beginner"),
+        ]
+        for kw in cases:
+            with self.subTest(kw=kw):
+                hits = self.ui(run(**kw))
+                self.assertTrue(hits, kw)
+                self.assertIn("team.languages", hits[0]["fields"])
+                self.assertIn("not in the team's languages", hits[0]["message"])
+
+    def test_names_the_mobile_toolkit_for_a_ruby_team(self):
+        out = run(project__type="saas_b2b", project__platforms=["web", "android"], team__languages=["ruby"], team__size=2)
+        msg = " ".join(w["message"] for w in self.ui(out))
+        self.assertIn("Mobile UI: Kotlin + Jetpack Compose", msg)
+        self.assertIn("(ruby)", msg)
+
+    def test_layer_choice_is_not_changed_by_the_warning(self):
+        kw = dict(project__platforms=["web", "android"], team__languages=["ruby"], team__size=2)
+        a = run(**kw)
+        self.assertIn("Kotlin", a["stack"]["frontend"]["choice"])
+
+    def test_does_not_fire_when_the_team_writes_the_language(self):
+        for kw in (dict(team__languages=["typescript"], project__platforms=["web"]),
+                   dict(team__languages=["kotlin"], project__platforms=["web", "android"], team__size=2),
+                   dict(team__languages=["javascript"], project__platforms=["web", "android"], team__size=2)):
+            with self.subTest(kw=kw):
+                self.assertFalse(self.ui(run(**kw)), kw)
+
+    def test_does_not_fire_for_a_large_or_senior_team_or_a_planned_hire(self):
+        self.assertFalse(self.ui(run(project__platforms=["web"], team__languages=["python"], team__size=12, team__experience="intermediate")))
+        self.assertFalse(self.ui(run(project__platforms=["web"], team__languages=["go", "python"], team__size=5, team__experience="senior")))
+        self.assertFalse(self.ui(run(project__platforms=["web", "android"], team__languages=["ruby"], team__size=2, team__hiring_languages=["kotlin"])))
+
+
 if __name__ == "__main__":
     unittest.main()

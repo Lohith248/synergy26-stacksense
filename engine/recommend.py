@@ -10,6 +10,7 @@ from .kb import AS_OF, TECH, cite
 
 FIELD_ORDER = [f[0] for f in __import__("engine.validate", fromlist=["FIELDS"]).FIELDS]
 SKILL_BAND = 5  # a mismatched backend must beat the best skill-matched one by more than this to be chosen
+SKILL_SMALL_TEAM = 5  # planning heuristic: a team of up to this many people that is not senior, or any beginner team, pays a schedule cost for a new language
 HARD_PATHS = ("infrastructure.cloud_preference", "infrastructure.deployment_model", "infrastructure.data_residency")
 
 
@@ -262,6 +263,25 @@ def _gap_reason(win, alt, k, ctx, also=()):
     if pos:
         return f"{_short(win.item)} fits better: {_lower1(pos[3])} ({ground(pos[2], ctx)})"
     return None
+
+
+def skill_mismatch(W, ctx, layer, picked, ranked):
+    """SKILL_MISMATCH for a UI layer whose toolkit language is not among team.languages (nor a planned hire), when the team is
+    small or beginner. Warning only: the layer choice is made by the scores."""
+    langs, team = set(picked.item.get("langs") or ()), set(ctx["langs"])
+    if not langs or not team or langs & team or langs & set(ctx["hiring"]):
+        return
+    if not ((ctx["size"] or 0) <= SKILL_SMALL_TEAM and ctx["exp"] != "senior" or ctx["exp"] == "beginner"):
+        return
+    fit = next((c for c in ranked if set(c.item.get("langs") or ()) & team), None)
+    W("SKILL_MISMATCH", "warning",
+      f"{layer}: {picked.item['name']} is written in {'/'.join(sorted(langs))}, not in the team's languages ({', '.join(ctx['langs'])}); "
+      f"it was chosen for the stated platforms and requirements, and the team is {'a beginner team' if ctx['exp'] == 'beginner' else 'small'} "
+      f"(team.size={ctx['size']}, team.experience={ctx['exp']}). "
+      + (f"The best skill-matched option, {fit.item['name']}, ranks lower: {why_not(picked, fit, ctx)} Weigh that against the ramp-up time."
+         if fit else "No option in the knowledge base for this layer uses the team's languages.")
+      + " Budget training time into the timeline.",
+      ["team.languages", "team.experience", "team.size"])
 
 
 def why_not(win, alt, ctx=None):
@@ -661,6 +681,7 @@ def _recommend(req, assumptions, sid):
     parts, f_terms_c, mob = [], None, None
     fe_alts, fe_paths, fe_trade, fe_src, fe_why = [], ["project.platforms"], [], [], []
     web = None
+    w_ok = m_ok = []
     if ctx["web"]:
         wc = sl.web_candidates(ctx, backend)
         w_ok, w_out = sl.rank(wc)
@@ -730,6 +751,12 @@ def _recommend(req, assumptions, sid):
         fe_cmp = none_component("frontend", "API-only product: consumers are other systems, so there is no end-user UI to build; an OpenAPI document serves as the developer interface.",
                                 ["project.platforms"], [("Developer portal (Docusaurus)", "useful later for external API consumers"),
                                                         ("Admin web UI", "not requested by the platforms list")])
+
+    # SKILL_MISMATCH for the UI layers: a small or beginner team gets the same warning the backend gets when the chosen toolkit's
+    # language is not among team.languages (the choice itself is not changed here)
+    for layer_name, picked, ranked in (("Web UI", web, w_ok), ("Mobile UI", mob, m_ok)):
+        if picked is not None:
+            skill_mismatch(W, ctx, layer_name, picked, ranked)
 
     # ---- supporting services
     supporting = sv.build(ctx, host, backend, db_item, mob.item if mob else None, W)
