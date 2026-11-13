@@ -27,7 +27,7 @@ STATIC_TYPES = ("content_site", "other")
 SOFT_TYPES = ("web_app", "internal_tool")
 # description signals that mean stored user data, server-side work or integrations: any of them keeps the backend
 DYNAMIC_FLAGS = ("payouts", "ledger", "kyc", "chat", "collab", "iot", "uploads", "otp", "sms", "web3", "digital_goods", "store_billing", "video_vod",
-                 "video_call", "jobs_dispatch", "approvals", "scoring_model", "scheduler", "user_data", "lending", "gps")
+                 "video_call", "live_media", "jobs_dispatch", "approvals", "scoring_model", "scheduler", "user_data", "lending", "gps")
 DYNAMIC_COMPLIANCE = ("hipaa", "rbi_localisation")  # regulated data is stored somewhere: not a pages-only site
 
 
@@ -36,6 +36,14 @@ def dynamic_fields(req, api_only, mobile):
     return (req["requirements.auth"] != "none" or req["requirements.realtime"] or req["requirements.file_media_storage"]
             or req["requirements.multi_tenant"] or req["requirements.ml_features"] != "none" or api_only or bool(mobile)
             or req["scale.workload"] == "write_heavy")
+
+
+def dynamic_app(c):
+    """True when a static-site generator cannot be the web frontend: the app needs live updates, sign-in, multi-tenant data or any description signal
+    of server-side state (planning heuristic: a generator builds pages at deploy time, it holds no sessions and no live connection)."""
+    req, d = c["req"], c["desc"]
+    return bool(req["requirements.realtime"] or req["requirements.auth"] != "none" or req["requirements.multi_tenant"]
+                or any(d[f] for f in DYNAMIC_FLAGS) or set(c["compliance"]) & set(DYNAMIC_COMPLIANCE))
 
 
 def static_override(c):

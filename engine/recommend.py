@@ -110,7 +110,13 @@ def kb_fact(item, ctx):
     off += [] if req.get("requirements.auth") == "enterprise_sso" else ["entra", "sso"]
     # a version or support-window fact (LTS dates, supported majors, EOL) is lifecycle data, not a reason to choose
     usable = [x for x in strengths if not re.search(LIFECYCLE_FACT, x)]
-    return next((x for x in usable if not any(_word(w, x) for w in off)), usable[0] if usable else None)
+    pick = next((x for x in usable if not any(_word(w, x) for w in off)), None)
+    if pick:
+        return pick
+    # A13: no strength is free of switched-off words. Generic capability words (search, tenant) are harmless as a last resort, but a strength that names
+    # an identity provider, SignalR or an on-premises link the inputs do not have would be a wrong fact: none is better than that one
+    wrong = [w for w in off if w in ("entra", "sso", "signalr", "on-prem", "on-premises", "hybrid")]
+    return next((x for x in usable if not any(_word(w, x) for w in wrong)), None)
 
 
 LIFECYCLE_FACT = r"(?i)\bLTS\b|\bsupported (?:to|until|through|majors)\b|\bsupport ends\b|\bEOL\b|end[- ]of[- ]life|long-term supported"
@@ -1404,6 +1410,13 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
     elif db_item and db_c and db_c.vkey != "self":
         dc = sl.db_cost(db_c.item, db_c.vkey)
         dlo, dhi = dc[t]
+        heavy = ""
+        if t < costreal.INGEST_DB_MIN_TIER and ctx["data_gb"] >= costreal.INGEST_HEAVY_GB and (
+                (ctx["req"]["scale.workload"] == "write_heavy" and not ctx["req"]["requirements.file_media_storage"]) or ctx["type"] == "iot" or ctx["desc"]["iot"]):
+            # A14: a write-heavy or device-fed store of >= 1 TB is sized by its data, not by the user-count tier (planning heuristic)
+            dlo, dhi = max(dlo, dc[costreal.INGEST_DB_MIN_TIER][0]), max(dhi, dc[costreal.INGEST_DB_MIN_TIER][1])
+            heavy = (f" Raised to the '{cx.TIER_NAMES[costreal.INGEST_DB_MIN_TIER]}' tier: ~{cx.num(ctx['data_gb'])} GB of write-heavy or device-fed data "
+                     f"(planning heuristic: from {costreal.INGEST_HEAVY_GB:,} GB the database is sized by its data volume, not by the user-count tier).")
         if ha:
             dlo, dhi = round(dlo * 1.8), round(dhi * 2)
         size = ""
@@ -1424,7 +1437,7 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
             size += (" Assumes a shared-core instance (db-f1-micro to db-g1-small: $0.0126-0.042/hour in Mumbai, $0.0105-0.035 in Iowa, about "
                      "$8-31/month, Google pricing page 11 Nov 2026). Google excludes shared-core instances from the Cloud SQL SLA and advises "
                      "against production use; a dedicated-core instance costs more.")
-        add(f"Database {short(db_c.variant)}", dlo, dhi, f"Database {db_c.variant}: {{r}}" + (" (HA doubles instances)" if ha else "") + "." + size)
+        add(f"Database {short(db_c.variant)}", dlo, dhi, f"Database {db_c.variant}: {{r}}" + (" (HA doubles instances)" if ha else "") + "." + size + heavy)
     if ha and ctx["local_first"]:
         pass  # no server to make redundant
     elif ha and host["kind"] == "static":

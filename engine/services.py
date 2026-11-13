@@ -370,7 +370,8 @@ def build(ctx, host, backend, db, mobile, warn):
 
     # ---------------- storage
     # a description that has users upload files overrides requirements.file_media_storage=false (UPLOADS_VS_STORAGE_FIELD says so)
-    if req["requirements.file_media_storage"] or d["media"] or d["kyc"] or (d["uploads"] and ctx["needs_backend"]):
+    if req["requirements.file_media_storage"] or d["media"] or d["kyc"] or (d["uploads"] and ctx["needs_backend"]) or (
+            (d["video_vod"] or d["large_downloads"]) and ctx["needs_backend"]):
         dp = ["requirements.file_media_storage"] + res_path
         extra = " Private bucket, server-generated signed URLs, encryption with managed keys." if (d["kyc"] or ctx["compliance"]) else " Private bucket with signed upload/download URLs."
         gb_given = req["scale.data_volume_gb_12_months"] is not None
@@ -391,10 +392,24 @@ def build(ctx, host, backend, db, mobile, warn):
             if hyper:
                 alt.append(("Cloudflare R2", f"zero egress fees, but a second vendor outside {CLOUD_NAME[p]}"))
             reg = region or (host["regions"].get("india") if loc == "india" else None)
+            # A6: videos are the upload when the description is a video platform; gigabyte downloads add range/egress advice
+            what = "videos" if d["video_vod"] else 'GPS-tagged photos' if d['gps'] and d['media'] else 'photos' if d['media'] else 'images, documents'
+            big = " The transcoder writes the playback renditions back to the same bucket." if d["video_vod"] else ""
+            trade = ["Egress charges for heavy downloads"]
+            sto_dp, sto_src = list(dp), ["aws-india-data", "gcp-storage-locations", "azure-regions"]
+            if d["large_downloads"]:
+                q = ov.quote(ctx, "large_downloads")
+                big += (f" The description has single downloads of gigabytes{' (' + chr(34) + q + chr(34) + ')' if q else ''}: files are served from object storage through short-lived "
+                       "signed URLs behind the CDN, with HTTP range requests so an interrupted download resumes, and never through the application server.")
+                trade = ["Data egress is the main cost of large downloads: a single multi-GB file downloaded thousands of times can outweigh storage and hosting; "
+                         "put a per-month egress figure next to the budget before launch, and check the egress price of the CDN or of a store with no egress fees "
+                         "(Cloudflare R2 is advertised that way; its pricing page is not confirmed in the knowledge base)"]
+                sto_dp = sto_dp + ["project.description"]
+                sto_src = sto_src + ["cloudflare-r2-pricing"]
             out.append(svc("storage", f"{name}{(' (' + reg + ')') if reg else ''}",
-                           f"{gb_lead}{'u' if gb_lead else 'U'}ploads ({'GPS-tagged photos' if d['gps'] and d['media'] else 'photos' if d['media'] else 'images, documents'}) go straight from clients to object storage via signed URLs.{extra}",
-                           dp, alt, ["Egress charges for heavy downloads"], "managed", prov, True,
-                           [[0, 2], [1, 10], [10, 80], [80, 600]], ["aws-india-data", "gcp-storage-locations", "azure-regions"], loc))
+                           f"{gb_lead}{'u' if gb_lead else 'U'}ploads ({what}) go straight from clients to object storage via signed URLs.{extra}{big}",
+                           sto_dp, alt, trade, "managed", prov, True,
+                           [[0, 2], [1, 10], [10, 80], [80, 600]], sto_src, loc))
 
     # ---------------- search
     if req["requirements.full_text_search"]:
@@ -493,13 +508,23 @@ def build(ctx, host, backend, db, mobile, warn):
                       "ruby-rails": "Rails Action Cable", "elixir-phoenix": "Phoenix Channels + Presence (Phoenix.PubSub)",
                       "rust-axum": "Axum WebSockets (axum::extract::ws on Tokio)"}.get(bid, "Socket.IO on the Node API")
             if p == "azure" and ctx["tier"] >= 2:
-                native = "Azure SignalR Service (managed)"
+                # A13: SignalR Service serves ASP.NET Core SignalR and Azure Functions; Web PubSub (plain WebSockets) is the language-neutral Azure service
+                native = "Azure SignalR Service (managed)" if bid == "dotnet-aspnet" else "Azure Web PubSub (managed WebSocket service)"
             if kind == "serverless" and p == "aws":
                 native = f"Amazon API Gateway WebSocket APIs{rtxt} (gateway holds connections; Lambda handles messages)"
             why, drv, alts = (f"requirements.realtime is set: live updates{' and chat' if d['chat'] else ''} go over WebSockets from the same {backend['name'].split(' (')[0] if backend else 'backend'} backend, so authorisation and data stay in one place.",
                               dp + (["project.description"] if d["chat"] else []),
                               [("Ably / Pusher", f"managed fan-out, but an extra vendor and per-connection cost at ~{ctx['peak']:,} concurrent users"),
                                ("Polling", f"~{ctx['peak']:,} concurrent clients would each poll, wasting requests and adding latency")])
+            bname = backend['name'].split(' (')[0] if backend else 'backend'
+            live = f"live updates{' and chat' if d['chat'] else ''}"
+            if native.startswith("Azure"):  # A13: the text follows the chosen service: it holds the connections, the backend does not
+                why = (f"requirements.realtime is set: {native.split(' (')[0]} holds the clients' WebSocket connections for ~{ctx['peak']:,} concurrent users; the {bname} "
+                       f"backend authorises each client and publishes {live} through it, so the API instances do not hold the long-lived sockets themselves.")
+                alts = [("WebSockets from the backend itself", f"~{ctx['peak']:,} long-lived connections would sit on the API instances and need a pub/sub backplane")] + alts
+            elif native.startswith("Amazon API Gateway WebSocket"):
+                why = (f"requirements.realtime is set: API Gateway holds the clients' WebSocket connections and invokes the functions for each message, so {live} "
+                       f"need no always-on socket server; authorisation and data stay in the {bname} backend.")
             if gate_g:  # D13 G1: a game that needs no server-side real-time loop keeps its state in the backend
                 _, fact, when, gpaths = gate_g
                 gname = domains.game_server_product(p, hyper and not selfh and not ctx["self_host_only"], rtxt)[0].split(" (")[0]
@@ -515,7 +540,7 @@ def build(ctx, host, backend, db, mobile, warn):
             out.append(svc("realtime", native, why, drv, alts,
                            ["Scale-out: cluster the Phoenix nodes so Phoenix.PubSub spans them (or use its Redis adapter)"
                             if native.startswith("Phoenix") else "Scale-out needs a pub/sub backplane (Redis/Valkey)"],
-                           "library", "neutral", False, Z, ["phoenix-channels"] if native.startswith("Phoenix") else ["ably-pricing"]))
+                           "library", "neutral", False, Z, ["phoenix-channels"] if native.startswith("Phoenix") else ["azure-web-pubsub"] if native.startswith("Azure Web PubSub") else ["ably-pricing"]))
 
     # ---------------- cache
     read_hot = req["scale.workload"] == "read_heavy" and ctx["peak"] >= 1000
@@ -564,8 +589,12 @@ def build(ctx, host, backend, db, mobile, warn):
                        ["Another stateful component to size and monitor"], "managed" if prov in ("aws", "azure", "gcp") else "self_hosted", prov, False, cost, src))
 
     # ---------------- queue
-    need_queue = (req["requirements.payments"] and ctx["tier"] >= 2) or req["requirements.ml_features"] == "training" or (
-        req["scale.workload"] == "write_heavy" and ctx["tier"] >= 2) or (req["requirements.offline_support"] and d["media"]) or d["video_vod"]
+    # A14: a write-heavy store of >= INGEST_HEAVY_GB of rows (no file storage asked for: files go to object storage, not through a queue) gets an
+    # ingest queue at any tier, unless devices already feed it through the IoT intake
+    write_bursts = req["scale.workload"] == "write_heavy" and (
+        ctx["tier"] >= 2 or (ctx["data_gb"] >= costreal.INGEST_HEAVY_GB and not req["requirements.file_media_storage"] and not (ctx["type"] == "iot" or d["iot"])))
+    need_queue = (req["requirements.payments"] and ctx["tier"] >= 2) or req["requirements.ml_features"] == "training" or write_bursts or (
+        req["requirements.offline_support"] and d["media"]) or d["video_vod"]
     eq = ctx["existing_queue"]
     # an existing broker is reused when the design needs a queue, devices stream into it, or the input says it must stay;
     # otherwise it is only noted (no queue layer the application would not use)
@@ -579,7 +608,7 @@ def build(ctx, host, backend, db, mobile, warn):
         managed = bool(re.search(r"\bmsk\b|confluent cloud|amazon mq|cloudamqp", low))
         bcloud = next((c for rx, c in BROKER_CLOUD if re.search(rx, low)), None)
         extra = [x for x, on in (("payment webhooks", req["requirements.payments"] and ctx["tier"] >= 2),
-                                 ("write bursts", req["scale.workload"] == "write_heavy" and ctx["tier"] >= 2),
+                                 ("write bursts", write_bursts),
                                  ("training jobs", req["requirements.ml_features"] == "training"), ("video jobs", d["video_vod"])) if on]
         out.append(svc("queue", f"Existing {eq['pattern']['name']} ({'managed' if managed else 'self-managed'}, reused)",
                        f"'{eq['raw']}' already exists: {eq['pattern']['how']}" + (f" New background work ({', '.join(extra)}) uses the same broker." if extra else "")
@@ -604,8 +633,9 @@ def build(ctx, host, backend, db, mobile, warn):
             why.append("video transcoding jobs queued after each upload")
         if req["requirements.offline_support"] and d["media"]:
             why.append(f"photo post-processing (thumbnails, EXIF{'/GPS' if d['gps'] else ''} extraction) after bursts of offline syncs")
-        if req["scale.workload"] == "write_heavy" and ctx["tier"] >= 2:
-            why.append("absorbs write bursts")
+        if write_bursts:
+            why.append("absorbs write bursts" if ctx["tier"] >= 2 else
+                       f"ingest buffer for ~{cx.num(ctx['data_gb'])} GB of write-heavy data: writers publish and a worker batches the inserts into the database")
         if req["requirements.ml_features"] == "training":
             why.append("schedules training jobs")
         qalts = [("Synchronous processing in the request",
@@ -628,7 +658,7 @@ def build(ctx, host, backend, db, mobile, warn):
         out.append(svc("queue", c, cap_first("; ".join(why)) + ", so none of it blocks a request.",
                        [x for x in ("requirements.payments", "requirements.offline_support", "scale.workload", "requirements.ml_features")
                         if (x == "requirements.payments" and req[x] and ctx["tier"] >= 2) or (x == "requirements.offline_support" and req[x])
-                        or (x == "scale.workload" and req[x] == "write_heavy" and ctx["tier"] >= 2) or (x == "requirements.ml_features" and req[x] == "training")] or ["project.description" if d["video_vod"] else "scale.workload"],
+                        or (x == "scale.workload" and write_bursts) or (x == "requirements.ml_features" and req[x] == "training")] or ["project.description" if d["video_vod"] else "scale.workload"],
                        qalts,
                        ["Consumers must be idempotent"], "managed" if prov in ("aws", "azure", "gcp") else "library", prov, True, cost, src, loc))
         if qgate:

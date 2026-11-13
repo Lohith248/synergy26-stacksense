@@ -19,6 +19,9 @@ DB_SSD_RATE = (0.10, 0.25)   # $/GB-month managed database SSD (Cloud SQL SSD $0
 OBJ_RATE = (0.02, 0.035)     # $/GB-month object storage
 BLOCK_RATE = (0.08, 0.12)    # planning estimate: block disk under a database the team runs itself on a cloud VM
 BROKER_NODE_MSGS_PER_S = 2000  # planning heuristic: one small self-run MQTT broker node
+# A14: write-heavy or device-fed data at or above this volume is sized for ingest and for a database that holds it (planning heuristic)
+INGEST_HEAVY_GB = 1000        # at 1 TB a write-heavy store needs an ingest buffer and no longer fits the smallest database tier
+INGEST_DB_MIN_TIER = 2        # index into the tier names: 2 = 'medium'
 ASSUMED_REPORT_SECONDS = 60    # planning assumption when the description gives a device count but no reporting interval
 # Azure IoT Hub Standard tiers, list prices as published (NOT in the knowledge base, so printed as a planning estimate):
 # (name, USD per unit-month, messages per unit-day)
@@ -102,7 +105,7 @@ def stored_data_split(ctx, obj, db_managed):
 # ---------------------------------------------------------------- IoT ingestion
 def device_count(desc):
     d = (desc or "").lower()
-    m = re.search(r"(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|lakh|million|m)?\s+(?:\w+\s+){0,2}(?:sensors?|devices?|meters?|trackers?|gateways?|machines?|vehicles?)", d)
+    m = re.search(r"(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|lakh|million|m)?\s+(?:\w+\s+){0,2}(?:sensors?|devices?|meters?|trackers?|gateways?|machines?|vehicles?|sites?|stations?|inverters?|pumps?|panels?|chargers?|lamps?)", d)
     if not m:
         return None
     unit = {None: 1, "k": 1e3, "thousand": 1e3, "lakh": 1e5, "million": 1e6, "m": 1e6}[m.group(2)]

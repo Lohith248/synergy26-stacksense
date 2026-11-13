@@ -453,7 +453,9 @@ def web_candidates(ctx, backend):
             c.add("app", (f["app"] - 3) * 3.5, "project.type",
                   f"rich interactive {'screens' + for_noun(ctx) if type_noun(ctx) else 'app screens'}" if f["app"] >= 4
                   else (f"suited to content pages, not the screens of {a_an(type_noun(ctx))}" if type_noun(ctx) else "suited to content pages, not app screens"))
-            if f["kind"] == "static":
+            if f["kind"] == "static" and ov.dynamic_app(ctx):  # A13: realtime, sign-in or server-side state: a generator cannot be the app's frontend
+                c.exclude("a static-site generator builds pages at deploy time and cannot hold live connections or signed-in sessions", "requirements.realtime")
+            elif f["kind"] == "static":
                 c.add("static", -2, "project.type", "a static-site generator for a dynamic application")
         if ctx["desc"]["markdown"] and f["kind"] == "static":
             c.add("markdown", 2, "project.description", "renders the owner's Markdown files directly")
