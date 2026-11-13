@@ -36,7 +36,7 @@ def game_servers(ctx):
     if lat is not None and lat <= limit:
         return True, f"requirements.p95_latency_ms is {lat}, at or under the {limit} ms planning heuristic", add_when, paths
     over = f", above the {limit} ms planning heuristic" if lat is not None else ""
-    return False, f"{lat_txt}{over} and project.description names no fast-action game", add_when, paths
+    return False, f"{lat_txt}{over}; project.description names no fast-action game", add_when, paths
 
 
 def warehouse(ctx):

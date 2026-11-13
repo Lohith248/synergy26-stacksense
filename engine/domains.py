@@ -6,6 +6,8 @@ Facts are cited from kb/sources.json (research R6/R7).
 """
 import re
 
+from . import rightsize as rs
+
 SECONDS_PER_MONTH = 30 * 24 * 3600
 NUM = r"(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|lakh|million|m)?"
 UNIT = {None: 1, "k": 1e3, "thousand": 1e3, "lakh": 1e5, "million": 1e6, "m": 1e6}
@@ -28,6 +30,15 @@ def ingest_rate(desc):
     return (int(n), sec) if n >= 1 and sec > 0 else None
 
 
+def game_server_product(p, hyper, rtxt):
+    """(name, provider, source ids, deployment) of the dedicated-game-server product for a host; also named by the D13 gate's alternative."""
+    return {
+        "aws": (f"Amazon GameLift Servers{rtxt} (managed dedicated game servers)", "aws", ["gamelift"], "managed"),
+        "azure": ("Azure PlayFab Multiplayer Servers (managed dedicated game servers)", "azure", ["playfab-mps"], "managed"),
+        "gcp": (f"Agones on Google Kubernetes Engine{rtxt} (open-source dedicated game servers)", "gcp", ["agones"], "managed"),
+    }.get(p if hyper else "", ("Agones (open-source dedicated game servers on Kubernetes)", "neutral", ["agones"], "self_hosted"))
+
+
 def build(ctx, host, backend, db, svc, warn, Z, out):
     req, d = ctx["req"], ctx["desc"]
     p, kind = host["provider"], host["kind"]
@@ -38,13 +49,9 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
     rtxt = f" in {region}" if region else ""
     typ = ctx["type"]
 
-    # ---------------- games: dedicated game servers for realtime multiplayer
-    if typ == "gaming" and req["requirements.realtime"] and ctx["needs_backend"]:
-        name, prov, src, dep = {
-            "aws": (f"Amazon GameLift Servers{rtxt} (managed dedicated game servers)", "aws", ["gamelift"], "managed"),
-            "azure": ("Azure PlayFab Multiplayer Servers (managed dedicated game servers)", "azure", ["playfab-mps"], "managed"),
-            "gcp": (f"Agones on Google Kubernetes Engine{rtxt} (open-source dedicated game servers)", "gcp", ["agones"], "managed"),
-        }.get(p if hyper else "", ("Agones (open-source dedicated game servers on Kubernetes)", "neutral", ["agones"], "self_hosted"))
+    # ---------------- games: dedicated game servers for realtime multiplayer (D13: only for a server-side real-time loop; else services.py)
+    if typ == "gaming" and req["requirements.realtime"] and ctx["needs_backend"] and rs.game_servers(ctx)[0]:
+        name, prov, src, dep = game_server_product(p, hyper, rtxt)
         lat = req["requirements.p95_latency_ms"]
         out.append(svc("realtime", name,
                        "Multiplayer matches run on authoritative dedicated game servers (stateful UDP/WebSocket processes allocated per match), "

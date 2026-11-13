@@ -88,5 +88,61 @@ class PredicateUnits(unittest.TestCase):
         self.assertFalse(cr("multiplayer lobby", "gaming"))
 
 
+def game_lines(out):
+    return [s for s in sup(out, "realtime") if "game servers" in s["choice"]]
+
+
+class G1GameServers(unittest.TestCase):
+    def test_low_latency_gets_servers_on_each_cloud(self):
+        for cloud, word in [("aws", "GameLift"), ("azure", "PlayFab"), ("gcp", "Agones")]:
+            out = run(**game(p95=60, **{"infrastructure.cloud_preference": cloud}))
+            self.assertTrue(any(word in s["choice"] for s in game_lines(out)), (cloud, dump(out)))
+            self.assertFalse(notes(out, "game servers"))
+
+    def test_fast_genre_without_p95_gets_servers(self):
+        out = run(**game("A fast-paced arena shooter for friends"))
+        self.assertEqual(len(game_lines(out)), 1)
+
+    def test_turn_based_gets_native_realtime_alternative_and_note(self):
+        out = run(**game("Turn-based card game, a move every few seconds", **{"scale.users_12_months": 8000}))
+        self.assertEqual(game_lines(out), [])
+        rt = sup(out, "realtime")
+        self.assertEqual(len(rt), 1)
+        self.assertIn("requirements.p95_latency_ms", rt[0]["driven_by"])
+        self.assertTrue(any("server" in a["why_not"] and "turn-based" in a["why_not"] for a in rt[0]["alternatives"]))
+        n = notes(out, "game servers")
+        self.assertEqual(len(n), 1)
+        self.assertIn("turn-based", n[0]["message"])
+        self.assertEqual(n[0]["severity"], "info")
+        self.assertNotIn("dedicated game servers", dump(out).lower())
+
+    def test_latency_boundary_and_turn_based_beats_number(self):
+        self.assertEqual(len(game_lines(run(**game(p95=100)))), 1)
+        out = run(**game(p95=101))
+        self.assertEqual(game_lines(out), [])
+        self.assertIn("101", notes(out, "game servers")[0]["message"])
+        self.assertEqual(game_lines(run(**game("A turn-based board game", p95=60))), [])
+
+    def test_realtime_off_or_other_type_adds_nothing(self):
+        out = run(**game("Turn-based card game", realtime=False))
+        self.assertEqual(sup(out, "realtime"), [])
+        self.assertFalse(notes(out))
+        self.assertEqual(game_lines(run(**{"project.type": "web_app", "requirements.realtime": True, "requirements.p95_latency_ms": 60})), [])
+
+    def test_negated_turn_based_is_a_shooter(self):
+        out = run(**game("This is not a turn-based game; it is a real-time shooter."))
+        self.assertEqual(len(game_lines(out)), 1)
+
+    def test_core_layers_unchanged_by_the_gate(self):
+        a, b = run(**game("Turn-based card game")), run(**game("Fast-paced shooter"))
+        for layer in ("frontend", "backend", "database", "hosting"):
+            self.assertEqual(a["stack"][layer]["choice"], b["stack"][layer]["choice"])
+
+    def test_cost_drops_when_servers_are_not_needed(self):
+        kw = {"infrastructure.cloud_preference": "azure", "budget.monthly_infra_usd": 40}
+        slow, fast = run(**game("Turn-based card game", **kw)), run(**game(p95=60, **kw))
+        self.assertLess(slow["estimated_monthly_cost_usd"]["min"], fast["estimated_monthly_cost_usd"]["min"])
+
+
 if __name__ == "__main__":
     unittest.main()

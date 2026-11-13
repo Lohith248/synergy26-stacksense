@@ -6,6 +6,7 @@ cost per tier, sources). Choices respect the same envelope as the core layers.
 import re
 from . import domains
 from . import context as cx
+from . import rightsize as rs
 from .kb import cite
 
 Z = [[0, 0], [0, 0], [0, 0], [0, 0]]
@@ -275,9 +276,11 @@ def build(ctx, host, backend, db, mobile, warn):
 
     # ---------------- realtime
     collab = ctx["type"] == "realtime_collab" or d["collab"]
-    if req["requirements.realtime"] and ctx["type"] != "gaming":  # games: dedicated game servers (domains.py)
+    # games: dedicated game servers when rs.game_servers holds (domains.py); otherwise the native realtime branch below (D13)
+    gate_g = rs.game_servers(ctx) if ctx["type"] == "gaming" and ctx["needs_backend"] else None
+    if req["requirements.realtime"] and (ctx["type"] != "gaming" or (gate_g and not gate_g[0])):
         dp = ["requirements.realtime"]
-        if collab:
+        if collab and ctx["type"] != "gaming":
             # F3: the CRDT sync server runs in the backend's own language/runtime when the KB has a Yjs-compatible port;
             # otherwise Hocuspocus (Node) is an extra runtime beside the API, named and costed
             bid = backend["id"] if backend else ""
@@ -329,11 +332,18 @@ def build(ctx, host, backend, db, mobile, warn):
                 native = "Azure SignalR Service (managed)"
             if kind == "serverless" and p == "aws":
                 native = f"Amazon API Gateway WebSocket APIs{rtxt} (gateway holds connections; Lambda handles messages)"
-            out.append(svc("realtime", native,
-                           f"Live updates{' and chat' if d['chat'] else ''} over WebSockets from the same backend, so authorisation and data stay in one place.",
-                           dp + (["project.description"] if d["chat"] else []),
-                           [("Ably / Pusher", "managed fan-out, but an extra vendor and per-connection cost"),
-                            ("Polling", "wastes requests and adds latency")],
+            why, drv, alts = (f"Live updates{' and chat' if d['chat'] else ''} over WebSockets from the same backend, so authorisation and data stay in one place.",
+                              dp + (["project.description"] if d["chat"] else []),
+                              [("Ably / Pusher", "managed fan-out, but an extra vendor and per-connection cost"),
+                               ("Polling", "wastes requests and adds latency")])
+            if gate_g:  # D13 G1: a game that needs no server-side real-time loop keeps its state in the backend
+                _, fact, when, gpaths = gate_g
+                gname = domains.game_server_product(p, hyper and not selfh and not ctx["self_host_only"], rtxt)[0].split(" (")[0]
+                why = f"Game state stays in the same backend and live updates go over WebSockets: {fact}. Authorisation and data stay in one place."
+                drv = dp + gpaths
+                alts = [(gname, f"{fact}; add when {when}")] + alts
+                warn("SERVICE_NOT_ADDED", "info", rs.note("Per-match game servers", fact, when), gpaths)
+            out.append(svc("realtime", native, why, drv, alts,
                            ["Scale-out: cluster the Phoenix nodes so Phoenix.PubSub spans them (or use its Redis adapter)"
                             if native.startswith("Phoenix") else "Scale-out needs a pub/sub backplane (Redis/Valkey)"],
                            "library", "neutral", False, Z, ["phoenix-channels"] if native.startswith("Phoenix") else ["ably-pricing"]))
