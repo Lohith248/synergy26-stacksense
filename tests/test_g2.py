@@ -93,6 +93,66 @@ class LiveMedia(unittest.TestCase):
                 self.assertFalse([c for c in choices(out, "realtime") if "Live audio/video" in c or "Video calls" in c], choices(out, "realtime"))
 
 
+class ReviewFixes(unittest.TestCase):
+    def test_go_live_as_a_launch_date_and_text_broadcasts_do_not_fire(self):
+        cases = (("social", "Recipe sharing for friends; we go live in March."),
+                 ("other", "Newsletter that broadcasts results to subscribers."),
+                 ("web_app", "Staff portal; the team goes live next quarter after the pilot."))
+        for typ, desc in cases:
+            with self.subTest(desc=desc):
+                out = run(desc, typ, requirements__realtime=True)
+                self.assertFalse([c for c in choices(out, "realtime") if "Live audio/video" in c or "Video calls" in c], choices(out, "realtime"))
+        out = run("Creators go live on stream to followers.", "social", requirements__realtime=True)
+        self.assertTrue([c for c in choices(out, "realtime") if "Live audio/video" in c])
+
+    def test_transcode_without_video_wording_and_reads_without_a_unit_do_not_fire(self):
+        out = run("Podcast app: we transcode uploaded audio to MP3.", "other", requirements__file_media_storage=True)
+        self.assertFalse(any("Video transcoding" in c for c in choices(out)))
+        out = run("Cable stock list: the tape reads every 3 meters on the drum.", "internal_tool", requirements__file_media_storage=False)
+        self.assertFalse([c for c in choices(out, "other") if c.startswith("Device ingestion")])
+        out = run("Data loggers: a reading every 30 s from each freezer.", "saas_b2b", requirements__file_media_storage=False)
+        self.assertTrue([c for c in choices(out, "other") if c.startswith("Device ingestion")])
+
+    def test_video_egress_upper_bound_is_priced_on_tiers_and_states_the_minutes(self):
+        import engine.costreal as cr
+        self.assertAlmostEqual(cr.tiered_egress(10_000), 900)
+        self.assertAlmostEqual(cr.tiered_egress(2_500_000), 83_300)
+        out = run("Video platform where creators upload videos.", "social", scale__users_12_months=5_000_000, scale__peak_concurrent_users=50000)
+        line = [a for a in out["estimated_monthly_cost_usd"]["assumptions"] if a.startswith("Video egress")][0]
+        self.assertIn("2-30 minutes of adaptive-bitrate video", line)
+        self.assertIn("$0.03 above", line)
+
+    def test_managed_realtime_service_drops_the_backplane_and_is_a_priced_azure_entry(self):
+        out = run("Live order board for a restaurant chain.", "saas_b2b", infrastructure__cloud_preference="azure", team__languages=["go"],
+                  scale__users_12_months=80000, scale__peak_concurrent_users=3000, requirements__realtime=True)
+        rt = [s for s in sup(out) if s["layer"] == "realtime"][0]
+        self.assertEqual((rt["deployment"], rt["provider"]), ("managed", "azure"))
+        self.assertIn("billed per unit", rt["tradeoffs"][0])
+        self.assertTrue(any("azure-web-pubsub/resource-faq" in u for u in rt["sources"]))
+        cache = [s for s in sup(out) if s["layer"] == "cache"]
+        self.assertTrue(not cache or "backplane" not in cache[0]["justification"])
+        self.assertTrue([a for a in out["estimated_monthly_cost_usd"]["assumptions"] if a.startswith("realtime:") and "official-unverified" in a])
+        # a self-run realtime library keeps the backplane reasons
+        gcp = run("Live order board for a restaurant chain.", "saas_b2b", infrastructure__cloud_preference="gcp", team__languages=["go"],
+                  scale__users_12_months=80000, scale__peak_concurrent_users=3000, requirements__realtime=True)
+        self.assertIn("backplane", [s for s in sup(gcp) if s["layer"] == "cache"][0]["justification"])
+
+    def test_static_generator_exclusion_cites_its_driver_and_numbers_have_separators(self):
+        out = run("Parking sensors feed live maps.", "iot", requirements__realtime=True, requirements__auth="none",
+                  requirements__file_media_storage=False, team__languages=["go"])
+        fe = out["stack"]["frontend"]
+        self.assertNotIn("Hugo", fe["choice"])
+        out = run("Inverters push readings every 30 s from rooftop sites.", "data_analytics", scale__workload="write_heavy",
+                  scale__data_volume_gb_12_months=2500, requirements__file_media_storage=False, infrastructure__cloud_preference="gcp")
+        line = [a for a in out["estimated_monthly_cost_usd"]["assumptions"] if a.startswith("Database")][0]
+        self.assertIn("~2,500 GB", line)
+
+    def test_download_quote_keeps_case_and_mod_files_are_files(self):
+        st = [s for s in sup(run("Forum and file hub for mods with Downloads of up to a few GB per mod.", "social")) if s["layer"] == "storage"][0]
+        self.assertIn("Downloads of up to a few GB", st["justification"])
+        self.assertIn("ploads (files)", st["justification"])
+
+
 class LargeDownloads(unittest.TestCase):
     def test_gigabyte_downloads_add_signed_urls_range_and_egress_advice(self):
         cases = (("social", "Forum and file hub for mods with downloads of up to a few GB per mod."),

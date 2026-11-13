@@ -227,7 +227,7 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
                        ("Live video runs through a WebRTC media server (SFU), never through the application server: the API only issues short-lived room tokens."
                         if not live_only else
                         "Live streams and real-time duets run through a WebRTC media server (SFU) that forwards each performer's audio/video to the other participants, "
-                        "never through the application server: the API only issues short-lived room tokens and the leaderboard or chat state stays in the database."),
+                        "never through the application server: the API only issues short-lived room tokens and app state (scores, chat, rooms) stays in the database."),
                        ["project.description"],
                        [("Relaying video through the application API", "media streams need a purpose-built server; the API would saturate"),
                         ("Peer-to-peer WebRTC only", "fails behind many mobile and corporate NATs and does not scale past a few participants")],

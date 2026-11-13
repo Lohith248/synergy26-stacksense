@@ -78,7 +78,7 @@ DESC_RULES = [
     ("notifications", r"notif|alert|remind"),
     # A14 (blind8): also equipment that pushes readings on a schedule (inverters, data loggers); reading FROM a SCADA historian is not device ingestion
     ("iot", r"\bsensors?\b|\biot\b|telemetry|\bdevices? (?:send|report|publish)|smart meters?|trackers? send"
-            r"|\binverters?\b|\bdata[- ]?loggers?\b|\bread(?:ing)?s?\s+every\s+\d|\bpush\w*\s+(?:\w+\s+){0,2}readings?\b"),
+            r"|\binverters?\b|\bdata[- ]?loggers?\b|\bread(?:ing)?s?\s+every\s+\d+(?:\.\d+)?\s*(?:s|secs?|seconds?|m|mins?|minutes?|h|hrs?|hours?)\b|\bpush\w*\s+(?:\w+\s+){0,2}readings?\b"),
     ("digital_goods", r"in-app purchase|in-game|\bcoins\b|\bgems\b|unlock|premium (?:features|content|tier)|loot|battle pass"
                       # E11-3: wording that sells through the app stores (store billing is mandatory for digital goods there)
                       r"|(?:sold|billed|purchased|bought|charged|paid)\s+(?:\w+\s+){0,3}(?:through|via|in|on|with|using)\s+(?:the\s+)?(?:app stores?|apple app store|google play(?: store)?|play store)"
@@ -100,12 +100,13 @@ DESC_RULES = [
     ("uploads", r"\buploads?\b(?:\W+\w+){0,5}?\W+" + UPLOAD_OBJ + r"\b|\b" + UPLOAD_OBJ + r"\b(?:\W+\w+){0,3}?\W+uploaded\b"),
     # A6 (blind8): wording that says videos are uploaded and re-encoded for playback (transcoding, adaptive streaming, HLS, a video platform)
     ("video_vod", r"recorded video|video lectures?|short[- ]video|video (?:upload|sharing|library)|video-sharing|reels?\b|video[- ]on[- ]demand"
-                  r"|\btranscod\w*|adaptive[- ](?:bitrate )?streaming|\bhls\b|video (?:platform|hosting|streaming service)"
+                  r"|\btranscod\w*[^.;!?\n]{0,80}\b(?:video|hls|adaptive)\b|\b(?:video|hls|adaptive)\b[^.;!?\n]{0,80}\btranscod\w*|adaptive[- ](?:bitrate )?streaming|\bhls\b|video (?:platform|hosting|streaming service)"
                   r"|\bupload\w*\s+(?:\w+\s+){0,2}videos?\b|\bvideos?\s+(?:is|are|get|gets)\s+uploaded\b"),
     ("video_call", r"video (?:consult|calls?|chat|class|meeting)|live class|teleconsult|tele-consult|telehealth|live stream"),
     # A6 (blind8): live media that is not a call (live streaming, karaoke, duets, a named WebRTC need) still needs a media server, not the API;
     # large_downloads = single downloads of gigabytes (signed URLs, range requests and egress cost matter)
-    ("live_media", r"\blive[- ]?stream\w*|\bkaraoke\b|\b(?:real-?time|live|online|remote) duets?\b|\bwebrtc\b|\blive (?:audio|video|broadcast\w*|performances?)\b|\bgo(?:ing)? live\b|\bbroadcast\w* (?:live|video|audio)\b"),
+    ("live_media", r"\blive[- ]?stream\w*|\bkaraoke\b|\b(?:real-?time|live|online|remote) duets?\b|\bwebrtc\b|\blive (?:audio|video|performances?)\b"
+              r"|\bgo(?:ing)? live (?:on (?:stream|camera|air)|to (?:viewers|fans|followers))\b|\bbroadcast\w*\s+(?:live\s+)?(?:video|audio)\b"),
     ("large_downloads", r"\bdownloads?\b[^.;]{0,40}?\b(?:up to|of|over|around|about|~)\s*(?:a few|several|\d+(?:\.\d+)?)\s*(?:gb|gigabytes?|tb|terabytes?)\b"
                         r"|\b(?:a few|several|\d+(?:\.\d+)?)\s*(?:gb|gigabytes?)\s*(?:per|each|a)\s+(?:download|file|mod|asset|dataset|build|game|installer)\b"
                         r"|\bmulti-?gigabyte\b|\bgigabyte-sized\b|\blarge (?:file )?downloads?\b"),

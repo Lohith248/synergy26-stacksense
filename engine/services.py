@@ -393,12 +393,12 @@ def build(ctx, host, backend, db, mobile, warn):
                 alt.append(("Cloudflare R2", f"zero egress fees, but a second vendor outside {CLOUD_NAME[p]}"))
             reg = region or (host["regions"].get("india") if loc == "india" else None)
             # A6: videos are the upload when the description is a video platform; gigabyte downloads add range/egress advice
-            what = "videos" if d["video_vod"] else 'GPS-tagged photos' if d['gps'] and d['media'] else 'photos' if d['media'] else 'images, documents'
+            what = "videos" if d["video_vod"] else "files" if d["large_downloads"] else 'GPS-tagged photos' if d['gps'] and d['media'] else 'photos' if d['media'] else 'images, documents'
             big = " The transcoder writes the playback renditions back to the same bucket." if d["video_vod"] else ""
             trade = ["Egress charges for heavy downloads"]
             sto_dp, sto_src = list(dp), ["aws-india-data", "gcp-storage-locations", "azure-regions"]
             if d["large_downloads"]:
-                q = ov.quote(ctx, "large_downloads")
+                q = ov.quote(ctx, "large_downloads", keep_case=True)
                 big += (f" The description has single downloads of gigabytes{' (' + chr(34) + q + chr(34) + ')' if q else ''}: files are served from object storage through short-lived "
                        "signed URLs behind the CDN, with HTTP range requests so an interrupted download resumes, and never through the application server.")
                 trade = ["Data egress is the main cost of large downloads: a single multi-GB file downloaded thousands of times can outweigh storage and hosting; "
@@ -454,6 +454,7 @@ def build(ctx, host, backend, db, mobile, warn):
                            "managed" if prov != "neutral" else "self_hosted", prov, True, cost, src, loc))
 
     # ---------------- realtime
+    managed_rt = False  # A13: the chosen realtime service holds the connections itself (no pub/sub backplane, no socket servers on the API)
     collab = rs.crdt(ctx)[0]  # D13 G4: description evidence of simultaneous editing; the type alone does not make a CRDT sync server necessary
     # games: dedicated game servers when rs.game_servers holds (domains.py); otherwise the native realtime branch below (D13)
     gate_g = rs.game_servers(ctx) if ctx["type"] == "gaming" and ctx["needs_backend"] else None
@@ -508,7 +509,8 @@ def build(ctx, host, backend, db, mobile, warn):
                       "ruby-rails": "Rails Action Cable", "elixir-phoenix": "Phoenix Channels + Presence (Phoenix.PubSub)",
                       "rust-axum": "Axum WebSockets (axum::extract::ws on Tokio)"}.get(bid, "Socket.IO on the Node API")
             if p == "azure" and ctx["tier"] >= 2:
-                # A13: SignalR Service serves ASP.NET Core SignalR and Azure Functions; Web PubSub (plain WebSockets) is the language-neutral Azure service
+                # A13: Azure SignalR Service, whose server SDKs are ASP.NET Core SignalR and Azure Functions bindings (other backends can only push
+                # through its REST API); Microsoft's Web PubSub FAQ points plain WebSocket/pub-sub apps to Web PubSub (azure-web-pubsub-faq)
                 native = "Azure SignalR Service (managed)" if bid == "dotnet-aspnet" else "Azure Web PubSub (managed WebSocket service)"
             if kind == "serverless" and p == "aws":
                 native = f"Amazon API Gateway WebSocket APIs{rtxt} (gateway holds connections; Lambda handles messages)"
@@ -518,10 +520,12 @@ def build(ctx, host, backend, db, mobile, warn):
                                ("Polling", f"~{ctx['peak']:,} concurrent clients would each poll, wasting requests and adding latency")])
             bname = backend['name'].split(' (')[0] if backend else 'backend'
             live = f"live updates{' and chat' if d['chat'] else ''}"
+            managed_rt = native.startswith(("Azure", "Amazon API Gateway WebSocket"))
             if native.startswith("Azure"):  # A13: the text follows the chosen service: it holds the connections, the backend does not
                 why = (f"requirements.realtime is set: {native.split(' (')[0]} holds the clients' WebSocket connections for ~{ctx['peak']:,} concurrent users; the {bname} "
                        f"backend authorises each client and publishes {live} through it, so the API instances do not hold the long-lived sockets themselves.")
                 alts = [("WebSockets from the backend itself", f"~{ctx['peak']:,} long-lived connections would sit on the API instances and need a pub/sub backplane")] + alts
+                rt_units = costreal.realtime_units(ctx["peak"])
             elif native.startswith("Amazon API Gateway WebSocket"):
                 why = (f"requirements.realtime is set: API Gateway holds the clients' WebSocket connections and invokes the functions for each message, so {live} "
                        f"need no always-on socket server; authorisation and data stay in the {bname} backend.")
@@ -537,10 +541,19 @@ def build(ctx, host, backend, db, mobile, warn):
                 alts = [("Yjs CRDT documents + sync server", f"{fact}; add when {when}")] + alts
                 drv = drv + ["project.description"]
                 warn("SERVICE_NOT_ADDED", "info", rs.note("CRDT sync server", fact, when), cpaths)
+            azure_rt = native.startswith("Azure")
             out.append(svc("realtime", native, why, drv, alts,
                            ["Scale-out: cluster the Phoenix nodes so Phoenix.PubSub spans them (or use its Redis adapter)"
-                            if native.startswith("Phoenix") else "Scale-out needs a pub/sub backplane (Redis/Valkey)"],
-                           "library", "neutral", False, Z, ["phoenix-channels"] if native.startswith("Phoenix") else ["azure-web-pubsub"] if native.startswith("Azure Web PubSub") else ["ably-pricing"]))
+                            if native.startswith("Phoenix") else
+                            "Connections and messages are billed per unit; the backend publishes through the service's REST/SDK" if managed_rt
+                            else "Scale-out needs a pub/sub backplane (Redis/Valkey)"],
+                           "managed" if azure_rt else "library", "azure" if azure_rt else "neutral", False,
+                           [[rt_units * costreal.REALTIME_UNIT_USD_MONTH[0], rt_units * costreal.REALTIME_UNIT_USD_MONTH[1]]] * 4 if azure_rt else Z,
+                           ["phoenix-channels"] if native.startswith("Phoenix") else ["azure-web-pubsub", "azure-web-pubsub-faq"] if azure_rt else ["ably-pricing"]))
+            if azure_rt:
+                out[-1]["_note"] = (f" Basis: billed per unit of {costreal.REALTIME_UNIT_CONNECTIONS:,} concurrent connections, ~{rt_units} unit{'s' if rt_units > 1 else ''} for "
+                                    f"~{ctx['peak']:,} concurrent users; the knowledge base names the service but lists no price, so ${costreal.REALTIME_UNIT_USD_MONTH[0]}-"
+                                    f"{costreal.REALTIME_UNIT_USD_MONTH[1]} per unit-month is an official-unverified planning estimate.")
 
     # ---------------- cache
     read_hot = req["scale.workload"] == "read_heavy" and ctx["peak"] >= 1000
@@ -574,7 +587,7 @@ def build(ctx, host, backend, db, mobile, warn):
         why = []
         if ctx["tier"] >= 2:
             why.append(f"~{ctx['peak']:,} concurrent users would otherwise send every lookup to the database")
-        if req["requirements.realtime"]:
+        if req["requirements.realtime"] and not managed_rt:  # a managed connection service needs no backplane
             why.append("pub/sub backplane so WebSocket messages reach users on every instance")
         if ctx["prio"]["performance"] >= 5:
             why.append("performance priority 5")
@@ -583,7 +596,7 @@ def build(ctx, host, backend, db, mobile, warn):
         if ctx["type"] == "gaming":
             why.append("leaderboards and matchmaking queues on sorted sets")
         out.append(svc("cache", c, cap_first("; ".join(why)) + " (cache and pub/sub layer).",
-                       ["scale.peak_concurrent_users"] + (["scale.workload"] if read_hot else []) + (["requirements.realtime"] if req["requirements.realtime"] else []) + (["priorities.performance"] if ctx["prio"]["performance"] >= 5 else []),
+                       ["scale.peak_concurrent_users"] + (["scale.workload"] if read_hot else []) + (["requirements.realtime"] if req["requirements.realtime"] and not managed_rt else []) + (["priorities.performance"] if ctx["prio"]["performance"] >= 5 else []),
                        [("Redis (7.4+)", "7.4-7.8 are source-available (RSALv2/SSPLv1) and Redis 8+ adds an AGPLv3 option (copyleft for network use); Valkey keeps the BSD licence"),
                         ("Azure Cache for Redis", "being retired (Sept 2028); Azure Managed Redis is the replacement") if p == "azure" else ("No cache", f"the database absorbs every hot read from ~{ctx['peak']:,} concurrent users and there is no cross-instance pub/sub")],
                        ["Another stateful component to size and monitor"], "managed" if prov in ("aws", "azure", "gcp") else "self_hosted", prov, False, cost, src))
@@ -635,7 +648,7 @@ def build(ctx, host, backend, db, mobile, warn):
             why.append(f"photo post-processing (thumbnails, EXIF{'/GPS' if d['gps'] else ''} extraction) after bursts of offline syncs")
         if write_bursts:
             why.append("absorbs write bursts" if ctx["tier"] >= 2 else
-                       f"ingest buffer for ~{cx.num(ctx['data_gb'])} GB of write-heavy data: writers publish and a worker batches the inserts into the database")
+                       f"ingest buffer for ~{ctx['data_gb']:,.0f} GB of write-heavy data: writers publish and a worker batches the inserts into the database")
         if req["requirements.ml_features"] == "training":
             why.append("schedules training jobs")
         qalts = [("Synchronous processing in the request",
@@ -791,7 +804,8 @@ def build(ctx, host, backend, db, mobile, warn):
                  + (["scale.geo_spread"] if ctx["geo"] in ("multi_region", "global") else []))
         # E9: open with the input that made a CDN worthwhile
         if req["requirements.seo_critical"]:
-            lead = "SEO is critical (requirements.seo_critical), so public pages and static assets are served from edge caches near users (fast pages for visitors and crawlers)"
+            lead = (f"SEO is critical (requirements.seo_critical), so public pages{',' if d['video_vod'] else ' and'} static assets{' and the HLS video segments' if d['video_vod'] else ''} "
+                    "are served from edge caches near users (fast pages for visitors and crawlers)")
         else:
             # A8: "public pages" only when the input says there are some (SEO, a public project type, editorial wording)
             what = ("public pages and static assets" if rs.public_pages(ctx) else "video, audio or large files and static assets" if rs.media_delivery(ctx)

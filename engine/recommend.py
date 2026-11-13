@@ -293,7 +293,7 @@ def skill_mismatch(W, ctx, layer, picked, ranked):
       f"it was chosen for the stated platforms and requirements, and the team is {'a beginner team' if ctx['exp'] == 'beginner' else 'small'} "
       f"(team.size={ctx['size']}, team.experience={ctx['exp']}). "
       + (f"The best skill-matched option, {fit.item['name']}, ranks lower: {why_not(picked, fit, ctx)} Weigh that against the ramp-up time."
-         if fit else "No option in the knowledge base for this layer uses the team's languages.")
+         if fit else "No option for this layer that fits the stated requirements and backend uses the team's languages.")
       + " Budget training time into the timeline.",
       ["team.languages", "team.experience", "team.size"])
 
@@ -559,7 +559,7 @@ def _recommend(req, assumptions, sid):
         W("SKILL_MISMATCH", "warning",
           f"{backend['name']} is not in the team's languages ({', '.join(ctx['langs'])}); it was chosen for the stated priorities and requirements. "
           + (f"The best skill-matched option, {fit.item['name']}, ranks lower: "
-             f"{why_not(backend_c, fit, ctx)} Choose it if ramp-up time matters more." if fit else "No option in the knowledge base uses the team's languages.")
+             f"{why_not(backend_c, fit, ctx)} Choose it if ramp-up time matters more." if fit else "No option that fits the stated requirements uses the team's languages.")
           + " Budget training time into the timeline.",
           ["team.languages", "team.experience"])
 
@@ -1415,7 +1415,7 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
                 (ctx["req"]["scale.workload"] == "write_heavy" and not ctx["req"]["requirements.file_media_storage"]) or ctx["type"] == "iot" or ctx["desc"]["iot"]):
             # A14: a write-heavy or device-fed store of >= 1 TB is sized by its data, not by the user-count tier (planning heuristic)
             dlo, dhi = max(dlo, dc[costreal.INGEST_DB_MIN_TIER][0]), max(dhi, dc[costreal.INGEST_DB_MIN_TIER][1])
-            heavy = (f" Raised to the '{cx.TIER_NAMES[costreal.INGEST_DB_MIN_TIER]}' tier: ~{cx.num(ctx['data_gb'])} GB of write-heavy or device-fed data "
+            heavy = (f" Raised to the '{cx.TIER_NAMES[costreal.INGEST_DB_MIN_TIER]}' tier: ~{ctx['data_gb']:,.0f} GB of write-heavy or device-fed data "
                      f"(planning heuristic: from {costreal.INGEST_HEAVY_GB:,} GB the database is sized by its data volume, not by the user-count tier).")
         if ha:
             dlo, dhi = round(dlo * 1.8), round(dhi * 2)
@@ -1501,11 +1501,14 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
                      "outside this project and are not in this band.")
     if ctx["desc"].get("video_vod") and ctx["needs_backend"] and not onprem:
         # judge B5: Google Cloud CDN cache egress list price $0.02-0.09/GiB by region and volume (pricing page, 12 Nov 2026)
-        # ponytail: one reference rate range for every CDN and a fixed 0.05-0.5 GB per user; a per-provider rate table would be finer
+        # ponytail: one reference rate table for every CDN and a fixed GB per user; a per-provider rate table would be finer
         u = ctx["users"]
-        add("Video egress", u * 0.05 * 0.02, u * 0.5 * 0.09,
-            f"Video egress: {u:,} users x 0.05-0.5 GB streamed/month at a reference CDN rate of $0.02-0.09/GB (Google Cloud CDN cache egress list "
-            "price by region and volume, 12 Nov 2026) = {r}; streaming is usually the largest bill for video products.")
+        g_lo, g_hi = (u * x for x in costreal.VIDEO_GB_PER_USER)
+        add("Video egress", g_lo * costreal.VIDEO_LOW_RATE, costreal.tiered_egress(g_hi),
+            f"Video egress: {u:,} users x 0.05-0.5 GB per user per month (about 2-30 minutes of adaptive-bitrate video) = {cx.num(g_lo)}-{cx.num(g_hi)} GB a month, "
+            f"priced at a reference CDN rate of ${costreal.VIDEO_LOW_RATE}/GB at the low end and, at the high end, on tiers of $0.09/GB up to 10 TB a month, "
+            "$0.06 up to 150 TB, $0.04 up to 500 TB and $0.03 above (planning heuristic shaped on the Google Cloud CDN cache egress tiers, "
+            "12 Nov 2026) = {r}; streaming is usually the largest bill for video products.")
     if any(s["choice"].startswith("Email delivery") for s in supporting):  # E8d: per-message line scales with recipients x sends
         elo, ehi, etxt = costreal.email_line(ctx)
         add("Email", elo, ehi, etxt)
