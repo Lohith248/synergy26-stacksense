@@ -6,6 +6,7 @@ cost per tier, sources). Choices respect the same envelope as the core layers.
 import re
 from . import domains
 from . import context as cx
+from . import overeng as ov
 from . import rightsize as rs
 from .kb import cite, AS_OF
 from .select import for_noun, type_noun
@@ -573,6 +574,12 @@ def build(ctx, host, backend, db, mobile, warn):
             why = (f"Taking payments{for_noun(ctx)} (requirements.payments) through hosted checkout keeps card data off your servers, which can qualify for PCI DSS SAQ A "
                    "(your acquirer confirms; protect the checkout page from script attacks). "
                    "Payment confirmation is trusted only from signed server-side webhooks.")
+            hosted = ctx["static_rule"] == "hosted_payments" and not store
+            if hosted:  # D16: a static site links to the provider's hosted page; there is no server to receive webhooks
+                why = (f"Taking payments{for_noun(ctx)} (requirements.payments) through the provider's hosted checkout page or button, as the description says "
+                       f"(\"{ov.quote(ctx, 'hosted_pay')}\"), keeps card data off the site entirely: the page only links to it, which can qualify for PCI DSS SAQ A "
+                       "(your acquirer confirms; protect the page from script attacks). Receipts and payment records come from the provider's dashboard and e-mails, "
+                       "so no webhook server is needed.")
             if d["upi"]:
                 why = "The description requires UPI. " + why
             if ctx["type"] == "fintech" and d["ledger"] and d["lending"]:
@@ -609,7 +616,8 @@ def build(ctx, host, backend, db, mobile, warn):
                 out.append(svc("payments", name + (" — " + "; ".join(feats) if feats else ""), why,
                                dp + (["project.description"] if (feats or d["upi"]) else []) + (["compliance"] if pci or via_compliance else []) + res_path,
                                alts, ["Per-transaction fees (~2% domestic cards) are charged on revenue, not in the infrastructure band",
-                                      "Webhook handling must be idempotent"] + ([home[2]] if home_ok else []),
+                                      "Reconcile from the provider's reports; add a backend with signed webhooks when the site must react to a payment (accounts, entitlements, its own receipts)"
+                                      if hosted else "Webhook handling must be idempotent"] + ([home[2]] if home_ok else []),
                                "saas", prov, True, Z, src, "india" if india else (home[0] if home_ok else None)))
 
     # ---------------- cdn

@@ -4,6 +4,7 @@ import copy
 import functools
 import re
 
+from . import overeng as ov
 from .kb import TECH
 
 TIER_NAMES = ["tiny", "small", "medium", "large"]
@@ -67,6 +68,17 @@ DESC_RULES = [
     ("web3", r"\bnfts?\b|web3|blockchain|cryptocurrenc|wallet connect|smart contract"),
     ("scheduler", r"remind(?:er)?s?\b|\bcron\b|nightly|scheduled (?:jobs?|tasks?|emails?)|daily (?:email|digest|report)s?"),
     ("analytics", r"dashboards?|\breports?\b|analysts?|\bbi\b|ad-hoc (?:sql|quer)|data warehouse"),
+    # D16 (overeng.py): evidence that payments are a hosted button/link, that the content is editorial, and that the site stores user data
+    ("hosted_pay", r"\b(?:donat\w*|payments?|pay|buy|checkout|tip|order)\s+(?:buttons?|links?)\b|\bhosted\s+(?:checkout|payments?|donations?|payment pages?)\b"
+                   r"|\bembedded\s+(?:checkout|payments?|donations?)\b|\b(?:paypal|stripe|razorpay|givebutter|ko-?fi|buy ?me ?a ?coffee|gumroad)\s+(?:donat\w*\s+|payment\s+|checkout\s+)?(?:buttons?|links?)\b"),
+    ("editorial", r"brochure|landing pages?|marketing (?:site|website|pages?)|portfolio|\bblog\b|documentation|docs site|\bnews\b|magazine|publication"
+                  r"|informational|information (?:site|pages?)|service times|opening hours|events? (?:pages?|calendar|listings?)|\bmenu\b|read-only|read[- ]mostly"
+                  r"|static (?:site|pages?|content)|press (?:releases?|kit)|case studies|\barticles?\b|\bsermons?\b|\bpublic pages\b"),
+    ("user_data", r"\b(?:user|donor|member|customer|visitor|reader|subscriber|student|patient)s?[- ]?accounts?\b|\blog[- ]?in\b|\bsign[- ]?(?:in|up)\b|\bregist(?:er|ered|ration)\b"
+                  r"|members?[- ]only|member (?:area|portal)|my account|user profiles?|(?:donor|customer|member|user) (?:history|portal|dashboard|database)"
+                  r"|admin (?:panel|dashboard|area)|saved (?:carts?|items|preferences)|shopping cart|\bcart\b|\bshop\b|\bstorefront\b|\binventory\b|booking system|reservations?"
+                  r"|comments? sections?|leave comments|post (?:comments|reviews)|\bforum\b|\bdatabase\b|user[- ]generated|submit(?:ted)? (?:forms?|posts|listings)"
+                  r"|stores? (?:donor|customer|user|member|visitor|personal)\w*"),
 ]
 DESC_RX = dict(DESC_RULES)
 
@@ -753,11 +765,14 @@ def build(req):
     r = req
     typ = r["project.type"]
     c["type"] = typ
-    dynamic_need = (r["requirements.auth"] != "none" or r["requirements.payments"] or r["requirements.realtime"]
+    # D16: payments that are a hosted button/link, or editorial content under a generic type, do not need a backend
+    c["static_rule"] = ov.static_override(c)
+    dynamic_need = (r["requirements.auth"] != "none" or (r["requirements.payments"] and c["static_rule"] != "hosted_payments")
+                    or r["requirements.realtime"]
                     or r["requirements.file_media_storage"] or r["requirements.multi_tenant"]
                     or r["requirements.ml_features"] != "none"  # offline alone: a static site precaches (services.py)
                     or c["api_only"] or bool(c["mobile"]))
-    c["needs_backend"] = dynamic_need or typ in DYNAMIC_TYPES
+    c["needs_backend"] = dynamic_need or (typ in DYNAMIC_TYPES and not c["static_rule"])
     c["needs_db"] = c["needs_backend"]
     c["static_search"] = (not c["needs_backend"]) and r["requirements.full_text_search"]
     return c

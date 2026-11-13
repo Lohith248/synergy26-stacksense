@@ -19,7 +19,7 @@ AFFECTS = {
     "project.type": "frontend backend database hosting supporting cost warnings ranking",
     "project.description": "frontend backend supporting cost warnings ranking",
     "project.platforms": "frontend backend database hosting supporting cost warnings",
-    "scale.users_at_launch": "cost warnings",
+    "scale.users_at_launch": "cost warnings ranking",
     "scale.users_12_months": "frontend backend database hosting supporting cost warnings ranking",
     "scale.peak_concurrent_users": "frontend backend database hosting supporting cost warnings ranking",
     "scale.traffic_pattern": "database hosting supporting cost warnings ranking",

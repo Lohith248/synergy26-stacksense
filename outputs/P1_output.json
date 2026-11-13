@@ -86,11 +86,11 @@
       "alternatives": [
         {
           "choice": "Netlify/Cloudflare serverless functions",
-          "why_not": "nothing to compute at request time for this site"
+          "why_not": "nothing to compute at request time (requirements.auth is none; no realtime, uploads, multi-tenancy or ML features are requested; requirements.payments is false); add a backend when accounts, stored user data or server-side payments appear"
         },
         {
           "choice": "Node.js + Express",
-          "why_not": "a server to run and pay for with no feature that needs it"
+          "why_not": "a server to run and pay for with no feature that needs it; add a backend when accounts, stored user data or server-side payments appear"
         }
       ],
       "tradeoffs": [],
@@ -111,7 +111,7 @@
         "label": "high",
         "basis": "stability 1.00 (robust) over 53 priority vectors."
       },
-      "contrast": "No backend rather than Netlify/Cloudflare serverless functions. Nothing to compute at request time for this site.",
+      "contrast": "No backend rather than Netlify/Cloudflare serverless functions. Nothing to compute at request time (requirements.auth is none; no realtime, uploads, multi-tenancy or ML features are requested; requirements.payments is false); add a backend when accounts, stored user data or server-side payments appear.",
       "what_would_change": [
         {
           "edit": "requirements.realtime: false -> true",
@@ -143,7 +143,7 @@
       "alternatives": [
         {
           "choice": "SQLite",
-          "why_not": "no runtime data to persist"
+          "why_not": "no runtime data to persist; add a database when the site starts storing accounts, orders or submissions"
         },
         {
           "choice": "Headless CMS database",
@@ -168,7 +168,7 @@
         "label": "high",
         "basis": "stability 1.00 (robust) over 53 priority vectors."
       },
-      "contrast": "No database rather than SQLite. No runtime data to persist.",
+      "contrast": "No database rather than SQLite. No runtime data to persist; add a database when the site starts storing accounts, orders or submissions.",
       "what_would_change": [
         {
           "edit": "requirements.realtime: false -> true",

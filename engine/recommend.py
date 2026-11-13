@@ -3,6 +3,7 @@ import re
 from datetime import date  # fromisoformat only: dates are compared with the KB date, never the clock
 from . import ENGINE_VERSION
 from . import context as cx
+from . import overeng as ov
 from . import rightsize as rs
 from . import select as sl
 from . import services as sv
@@ -576,6 +577,10 @@ def _recommend(req, assumptions, sid):
         if region is None and req["infrastructure.data_residency"] == "none":
             assumptions.append("No data_residency given: deploy in the provider region closest to most users (not specified in the input).")
     ctx["res_key"] = loc
+    if ctx["static_rule"]:  # D16: say which input made this a static site, and that traffic alone does not change it
+        assumptions.append(f"Static site, no backend or database (over-engineering guard D16): {ov.static_facts(ctx)}"
+                           + (f"; the content is editorial (\"{ov.quote(ctx, 'editorial')}\")" if ctx["static_rule"] == "editorial" else "")
+                           + ". High traffic alone does not justify a backend or database: the CDN serves pre-built pages.")
     host_extra_paths = [p for p in HARD_PATHS if any(c.excluded and c.excluded[1] == p for c in h_out)]
     if ctx["country"]:
         host_extra_paths += ctx["res_paths"]
@@ -608,10 +613,19 @@ def _recommend(req, assumptions, sid):
                                                               "provider": "neutral", "data_bearing": False, "data_location": None}, ctx=ctx,
                                 must_alt=skill_fit)
     else:
-        backend_cmp = none_component("backend", "No application server is needed: there are no accounts, payments, uploads or dynamic data; pages are pre-built at deploy time.",
-                                     ["project.type", "requirements.auth", "requirements.payments"],
-                                     [("Netlify/Cloudflare serverless functions", "nothing to compute at request time for this site"),
-                                      ("Node.js + Express", "a server to run and pay for with no feature that needs it")])
+        facts = ov.static_facts(ctx)
+        add_when = "add a backend when accounts, stored user data or server-side payments appear"
+        backend_cmp = none_component("backend",
+                                     ("No application server is needed: there are no accounts, payments, uploads or dynamic data; pages are pre-built at deploy time."
+                                      if not req["requirements.payments"] else
+                                      "No application server is needed: there are no accounts, uploads or dynamic data, and payments go through the provider's hosted "
+                                      "button or link, so the site never handles card data; pages are pre-built at deploy time.") + ov.traffic_clause(ctx),
+                                     ["project.type", "requirements.auth", "requirements.payments"]
+                                     + (["project.description"] if ctx["static_rule"] else []) + (["scale.users_12_months"] if ctx["tier"] >= 2 else []),
+                                     [("Netlify/Cloudflare serverless functions", f"nothing to compute at request time ({facts}); {add_when}"),
+                                      ("Node.js + Express", "a server to run and pay for with no feature that needs it" + (
+                                          f" (~{ctx['users']:,} users do not change that: the CDN serves pre-built pages)" if ctx["tier"] >= 2 else "")
+                                       + f"; {add_when}")])
 
     # ---- database
     db_item = None
@@ -668,9 +682,13 @@ def _recommend(req, assumptions, sid):
             db_item = dict(db_c.item, _variant=db_c.variant)
             kept_db_checks(ctx, ctx["kept_db"], db_c, db_cmp, W)
     else:
-        db_cmp = none_component("database", "Content lives as Markdown/HTML files in the repository; there is no user data to store.",
-                                ["project.type", "requirements.auth"],
-                                [("SQLite", "no runtime data to persist"), ("Headless CMS database", "a single author edits files directly")])
+        db_cmp = none_component("database",
+                                "Content lives as Markdown/HTML files in the repository; there is no user data to store"
+                                + (", and payment records stay with the payment provider." if req["requirements.payments"] else "."),
+                                ["project.type", "requirements.auth"] + (["requirements.payments"] if req["requirements.payments"] else []),
+                                [("SQLite", "no runtime data to persist; add a database when the site starts storing accounts, orders or submissions"),
+                                 ("Headless CMS database", "a single author edits files directly" if ctx["static_rule"] != "hosted_payments"
+                                  else "editors update the text in the repository directly, and donations are not stored by the site")])
     if host["kind"] == "serverless" and backend_c:  # a web framework on Lambda needs an adapter and connection limits
         hosting["justification"] += (f" {backend_c.item['name']} runs unchanged behind AWS Lambda Web Adapter, which forwards "
                                      "API Gateway events to the framework's normal HTTP server.")
@@ -1057,7 +1075,8 @@ def contradictions(ctx, W, assumptions, host, backend):
     if big and ctx["budget"] < 100 and ctx["needs_backend"]:
         W("SCALE_VS_BUDGET", "critical", f"{ctx['users']:,} users with a ${cx.num(ctx['budget'])}/month budget cannot run a dynamic application reliably.",
           ["scale.users_12_months", "budget.monthly_infra_usd"])
-    if ctx["exp"] == "beginner" and ctx["size"] == 1 and (req["requirements.payments"] or req["requirements.multi_tenant"] or req["requirements.realtime"]) and ctx["weeks"] <= 4:
+    if ctx["exp"] == "beginner" and ctx["size"] == 1 and ((req["requirements.payments"] and ctx["static_rule"] != "hosted_payments")  # D16: a hosted button is not built
+                                                          or req["requirements.multi_tenant"] or req["requirements.realtime"]) and ctx["weeks"] <= 4:
         W("SCOPE_VS_TEAM", "warning", "A solo beginner building payments/realtime/multi-tenancy in a few weeks is high risk; managed services were preferred, but consider cutting scope.",
           ["team.experience", "team.size", "timeline.mvp_weeks"])
     if req["requirements.offline_support"] and not ctx["mobile"] and ctx["web"]:
