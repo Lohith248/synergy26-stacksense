@@ -294,7 +294,7 @@ class DescriptionFacts(unittest.TestCase):
                 out = run(project__type=typ, desc=desc, project__platforms=plat)
                 comp = sup(out, "Email delivery")
                 self.assertEqual(len(comp), 1, desc)
-                self.assertIn("not in the cost band", " ".join(comp[0]["tradeoffs"]))
+                self.assertIn("planning estimate", " ".join(comp[0]["tradeoffs"]))  # E8d: the sends are costed as a labelled estimate
                 self.assertIn("project.description", comp[0]["driven_by"])
 
     def test_email_delivery_not_added_when_negated_unmentioned_or_self_hosted(self):

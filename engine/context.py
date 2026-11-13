@@ -4,6 +4,7 @@ import copy
 import functools
 import re
 
+from . import costreal
 from .kb import TECH
 
 TIER_NAMES = ["tiny", "small", "medium", "large"]
@@ -604,8 +605,9 @@ def build(req):
     c["api_only"] = plats == ["api_only"] or (set(plats) == {"api_only"})
     users = max(req["scale.users_12_months"], req["scale.users_at_launch"])
     peak = req["scale.peak_concurrent_users"]
-    if peak is None:
-        peak = max(1, users // 10)
+    c["peak_derived"], c["peak_fraction"], c["peak_why"] = peak is None, None, ""
+    if peak is None:  # E8e: users x a documented fraction, never above users
+        peak, c["peak_fraction"], c["peak_why"] = costreal.derived_peak(users, req, req["project.type"])
     c["users"], c["peak"] = users, peak
     if users <= 5000 and peak <= 200:
         tier = 0

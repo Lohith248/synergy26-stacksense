@@ -142,7 +142,7 @@ class B6OnPremSummary(unittest.TestCase):
     def test_onprem_summary(self):
         for sid in ("E7", "B11"):
             out = ev(_edge(sid)) if sid[0] == "E" else ev(blind(sid))
-            self.assertIn("cloud bill $0; hardware/licences excluded", out["summary"])
+            self.assertIn("including indicative amortised hardware (not a quote); licences and staff excluded", out["summary"])  # E8c
 
 
 class F16RagSearchFloor(unittest.TestCase):
