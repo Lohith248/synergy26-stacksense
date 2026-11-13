@@ -410,7 +410,7 @@ def scale_extreme(ctx):
 def pilot_ctx(ctx):
     """The same context priced at the pilot tier: users, peak and stored data scaled down in proportion, tier 0."""
     users = min(ctx["users"], RELAX["pilot_users"])
-    return dict(ctx, tier=0, users=users, peak=min(ctx["peak"], RELAX["pilot_peak"]),
+    return dict(ctx, tier=0, pilot=True, users=users, peak=min(ctx["peak"], RELAX["pilot_peak"]),
                 data_gb=max(1, round(ctx["data_gb"] * users / max(1, ctx["users"]))))
 
 
@@ -689,6 +689,10 @@ def _recommend(req, assumptions, sid):
                         {"deployment": host["deploy"], "provider": host["provider"], "data_bearing": ctx["needs_backend"],
                          "data_location": loc if ctx["needs_backend"] else None, "region": region}, name=host_name,
                         tail_why=envelope_text(ctx, region, host) if ctx["needs_backend"] else "", ctx=ctx)
+    if ctx["avail_relaxed"] and not ctx["local_first"]:
+        # A10: the multi-zone reason belongs to the asked target; the relaxed stack is sized below it (the score is unchanged)
+        hosting["justification"] = re.sub(r"(?:; )?[Rr]uns across availability zones for the [0-9.]+% target", "", hosting["justification"]).replace(" .", ".").replace("..", ".").strip()
+        hosting["justification"] = re.sub(r"^[;. ]+", "", hosting["justification"]) or "Best overall fit for the stated inputs."
     if ctx["country"] and not ctx["local_first"]:
         hosting["sources"] = hosting["sources"] + [u for u in cite([REGION_SRC.get(host["provider"], "aws-regions-list")]) if u not in hosting["sources"]]
 
@@ -893,9 +897,12 @@ def _recommend(req, assumptions, sid):
     contradictions(ctx, W, assumptions, host, backend)
     if ctx["needs_db"] and db_c.vkey == "self" and host["kind"] in ("onprem", "vm") and not ha_paths(sreq):  # A20
         on = host["kind"] == "onprem"
-        W("BACKUP_SINGLE_SERVER", "warning",
-          f"The application, the {db_c.variant} database and their files all sit on {'one on-premises server' if on else 'one virtual machine'} with no standby: "
-          f"a failed disk, {'theft, fire or ransomware' if on else 'a deleted VM or ransomware'} loses all of it together, and a copy on the same machine does not count. "
+        one = costreal.ONPREM_SERVER[ctx["tier"]][0] == 1
+        where = ("one on-premises server" if one else "your own servers in one place") if on else "one virtual machine"
+        W("BACKUP_SINGLE_SERVER", "warning" if on else "info",
+          f"The application, the {db_c.variant} database and their files all sit on {where}, with no standby or off-site copy: "
+          + ("a failed disk, theft, fire or ransomware" if on else "a deleted VM, a bad migration or ransomware")
+          + " loses all of it together, and a copy on the same machine does not count. "
           "Schedule a nightly database dump and file copy to a second place ("
           + ("a second device kept in another room or building" if on else "object storage or another machine outside this VM") + "), keep several generations, "
           "and rehearse a restore once before launch; the data loss in a disaster is then up to a day, which is what nightly copies give.",
@@ -921,7 +928,7 @@ def _recommend(req, assumptions, sid):
     pctx = pilot_ctx(ctx) if ctx["scale_relaxed"] else ctx  # A10: priced at the pilot tier when SCALE_VS_BUDGET is critical
     dbq = db_c if ctx["needs_db"] else None
     cost = cost_band(pctx, host, db_item, dbq, supporting, assumptions)
-    relax_note(ctx, pctx, host, db_item, dbq, supporting, cost, assumptions)
+    full_cost = relax_note(ctx, pctx, host, db_item, dbq, supporting, cost, assumptions)
     # judge B2: name the largest lines of the band itself (derived ones too: stored data, OTP, extra instances), by upper bound
     items = cost.pop("_items")
     top = [(hi, name) for hi, _, name in items if hi > 0][:2]
@@ -977,6 +984,12 @@ def _recommend(req, assumptions, sid):
     sev = {w["severity"] for w in W.items}
     status = "ok_with_warnings" if sev & {"warning", "critical"} else "ok"
     summary = make_summary(ctx, style, fe_cmp, backend_cmp, db_cmp, host_name, cost, status, host["kind"] == "onprem")
+    if full_cost:  # A10: the summary states the relaxed figure and the figure for what was asked
+        asked = " and ".join(x for x, on in ((f"{ctx['users']:,} users", ctx["scale_relaxed"]), (f"{req['requirements.availability']}%", ctx["avail_relaxed"])) if on)
+        what = (f" for a pilot of up to {pctx['users']:,} users" if ctx["scale_relaxed"] else f", sized for {RELAX['availability']}%")
+        figure = f"${cost['min']}-{cost['max']}/month"
+        assert figure in summary
+        summary = summary.replace(figure, f"{figure}{what} (about ${full_cost['min']:,}-{full_cost['max']:,}/month at the requested {asked})", 1)
     crit = [w for w in W.items if w["severity"] == "critical"]
     if crit:  # statement p8: a reduced/relaxed stack must say exactly which constraints were relaxed
         for w in crit:
@@ -1114,7 +1127,7 @@ def multi_region(ctx, host, db_c, supporting, W, region=None):
 def relax_note(ctx, pctx, host, db_item, db_c, supporting, cost, assumptions):
     """A10: say what the relaxed sizing left out, and keep the figure for the asked target/scale as a separate 'at full scale' note."""
     if not (ctx["avail_relaxed"] or ctx["scale_relaxed"]):
-        return
+        return None
     req, dropped = ctx["req"], []
     full_ctx, full_sup = dict(ctx, sreq=req), list(supporting)
     if ctx["avail_relaxed"]:
@@ -1125,10 +1138,12 @@ def relax_note(ctx, pctx, host, db_item, db_c, supporting, cost, assumptions):
             full_sup.append(standby)
         if db_c and db_c.vkey not in ("self", "existing") and not sized_ha:
             dropped.append("the zone-redundant standby database (a single-zone instance with automated backups instead)")
+        elif db_c and db_c.vkey == "self" and host["kind"] == "onprem" and not sized_ha:
+            dropped.append("the standby database server on separate hardware with streaming replication (and its share of the hardware line)")
         if not sized_ha and not ctx["local_first"] and host["kind"] not in ("static", "onprem"):
             dropped.append("the second app instance in another zone")
         assumptions.append(f"Sized for {RELAX['availability']}% availability, not the requested {req['requirements.availability']}% (a solo beginner cannot run "
-                           "on-call and failover drills): the stack leaves out " + ("; ".join(dropped) if dropped else "no extra component (nothing in this design was added for the higher target)")
+                           "on-call and failover drills): the stack leaves out " + ("; ".join(dropped) if dropped else "nothing separate: this design added no component for the higher target, so only the stated target changes")
                            + ". Add them when on-call cover exists.")
     if ctx["scale_relaxed"]:
         assumptions.append(f"Priced for a pilot of up to {pctx['users']:,} users and {pctx['peak']:,} concurrent users (~{pctx['data_gb']:,} GB), the "
@@ -1140,8 +1155,9 @@ def relax_note(ctx, pctx, host, db_item, db_c, supporting, cost, assumptions):
     full.pop("_items")
     what = " and ".join(x for x, on in ((f"at the requested {req['requirements.availability']}% availability", ctx["avail_relaxed"]),
                                        (f"at full scale ({ctx['users']:,} users, '{cx.TIER_NAMES[ctx['tier']]}' tier)", ctx["scale_relaxed"])) if on)
-    cost["assumptions"].insert(-1, f"At full scale / full target: the same stack {what} would cost about ${full['min']:,} to ${full['max']:,} a month "
-                                   "(computed with the same price lines; the band above is the relaxed, sized-down stack).")
+    cost["assumptions"].insert(0, f"At full scale / full target: the same stack {what} would cost about ${full['min']:,} to ${full['max']:,} a month "
+                                   "(computed with the same price lines; the band below is the relaxed, sized-down stack).")
+    return full
 
 
 def second_region(ctx, host, db_c):
@@ -1157,7 +1173,7 @@ def second_region(ctx, host, db_c):
         ctx["no_second_region"] = (f" {PROVIDER_NAME[p]} lists only one region in {ctx['res_label']} (R15, 12 Nov 2026), so a second region would "
                                    "take data out of the country: confirm in-country disaster-recovery options with the provider, or plan on 99.95%.")
         return None
-    where = SECOND_REGION[p][loc] if loc else f"a second {p.upper()} region"
+    where = SECOND_REGION[p][loc] if loc else f"a second {PROVIDER_NAME[p] if ctx['avail_relaxed'] else p.upper()} region"
     ctx["second_region"] = where
     dbc = sl.db_cost(db_c.item, db_c.vkey) if db_c and db_c.vkey != "self" else [[0, 0]] * 4
     cost = [[round(host["cost"][i][0] / 2) + dbc[i][0], host["cost"][i][1] + dbc[i][1]] for i in range(4)]
@@ -1199,7 +1215,7 @@ def contradictions(ctx, W, assumptions, host, backend):
         # statement 6 example (enterprise availability, solo beginner): critical when servers must be run; static sites need no on-call
         extreme = ctx["avail_relaxed"]
         W("AVAILABILITY_VS_TEAM", "critical" if extreme else "warning",
-          f"A {avail}% availability target (≈{ {'99.95': '22', '99.99': '4.4'}[avail]} min downtime/month) needs on-call and redundancy that a {ctx['size']}-person {ctx['exp']} team without DevOps rarely sustains. Managed multi-zone services were preferred; plan on-call or relax the target."
+          f"A {avail}% availability target (≈{ {'99.95': '22', '99.99': '4.4'}[avail]} min downtime/month) needs on-call and redundancy that a {ctx['size']}-person {ctx['exp']} team without DevOps rarely sustains. " + ("Plan on-call or relax the target." if extreme else "Managed multi-zone services were preferred; plan on-call or relax the target.")
           + (f" Relaxed: the stack is sized for {RELAX['availability']}%, not 99.99% (see assumptions for the dropped items), because a solo beginner cannot staff 24/7 on-call or failover drills; treat 99.99% as best effort until on-call cover exists." if extreme else ""),
           ["requirements.availability", "team.size", "team.experience", "team.has_devops"])
     if avail == "99.99" and not ctx["local_first"]:
@@ -1532,6 +1548,8 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
     if ctx["local_first"]:
         lines.append("Hosting: none; the app is distributed as an installer, so there is no hosting bill (code-signing certificates are not in this band).")
     else:
+        if ctx.get("pilot") and host.get("plans"):  # A10: the plan in the name is the full-scale one; the pilot is priced as the entry plan
+            tier_txt = f" at the '{cx.TIER_NAMES[t]}' tier, priced as the entry plan; the plan named in the stack is the full-scale plan."
         add(f"Hosting {short(host['name'])}", hlo, hhi, f"Hosting {host['name']}: {{r}}" + tier_txt)
     if db_c and db_c.vkey == "existing":
         lines.append(f"Database {db_c.variant}: already running and paid for outside this project; not in this band.")

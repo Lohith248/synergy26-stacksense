@@ -80,7 +80,7 @@ class A10RelaxedAvailability(unittest.TestCase):
         out = run("Hiking route recorder with GPX export.", requirements__availability="99.99", infrastructure__cloud_preference="gcp",
                   project__platforms=["web", "android"], **SOLO)
         self.check(out)
-        self.assertIn("second GCP region", " ".join(out["assumptions"]))
+        self.assertIn("second Google Cloud region", " ".join(out["assumptions"]))
 
     def test_saas_on_aws(self):
         out = run("Invoicing tool for freelancers with a customer portal.", project__type="saas_b2b", requirements__availability="99.99",
@@ -247,12 +247,23 @@ class A20SmallOnPremises(unittest.TestCase):
             self.check_small(o)
 
     def test_backup_warning_on_one_server(self):
-        for kw in (ONPREM, dict(ONPREM, infrastructure__deployment_model="self_hosted_cloud_vm", infrastructure__cloud_preference="any")):
-            o = run("Small business application.", requirements__auth="email_password", **kw)
-            self.assertEqual(sev(o, "BACKUP_SINGLE_SERVER"), "warning", kw["infrastructure__deployment_model"])
-            self.assertIn("nightly", warns(o, "BACKUP_SINGLE_SERVER")[0]["message"])
-        o = run("Internal wiki.", project__type="internal_tool", requirements__auth="email_password", **dict(ONPREM, team__experience="senior"))
+        o = run("Small business application.", requirements__auth="email_password", **ONPREM)
         self.assertEqual(sev(o, "BACKUP_SINGLE_SERVER"), "warning")
+        self.assertIn("nightly", warns(o, "BACKUP_SINGLE_SERVER")[0]["message"])
+        self.assertIn("one on-premises server", warns(o, "BACKUP_SINGLE_SERVER")[0]["message"])  # tier 0 counts one server in the hardware line
+        # a cloud VM keeps block storage replicated: no "failed disk", and an info
+        o = run("Small business application.", requirements__auth="email_password",
+                **dict(ONPREM, infrastructure__deployment_model="self_hosted_cloud_vm", infrastructure__cloud_preference="any"))
+        m = warns(o, "BACKUP_SINGLE_SERVER")[0]
+        self.assertEqual(m["severity"], "info")
+        self.assertNotIn("failed disk", m["message"])
+        self.assertIn("one virtual machine", m["message"])
+        # more than one server in the hardware line: the wording must not say "one server"
+        o = run("Internal wiki.", project__type="internal_tool", requirements__auth="email_password",
+                **dict(ONPREM, team__experience="senior", scale__users_12_months=30000, scale__users_at_launch=2000, scale__peak_concurrent_users=800))
+        m = warns(o, "BACKUP_SINGLE_SERVER")[0]
+        self.assertNotIn("one on-premises server", m["message"])
+        self.assertIn("your own servers in one place", m["message"])
 
     def test_must_not_fire(self):
         # intermediate team: the full self-hosted stack stays
@@ -271,6 +282,45 @@ class A20SmallOnPremises(unittest.TestCase):
         # enterprise SSO on-prem keeps Keycloak: it is the federation point, not a login pile
         o = run("Small business application.", requirements__auth="enterprise_sso", **ONPREM)
         self.assertIn("Keycloak", layer_choice(o, "auth")[0])
+
+
+class ReviewFixes(unittest.TestCase):
+    def test_summary_states_both_figures(self):
+        o = run("Hiking route recorder.", requirements__availability="99.99", infrastructure__cloud_preference="gcp", **SOLO)
+        self.assertRegex(o["summary"], r"\$\d+-\d+/month, sized for 99\.9% \(about \$[\d,]+-[\d,]+/month at the requested 99\.99%\)")
+        o = run("Video app.", project__type="social", infrastructure__cloud_preference="aws", scale__users_at_launch=300000, scale__users_12_months=2000000,
+                scale__peak_concurrent_users=50000, budget__monthly_infra_usd=30)
+        self.assertRegex(o["summary"], r"for a pilot of up to 5,000 users \(about \$[\d,]+-[\d,]+/month at the requested 2,000,000 users\)")
+        self.assertTrue(lines(o)[0].startswith("At full scale / full target"))
+        o = run("Plain app.")  # nothing relaxed: summary unchanged
+        self.assertNotIn("at the requested", o["summary"])
+
+    def test_pilot_host_line_does_not_pair_a_plan_with_the_wrong_price(self):
+        o = run("Video app.", project__type="social", infrastructure__cloud_preference="azure", scale__users_at_launch=300000,
+                scale__users_12_months=2000000, scale__peak_concurrent_users=50000, budget__monthly_infra_usd=30)
+        line = next(l for l in lines(o) if l.startswith("Hosting"))
+        self.assertIn("priced as the entry plan", line)
+
+    def test_relaxed_hosting_does_not_claim_zones_for_the_dropped_target(self):
+        o = run("Small shop.", requirements__availability="99.99", infrastructure__cloud_preference="azure", requirements__payments=True, **SOLO)
+        self.assertNotIn("runs across availability zones", o["stack"]["hosting"]["justification"])
+        o = run("Small shop.", requirements__availability="99.99", infrastructure__cloud_preference="azure", team__size=5, team__experience="senior")
+        self.assertIsNotNone(o["stack"]["hosting"]["justification"])
+
+    def test_relaxed_onprem_names_the_dropped_standby_server(self):
+        o = run("Records system.", requirements__availability="99.99", **dict(ONPREM, requirements__auth="email_password", team__size=1))
+        a = next(a for a in o["assumptions"] if a.startswith("Sized for 99.9% availability"))
+        self.assertIn("standby database server on separate hardware", a)
+        self.assertNotIn("no extra component", a)
+        self.assertNotIn("nothing separate", a)
+
+    def test_medical_disclaimer_needs_advice_wording(self):
+        base = dict(project__type="ai_ml_product", requirements__ml_features="llm_rag", infrastructure__cloud_preference="aws")
+        o = run("Staff and doctors can ask questions about symptoms and medication in our leaflets.", **base)
+        self.assertEqual(sev(o, "LLM_ADVICE_DISCLAIMER"), "warning")
+        for d in ("Assistant over hospital meeting notes for nurses and clinicians.", "Support bot for patients booking appointments.",
+                  "Leaflet search; no clinical questions are answered."):
+            self.assertIsNone(sev(run(d, **base), "LLM_ADVICE_DISCLAIMER"), d)
 
 
 if __name__ == "__main__":

@@ -149,7 +149,7 @@ LLM_RX = {
                     r"|\bnever (?:trained|used) (?:on|for training)\b|\bopt[- ]?out of (?:model )?training\b"),
     "citations": r"\bcit(?:e|es|ed|ing|ation|ations)\b|\bgrounded\b|\bsource (?:links?|references?|attributions?)\b|\breferences? (?:to )?(?:the )?sources?\b",
     "legal": r"\blegal\b|\blaw(?:s|yers?)?\b|\bstatutes?\b|\battorneys?\b|\bsolicitors?\b|\bregulations? (?:and|or) rights\b|\btenant(?:s'?)? rights\b|\beviction\b",
-    "medical": r"\bmedical\b|\bpatients?\b|\bdiagnos\w+|\bsymptoms?\b|\bclinical\b|\bprescri\w+|\bmedications?\b|\bhealth ?care\b|\bhealth (?:advice|information|questions?)\b|\bdoctors?\b|\bhospitals?\b|\bclinicians?\b|\bnurses?\b|\bphysicians?\b",
+    "medical": r"\bsymptoms?\b|\bdiagnos\w+|\bmedications?\b|\bprescri\w+|\bclinical (?:advice|questions?)\b|\bmedical (?:advice|questions?|guidance)\b|\bhealth (?:advice|questions?)\b",
 }
 
 
@@ -172,6 +172,10 @@ def llm_constraints(ctx):
             if len(sent) > 110:  # a long sentence is cut around the words that fired the signal
                 m = re.search(rx, sent, re.I)
                 a, b = max(0, m.start() - 45), min(len(sent), m.end() + 45)
+                if a:  # cut at word boundaries, never inside a word
+                    a = sent.find(" ", a) + 1 if sent.find(" ", a, m.start()) != -1 else m.start()
+                if b < len(sent):
+                    b = sent.rfind(" ", m.end(), b) if sent.rfind(" ", m.end(), b) != -1 else m.end()
                 sent = ("..." if a else "") + sent[a:b].strip() + ("..." if b < len(sent) else "")
             out[key] = sent
     return out
