@@ -5,6 +5,7 @@ from . import ENGINE_VERSION
 from . import context as cx
 from . import overeng as ov
 from . import localfirst as lf
+from . import consistency as cons
 from . import costreal
 from . import rightsize as rs
 from . import select as sl
@@ -1140,6 +1141,9 @@ def contradictions(ctx, W, assumptions, host, backend):
               + (". If the codes go by e-mail instead, the e-mail delivery component covers them." if not d["sms"] else "."),
               ["project.description"])
             assumptions.append(f"{what} named in project.description is assumed to be bought from an SMS provider; none is chosen or priced here.")
+    for warn in (cons.uniqueness_warning(ctx, lambda: cons.snippet(req["project.description"], cx.DESC_RX["unique_rule"])), cons.payments_warning(ctx)):  # A12
+        if warn:
+            W(*warn)
     if req["requirements.offline_support"] and req["requirements.auth"] == "phone_otp":
         W("OFFLINE_LOGIN", "info", "Phone OTP needs signal at first login; sessions are long-lived refresh tokens so the app keeps working offline afterwards.",
           ["requirements.offline_support", "requirements.auth"])

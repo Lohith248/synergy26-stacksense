@@ -68,5 +68,70 @@ class LocalFirstDesktop(unittest.TestCase):
         self.assertNotEqual(out["stack"]["hosting"]["choice"], "None (distributed binary)")
 
 
+OFFLINE = {"requirements.offline_support": True, "requirements.auth": "email_password", "project.platforms": ["android", "web"],
+           "team.size": 5, "team.languages": ["kotlin"], "budget.monthly_infra_usd": 2000}
+
+
+class OfflineConflicts(unittest.TestCase):
+    """A12: OFFLINE_UNIQUENESS, OFFLINE_PAYMENTS and the append-only policy for ledger/booking/ticket-like data."""
+
+    def test_uniqueness_warning_for_different_project_types(self):
+        cases = [
+            ("other", "Gate staff scan tickets on handhelds and block duplicate entries across all gates; the link drops often."),
+            ("marketplace", "Field agents book appointments for farm visits; no two agents may book the same slot."),
+            ("healthtech", "Clinic check-in tablets in rural camps record each patient once; duplicate records must be avoided."),
+            ("internal_tool", "Warehouse staff redeem one-time vouchers at the exit using handhelds."),
+        ]
+        for typ, desc in cases:
+            out = run(**{**OFFLINE, "project.type": typ, "project.description": desc})
+            w = [x for x in out["warnings"] if x["code"] == "OFFLINE_UNIQUENESS"]
+            self.assertEqual(len(w), 1, typ)
+            self.assertEqual(w[0]["severity"], "warning", typ)
+            self.assertIn("requirements.offline_support", w[0]["fields"], typ)
+            self.assertIn("cannot be guaranteed offline", w[0]["message"], typ)
+            off = next(s for s in sup(out, "other") if s["choice"].startswith("Offline-first sync"))
+            self.assertIn("append-only command log", off["justification"], typ)
+            self.assertNotIn("last-writer-wins", off["justification"], typ)
+
+    def test_uniqueness_must_not_fire(self):
+        base = {**OFFLINE, "project.type": "other", "project.description": "Field survey app: agents record household answers on phones with patchy coverage."}
+        out = run(**base)
+        self.assertNotIn("OFFLINE_UNIQUENESS", codes(out))
+        off = next(s for s in sup(out, "other") if s["choice"].startswith("Offline-first sync"))
+        self.assertIn("last-writer-wins", off["justification"])  # the policy follows the data
+        self.assertNotIn("append-only command log", off["justification"])
+        # same wording without offline_support: no warning
+        out = run(**{**base, "requirements.offline_support": False, "project.description": "Gate staff scan tickets and block duplicate entries."})
+        self.assertNotIn("OFFLINE_UNIQUENESS", codes(out))
+        # double-entry bookkeeping is not a cross-device uniqueness rule (the ledger policy still applies)
+        out = run(**{**base, "project.description": "Co-op staff record deliveries in a double-entry ledger on phones with patchy coverage."})
+        self.assertNotIn("OFFLINE_UNIQUENESS", codes(out))
+        # a single-device local-first app has no other device to disagree with
+        out = run(**{**DESKTOP, "project.type": "other", "project.description": "Logger that rejects a duplicate entry on the same laptop."})
+        self.assertNotIn("OFFLINE_UNIQUENESS", codes(out))
+
+    def test_offline_payments_for_different_project_types(self):
+        for typ, desc in (("other", "Kiosks renew bus passes; depots lose internet for hours."),
+                          ("ecommerce", "Market stall app takes orders on tablets with poor coverage."),
+                          ("marketplace", "Delivery riders collect fees by card on phones in basements.")):
+            out = run(**{**OFFLINE, "project.type": typ, "project.description": desc, "requirements.payments": True})
+            w = [x for x in out["warnings"] if x["code"] == "OFFLINE_PAYMENTS"]
+            self.assertEqual(len(w), 1, typ)
+            self.assertIn("payment pending", w[0]["message"], typ)
+            self.assertIn("requirements.payments", w[0]["fields"], typ)
+
+    def test_offline_payments_must_not_fire(self):
+        out = run(**{**OFFLINE, "project.type": "ecommerce", "project.description": "Online shop.", "requirements.payments": True,
+                     "requirements.offline_support": False})
+        self.assertNotIn("OFFLINE_PAYMENTS", codes(out))
+        out = run(**{**OFFLINE, "project.type": "other", "project.description": "Offline notes."})
+        self.assertNotIn("OFFLINE_PAYMENTS", codes(out))
+
+    def test_ledger_data_gets_append_only_policy(self):
+        out = run(**{**OFFLINE, "project.type": "fintech", "project.description": "Co-op staff record deliveries and settlements in a double-entry ledger at centres with patchy coverage."})
+        off = next(s for s in sup(out, "other") if s["choice"].startswith("Offline-first sync"))
+        self.assertIn("append-only command log", off["justification"])
+
+
 if __name__ == "__main__":
     unittest.main()

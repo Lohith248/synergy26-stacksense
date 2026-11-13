@@ -27,6 +27,13 @@ DESC_RULES = [
     ("recurring", r"\bemi\b|subscription|recurring|per[- ]seat|pay per seat|monthly plan"),
     ("payouts", r"get paid|payout|disburs|pay (?:out|providers|sellers|vendors)|split payment|commission"),
     ("ledger", r"ledger|double[- ]entry"),
+    # A12: a rule that must hold across devices (one use per ticket, one booking per slot, no duplicate record); read with offline_support
+    ("unique_rule", r"\bduplicat\w*|\bdupes?\b|\bunique(?:ness)?\b|\bonly once\b|\bone[- ]time (?:use|only|vouchers?|coupons?|tickets?|entry)"
+                    r"|\b(?:used|scanned|redeemed|claimed|booked|entered|admitted) (?:twice|more than once|again)\b"
+                    r"|\bdouble[- ](?:book\w*|scan\w*|spend\w*|enter\w*|sell\w*|sold)|\bover-?(?:book\w*|sell\w*|sold)\b|\bcheck-?ins?\b"
+                    r"|\b(?:validat\w*|scan\w*|redeem\w*|issu\w*) (?:\w+ ){0,2}(?:tickets?|passes|coupons?|vouchers?|admissions?)\b"
+                    r"|\b(?:tickets?|passes|coupons?|vouchers?) (?:\w+ ){0,2}(?:validat\w*|scan\w*|redeem\w*|entr(?:y|ies))\b"
+                    r"|\bbook(?:ing|ings)\b|\breserv(?:e|es|ed|ation|ations)\b|\bappointments?\b|\bseat (?:selection|maps?|allocation)\b|\bbook(?:ed)? (?:seats?|slots?|rooms?)\b"),
     ("kyc", r"\bkyc\b|know your customer|identity verification"),
     ("chat", r"\bchat|messag"),
     ("collab", r"same board|collaborat|live cursor|multiplayer|co-edit|whiteboard|conflict-free|\bcrdts?\b"

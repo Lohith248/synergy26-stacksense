@@ -9,6 +9,7 @@ from . import domains
 from . import context as cx
 from . import overeng as ov
 from . import localfirst as lf
+from . import consistency as cons
 from . import rightsize as rs
 from .kb import cite, AS_OF
 from .select import for_noun, type_noun
@@ -887,7 +888,7 @@ def build(ctx, host, backend, db, mobile, warn):
         bits = ["writes go to an on-device database first", "an outbox queue retries uploads when signal returns",
                 "each record carries a client-generated UUID so retries are idempotent",
                 "shared documents keep offline edits as CRDT updates and merge them on reconnect" if crdt
-                else "server applies last-writer-wins per field with an edit log"]
+                else cons.policy_bit(ctx)]
         if mobile and ctx["web"]:
             bits.append("the web client caches its app shell with a service worker and queues writes in IndexedDB with the same outbox rules")
         if d["media"]:
@@ -896,7 +897,7 @@ def build(ctx, host, backend, db, mobile, warn):
             bits.append("sync batches are small and compressed for 2G/3G")
         out.append(svc("other", f"Offline-first sync: {local}, outbox + idempotent sync API",
                        "Must work without connectivity: " + "; ".join(bits) + ".",
-                       ["requirements.offline_support"] + (["project.description"] if (d["media"] or d["low_bandwidth"]) else []),
+                       ["requirements.offline_support"] + (["project.description"] if (d["media"] or d["low_bandwidth"] or cons.append_only(ctx)) else []),
                        [("Firebase Firestore offline cache", "convenient but ties data to Google's global service and its pricing"),
                         ("Online-only app", "fails the stated offline requirement")],
                        ["Conflict resolution rules must be agreed with field teams", "Device storage limits on low-end phones"],
