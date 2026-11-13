@@ -32,8 +32,15 @@ def res_name(ctx):
 
 
 def uses_store_billing(ctx):
-    """In-app digital goods on a mobile client are billed through the app stores (payments block and queue text share it)."""
-    return bool(ctx["mobile"]) and (ctx["type"] == "gaming" or ctx["desc"]["digital_goods"]) and ctx["type"] not in ("marketplace", "ecommerce", "fintech")
+    """In-app digital goods on a mobile client are billed through the app stores (payments block and queue text share it). A
+    description that says the money goes through the app stores (store_billing) counts for every project type: it names the route."""
+    return bool(ctx["mobile"]) and (ctx["desc"]["store_billing"] or ((ctx["type"] == "gaming" or ctx["desc"]["digital_goods"])
+                                                                     and ctx["type"] not in ("marketplace", "ecommerce", "fintech")))
+
+
+def seat_pricing(ctx):
+    """Planning heuristic: Stripe per-seat subscription quantities fit a B2B SaaS or a description that prices per seat/team."""
+    return ctx["type"] == "saas_b2b" or bool(ctx["desc"]["seat_plan"])
 
 
 def join_and(xs):
@@ -580,8 +587,10 @@ def build(ctx, host, backend, db, mobile, warn):
                 out.append(svc("payments", " + ".join(stores) + (f" (+ {web_gw} for web purchases)" if web_gw else ""),
                                "In-app digital goods (items, currency, premium content, subscriptions) sold inside a mobile app must use the store's "
                                "billing: Google Play's payments policy and App Store guideline 3.1.1. Purchases are confirmed by server-side receipt "
-                               "validation before items are granted." + (f" Web purchases outside the apps can use {web_gw}." if web_gw else ""),
-                               dp + ["project.type", "project.platforms"] + (["project.description"] if d["digital_goods"] else []),
+                               "validation before items are granted." + (f" Web purchases outside the apps can use {web_gw}." if web_gw else "")
+                               + (f" The description routes the money through the stores (\"{ov.quote(ctx, 'store_billing')}\"), so no card form or per-seat gateway plan is used in the apps."
+                                  if d["store_billing"] and ov.quote(ctx, "store_billing") else ""),
+                               dp + ["project.type", "project.platforms"] + (["project.description"] if d["digital_goods"] or d["store_billing"] else []),
                                [("Stripe/Razorpay checkout inside the app", "violates store policy for digital goods and risks removal from the stores"),
                                 ("RevenueCat (SaaS wrapper)", "simplifies receipts across stores, but adds a vendor and a revenue-based fee")],
                                ["Store commission on digital sales", "Refunds and chargebacks arrive as store notifications, not gateway webhooks"],
@@ -607,8 +616,12 @@ def build(ctx, host, backend, db, mobile, warn):
             else:
                 name = "Stripe (Checkout)"
                 if d["recurring"]:
-                    feats.append("Stripe Billing with per-seat subscription quantities")
-                    extra_src += ["stripe-quantities", "stripe-billing-pricing"]
+                    if seat_pricing(ctx):  # planning heuristic: per-seat quantities only for a B2B SaaS or a description that prices per seat/team
+                        feats.append("Stripe Billing with per-seat subscription quantities")
+                        extra_src += ["stripe-quantities", "stripe-billing-pricing"]
+                    else:
+                        feats.append("Stripe Billing for recurring subscriptions (fixed-price plans)")
+                        extra_src += ["stripe-billing-pricing"]
                 if d["payouts"] or ctx["type"] == "marketplace":
                     feats.append("Stripe Connect for " + ("marketplace " if ctx["type"] == "marketplace" else "") + "payouts")
                 alts = [("Paddle (merchant of record)", "handles global tax but higher fees and less control"),

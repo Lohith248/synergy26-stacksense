@@ -57,6 +57,14 @@ DESC_RULES = [
                       # E11-3: wording that sells through the app stores (store billing is mandatory for digital goods there)
                       r"|(?:sold|billed|purchased|bought|charged|paid)\s+(?:\w+\s+){0,3}(?:through|via|in|on|with|using)\s+(?:the\s+)?(?:app stores?|apple app store|google play(?: store)?|play store)"
                       r"|\bapp[- ]store (?:billing|subscriptions?|purchases?)|\bstore (?:subscriptions?|billing)|in-app subscriptions?"),
+    # A5 (blind8): money taken through the app stores' own billing (a subscription, purchase, plan or pass "through the app stores"),
+    # the stores named, also without an in-app goods noun (plain "in-app payments" is not a store route); seat_plan = the price is per seat or per team, which is the only case for Stripe per-seat text
+    ("store_billing", r"\b(?:subscri\w*|purchas\w*|pay\w*|billing|billed|buy\w*|bought|sold|charg\w+|plans?|pass(?:es)?|premium|pro)\b(?:\s+(?!(?:published|listed|available|distributed|downloadable|released|installed)\b)[\w'-]+){0,6}?"
+                      r"\s+(?:through|via|in|on|with|using|by|from)\s+(?:the\s+|both\s+)?(?:app|play)\s*stores?\b"
+                      r"|\b(?:app|play)[- ]?stores?\s+(?:billing|subscriptions?|purchases?|payments?|in-app)|\bstore\s+(?:subscriptions?|billing)"
+                      r"|\biaps?\b|\b(?:google )?play (?:store )?billing\b|\bstorekit\b|\bapple in-app"),
+    ("seat_plan", r"per[- ]seats?|\bseats?\b|\bteam (?:plans?|subscriptions?|licen[cs]es?)|per[- ](?:user|member|agent|employee)\b"
+                  r"|\b(?:organi[sz]ation|workspace|company|enterprise)[- ](?:plans?|subscriptions?|licen[cs]es?)|licen[cs]es? per"),
     # E11-3: facts the description states that no enum field carries (each reads as a service or a named assumption)
     ("sms", r"\bsms\b|\btext[- ]messages? (?:reminders?|alerts?|notifications?|codes?)|\btexts? reminders?|\bwhatsapp (?:reminders?|alerts?|notifications?)"),
     ("otp", r"\botps?\b|one[- ]time (?:pass(?:word|code)s?|codes?)"),
