@@ -35,7 +35,7 @@ class StoreBilling(unittest.TestCase):
                  ("ai_ml_product", "Language tutor with AI feedback for students. The premium plan is billed via the Play Store and the App Store."),
                  ("social", "Photo journal for friends. Pro pass sold on the App Store and Google Play."),
                  ("web_app", "Meditation timer with a yearly subscription charged in the app stores."),
-                 ("marketplace", "Second-hand books in a local area. Optional premium plan purchased through the app stores."))
+                 ("gaming", "Puzzle game with a season pass purchased through the app stores."))
         for typ, desc in cases:
             with self.subTest(typ=typ):
                 p = pay(run(desc, typ))
@@ -60,6 +60,41 @@ class StoreBilling(unittest.TestCase):
                 p = pay(run(desc, typ, plats))
                 self.assertTrue(p)
                 self.assertNotIn("Google Play Billing", p[0]["choice"])
+
+
+class PhysicalGoodsKeepAGateway(unittest.TestCase):
+    """B4: the stores' billing rule covers digital goods and subscriptions, not physical goods or services ordered in the app."""
+
+    def test_digital_item_through_the_stores_adds_store_billing_beside_the_gateway(self):
+        cases = (("ecommerce", "Shoe shop with a premium membership purchased through the app stores."),
+                 ("marketplace", "Second-hand books in a local area. Optional premium plan purchased through the app stores."),
+                 ("fintech", "Budgeting app with a monthly pro subscription billed through the app stores."))
+        for typ, desc in cases:
+            with self.subTest(typ=typ):
+                p = pay(run(desc, typ))
+                self.assertEqual(len(p), 2, [x["choice"] for x in p])
+                self.assertIn("Google Play Billing", p[0]["choice"])
+                self.assertNotIn("for web purchases", p[0]["choice"])
+                self.assertIn("physical goods", p[0]["justification"])
+                self.assertIn("Stripe", p[1]["choice"])
+                self.assertIn("physical goods or services are paid here", p[1]["justification"])
+
+    def test_physical_orders_alone_stay_on_the_gateway(self):
+        cases = (("ecommerce", "Shoe shop. Customers pay by card."),
+                 ("ecommerce", "Shoe shop. Orders are paid through the app stores."),
+                 ("marketplace", "Second-hand books. Sellers are paid out weekly; the app is listed in the app stores."),
+                 ("fintech", "Wallet app with a paid-for card on the Play Store listing."))
+        for typ, desc in cases:
+            with self.subTest(desc=desc):
+                p = pay(run(desc, typ))
+                self.assertEqual(len(p), 1)
+                self.assertIn("Stripe", p[0]["choice"])
+                self.assertNotIn("Google Play", p[0]["choice"])
+
+    def test_non_mobile_physical_goods_type_is_unchanged(self):
+        p = pay(run("Shoe shop with a premium membership purchased through the app stores.", "ecommerce", ("web",)))
+        self.assertEqual(len(p), 1)
+        self.assertIn("Stripe", p[0]["choice"])
 
 
 class SeatWording(unittest.TestCase):

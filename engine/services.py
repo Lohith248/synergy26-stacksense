@@ -31,11 +31,32 @@ def res_name(ctx):
     return {"india": "India", "eu": "the EU", "us": "the US"}.get(ctx["res_key"], ctx["res_label"])
 
 
+PHYSICAL_TYPES = ("marketplace", "ecommerce", "fintech")  # orders for goods or services taken in the app: the stores' billing rule does not cover them
+# a digital item (subscription, membership, premium tier, credits, pass) named in the sentence that routes money through the stores
+_DIGITAL_ITEM = re.compile(r"subscri|member|premium|\bpro\b|credits?\b|\bcoins?\b|\bgems?\b|\bpass(?:es)?\b|\bplans?\b|in-app|unlock|\btier\b|digital|virtual", re.I)
+
+
+def digital_store_item(ctx):
+    """True if a description sentence both routes money through the app stores and names a digital item sold that way."""
+    rx = re.compile(cx.DESC_RX["store_billing"])
+    return any(rx.search(s) and _DIGITAL_ITEM.search(s) for s in re.split(r"(?<=[.!?;])\s+|\n", (ctx["req"]["project.description"] or "").lower().replace("’", "'")))
+
+
 def uses_store_billing(ctx):
-    """In-app digital goods on a mobile client are billed through the app stores (payments block and queue text share it). A
-    description that says the money goes through the app stores (store_billing) counts for every project type: it names the route."""
-    return bool(ctx["mobile"]) and (ctx["desc"]["store_billing"] or ((ctx["type"] == "gaming" or ctx["desc"]["digital_goods"])
-                                                                     and ctx["type"] not in ("marketplace", "ecommerce", "fintech")))
+    """Digital goods and subscriptions sold inside a mobile app are billed through the app stores (payments block and queue text
+    share it). A description that says the money goes through the app stores counts for every project type: it names the route.
+    Marketplace, e-commerce and fintech orders are physical goods or services, which the stores' rule does not cover: those types
+    use it only for a digital item the description sells through the stores (see mixed_billing)."""
+    if not ctx["mobile"]:
+        return False
+    if ctx["type"] in PHYSICAL_TYPES:
+        return digital_store_item(ctx)
+    return bool(ctx["desc"]["store_billing"] or ctx["type"] == "gaming" or ctx["desc"]["digital_goods"])
+
+
+def mixed_billing(ctx):
+    """Store billing for a digital item AND a payment gateway for the physical goods or services of the same app."""
+    return ctx["type"] in PHYSICAL_TYPES and uses_store_billing(ctx)
 
 
 def seat_pricing(ctx):
@@ -530,7 +551,7 @@ def build(ctx, host, backend, db, mobile, warn):
         if req["requirements.payments"] and ctx["tier"] >= 2:
             # E9: webhooks only where a gateway sends them (app-store billing sends notifications); ledger postings only when the input names a ledger
             if uses_store_billing(ctx):
-                why.append(f"app-store purchase and refund notifications at ~{ctx['users']:,} users processed idempotently with retries")
+                why.append(f"app-store purchase and refund notifications{' and payment-gateway webhooks' if mixed_billing(ctx) else ''} at ~{ctx['users']:,} users processed idempotently with retries")
             else:
                 why.append(f"payment-gateway webhooks{' and ledger postings' if d['ledger'] else ''} at ~{ctx['users']:,} users processed idempotently with retries")
         if d["video_vod"]:
@@ -580,22 +601,25 @@ def build(ctx, host, backend, db, mobile, warn):
             pci = "pci_dss" in ctx["compliance"]
             feats, extra_src = [], []
             store = uses_store_billing(ctx)
+            mixed = mixed_billing(ctx)  # B4: the gateway also takes the physical-goods orders
             if store:
                 stores = [x for x in ("Google Play Billing" if "android" in ctx["mobile"] else None,
                                       "Apple In-App Purchase (StoreKit)" if "ios" in ctx["mobile"] else None) if x]
-                web_gw = ("Razorpay" if india else "Stripe") if ctx["web"] else None
+                web_gw = ("Razorpay" if india else "Stripe") if ctx["web"] and not mixed else None  # mixed: the gateway has its own entry below
                 out.append(svc("payments", " + ".join(stores) + (f" (+ {web_gw} for web purchases)" if web_gw else ""),
                                "In-app digital goods (items, currency, premium content, subscriptions) sold inside a mobile app must use the store's "
                                "billing: Google Play's payments policy and App Store guideline 3.1.1. Purchases are confirmed by server-side receipt "
                                "validation before items are granted." + (f" Web purchases outside the apps can use {web_gw}." if web_gw else "")
                                + (f" The description routes the money through the stores (\"{ov.quote(ctx, 'store_billing')}\"), so no card form or per-seat gateway plan is used in the apps."
-                                  if d["store_billing"] and ov.quote(ctx, "store_billing") else ""),
+                                  if d["store_billing"] and ov.quote(ctx, "store_billing") and not mixed else "")
+                               + (" This covers the digital item only; orders for physical goods or services are listed under the payment gateway below, "
+                                  "because the stores' billing rule applies to digital goods and subscriptions, not to physical goods." if mixed else ""),
                                dp + ["project.type", "project.platforms"] + (["project.description"] if d["digital_goods"] or d["store_billing"] else []),
                                [("Stripe/Razorpay checkout inside the app", "violates store policy for digital goods and risks removal from the stores"),
                                 ("RevenueCat (SaaS wrapper)", "simplifies receipts across stores, but adds a vendor and a revenue-based fee")],
                                ["Store commission on digital sales", "Refunds and chargebacks arrive as store notifications, not gateway webhooks"],
                                "saas", "google" if "android" in ctx["mobile"] else "apple", True, Z, ["play-billing", "apple-iap"]))
-            if store:
+            if store and not mixed:
                 name, prov, src, alts = out[-1]["choice"], out[-1]["provider"], [], []
             elif india:
                 name = "Razorpay (UPI, cards, netbanking)"
@@ -606,7 +630,7 @@ def build(ctx, host, backend, db, mobile, warn):
                                  "service providers" if ctx["type"] == "marketplace" else "recipients")
                     feats.append("RazorpayX Payouts for UPI loan disbursals to borrowers" if d["lending"] else f"Route/RazorpayX Payouts to pay {payee}")
                     extra_src += ["razorpay-route", "razorpayx-payouts"]
-                if d["recurring"]:
+                if d["recurring"] and not store:
                     feats.append("Subscriptions with UPI AutoPay / e-mandate for recurring collections")
                     extra_src.append("razorpay-subscriptions")
                 alts = [("Cashfree Payments", "comparable Indian gateway; Razorpay chosen for combined UPI + payouts + subscriptions documentation"),
@@ -615,7 +639,7 @@ def build(ctx, host, backend, db, mobile, warn):
                 prov = "razorpay"
             else:
                 name = "Stripe (Checkout)"
-                if d["recurring"]:
+                if d["recurring"] and not store:
                     if seat_pricing(ctx):  # planning heuristic: per-seat quantities only for a B2B SaaS or a description that prices per seat/team
                         feats.append("Stripe Billing with per-seat subscription quantities")
                         extra_src += ["stripe-quantities", "stripe-billing-pricing"]
@@ -632,6 +656,9 @@ def build(ctx, host, backend, db, mobile, warn):
             why = (f"Taking payments{for_noun(ctx)} (requirements.payments) through hosted checkout keeps card data off your servers, which can qualify for PCI DSS SAQ A "
                    "(your acquirer confirms; protect the checkout page from script attacks). "
                    "Payment confirmation is trusted only from signed server-side webhooks.")
+            if mixed:
+                why = ("Orders for physical goods or services are paid here, not through the app stores (their billing rule covers digital goods and "
+                       "subscriptions only; the digital item is billed by the stores, see above). ") + why
             hosted = ctx["static_rule"] == "hosted_payments" and not store
             if hosted:  # D16: a static site links to the provider's hosted page; there is no server to receive webhooks
                 why = (f"Taking payments{for_noun(ctx)} (requirements.payments) through the provider's hosted checkout page or button, as the description says "
@@ -650,27 +677,27 @@ def build(ctx, host, backend, db, mobile, warn):
             if ctx["self_host_only"]:
                 warn("EXTERNAL_PAYMENT_GATEWAY", "critical",
                      f"Payments cannot be self-hosted: {name.split(' (')[0]} is the single external SaaS dependency kept on {ctx['deploy']} "
-                     + ("(app-store billing and receipt validation run on Google/Apple servers)." if store
+                     + ("(app-store billing and receipt validation run on Google/Apple servers)." if store and not mixed
                         else "(card/UPI networks are external by nature). Card data never touches your servers."),
                      ["requirements.payments", "infrastructure.deployment_model"])
-            home = GATEWAY_HOME.get(prov) if not store and not india else None
+            home = GATEWAY_HOME.get(prov) if (not store or mixed) and not india else None
             home_ok = bool(home and not ctx["country"] and ctx["res_key"] == home[0])
             if home_ok:
                 src = src + [home[1]]
-            if not store and not india and not home_ok and ((ctx["res_key"] in ("eu", "us") and (ctx["req"]["infrastructure.data_residency"] in ("eu", "us")
+            if (not store or mixed) and not india and not home_ok and ((ctx["res_key"] in ("eu", "us") and (ctx["req"]["infrastructure.data_residency"] in ("eu", "us")
                                                                                        or (ctx["res_stated"] or {}).get("pin") in ("eu", "us"))) or ctx["country"]):
                 loc_msg, loc_src, ctx["payment_location_assumption"] = payment_location(name.split(' (')[0], prov, ctx)
                 src = src + loc_src
                 warn("PAYMENT_DATA_LOCATION", "warning", loc_msg, ["requirements.payments"] + ctx["res_paths"])
-            if not store and not india and ctx["country"]:
+            if (not store or mixed) and not india and ctx["country"]:
                 warn("PAYMENT_LOCAL_ACQUIRING", "info",
                      f"{name.split(' (')[0]} is the knowledge base's default gateway outside India; whether it offers local acquiring and local payment "
                      f"methods in {ctx['res_label']} is not in the knowledge base — confirm with the gateway or choose a local acquirer.",
                      ["requirements.payments"] + ctx["res_paths"])
-            if not store and ctx["type"] == "api_platform" and not india:
+            if (not store or mixed) and ctx["type"] == "api_platform" and not india:
                 feats.append("usage-based (metered) billing from API-gateway usage records")
                 src = src + ["stripe-usage-billing"]
-            if not store:
+            if not store or mixed:
                 out.append(svc("payments", name + (" — " + "; ".join(feats) if feats else ""), why,
                                dp + (["project.description"] if (feats or d["upi"]) else []) + (["compliance"] if pci or via_compliance else []) + res_path,
                                alts, ["Per-transaction fees (~2% domestic cards) are charged on revenue, not in the infrastructure band",
