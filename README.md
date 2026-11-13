@@ -64,6 +64,7 @@ These are development checks, not a measure of accuracy on unseen scenarios.
 | `engine/select.py` | Hard filtering and explained scoring for the core layers; ties broken by product id |
 | `engine/services.py` | Supporting services (auth, storage, search, realtime, cache, queue, payments, CDN, ML, CI/CD, observability, offline sync, integrations) |
 | `engine/recommend.py` | Orchestration, conflicts, warnings, cost band, architecture style, summary |
+| `engine/rightsize.py` | Right-sizing gates (D13): thresholds, predicates for game servers, warehouse, CDN audience and CRDT, the `SERVICE_NOT_ADDED` text, the deferrable list |
 | `engine/domains.py` | Project-type rules: dedicated game servers, IoT ingestion and time-series storage, analytics warehouse + BI, API gateways |
 | `engine/counterfactual.py` | Per-layer `what_would_change`: ordered one-field probes (priorities, soft requirements, numbers, constraints), measured by re-running the engine |
 | `engine/web.py`, `web/index.html` | Optional local web UI (`serve`): standard-library HTTP server on 127.0.0.1 and one self-contained page |
@@ -184,6 +185,20 @@ Example: `scenarios/extras/X1_p6_with_extras.json` (P6 plus the first four). The
 - **Extra output fields** (Section 4 allows them): each core component has `kb_id` and `what_would_change` (up to three distinct outcomes, each with the first one-field edit that causes it and up to three other edits that lead there; falling back to the nearest single-priority flip from the stability grid, and empty when neither flips it), `stability` (share of a fixed grid of 45-54 priority-weight vectors that keeps the choice, with the nearest single-priority flip point), `confidence` (`low` if stability < 0.7 or margin < 1.0, `high` if stability ≥ 0.9 and margin ≥ 2.0, else `medium`, with the numbers in `basis`; the frontend has no margin, so its label uses stability alone) and `contrast` ("X rather than Y. Reason. Trade-off accepted: ..."). Backend, database and hosting also carry `score_margin` (gap to the runner-up; small means a near-tie) and `pareto` (whether another eligible option rates at least as well on all six priorities, and if so what the choice wins on, usually team fit or an existing system). The frontend can combine web, mobile and desktop picks, so it has neither. Components also carry `deployment`, `provider`, `data_bearing`, `data_location` and `sources`.
 - **Relaxed recommendations:** when a critical conflict remains (for example a huge scale on a $0 budget), the summary starts with "Relaxed recommendation" and one `Relaxed:` assumption names each relaxed field.
 - **Description rules (D7):** fixed, deterministic keyword rules on `project.description` shape supporting services and warnings, for example UPI, EMI, payouts, ledger, KYC, offline sync and Microsoft 365. Four signals also adjust core scores: ledger (database), Markdown (static frontend), internal-only (SPA frontend) and low-end devices (mobile frontend); each appears in `driven_by` as `project.description`.
+
+### Right-sizing (D13)
+
+A supporting service that is sized for scale or latency the input does not state is not added, and the output says so: the replacing component lists it as an alternative with the input values and the condition that would add it, and a `SERVICE_NOT_ADDED` info warning repeats that. Core layers are never affected. The thresholds live in `engine/rightsize.py` (`THRESHOLDS`) and are planning heuristics, not vendor limits.
+
+| Service | Added when | Otherwise |
+|---|---|---|
+| Dedicated game servers | type `gaming`, `realtime`, a backend, no turn-based wording, and a fast-action genre word in the description or `requirements.p95_latency_ms` <= 100 | live updates over WebSockets from the backend |
+| Analytics warehouse | type `data_analytics` with `scale.data_volume_gb_12_months` >= 100 (inferred from analytics words and `read_heavy`: >= 200) | BI dashboards read the application database |
+| CDN | a public audience: not "used only by employees"; an `internal_tool` only with `seo_critical` or multi-region/global users | none (warning only) |
+| CRDT sync server | the description names simultaneous editing of one document, note or canvas (the type `realtime_collab` alone is not enough; never for games) | native realtime of the backend |
+| Dedicated search engine | scale tier above 1 (Supabase counts as PostgreSQL for the built-in full-text search) | database full-text search |
+
+When the estimated minimum exceeds the budget, the `BUDGET_EXCEEDED` message also lists up to three services that could wait (managed cache, dedicated search, CDN without SEO/geo need, warehouse, game servers, the extra Node sync instance) and the minimum without them. This is text only; nothing is removed.
 
 ## Project structure
 

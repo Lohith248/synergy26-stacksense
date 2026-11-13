@@ -65,7 +65,7 @@ AFFECTS = {
 HOW = {
     "project.name": "Label only; names never affect choices.",
     "project.type": "Selects domain rules: static site vs app, game/IoT/analytics/API/B2B/desktop handling, domain services.",
-    "project.description": "Keyword signals (loans/ledger, employees-only, device message rates, games) add services and warnings.",
+    "project.description": "Keyword signals (loans/ledger, employees-only, device message rates, game genre such as turn-based or fast-action, simultaneous editing) add services and warnings; employees-only, turn-based play and no co-editing also keep a CDN, game servers or a CRDT sync server out, with a note (D13).",
     "project.platforms": "Picks web/native/cross-platform clients; web adds SEO and CDN reasoning; api_only drops the client.",
     "scale.users_at_launch": "Sets the launch sizing tier and the peak-equals-launch assumption used for cost.",
     "scale.users_12_months": "Sets the scale tier that sizes hosting, database plan, cache/queue needs and cost bands.",
