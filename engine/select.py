@@ -16,7 +16,7 @@ TYPE_NOUN = {"content_site": "content site", "web_app": "web app", "saas_b2b": "
              "marketplace": "marketplace", "social": "social app", "realtime_collab": "real-time collaboration app",
              "fintech": "fintech product", "healthtech": "healthtech app", "data_analytics": "analytics product", "iot": "IoT product",
              "ai_ml_product": "AI/ML product", "internal_tool": "internal tool", "gaming": "game", "api_platform": "API platform",
-             "other": "project"}
+             "other": ""}  # project.type "other" says nothing about the kind of product, so no noun is claimed
 
 
 def type_noun(ctx):
@@ -24,7 +24,12 @@ def type_noun(ctx):
 
 
 def a_an(noun):
-    return ("an " if noun[:1].lower() in "aeiou" else "a ") + noun
+    return ("an " if noun[:1].lower() in "aeiou" else "a ") + noun if noun else ""
+
+
+def for_noun(ctx):
+    n = type_noun(ctx)
+    return f" for {a_an(n)}" if n else ""
 
 
 class Cand:
@@ -370,7 +375,7 @@ def database_candidates(ctx, host, backend):
             # E9: name only what the input has; a marketplace or shop that takes no online payments keeps no "payments" claim
             pay = bool(req["requirements.payments"])
             what = {"fintech": "money movement and ledger postings",
-                    "marketplace": "listings, orders and payments" if pay else "listings and the orders or enquiries made against them",
+                    "marketplace": "marketplace transactions and payments" if pay else "marketplace records and the transactions made against them",
                     "ecommerce": "orders, stock and payments" if pay else "orders and stock"}.get(req["project.type"], "payments and the records they change")
             if ctx["desc"]["ledger"]:
                 what = "money movement and ledger postings"
@@ -425,7 +430,8 @@ def web_candidates(ctx, backend):
                   "pre-built static pages, no server needed" if f["kind"] == "static" else "needs a server runtime for a site that does not")
         else:
             c.add("app", (f["app"] - 3) * 3.5, "project.type",
-                  f"rich interactive screens for {a_an(type_noun(ctx))}" if f["app"] >= 4 else f"suited to content pages, not the screens of {a_an(type_noun(ctx))}")
+                  f"rich interactive {'screens' + for_noun(ctx) if type_noun(ctx) else 'app screens'}" if f["app"] >= 4
+                  else (f"suited to content pages, not the screens of {a_an(type_noun(ctx))}" if type_noun(ctx) else "suited to content pages, not app screens"))
             if f["kind"] == "static":
                 c.add("static", -2, "project.type", "a static-site generator for a dynamic application")
         if ctx["desc"]["markdown"] and f["kind"] == "static":

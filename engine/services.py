@@ -8,7 +8,7 @@ from . import domains
 from . import context as cx
 from . import rightsize as rs
 from .kb import cite
-from .select import a_an, type_noun
+from .select import for_noun, type_noun
 
 Z = [[0, 0], [0, 0], [0, 0], [0, 0]]
 # cloudflare.com/plans rendered 11 Nov 2026
@@ -405,7 +405,7 @@ def build(ctx, host, backend, db, mobile, warn):
             c, prov, cost, src = "Valkey (platform-managed key-value)", p, [[0, 10], [10, 30], [30, 150], [150, 600]], ["valkey"]
         why = []
         if ctx["tier"] >= 2:
-            why.append(f"~{ctx['peak']:,} concurrent users")
+            why.append(f"~{ctx['peak']:,} concurrent users would otherwise send every lookup to the database")
         if req["requirements.realtime"]:
             why.append("pub/sub backplane so WebSocket messages reach users on every instance")
         if ctx["prio"]["performance"] >= 5:
@@ -534,7 +534,7 @@ def build(ctx, host, backend, db, mobile, warn):
                 src = ["stripe-billing-pricing"] + extra_src
                 prov = "stripe"
             # E9: the payment text names the product that takes the payments
-            why = (f"Taking payments for {a_an(type_noun(ctx))} (requirements.payments) through hosted checkout keeps card data off your servers, which can qualify for PCI DSS SAQ A "
+            why = (f"Taking payments{for_noun(ctx)} (requirements.payments) through hosted checkout keeps card data off your servers, which can qualify for PCI DSS SAQ A "
                    "(your acquirer confirms; protect the checkout page from script attacks). "
                    "Payment confirmation is trusted only from signed server-side webhooks.")
             if d["upi"]:
@@ -790,7 +790,7 @@ def build(ctx, host, backend, db, mobile, warn):
     if req["requirements.multi_tenant"]:
         rls = db and db.get("rls")
         out.append(svc("other", "Tenant isolation: tenant_id on every row" + (" + database row-level security" if rls else " enforced in a repository layer"),
-                       f"Several customer organisations share one {type_noun(ctx)}: every query is scoped by tenant, enforced in "
+                       f"Several customer organisations share one {type_noun(ctx) or 'system'}: every query is scoped by tenant, enforced in "
                        + ("the database" if rls else "a repository layer") + ", so one bug cannot leak another organisation's data.",
                        ["requirements.multi_tenant"], [("Database per tenant", "strong isolation, but a separate database to provision, migrate and back up per customer organisation"
                                                         + f", for a team of {ctx['size']}" + ("" if ctx["devops"] else " without a DevOps engineer"))],

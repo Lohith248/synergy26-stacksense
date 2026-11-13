@@ -385,7 +385,7 @@
       {
         "layer": "cache",
         "choice": "Amazon ElastiCache for Valkey in ap-south-1 (Mumbai)",
-        "justification": "~10,000 concurrent users (cache and pub/sub layer).",
+        "justification": "~10,000 concurrent users would otherwise send every lookup to the database (cache and pub/sub layer).",
         "driven_by": [
           "scale.peak_concurrent_users"
         ],

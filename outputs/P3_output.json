@@ -404,7 +404,7 @@
       {
         "layer": "cache",
         "choice": "Azure Managed Redis in West Europe (Netherlands)",
-        "justification": "~5,000 concurrent users; pub/sub backplane so WebSocket messages reach users on every instance; performance priority 5 (cache and pub/sub layer).",
+        "justification": "~5,000 concurrent users would otherwise send every lookup to the database; pub/sub backplane so WebSocket messages reach users on every instance; performance priority 5 (cache and pub/sub layer).",
         "driven_by": [
           "scale.peak_concurrent_users",
           "requirements.realtime",
