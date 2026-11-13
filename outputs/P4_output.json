@@ -479,7 +479,7 @@
       {
         "layer": "cdn",
         "choice": "Amazon CloudFront",
-        "justification": "At ~300,000 users, public pages and static assets are cached near users so the origin serves less traffic; only public, non-personal content is cached.",
+        "justification": "At ~300,000 users, static assets (scripts, images, fonts) are cached near users so the origin serves less traffic; only non-personal files are cached, never signed-in responses.",
         "driven_by": [
           "project.platforms",
           "scale.users_12_months"

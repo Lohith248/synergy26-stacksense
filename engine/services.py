@@ -40,6 +40,24 @@ def join_and(xs):
     return xs[0] if len(xs) == 1 else ", ".join(xs[:-1]) + " and " + xs[-1]
 
 
+# A16: social providers offered when the input names none (planning default); a named provider always comes first.
+SOCIAL_DEFAULT = ("Google", "GitHub", "Microsoft")
+
+
+def social_list(ctx, defaults=SOCIAL_DEFAULT):
+    """Providers for a social-login choice: those the input names (existing_systems) first, then the defaults not already named."""
+    named = ctx["social_named"]
+    return list(named) + [x for x in defaults if x not in named]
+
+
+def named_social_note(ctx, product):
+    """For managed auth products whose built-in provider list is not in the knowledge base: say what the input names."""
+    if not ctx["social_named"]:
+        return ""
+    return (f" The input names {join_and(ctx['social_named'])}: enable it first; whether {product} offers it built in is not in the knowledge base, "
+            "otherwise add it as a custom OAuth/OpenID provider.")
+
+
 SOCIAL_NOTE = " Enable only the social providers your users already have; the providers in the choice name are what the product supports, not a decision."
 
 
@@ -112,6 +130,26 @@ def search_engine(p, selfh, rtxt):
 
 def search_floor(ctx, p, selfh):
     return search_engine(p, selfh, "")[2][ctx["tier"]][0]
+
+
+# A19: a named email product per host cloud (planning heuristic: the sending service on the cloud already in use keeps one
+# vendor, one bill and one IAM; elsewhere a standalone email API). Per-message prices are not in the knowledge base, so no
+# price or free-tier claim is made; the cost band carries the labelled planning estimate (costreal.email_line).
+EMAIL_PRODUCT = {"aws": ("Amazon SES", "aws", "the host cloud's own sending service, so it shares the account, IAM and bill"),
+                 "azure": ("Azure Communication Services Email", "azure", "the host cloud's own sending service, so it shares the subscription, RBAC and bill")}
+EMAIL_DEFAULT = ("Resend", "neutral", "a standalone email API that does not depend on the host cloud")
+# N1: official documentation pages (official-unverified in kb/sources.json) for the products named above
+EMAIL_SRC = {"Amazon SES": "ses-docs", "Azure Communication Services Email": "acs-email", "Resend": "resend-docs", "Postmark": "postmark-docs", "Brevo": "brevo-docs"}
+
+
+def email_product(provider):
+    """(product, provider tag, why, alternatives) for the email-delivery component."""
+    name, prov, why = EMAIL_PRODUCT.get(provider, EMAIL_DEFAULT)
+    if prov == "neutral":
+        alts = [(n, "another managed email API; same job, no tie to the host cloud") for n in ("Postmark", "Brevo")]
+    else:
+        alts = [("Resend", "a standalone email API; fine, but a second vendor and bill next to the host cloud")]
+    return name, prov, f"{name} is {why}.", alts
 
 
 def build(ctx, host, backend, db, mobile, warn):
@@ -263,7 +301,7 @@ def build(ctx, host, backend, db, mobile, warn):
             social = auth == "social"
             if db and db["id"] == "supabase":
                 out.append(svc("auth", "Supabase Auth" + (" with Google/GitHub/Apple social sign-in" if social else ""),
-                               f"{auth} login from the same Supabase project as the database: users sit next to the data and row-level security policies can use the signed-in user id; free plan covers this scale." + (SOCIAL_NOTE if social else ""),
+                               f"{auth} login from the same Supabase project as the database: users sit next to the data and row-level security policies can use the signed-in user id; free plan covers this scale." + (SOCIAL_NOTE + named_social_note(ctx, "Supabase Auth") if social else ""),
                                dp + ["budget.monthly_infra_usd"],
                                [("Framework built-in auth", "you would own password storage, reset e-mails and MFA"),
                                 ("Auth0 / Clerk (SaaS)", "another vendor and per-user pricing on a near-zero budget")],
@@ -271,7 +309,7 @@ def build(ctx, host, backend, db, mobile, warn):
                                "saas", "supabase", True, Z, ["supabase-pricing"], loc))
             elif p == "aws" and not selfh and ctx["lock"] != "low":
                 choice = f"Amazon Cognito user pool{rtxt}" + (" with Google/Apple/Microsoft social sign-in" if social else "")
-                out.append(svc("auth", choice, f"{auth} login on AWS: managed user pool with MFA and hosted UI{rtxt}." + (SOCIAL_NOTE if social else ""),
+                out.append(svc("auth", choice, f"{auth} login on AWS: managed user pool with MFA and hosted UI{rtxt}." + (SOCIAL_NOTE + named_social_note(ctx, "Amazon Cognito") if social else ""),
                                dp + ["infrastructure.cloud_preference"],
                                [("Framework built-in auth", "you would own password storage, reset flows and MFA")],
                                ["Cognito customisation limits"], "managed", "aws", True,
@@ -284,7 +322,7 @@ def build(ctx, host, backend, db, mobile, warn):
                        "elixir-phoenix": "Phoenix mix phx.gen.auth (+ Ueberauth for OAuth)",
                        "rust-axum": "Keycloak 26 (container next to the API)"}.get(backend["id"] if backend else "", "Auth.js / Passport (Node)")
                 if social:
-                    lib += " with Google/GitHub/Microsoft OAuth"
+                    lib += " with " + "/".join(social_list(ctx)) + (" sign-in" if ctx["social_named"] else " OAuth")
                 kc = lib.startswith("Keycloak")
                 kl = "Rust" if backend and backend["id"] == "rust-axum" else "Go"  # backends without a batteries-included auth framework
                 out.append(svc("auth", lib,
@@ -676,11 +714,15 @@ def build(ctx, host, backend, db, mobile, warn):
         # E9: open with the input that made a CDN worthwhile
         if req["requirements.seo_critical"]:
             lead = "SEO is critical (requirements.seo_critical), so public pages and static assets are served from edge caches near users (fast pages for visitors and crawlers)"
-        elif ctx["geo"] in ("multi_region", "global"):
-            lead = f"scale.geo_spread={ctx['geo']}: public pages and static assets are cached at the edge, close to distant users"
         else:
-            lead = f"At ~{ctx['users']:,} users, public pages and static assets are cached near users so the origin serves less traffic"
-        why = lead + "; only public, non-personal content is cached."
+            # A8: "public pages" only when the input says there are some (SEO, a public project type, editorial wording)
+            what = ("public pages and static assets" if rs.public_pages(ctx) else "video, audio or large files and static assets" if rs.media_delivery(ctx)
+                    else "static assets (scripts, images, fonts)")
+            if ctx["geo"] in ("multi_region", "global"):
+                lead = f"scale.geo_spread={ctx['geo']}: {what} are cached at the edge, close to distant users"
+            else:
+                lead = f"At ~{ctx['users']:,} users, {what} are cached near users so the origin serves less traffic"
+        why = lead + ("; only public, non-personal content is cached." if rs.public_pages(ctx) else "; only non-personal files are cached, never signed-in responses.")
         # Front Door's $35 base fee (verified, R11) is more than 15% of a budget under ~$233; unless Azure was requested
         # explicitly (a hard constraint), the free Cloudflare plan in front of Azure does the same job for a small site
         if p == "azure" and req["infrastructure.cloud_preference"] != "azure" and ctx["budget"] < 35 / 0.15:
@@ -928,17 +970,18 @@ def build(ctx, host, backend, db, mobile, warn):
                        ["Needs admin consent for Graph application permissions"], "saas", "azure", False, Z, ["ms-graph"]))
     if d["email_out"] and not ctx["self_host_only"] and not (ctx["existing_m365"] and d["approvals"]):
         said = re.search(cx.DESC_RX["email_out"], (req["project.description"] or "").lower())
-        out.append(svc("other", "Email delivery: managed transactional/list email API with an authenticated sending domain (SPF, DKIM, DMARC)",
+        mail_name, mail_prov, mail_why, mail_alts = email_product(p)
+        out.append(svc("other", f"Email delivery: {mail_name} (managed email API, authenticated sending domain: SPF, DKIM, DMARC)",
                        f"The description sends email to users ('{said.group(0) if said else 'email'}'). Mail sent straight from an application server is often rejected "
-                       "or filed as spam, so a managed email API with an authenticated sending domain, bounce and complaint handling and an unsubscribe link carries it; "
-                       "the application only hands messages over. No provider is selected here; the cost band carries a labelled planning estimate for the sends.",
+                       "or filed as spam, so a managed email API with an authenticated sending domain, bounce and complaint handling and an unsubscribe link carries it. "
+                       + mail_why + " The application only hands messages over; the cost band carries a labelled planning estimate for the sends.",
                        ["project.description"] + (["infrastructure.data_residency"] if ctx["res_named"] else []),
-                       [("Sending over SMTP from the application server", "no sender reputation: deliverability, bounce handling and SPF/DKIM/DMARC would all be yours")],
+                       [("Sending over SMTP from the application server", "no sender reputation: deliverability, bounce handling and SPF/DKIM/DMARC would all be yours")] + mail_alts,
                        ["Per-message price is not in the knowledge base: the cost band carries a planning estimate (recipients x sends x price per 1,000), not a quote",
                         "Recipient addresses and message content pass through the provider: pick one whose sending region matches the residency requirement"
                         if ctx["res_named"] else "Recipient addresses and message content pass through the provider",
                         "Bulk mail needs recorded consent and a working unsubscribe link"],
-                       "saas", "neutral", False, Z, []))
+                       "saas", mail_prov, False, Z, [EMAIL_SRC[n] for n in [mail_name] + [a[0] for a in mail_alts] if n in EMAIL_SRC]))
     if req["requirements.multi_tenant"]:
         rls = db and db.get("rls")
         out.append(svc("other", "Tenant isolation: tenant_id on every row" + (" + database row-level security" if rls else " enforced in a repository layer"),

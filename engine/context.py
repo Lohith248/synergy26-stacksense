@@ -66,6 +66,13 @@ DESC_RULES = [
     ("uploads", r"\buploads?\b(?:\W+\w+){0,5}?\W+" + UPLOAD_OBJ + r"\b|\b" + UPLOAD_OBJ + r"\b(?:\W+\w+){0,3}?\W+uploaded\b"),
     ("video_vod", r"recorded video|video lectures?|short[- ]video|video (?:upload|sharing|library)|video-sharing|reels?\b|video[- ]on[- ]demand"),
     ("video_call", r"video (?:consult|calls?|chat|class|meeting)|live class|teleconsult|tele-consult|telehealth|live stream"),
+    # CDN gate evidence. public_pages = wording that says pages are open to anyone; media_delivery = video, audio or large files delivered to users
+    ("public_pages", r"\bpublic(?:ly)?(?!\s+(?:sector|cloud|key|api|ip|subnet|internet|network|health|transport)\b)(?:[- ]\w+){0,3}[- ](?:pages?|listings?|catalogu?es?|directory|directories|profiles?|websites?|sites?)\b"
+                     r"|\b(?:visible|open|available) to (?:the )?(?:public|anyone|everyone)\b|\banyone can (?:browse|view|read|search|see)\b|\banonymous (?:visitors?|users?|browsing)\b"),
+    ("media_delivery", r"\brecorded video|\bvideo (?:lectures?|library|libraries|courses?|on demand)\b|\bvideo-on-demand|\bvod\b|\bpodcasts?\b|\bmusic\b|\bsongs?\b|\bmovies?\b|\bfilms?\b|\be-?books?\b"
+                       r"|\baudio (?:files?|library|books?|lessons?)|\bstreaming (?:video|audio|media|music|service|platform)\b|\b(?:video|audio|music|media)[- ]?stream\w*"
+                       r"|\blarge (?:files?|downloads?|media|assets)\b|\bmedia (?:files?|library|assets)\b|\bdownloadable\b|\b(?:software|installer|firmware) (?:downloads?|images?)\b"
+                       r"|\b(?:watch|stream|listen to|download)\w*\s+(?:\w+\s+){0,3}(?:videos?|lectures?|audio|recordings?)\b"),
     ("web3", r"\bnfts?\b|web3|blockchain|cryptocurrenc|wallet connect|smart contract"),
     ("scheduler", r"remind(?:er)?s?\b|\bcron\b|nightly|scheduled (?:jobs?|tasks?|emails?)|daily (?:email|digest|report)s?"),
     ("analytics", r"dashboards?|\breports?\b|analysts?|\bbi\b|ad-hoc (?:sql|quer)|data warehouse"),
@@ -307,6 +314,24 @@ def fallback_pattern(raw, low):
             pat.update(reuse=True, provider="neutral", deployment="self_hosted")
         return pat
     return None
+
+
+_SIGNIN_WORDS = re.compile(r"\b(?:oauth2?|openid|oidc|sso|log-?in|sign[- ]?in|social|auth\w*)\b")
+_GAME_WORDS = re.compile(r"\b(?:games?|gaming|gamers?|steamworks|steam deck|achievements?|esports?|multiplayer)\b")
+
+
+def social_login_counts(req, pat, raw):
+    """A social-login entry (Discord, Steam, LinkedIn) is a sign-in provider only when requirements.auth is social and the entry is
+    the bare provider name or says sign-in; Steam also needs a game context (type gaming, or game words in the description or entry).
+    Otherwise it is read as some other system of that vendor: not a provider, so it falls through to the unrecognised-system warning."""
+    low = raw.lower()
+    if req["requirements.auth"] != "social":
+        return False
+    if not (_SIGNIN_WORDS.search(low) or len(low.split()) <= 2):
+        return False
+    if pat["name"] == "Steam":
+        return req["project.type"] == "gaming" or bool(_GAME_WORDS.search(low) or _GAME_WORDS.search((req["project.description"] or "").lower()))
+    return True
 
 
 # D12: data_residency 'other' -> jurisdiction. Ids, display names and keywords from ../research/R15-regions-other.md.
@@ -719,6 +744,8 @@ def build(req):
         low = f" {raw.lower()} "
         hit = next((pat for pat in TECH["existing_patterns"] if word_rx(pat["match"]).search(low)), None)
         hit = hit or fallback_pattern(raw, low)
+        if hit and hit["kind"] == "social_login" and not social_login_counts(req, hit, raw):
+            hit = fallback_pattern(raw, low)
         life = None
         norm = lifecycle_text(low)
         for lc in TECH["lifecycle"]:
@@ -762,6 +789,8 @@ def build(req):
     c["unused_existing"] = {"identity provider": idps[1:], "message broker": queues[1:]}
     c["idp_customer_login"] = bool(c["existing_idp"] and c["existing_idp"]["pattern"].get("customer_login")
                                    and not c["existing_idp"]["workforce"])
+    # A16: social sign-in providers the input names (existing_systems, in list order); the auth text lists them before the defaults
+    c["social_named"] = [e["pattern"]["name"] for e in ex if e["pattern"] and e["pattern"]["kind"] == "social_login"]
     c["ms_idp"] = bool(c["existing_idp"] and c["existing_idp"]["pattern"].get("vendor") == "microsoft")
     c["existing_m365"] = next((e for e in ex if e["pattern"] and e["pattern"]["kind"] == "collaboration"), None)
     r = req

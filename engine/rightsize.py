@@ -11,7 +11,15 @@ THRESHOLDS = {
     "game_p95_ms": 100,           # heuristic: a server-side game loop is justified at or below this p95 latency target
     "warehouse_gb_type": 100,     # heuristic: data_analytics type; at 10x the managed-DB storage price the app DB still serves reports
     "warehouse_gb_inferred": 200,  # heuristic: warehouse inferred only from description words needs stronger evidence
+    "warehouse_users": 2000,      # heuristic (A17): below this many users_12_months AND this peak the application database serves the reports
+    "warehouse_peak": 50,         # heuristic (A17): concurrent users at which report scans start to compete with application traffic
+    "warehouse_gb_any": 500,      # heuristic (A17): from this volume a columnar engine pays off whatever the audience
+    "warehouse_gb_airgap": 1000,  # heuristic (A17): an air-gapped site adds no second database engine below this volume (every engine is patched by hand)
 }
+# A8: project types whose pages are meant for the public. Anything else with sign-in on every route and no SEO need is an
+# authenticated app: its static files gain little from an edge cache (planning heuristic, not a vendor fact).
+PUBLIC_TYPES = ("content_site", "ecommerce", "marketplace", "social", "gaming", "web_app", "realtime_collab")
+TIER_CDN_EXEMPT = 2           # heuristic: from tier 2 (over 50,000 users in 12 months or 2,000 concurrent) a signed-in app keeps its CDN: static-file traffic is large enough to cache
 _GEO_WIDE = ("multi_region", "global")
 
 
@@ -47,6 +55,19 @@ def warehouse(ctx):
     paths = ["project.type", "scale.data_volume_gb_12_months"]
     given = req["scale.data_volume_gb_12_months"] is not None
     vol = f"scale.data_volume_gb_12_months is {gb:,.0f}" if given else "scale.data_volume_gb_12_months is not given (5 GB assumed)"
+    users, peak = ctx["users"], ctx["peak"]
+    small = users < THRESHOLDS["warehouse_users"] and peak < THRESHOLDS["warehouse_peak"] and gb < THRESHOLDS["warehouse_gb_any"]
+    if small and (ctx["type"] == "data_analytics" and gb >= t_type or ctx["desc"]["analytics"] and gb >= t_desc):
+        # A17: few readers over a modest volume: the application database (read-only role) serves the reports
+        return False, (f"project.type is {ctx['type']} with {users:,} users in 12 months, ~{peak:,} concurrent and {vol}, under the "
+                       f"{THRESHOLDS['warehouse_users']:,} users, {THRESHOLDS['warehouse_peak']} concurrent and {THRESHOLDS['warehouse_gb_any']:,} GB planning heuristics"), \
+            (f"readers reach about {THRESHOLDS['warehouse_users']:,} users or {THRESHOLDS['warehouse_peak']} concurrent, or the data reaches "
+             f"{THRESHOLDS['warehouse_gb_any']:,} GB (reports then compete with application traffic on the database)"), paths + ["scale.users_12_months", "scale.peak_concurrent_users"]
+    if ctx["no_internet"] and gb < THRESHOLDS["warehouse_gb_airgap"]:
+        # A17: an air-gapped site runs and patches every engine itself: no second database engine below 1 TB
+        return False, (f"hosting is air-gapped, so every extra database engine is one more thing to install, patch and back up by hand, and {vol}, "
+                       f"under the {THRESHOLDS['warehouse_gb_airgap']:,} GB planning heuristic"), \
+            f"the data reaches about {THRESHOLDS['warehouse_gb_airgap']:,} GB", paths
     if ctx["type"] == "data_analytics" and gb >= t_type:
         return True, f"project.type is data_analytics and {vol}, at or above the {t_type} GB planning heuristic", "", paths
     if ctx["desc"]["analytics"] and req["scale.workload"] == "read_heavy" and gb >= t_desc:
@@ -55,10 +76,21 @@ def warehouse(ctx):
         f"the data volume reaches about {t_type} GB (reports then compete with application traffic on the database)", paths
 
 
+def public_pages(ctx):
+    """True when the input says public pages exist (SEO, a public project type, or editorial/public-page wording)."""
+    return bool(ctx["req"]["requirements.seo_critical"] or ctx["type"] in PUBLIC_TYPES or ctx["desc"]["editorial"] or ctx["desc"]["public_pages"])
+
+
+def media_delivery(ctx):
+    """True when the description says video, audio or large files are delivered to users: a CDN pays off for media whatever the sign-in."""
+    return bool(ctx["desc"]["media_delivery"] or ctx["desc"]["video_vod"])
+
+
 def public_facing(ctx):
-    """Edge CDN needs a public audience: not 'employees only', and an internal tool only when SEO or multi-region users say otherwise."""
+    """Edge CDN needs a public audience: not 'employees only', not an app that is signed-in on every route (A8), and an internal
+    tool only when SEO or multi-region users say otherwise."""
     d, req, typ, geo = ctx["desc"], ctx["req"], ctx["type"], ctx["geo"]
-    paths = ["project.type", "project.description"]
+    paths, aud = ["project.type", "project.description"], "a known staff audience"
     if d["internal_only"] and typ == "internal_tool":
         why = "project.type is internal_tool and the description says it is used only by employees"
     elif d["internal_only"]:
@@ -67,9 +99,16 @@ def public_facing(ctx):
         why = ("project.type is internal_tool with requirements.seo_critical false and scale.geo_spread "
                + (f"{geo}" if geo else "not given"))
         paths = ["project.type", "requirements.seo_critical", "scale.geo_spread"]
+    elif req["requirements.auth"] != "none" and not public_pages(ctx) and not media_delivery(ctx) and ctx["tier"] < TIER_CDN_EXEMPT and geo not in _GEO_WIDE:
+        why = (f"requirements.auth is {req['requirements.auth']}, requirements.seo_critical is false, project.type is {typ}, the description has no public-page "
+               f"or media-delivery wording (public pages, listings, catalogue, directory, profiles, blog, video, audio, large files) "
+               f"and scale.geo_spread is " + (f"{geo}" if geo else "not given") + ", which this planning heuristic reads as an app that is signed in on every route")
+        paths, aud = ["requirements.auth", "requirements.seo_critical", "project.type", "scale.geo_spread"], "a signed-in audience"
     else:
         return True, "", "", []
-    return False, why + ", so a known staff audience is served from one region", \
+    # tier 2+ with no scale.geo_spread: the input does not say one region, so the text does not either
+    where = "served from one region" if geo or ctx["tier"] < TIER_CDN_EXEMPT else "served from wherever the application runs (scale.geo_spread is not given)"
+    return False, why + f", so {aud} is {where}", \
         "public pages, public media or users on several continents appear", paths
 
 
