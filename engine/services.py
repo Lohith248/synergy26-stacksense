@@ -779,8 +779,12 @@ def build(ctx, host, backend, db, mobile, warn):
         pat = e["pattern"]
         # a system read by keyword is named as written (without its "(must stay)" remark)
         label = pat["name"] if pat and pat.get("synthetic") else re.sub(r"(?i)^(?:the |our )?existing ", "", e["raw"])
-        via = "App Service Hybrid Connection (outbound 443 relay, no inbound ports)" if p == "azure" else (
-            "site-to-site VPN / private link" if not selfh else "the local network")
+        # a system that is itself a cloud service (not on-premises) is reached over the provider's private path, not a relay for on-prem servers
+        cloud_sys = bool(pat and not e["onprem"] and cx._CLOUD_WORDS.search(e["raw"].lower()))
+        via = ("the provider's private network path (private endpoint or allow-listed address, no public internet path)" if cloud_sys
+               else "App Service Hybrid Connection (outbound 443 relay, no inbound ports)" if p == "azure" else (
+                   "site-to-site VPN / private link" if not selfh else "the local network"))
+        where = "cloud database" if cloud_sys else "on-prem server"
         if pat and pat.get("synthetic") and pat["kind"] == "database" and e is ctx["kept_db"]:
             out.append(svc("other", f"Integration with existing {label} via {via}",
                            f"{pat['how']} It stays the application's database and is reached through {via}.",
@@ -795,9 +799,9 @@ def build(ctx, host, backend, db, mobile, warn):
                               if e["life"] and e["life"]["eol"] <= AS_OF else ""),
                            ["infrastructure.existing_systems"],
                            [("Migrate everything into the new database now", "risky in the MVP timeline and breaks existing consumers"),
-                            ("Use the on-prem server as the only database", "ties availability of the new app to the on-prem server and the relay")],
-                           ["Cross-network latency on queries to the on-prem server", "Credentials for the on-prem database must live in a secret store"],
-                           "library", "neutral", False, Z, pat["src"] + (["azure-hybrid-connections"] if p == "azure" else [])))
+                            (f"Use the {where} as the only database", f"ties availability of the new app to the {where}" + ("" if cloud_sys else " and the relay"))],
+                           [f"Cross-network latency on queries to the {where}", f"Credentials for the {'existing' if cloud_sys else 'on-prem'} database must live in a secret store"],
+                           "library", "neutral", False, Z, pat["src"] + (["azure-hybrid-connections"] if p == "azure" and not cloud_sys else [])))
         elif pat and pat["kind"] in ("erp", "crm", "legacy_app", "payments", "record", "health", "api", "orchestrator", "storage"):
             out.append(svc("other", f"Integration with existing {label}", pat["how"], ["infrastructure.existing_systems"],
                            [("Replacing it", "outside MVP scope")], ["Depends on the existing system's API limits"], "library", "neutral", False, Z, pat["src"]))

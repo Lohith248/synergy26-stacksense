@@ -166,6 +166,20 @@ class ExistingSystemText(unittest.TestCase):
                 self.assertNotIn("strangle", comp[0]["justification"])
                 self.assertIn("read them in place", comp[0]["justification"])
 
+    def test_existing_cloud_database_is_not_reached_through_an_on_prem_relay(self):
+        for raw, cloud in (("Azure SQL Database", "azure"), ("Amazon RDS for MySQL", "aws"), ("Cloud SQL for PostgreSQL 12 (managed)", "gcp")):
+            with self.subTest(raw=raw):
+                out = run(infrastructure__cloud_preference=cloud, infrastructure__existing_systems=[raw])
+                comp = [s for s in sup(out, "Integration with existing") if raw in s["choice"]]
+                self.assertTrue(comp, raw)
+                self.assertNotIn("Hybrid Connection", comp[0]["choice"])
+                self.assertNotIn("on-prem", comp[0]["justification"] + " ".join(a["choice"] for a in comp[0]["alternatives"]))
+
+    def test_on_prem_database_keeps_the_relay_wording(self):
+        out = run(infrastructure__cloud_preference="azure", infrastructure__existing_systems=["On-prem SQL Server 2019"])
+        comp = sup(out, "Integration with existing On-prem SQL Server 2019")
+        self.assertIn("Hybrid Connection", comp[0]["choice"])
+
 
 class UiSkillMismatch(unittest.TestCase):
     """B: SKILL_MISMATCH also covers the web and mobile UI layer for a small non-senior or beginner team."""
