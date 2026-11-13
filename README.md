@@ -201,6 +201,10 @@ A supporting service that is sized for scale or latency the input does not state
 
 When the estimated minimum exceeds the budget, the `BUDGET_EXCEEDED` message also lists up to three services that could wait (managed cache, dedicated search, CDN without SEO/geo need, warehouse, game servers, the extra Node sync instance) and the minimum without them. This is text only; nothing is removed.
 
+### Cost realism (D17)
+
+The band is the sum of printed lines and every figure that is not in the knowledge base is labelled `planning estimate` or `planning heuristic`. Per-message services scale with users x a stated usage assumption (phone OTP logins, e-mail sends per recipient, LLM questions and tokens); managed ML training has a floor from `scale.data_volume_gb_12_months`; on-premise and air-gapped outputs add one `Hardware (indicative, not a quote)` line (servers per scale tier amortised over 36 months); a device count in the description sizes IoT ingestion; and a peak concurrency derived from a stated monthly audience uses a documented 5% or 2% fraction, never more than the users. When the budget is far below the minimum, `BUDGET_EXCEEDED` names the dominant line and what to cut (explain-only: nothing is removed); a single line above 10 times the budget gets a `Sanity check` sentence. All tables are in `engine/costreal.py`.
+
 ## Project structure
 
 ```
