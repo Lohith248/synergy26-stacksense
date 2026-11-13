@@ -198,5 +198,53 @@ class G2Warehouse(unittest.TestCase):
         self.assertGreaterEqual(drop, 263)
 
 
+def rt(out):
+    return sup(out, "realtime")
+
+
+def collab_app(desc, **kw):
+    return run(**{"project.type": "realtime_collab", "requirements.realtime": True, "project.description": desc,
+                  "team.languages": ["php"], **kw})
+
+
+class G4Crdt(unittest.TestCase):
+    def test_co_editing_description_gets_crdt(self):
+        out = collab_app("Teams edit the same document at once and see each other's cursors")
+        self.assertEqual(len(rt(out)), 1)
+        self.assertIn("Yjs", rt(out)[0]["choice"])
+        self.assertFalse(notes(out, "CRDT"))
+
+    def test_conflict_free_offline_notes_keep_crdt_everywhere(self):
+        out = collab_app("Shared notes with conflict-free merging after reconnecting", **{"requirements.offline_support": True})
+        self.assertIn("Yjs", rt(out)[0]["choice"])
+        off = next(s for s in sup(out, "other") if s["choice"].startswith("Offline-first sync"))
+        self.assertIn("CRDT", off["justification"])
+
+    def test_discrete_events_use_native_realtime_with_note(self):
+        out = collab_app("Shared kanban boards with live card moves")
+        self.assertEqual(len(rt(out)), 1)
+        self.assertEqual(rt(out)[0]["choice"], "Laravel Reverb")
+        self.assertTrue(any(a["choice"].startswith("Yjs CRDT") for a in rt(out)[0]["alternatives"]))
+        n = notes(out, "CRDT")
+        self.assertEqual(len(n), 1)
+        self.assertIn("realtime_collab", n[0]["message"])
+        self.assertEqual(n[0]["severity"], "info")
+
+    def test_empty_and_negated_descriptions_are_native(self):
+        for desc in ("", "No co-editing: one author per page, readers see live updates"):
+            out = collab_app(desc)
+            self.assertNotIn("Yjs", rt(out)[0]["choice"], desc)
+            self.assertEqual(len(notes(out, "CRDT")), 1, desc)
+
+    def test_gaming_multiplayer_is_never_crdt(self):
+        out = run(**game("Multiplayer shooter with live cursors", p95=60))
+        self.assertFalse(any("Yjs" in s["choice"] for s in sup(out, "realtime")))
+        self.assertFalse(notes(out, "CRDT"))
+
+    def test_other_types_without_collab_words_are_unchanged(self):
+        out = run(**{"project.type": "web_app", "requirements.realtime": True, "project.description": "Live order status"})
+        self.assertFalse(notes(out, "CRDT"))
+
+
 if __name__ == "__main__":
     unittest.main()

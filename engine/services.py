@@ -275,12 +275,12 @@ def build(ctx, host, backend, db, mobile, warn):
                            "managed" if prov != "neutral" else "self_hosted", prov, True, cost, src, loc))
 
     # ---------------- realtime
-    collab = ctx["type"] == "realtime_collab" or d["collab"]
+    collab = rs.crdt(ctx)[0]  # D13 G4: description evidence of simultaneous editing; the type alone does not make a CRDT sync server necessary
     # games: dedicated game servers when rs.game_servers holds (domains.py); otherwise the native realtime branch below (D13)
     gate_g = rs.game_servers(ctx) if ctx["type"] == "gaming" and ctx["needs_backend"] else None
     if req["requirements.realtime"] and (ctx["type"] != "gaming" or (gate_g and not gate_g[0])):
         dp = ["requirements.realtime"]
-        if collab and ctx["type"] != "gaming":
+        if collab:
             # F3: the CRDT sync server runs in the backend's own language/runtime when the KB has a Yjs-compatible port;
             # otherwise Hocuspocus (Node) is an extra runtime beside the API, named and costed
             bid = backend["id"] if backend else ""
@@ -343,6 +343,11 @@ def build(ctx, host, backend, db, mobile, warn):
                 drv = dp + gpaths
                 alts = [(gname, f"{fact}; add when {when}")] + alts
                 warn("SERVICE_NOT_ADDED", "info", rs.note("Per-match game servers", fact, when), gpaths)
+            if ctx["type"] == "realtime_collab":  # D13 G4: the type says live updates, the description names no co-editing
+                _, fact, when, cpaths = rs.crdt(ctx)
+                alts = [("Yjs CRDT documents + sync server", f"{fact}; add when {when}")] + alts
+                drv = drv + ["project.description"]
+                warn("SERVICE_NOT_ADDED", "info", rs.note("CRDT sync server", fact, when), cpaths)
             out.append(svc("realtime", native, why, drv, alts,
                            ["Scale-out: cluster the Phoenix nodes so Phoenix.PubSub spans them (or use its Redis adapter)"
                             if native.startswith("Phoenix") else "Scale-out needs a pub/sub backplane (Redis/Valkey)"],
@@ -350,7 +355,10 @@ def build(ctx, host, backend, db, mobile, warn):
 
     # ---------------- cache
     read_hot = req["scale.workload"] == "read_heavy" and ctx["peak"] >= 1000
-    need_cache = ctx["tier"] >= 2 or read_hot or (req["requirements.realtime"] and ctx["tier"] >= 1 and collab) or (
+    # D13 deviation from the plan text: the pub/sub backplane need is unchanged by the CRDT gate (a native realtime app also scales out
+    # over one), so the cache rule keeps the pre-D13 meaning of "collaborative" instead of reading the narrower CRDT verdict
+    live_collab = ctx["type"] == "realtime_collab" or d["collab"]
+    need_cache = ctx["tier"] >= 2 or read_hot or (req["requirements.realtime"] and ctx["tier"] >= 1 and live_collab) or (
         ctx["prio"]["performance"] >= 5 and ctx["tier"] >= 1)
     if need_cache and ctx["needs_backend"]:
         if selfh:
