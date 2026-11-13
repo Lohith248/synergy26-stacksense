@@ -6,7 +6,7 @@ and noun, from the entry text first and then from the description clauses that n
   protocol   MQ, MLLP/HL7 v2, SOAP/WSDL, OPC UA, MQTT, SMPP, LoRaWAN  -> an adapter that names the protocol
   webhook    webhook / push / feed                                      -> inbound receiver: signature, idempotency key, queue
   file       CSV / XML / Excel / named export formats / import / export -> import/export job with validation and idempotent re-run
-  accounting accounting / ERP / Tally / SAP / billing / payroll         -> export adapter with reconciliation
+  accounting accounting / ERP / Tally Prime / SAP / billing / payroll         -> export adapter with reconciliation
   device     rig control / serial / USB / PLC / barcode                 -> local device-control adapter
   retire     replace / retire / decommission                            -> no component; the entry is going away
   api        must call / reads / queries / via / sync                   -> adapter that owns the contract (protocol not stated)
@@ -44,9 +44,17 @@ PROTOCOLS = (
 WEBHOOK_RX = r"\bwebhooks?\b|\bpush(?:ed|es|ing)?\b|\bfeeds?\b|\bcallbacks?\b"
 FILE_FORMATS = r"\bcsv\b|\btsv\b|\bxml\b|\bxlsx?\b|\bexcel\b|\bspreadsheets?\b|\bsheets?\b|\bflat files?\b|\bfixed[- ]width\b|\badif\b|\bcabrillo\b|\bjson files?\b"
 FILE_RX = FILE_FORMATS + r"|\bfiles?\b|\bimports?\b|\bimported\b|\bexports?\b|\bexported\b"
-ACCOUNTING_RX = r"\baccounting\b|\baccounts\b|\berp\b|\btally\b|\bsap\b|\bquickbooks\b|\bbilling\b|\bpayroll\b|\binvoic\w+|\bgeneral ledger\b"
+ACCOUNTING_RX = r"\baccounting\b|\baccounts\b|\berp\b|\btally[ .]?(?:prime|erp)|\bsap\b|\bquickbooks\b|\bbilling\b|\bpayroll\b|\binvoic\w+|\bgeneral ledger\b"
 DEVICE_RX = r"\brig control\b|\bcat control\b|\bserial\b|\busb\b|\bplc\b|\bbarcode\b|\bscanners?\b|\bprinters?\b|\bcard readers?\b|\bhardware\b"
 RETIRE_RX = r"\breplac(?:e|ed|es|ing|ement)\b|\bretir(?:e|ed|es|ing)\b|\bdecommission\w*|\bphas(?:e|ed|ing) out\b|\bsunset\w*|\bmigrat\w* (?:off|away)\b"
+# a retire verb after one of these ("will not replace", "no plan to retire", "instead of replacing") keeps the system
+KEEP_RX = r"\b(?:not|never|no plan|no intention|nor|cannot|without|instead of|rather than)\b|n't\b"
+
+
+def _retiring(text):
+    """True when text has a retire verb that no negation or 'instead of' precedes."""
+    text = text.replace("’", "'")
+    return any(not re.search(KEEP_RX, text[max(0, m.start() - 30):m.start()]) for m in re.finditer(RETIRE_RX, text))
 VERB_RX = (r"\b(?:calls?|calling|invokes?|reads?|reading|fetch\w*|quer(?:y|ies|ied)|pull\w*|talks? to|connect\w*|integrat\w*|sync\w*|via|"
            r"through|feeds?|feeding|receives?|sends?|posts? to|writes? to|looks? up)\b")
 # "X exported as/from/by ..." names a file the system produces, which the application reads: an import
@@ -117,7 +125,7 @@ def infer(raw, desc):
                     "how": (f"{'The description' if from_desc else 'The entry'} names {pname}{ref()}. The application reaches it through {text}. Timeouts, retries and error mapping live in "
                             "that one adapter, with a stub for tests, so the rest of the application never depends on the wire format. Endpoint, credentials and "
                             "message contract are not given in the input: confirm them with the system's owners.")}
-    if re.search(RETIRE_RX, own):  # the entry itself says it is going away ("... (to be replaced)")
+    if _retiring(own):  # the entry itself says it is going away ("... (to be replaced)")
         return {"kind": "retire", "protocol": None, "evidence": name, "from_desc": False, "title": "", "how": ""}
     if re.search(WEBHOOK_RX, both):
         evidence, from_desc = evidence_for(WEBHOOK_RX)
@@ -129,8 +137,8 @@ def infer(raw, desc):
                         "The provider's signing scheme and delivery guarantees are not in the knowledge base: confirm them with the provider.")}
     if re.search(FILE_FORMATS, both) or (re.search(FILE_RX, both) and not re.search(ACCOUNTING_RX, both)):  # a named format beats the accounting noun
         evidence, from_desc = evidence_for(FILE_RX)
-        fmts = sorted({FORMAT_NAMES.get(m.group(0).strip(), m.group(0).strip()) for m in re.finditer(FILE_FORMATS, both)} - {"spreadsheet"}
-                      or {"spreadsheet"})
+        named = {FORMAT_NAMES.get(m.group(0).strip(), m.group(0).strip()) for m in re.finditer(FILE_FORMATS, both)}
+        fmts = sorted(named - {"spreadsheet"} or named)  # only a format the text names; none is invented
         imp, exp = bool(re.search(IMPORT_RX, both)), bool(re.search(EXPORT_RX, both))
         way = "Import and export" if imp and exp else "Export" if exp and not imp else "Import"
         fm = f" ({'/'.join(fmts)})" if fmts else ""
@@ -143,9 +151,10 @@ def infer(raw, desc):
         evidence, from_desc = evidence_for(ACCOUNTING_RX)
         return {"kind": "accounting", "protocol": None, "evidence": evidence, "from_desc": from_desc,
                 "title": f"Accounting / billing adapter for {name}",
-                "how": (f"The application hands its financial records to the accounting or billing system{ref()} through one adapter that writes the target's "
-                        "import format (a file or an API, as its owners confirm) in idempotent batches, and a reconciliation report compares totals on both sides. "
-                        "The application never writes into that system's own tables; the interface is not stated in the input, so the format is an assumption to confirm.")}
+                "how": (f"{'The description' if from_desc else 'The entry'} ties it to accounting or billing{ref()}. If financial records are to move between it and the "
+                        "application, one adapter does that through the target's import format or API (as its owners confirm), in idempotent batches, and a reconciliation report "
+                        "compares totals on both sides. The application never writes into that system's own tables. Whether records flow in, out or both, and the "
+                        "interface, are not stated in the input: both are assumptions to confirm.")}
     if re.search(DEVICE_RX, both):
         evidence, from_desc = evidence_for(DEVICE_RX)
         return {"kind": "device", "protocol": None, "evidence": evidence, "from_desc": from_desc,
@@ -155,7 +164,7 @@ def infer(raw, desc):
     toks = _tokens(raw)
     # a replace verb counts only in the same part of the clause as the system's own name ("migrating off X and keeping Y" retires X only)
     gone = next((p.strip() for c in cls for p in re.split(r"\b(?:and|but)\b", c.lower())
-                 if re.search(RETIRE_RX, p) and set(re.findall(r"[a-z0-9]+", p)) & toks), None)
+                 if _retiring(p) and set(re.findall(r"[a-z0-9]+", p)) & toks), None)
     if gone:
         return {"kind": "retire", "protocol": None, "evidence": gone[:130], "from_desc": True, "title": "", "how": ""}
     if any(re.search(VERB_RX, c.lower()) for c in cls):

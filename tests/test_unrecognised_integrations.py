@@ -74,6 +74,36 @@ class UnrecognisedIntegrations(unittest.TestCase):
         out = self.one("web_app", "Zorblax billing (to be replaced)", "Shop site that bills customers each month.")
         self.assertTrue([a for a in out["assumptions"] if "going away" in a], out["assumptions"])
 
+    def test_negated_replace_verb_keeps_the_system(self):
+        for typ, entry, desc in [("web_app", "Zorblax", "We will not replace Zorblax; the app reads bookings from it."),
+                                 ("saas_b2b", "Frobnix console", "There is no plan to retire the Frobnix console, which the app calls for stock."),
+                                 ("internal_tool", "Quillon", "Quillon won't be phased out, and staff sync rota data with Quillon.")]:
+            ad = ig.infer(entry, desc)
+            self.assertNotEqual((ad or {}).get("kind"), "retire", desc)
+        self.assertEqual(ig.infer("Zorblax", "Zorblax will be replaced next year.")["kind"], "retire")  # must still fire
+        self.assertEqual(ig.infer("Quillon", "We are retiring Quillon but keeping the rest.")["kind"], "retire")
+
+    def test_no_invented_file_format_or_data_flow(self):
+        for typ, entry, desc in [("web_app", "Zorblax", "Staff upload a file to Zorblax."),
+                                 ("internal_tool", "Frobnix", "Frobnix produces a nightly export for us."),
+                                 ("saas_b2b", "Quillon", "Each night an import runs against Quillon.")]:
+            ad = ig.infer(entry, desc)
+            self.assertEqual(ad["kind"], "file", desc)
+            self.assertNotIn("(", ad["title"], ad["title"])
+        self.assertIn("(CSV)", ig.infer("Zorblax", "Zorblax exports a CSV every night.")["title"])  # a stated format is kept
+        ad = ig.infer("Zorblax", "Zorblax stays as our accounts system.")
+        self.assertEqual(ad["kind"], "accounting")
+        self.assertNotIn("hands its", ad["how"])
+        self.assertIn("not stated", ad["how"])
+
+    def test_bare_tally_is_not_an_accounting_package(self):
+        for entry, desc in [("Tally", "We track hours in Tally."), ("Tally counter", "A tally of votes is kept in the Tally counter."),
+                            ("Stock tally", "Staff tally stock by hand in the stock tally sheet.")]:
+            self.assertNotEqual((ig.infer(entry, desc) or {}).get("kind"), "accounting", desc)
+        for entry, desc in [("Tally Prime", "Books are kept in Tally Prime."), ("TallyPrime", "Vouchers go to TallyPrime."),
+                            ("Tally.ERP 9", "Data is kept in Tally.ERP 9.")]:
+            self.assertEqual(ig.infer(entry, desc)["kind"], "accounting", desc)
+
     def test_description_reaches_a_database_through_the_existing_broker(self):
         out = self.one("saas_b2b", "Core DB2 database", "Reads member records from the core database via MQ.",
                        **{"infrastructure.existing_systems": ["Core DB2 database", "IBM MQ"]})
