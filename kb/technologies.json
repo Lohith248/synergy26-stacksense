@@ -392,7 +392,7 @@
     {"pattern": "phpbb 3.1", "name": "phpBB 3.1", "eol": "2020-12-31", "soft": true, "kind": "older_line", "line": "phpBB 3.3", "src": "f4-phpbb"},
     {"pattern": "phpbb 3.2", "name": "phpBB 3.2", "eol": "2024-12-31", "soft": true, "kind": "older_line", "line": "phpBB 3.3", "src": "f4-phpbb"},
     {"pattern": "sharepoint 2007", "name": "SharePoint Server 2007", "eol": "2017-10-10", "soft": true, "approx": "October 2017", "src": "f4-sharepoint"},
-    {"pattern": "sharepoint 2010", "name": "SharePoint Server 2010", "eol": "2020-10-13", "soft": true, "approx": "October 2020", "src": "f4-sharepoint"},
+    {"pattern": "sharepoint 2010", "name": "SharePoint Server 2010", "eol": "2021-04-13", "soft": true, "approx": "April 2021", "src": "f4-sharepoint"},
     {"pattern": "sharepoint 2013", "name": "SharePoint Server 2013", "eol": "2023-04-11", "soft": true, "approx": "April 2023", "src": "f4-sharepoint"},
     {"pattern": "sharepoint 2016", "name": "SharePoint Server 2016", "eol": "2026-07-14", "soft": true, "approx": "July 2026", "src": "f4-sharepoint"},
     {"pattern": "mosquitto 1", "name": "Eclipse Mosquitto 1.x", "eol": "2023-12-31", "soft": true, "kind": "older_line", "line": "Mosquitto 2.x", "src": "f4-mosquitto"},
@@ -404,7 +404,9 @@
     {"pattern": ".net framework 4.6", "name": ".NET Framework 4.5.2, 4.6, 4.6.1", "rx": "\\.net framework 4(?:\\.5\\.2|\\.6(?:\\.1)?)(?!\\.?\\d)", "eol": "2022-04-26", "soft": true, "approx": "April 2022", "src": "f4-dotnet-framework"},
     {"pattern": "tomcat 6", "name": "Apache Tomcat 6.x", "eol": "2016-12-31", "soft": true, "approx": "December 2016", "src": "f4-tomcat"},
     {"pattern": "tomcat 7", "name": "Apache Tomcat 7.x", "eol": "2021-03-31", "soft": true, "approx": "March 2021", "src": "f4-tomcat"},
-    {"pattern": "tomcat 8", "name": "Apache Tomcat 8.x (8.5, the last 8.x line)", "eol": "2024-03-31", "soft": true, "approx": "March 2024", "src": "f4-tomcat"}
+    {"pattern": "tomcat 8.0", "name": "Apache Tomcat 8.0.x", "eol": "2018-06-30", "soft": true, "approx": "June 2018", "src": "f4-tomcat"},
+    {"pattern": "tomcat 8.5", "name": "Apache Tomcat 8.5.x", "eol": "2024-03-31", "soft": true, "approx": "March 2024", "src": "f4-tomcat"},
+    {"pattern": "tomcat 8", "name": "Apache Tomcat 8 (minor line not stated)", "eol": "2018-06-30", "soft": true, "detail": "Tomcat 8.0 ended in June 2018 and 8.5 in March 2024; check which line this is", "src": "f4-tomcat"}
   ],
   "existing_patterns": [
     {"match": ["entra", "azure ad", "azure active directory"], "kind": "identity", "name": "Microsoft Entra ID", "how": "Reuse it as the identity provider: OpenID Connect sign-in with group/app-role claims for authorisation; no separate user store.", "src": ["entra-sso"], "vendor": "microsoft", "reuse": true, "provider": "azure", "deployment": "saas"},

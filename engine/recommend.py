@@ -1161,7 +1161,7 @@ def contradictions(ctx, W, assumptions, host, backend):
         W("HIPAA_HOST_NO_BAA", "critical", f"{host['name']} has no BAA in the knowledge base; PHI must not be stored there.", ["compliance"])
     for e in ctx["existing"]:
         life = e["life"]
-        if life:
+        for life in ([life] if life else []) + e["life_more"]:  # every product the entry names ("Java 6 / Struts 1")
             if life["eol"] <= AS_OF:
                 what = cx.life_what(life)
                 W("END_OF_LIFE_SYSTEM", "warning",

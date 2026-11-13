@@ -71,6 +71,31 @@ class NewLifecycleEntries(unittest.TestCase):
             self.assertEqual(SOURCES[sid]["status"], "official-unverified", sid)
             self.assertNotEqual(SOURCES[sid]["status"], "verified", sid)
 
+    def test_sharepoint_2010_uses_the_extended_end_date(self):
+        m = warns(run("SharePoint 2010 document store", "saas_b2b"), "END_OF_LIFE_SYSTEM")[0]["message"]
+        self.assertIn("around April 2021", m)
+        self.assertNotIn("October 2020", m)
+
+    def test_tomcat_8_lines_have_their_own_dates(self):
+        for raw, want, never in (("Tomcat 8.0.53", "around June 2018", "2024"), ("Apache Tomcat 8.5.100", "around March 2024", "2018")):
+            with self.subTest(raw=raw):
+                m = warns(run(raw), "END_OF_LIFE_SYSTEM")[0]["message"]
+                self.assertIn(want, m)
+                self.assertNotIn(never, m)
+        m = warns(run("Tomcat 8 app server"), "END_OF_LIFE_SYSTEM")[0]["message"]  # no minor line: both dates, no single one
+        self.assertIn("8.0 ended in June 2018 and 8.5 in March 2024; check which line", m)
+        self.assertNotIn("around", m)
+
+    def test_every_product_an_entry_names_gets_its_warning(self):
+        for raw, names in (("Java 6 / Struts 1 intranet app", ("Oracle Java SE 6", "Apache Struts 1.x")),
+                           ("SQL Server 2008 on Windows Server 2008", ("SQL Server 2008/2008 R2", "Windows Server 2008 / 2008 R2")),
+                           ("Tomcat 6 with Oracle 10g", ("Apache Tomcat 6.x", "Oracle Database 10.2"))):
+            with self.subTest(raw=raw):
+                msgs = " | ".join(w["message"] for w in warns(run(raw, "internal_tool"), "END_OF_LIFE_SYSTEM", raw))
+                for n in names:
+                    self.assertIn(f"({n}", msgs)
+        self.assertEqual(len(warns(run("Struts 1.3 portal"), "END_OF_LIFE_SYSTEM")), 1)  # one product, one warning
+
     def test_no_date_is_printed_for_entries_without_a_confident_year(self):
         for raw in ("Oracle Forms 6i billing system", "ColdFusion 9 intranet"):
             msg = warns(run(raw), "END_OF_LIFE_SYSTEM", raw)[0]["message"]
@@ -133,6 +158,17 @@ class SuspectedEndOfLife(unittest.TestCase):
                 self.assertTrue(w, raw)
                 self.assertEqual(w[0]["severity"], "warning")
                 self.assertIn("no lifecycle data", w[0]["message"])
+
+    def test_edition_years_after_a_product_word_raise_a_warning(self):
+        for raw, typ in (("Dynamics NAV 2009 ledger", "saas_b2b"), ("Sage 2012 payroll", "internal_tool"), ("Stock control Suite 2005", "ecommerce")):
+            with self.subTest(raw=raw):
+                self.assertTrue(warns(run(raw, typ), "END_OF_LIFE_SUSPECTED", raw), raw)
+
+    def test_a_contract_or_upgrade_year_is_not_a_release(self):
+        for raw, typ in (("Salesforce org (2014 contract)", "saas_b2b"), ("SAP ECC 6.0 (EHP 7, upgraded 2015)", "internal_tool"),
+                         ("Oracle EBS, licensed 2011", "ecommerce"), ("CRM go-live 2013", "web_app"), ("Intranet (built in 2010)", "internal_tool")):
+            with self.subTest(raw=raw):
+                self.assertFalse(warns(run(raw, typ), "END_OF_LIFE_SUSPECTED", raw), raw)
 
     def test_recent_or_dated_history_does_not_fire(self):
         for raw in ("PostgreSQL 17 (data since 2012)", "Salesforce org", "Legacy ERP in use since 2009", "Reports exported from 2008 onwards (SAP)",

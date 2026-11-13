@@ -543,18 +543,19 @@ def lifecycle_text(low):
                   r"\1 ", low)
 
 
-def lifecycle_hit(norm):
-    """First knowledge-base lifecycle entry the (normalised) text names, or None. An entry matches its literal pattern as a whole
-    token, or its optional "rx" regular expression; a digit may not follow a literal pattern."""
+def lifecycle_hits(norm):
+    """Every knowledge-base lifecycle entry the (normalised) text names, one per product name, in knowledge-base order. An entry
+    matches its literal pattern as a whole token, or its optional "rx" regular expression; a digit may not follow a literal pattern."""
+    out = []
     for lc in TECH["lifecycle"]:
         if lc.get("rx"):
-            if re.search(r"(?<![a-z0-9])(?:" + lc["rx"] + r")", norm):
-                return lc
-            continue
-        lead = r"(?<![a-z0-9])" if lc["pattern"][0].isalnum() else ""
-        if re.search(lead + re.escape(lc["pattern"]) + r"(?!\d)", norm):
-            return lc
-    return None
+            hit = re.search(r"(?<![a-z0-9])(?:" + lc["rx"] + r")", norm)
+        else:
+            lead = r"(?<![a-z0-9])" if lc["pattern"][0].isalnum() else ""
+            hit = re.search(lead + re.escape(lc["pattern"]) + r"(?!\d)", norm)
+        if hit and all(o["name"] != lc["name"] for o in out):
+            out.append(lc)
+    return out
 
 
 # A3 (blind8): a "Server" edition or a versioned release of a Microsoft collaboration product ('SharePoint Server 2013',
@@ -577,6 +578,8 @@ def life_what(life):
                     "which the knowledge base does not confirm in detail")
         if life.get("approx"):
             return f"is past its vendor's end of support (around {life['approx']}; the knowledge base has not re-checked the exact date)"
+        if life.get("detail"):
+            return f"is past its vendor's end of support ({life['detail']}; the knowledge base has not re-checked the exact dates)"
         return ("is older than any release its vendor still lists as supported; the exact end-of-support date is not confirmed "
                 "in the knowledge base")
     return {"unmaintained": f"is no longer maintained (repository archived {life['eol']})",
@@ -595,18 +598,35 @@ def life_short(life):
 
 
 # A3 (blind8), planning heuristic: an existing_systems entry with no lifecycle data whose text carries an old-release marker
-# (a product year of 2015 or earlier not introduced by since/from/in, an Oracle 8i-11g style tag, a 1.x line, or a
-# long-retired product name) is flagged END_OF_LIFE_SUSPECTED instead of being silently assumed supported.
+# (a product edition year of 2015 or earlier written right after a product word, an Oracle 8i-11g style tag, a 1.x line, or a
+# long-retired product name) is flagged END_OF_LIFE_SUSPECTED instead of being silently assumed supported. A bare year is no
+# trigger: a contract or upgrade date ("2014 contract", "upgraded 2015") says nothing about the product's release.
 EOL_TOKEN_RX = re.compile(
-    r"(?<![a-z0-9])(?:(?<!since )(?<!from )(?<!in )(?<!of )(?<!to )(?<!until )(?<!by )(?:19[89]\d|200\d|201[0-5])"
-    r"|\d{1,2}[ig]|v?1\.x|(?:adobe |macromedia )?flash(?= (?:player|plugin|apps?|application|client|front-?end|ui|console|movie|based|admin|portal|widget|site|website|game|content|applet)\b)|(?:adobe|macromedia) flash|silverlight|activex|java applets?|cobol|foxpro|powerbuilder|lotus notes|clipper|netware"
+    r"(?<![a-z0-9])(?:\d{1,2}[ig]|v?1\.x|(?:adobe |macromedia )?flash(?= (?:player|plugin|apps?|application|client|front-?end|ui|console|movie|based|admin|portal|widget|site|website|game|content|applet)\b)|(?:adobe|macromedia) flash|silverlight|activex|java applets?|cobol|foxpro|powerbuilder|lotus notes|clipper|netware"
     r"|windows (?:xp|vista|nt)|win(?:dows)? ?(?:95|98|me|2000)|asp classic|classic asp)(?![a-z0-9])", re.I)
 
 
+EOL_YEAR_RX = re.compile(r"(?<![\w.])(19[89]\d|200\d|201[0-5])(?![\w.])")
+# the word before an edition year must be a product name (capitalised as written) or a product noun, never a date or verb word
+_EOL_PRODUCT_NOUN = {"suite", "server", "edition", "release", "version", "platform", "studio", "system", "engine", "database", "office", "v"}
+_EOL_NOT_PRODUCT = {"since", "from", "in", "of", "to", "until", "by", "upgraded", "migrated", "installed", "deployed", "launched", "built", "signed",
+                    "renewed", "bought", "released", "updated", "patched", "dated", "circa", "around", "about", "before", "after", "during", "as",
+                    "at", "on", "year", "fy", "contract", "data", "established", "founded", "started", "purchased", "acquired", "implemented",
+                    "licensed", "licenced", "created", "written", "last", "late", "early", "mid", "end", "and", "or", "the", "a", "an", "est"}
+
+
 def eol_token(raw):
-    """The old-release marker in an existing_systems entry (see EOL_TOKEN_RX), or None."""
+    """The old-release marker in an existing_systems entry (see EOL_TOKEN_RX and EOL_YEAR_RX), or None."""
     m = EOL_TOKEN_RX.search(raw)
-    return m.group(0) if m else None
+    if m:
+        return m.group(0)
+    for y in EOL_YEAR_RX.finditer(raw):
+        prev = re.search(r"([A-Za-z][\w+#-]*)\s+$", raw[:y.start()])
+        if prev:
+            w = prev.group(1)
+            if w.lower() not in _EOL_NOT_PRODUCT and (w[0].isupper() or w.lower() in _EOL_PRODUCT_NOUN):
+                return y.group(0)
+    return None
 
 
 # F1 (round 11): the team's own server language named in project.description ("Rails shop", "the team writes Elixir",
@@ -883,7 +903,8 @@ def build(req):
             hit = None  # self-hosted release: never the Microsoft 365 / Graph profile
         hit = hit or fallback_pattern(raw, low)
         norm = lifecycle_text(low)
-        life = lifecycle_hit(norm)
+        lifes = lifecycle_hits(norm)
+        life = lifes[0] if lifes else None
         # "must stay": in the entry itself, or in a description sentence that names the same system (its patterns, or the
         # product's first word: 'Keep the Oracle database' names 'Oracle 19c')
         name_rx = None
@@ -906,7 +927,7 @@ def build(req):
             else:
                 names = ([name_rx_plain(hit)] if hit else []) + ([life_rx(life)] if life else [])
                 retire = any(removal_in_text(n, lifecycle_text(s)) for n in names for s in sentences)
-        ex.append({"raw": raw, "pattern": hit, "life": life, "keep": keep, "onprem": onprem, "workforce": workforce,
+        ex.append({"raw": raw, "pattern": hit, "life": life, "life_more": lifes[1:], "keep": keep, "onprem": onprem, "workforce": workforce,
                    "retire": retire})
     # list-order invariance: knowledge-base pattern order (identity, databases, brokers, ...), then keyword categories
     # (knowledge-base order), then name; unrecognised last
