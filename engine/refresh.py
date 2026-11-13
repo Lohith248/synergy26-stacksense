@@ -17,13 +17,17 @@ THRESHOLDS = {
     "usd_per_gb": (0.02, 0.09),     # reference CDN transfer list price range (gcp-cdn-pricing, 12 Nov 2026)
     "ttl_fraction": 0.2,            # heuristic: cache lifetime of the data files as a share of the refresh interval
     "ttl_min_s": 10,                # heuristic: never below this many seconds
+    "ttl_max_s": 900,               # heuristic: never above this many seconds (a daily dashboard still revalidates within 15 minutes)
+    "sched_min_s": {"github": 300, "hyperscaler": 60},  # heuristic: shortest interval commonly supported by the scheduler (NOT confirmed in the knowledge base)
     "report_usd": 1,                # heuristic: a transfer estimate below this upper bound is not worth a line
 }
 # hosts that do not bill transfer for static files (source cf-pages-pricing: requests to static assets are free and unlimited)
 UNMETERED_HOSTS = ("cloudflare-pages",)
-# unit -> seconds
-_UNIT = {"s": 1, "m": 60, "h": 3600}
-INTERVAL_RX = r"\b(?:every|each|per)\s+(\d+|a few|few|couple of|two|three|five|ten|fifteen|thirty)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?)\b"
+# unit word (first two letters) -> seconds
+_UNIT = {"se": 1, "mi": 60, "ho": 3600, "hr": 3600, "da": 86400, "ni": 86400, "mo": 86400}
+INTERVAL_RX = (r"\b(?:every|each|per)\s+(?:(\d+|a few|few|couple of|two|three|five|ten|fifteen|thirty)\s*)?"
+               r"(seconds?|secs?|minutes?|mins?|hours?|hrs?|days?|nights?|mornings?)\b")
+CADENCE_RX = r"\b(hourly|daily|nightly)\b"
 _WORDS = {"a few": 3, "few": 3, "couple of": 2, "two": 2, "three": 3, "five": 5, "ten": 10, "fifteen": 15, "thirty": 30}
 
 
@@ -34,11 +38,13 @@ def applies(c):
 
 def interval_seconds(c):
     """Refresh interval named in the description in seconds, or None when it only says 'latest numbers' / 'in batches'."""
-    m = re.search(INTERVAL_RX, (c["req"]["project.description"] or "").lower())
-    if not m:
-        return None
-    n = int(m.group(1)) if m.group(1).isdigit() else _WORDS[m.group(1)]
-    return n * _UNIT[m.group(2)[0]]
+    text = (c["req"]["project.description"] or "").lower()
+    m = re.search(INTERVAL_RX, text)
+    if m:  # "every N unit", or a bare "every hour/day/night/morning" (one unit)
+        n = 1 if not m.group(1) else int(m.group(1)) if m.group(1).isdigit() else _WORDS[m.group(1)]
+        return n * _UNIT[m.group(2)[:2]]
+    m = re.search(CADENCE_RX, text)
+    return {"hourly": 3600, "daily": 86400, "nightly": 86400}[m.group(1)] if m else None
 
 
 def interval_text(c):
@@ -49,14 +55,28 @@ def interval_text(c):
         return f"about every {s} seconds"
     if s < 5400:
         return f"about every {round(s / 60)} minutes"
-    return f"about every {round(s / 3600)} hours"
+    if s < 129600:
+        return f"about every {round(s / 3600)} hours"
+    return f"about every {round(s / 86400)} days"
 
 
 def ttl_seconds(c):
     s = interval_seconds(c)
     if s is None:
         return 60  # heuristic default when no interval is named
-    return max(THRESHOLDS["ttl_min_s"], round(s * THRESHOLDS["ttl_fraction"]))
+    return min(THRESHOLDS["ttl_max_s"], max(THRESHOLDS["ttl_min_s"], round(s * THRESHOLDS["ttl_fraction"])))
+
+
+def ttl_text(c):
+    """Where the cache lifetime comes from, stated as it is: a fifth of the interval, a floor or cap that applies instead, or a default."""
+    s, ttl = interval_seconds(c), ttl_seconds(c)
+    if s is None:
+        return f"about {ttl} seconds: a default, because the description names no interval (planning heuristic)"
+    raw = round(s * THRESHOLDS["ttl_fraction"])
+    if raw == ttl:
+        return f"about {ttl} seconds: a fifth of the refresh interval, planning heuristic"
+    bound = "floor" if ttl > raw else "cap"
+    return f"about {ttl} seconds: the planning-heuristic {bound} applies, because a fifth of the interval would be {raw} seconds"
 
 
 def egress(c):
@@ -114,12 +134,10 @@ def database_why(c):
 
 
 def publisher_why(c):
-    ttl = ttl_seconds(c)
     return (f"Data refreshed {interval_text(c)} is published by a scheduled job instead of a live backend: it fetches the latest figures, rejects a "
             "batch that fails sanity checks (missing rows, totals that go backwards), writes the new snapshot under a new versioned key and then "
             "switches one small 'latest' pointer file in a single step (atomic publish), so a visitor sees the previous complete snapshot or the "
-            f"new one, never half of each. The CDN caches the data files for a short time (about {ttl} seconds: a fifth of the refresh interval, "
-            "planning heuristic), so bursts of readers hit the cache, not the origin; where the CDN can serve a stale copy on error, enable it so the "
+            f"new one, never half of each. The CDN caches the data files for a short time ({ttl_text(c)}), so bursts of readers hit the cache, not the origin; where the CDN can serve a stale copy on error, enable it so the "
             "last good snapshot keeps being served if the publisher is late.")
 
 
@@ -140,6 +158,19 @@ def publisher_alts(c):
     return [("Application server with a database", "writes happen on one schedule from one source, so serving every visitor from a live server adds cost and "
                                                     "failure modes without making the data fresher"),
             ("Visitors' browsers polling the source directly", "puts the full audience on the source's servers and exposes its rate limits")]
+
+
+def publisher_tradeoffs(c, host):
+    """The fixed tradeoffs, plus a plain one when the stated interval is shorter than the shortest interval the scheduler is commonly documented to run."""
+    out = list(PUBLISHER_TRADEOFFS)
+    s = interval_seconds(c)
+    key = "hyperscaler" if host["provider"] in ("aws", "gcp", "azure") else "github"
+    lo = THRESHOLDS["sched_min_s"][key]
+    if s is not None and s < lo:
+        out.append(f"The stated refresh ({interval_text(c)[6:]}) is shorter than the shortest interval commonly documented for its scheduler ({publisher_name(host)[0].split(' (')[0]}: "
+                   f"about {lo // 60} minute{'s' if lo > 60 else ''}; not confirmed in the knowledge base), so a plain schedule cannot deliver it: either accept that freshness, "
+                   "or run the publisher as a small always-on worker that loops on a timer, which is a continuous cost and one more process to keep alive")
+    return out
 
 
 PUBLISHER_TRADEOFFS = ["Data is only as fresh as the last successful publish: show the 'updated at' time on the page",

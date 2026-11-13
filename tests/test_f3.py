@@ -245,5 +245,44 @@ class LocalFirstNeedsNoSharedData(unittest.TestCase):
             self.assertEqual(out["stack"]["backend"]["choice"], "None", desc)
 
 
+class RefreshWording(unittest.TestCase):
+    """Review fix N1/N2: an explicit cadence or feed is needed; the cache-lifetime text and the scheduler minimum are stated honestly."""
+
+    def test_cadence_words_fire(self):
+        for typ, desc in (("content_site", "Public dashboard of city statistics, refreshed daily from the statistics office."),
+                          ("other", "Price comparison pages rebuilt every night from a supplier feed."),
+                          ("web_app", "Read-only page of river levels; the readings are pulled from an API hourly."),
+                          ("content_site", "League tables scraped from the federation site and shown on a public page.")):
+            out = run(**{**STATIC, "project.type": typ, "project.description": desc, "scale.users_12_months": 500000})
+            self.assertEqual(len(publisher(out)), 1, desc)
+
+    def test_bare_current_or_latest_and_human_edits_do_not_fire(self):
+        for typ, desc in (("content_site", "Docs site listing current prices of our products, rebuilt on each release."),
+                          ("content_site", "Parish website updated weekly by volunteers with the latest news and the current service times."),
+                          ("other", "Shows the latest results of the school quiz once the teacher publishes them."),
+                          ("content_site", "Portfolio with the newest data-visualisation projects.")):
+            out = run(**{**STATIC, "project.type": typ, "project.description": desc})
+            self.assertEqual(publisher(out), [], desc)
+
+    def test_cache_lifetime_text_is_honest(self):
+        short = publisher(run(**{**STATIC, "project.type": "other", "project.description": "Departure boards republished every 30 seconds from the operator's feed."}))[0]["justification"]
+        self.assertIn("10 seconds", short)
+        self.assertIn("would be 6 seconds", short)
+        self.assertNotIn("a fifth of the refresh interval", short)
+        day = publisher(run(**{**STATIC, "project.type": "content_site", "project.description": "Public dashboard of statistics, refreshed daily."}))[0]["justification"]
+        self.assertIn("900 seconds: the planning-heuristic cap applies", day)
+        nominal = publisher(run(**{**STATIC, "project.type": "other", "project.description": "Scoreboard refreshed every 10 minutes."}))[0]["justification"]
+        self.assertIn("120 seconds: a fifth of the refresh interval", nominal)
+
+    def test_interval_below_the_scheduler_minimum_is_a_tradeoff(self):
+        for cloud, interval, expect in ((None, "30 seconds", True), (None, "2 minutes", True), (None, "10 minutes", False),
+                                        ("aws", "30 seconds", True), ("aws", "5 minutes", False)):
+            kw = {**STATIC, "project.type": "other", "project.description": f"Scoreboard refreshed every {interval}."}
+            if cloud:
+                kw["infrastructure.cloud_preference"] = cloud
+            tr = " ".join(publisher(run(**kw))[0]["tradeoffs"])
+            self.assertEqual("shorter than the shortest interval" in tr, expect, (cloud, interval))
+
+
 if __name__ == "__main__":
     unittest.main()

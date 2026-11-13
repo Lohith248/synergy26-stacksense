@@ -972,7 +972,7 @@ def build(ctx, host, backend, db, mobile, warn):
     if rf.applies(ctx):  # A18: data republished on a schedule needs a publisher, an atomic switch and a short cache lifetime
         pname, psrc = rf.publisher_name(host)
         out.append(svc("other", pname, rf.publisher_why(ctx), ["project.description", "requirements.realtime"], rf.publisher_alts(ctx),
-                       rf.PUBLISHER_TRADEOFFS, "managed" if hyper else "saas", p if hyper else "github", False,
+                       rf.publisher_tradeoffs(ctx, host), "managed" if hyper else "saas", p if hyper else "github", False,
                        [[0, 1], [0, 2], [1, 5], [1, 5]], psrc))  # planning estimate: a few thousand tiny invocations a month
     if ctx["desc"]["markdown"] and not ctx["needs_backend"]:
         out.append(svc("other", "Git-based Markdown content (no CMS)",

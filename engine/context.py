@@ -37,7 +37,12 @@ DESC_RULES = [
     # A18 (refresh.py): figures that are republished on a schedule (every N minutes, in batches, "latest numbers"); read only for static sites
     ("periodic_refresh", r"\b(?:every|each)\s+(?:\d+|a few|few|couple of|two|three|five|ten|fifteen|thirty)\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?)\b"
                          r"|\bin batches\b|\bbatch(?:es)? (?:every|roughly|about)\b"
-                         r"|\b(?:latest|current|up-to-date|newest) (?:numbers|results|scores|figures|tallies|prices|rates|standings|counts|readings|data)\b"
+                         # a cadence word next to a refresh verb ("refreshed daily", "rebuilt every night"), or a feed / scrape / API pull; bare "current prices" is not enough
+                         r"|\b(?:refresh\w*|updated|republish\w*|rebuil\w*|regenerat\w*|recomput\w*|recalculat\w*|re-?import\w*|synced|scraped|polled|pulled|fetched)\b(?:\W+\w+){0,3}?\W+"
+                         r"(?:hourly|daily|nightly|every (?:hour|night|morning|day)|each (?:hour|night|morning|day)|(?:once|twice) (?:a|per) (?:day|hour)|several times (?:a|per) (?:day|hour))\b"
+                         r"|\b(?:hourly|daily|nightly) (?:refresh\w*|updates?|imports?|feeds?|snapshots?|batch(?:es)?|scrapes?|rebuilds?|sync\w*|publish\w*)\b"
+                         r"|\b(?:live|data|price|results|news|rss|upstream|source) feeds?\b|\bscrap(?:e|es|ed|ing)\b"
+                         r"|\b(?:pull|fetch|read|poll)(?:s|ed|ing)? (?:\w+ ){0,3}(?:from|via) (?:an? |the |its |their |our )?(?:\w+ ){0,2}(?:api|feed|webhook)s?\b"
                          r"|\blive (?:results|scores|tallies|standings|counts|data)\b|\bnear[- ]real[- ]?time\b"),
     ("kyc", r"\bkyc\b|know your customer|identity verification"),
     ("chat", r"\bchat|messag"),
