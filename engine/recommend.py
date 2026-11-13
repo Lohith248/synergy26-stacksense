@@ -493,7 +493,18 @@ def _recommend(req, assumptions, sid):
         else:
             msg = default
         extra = msg != default
-        W("RESIDENCY_UNSPECIFIED", "critical", msg,
+        # A11: 'other' without a stated place only blocks a decision when a cloud region has to be picked for personal data.
+        # No data store (static site, nothing to pin) is a warning; an on-premise / air-gapped design has no provider region
+        # at all, so the missing country is an info. A place that is stated (conflict, ambiguity, enum, unsupported) stays critical.
+        sev, stated = "critical", r["conflict"] or r["ambiguous"] or r.get("enum") or r.get("unsupported")
+        if not stated and ctx["self_host_only"]:
+            sev = "info"
+            msg += (" Hosting is on your own premises, so no provider region is involved and data stays where you run it; "
+                    "name the country only if a rule about backups, audits or support access depends on it.")
+        elif not stated and not ctx["needs_db"]:
+            sev = "warning"
+            msg += " This design stores no personal data on a server (no database or account store), so no region needs pinning today; the country matters if that changes."
+        W("RESIDENCY_UNSPECIFIED", sev, msg,
           ["infrastructure.data_residency"] + (["project.description"] if extra else [])
           + (["infrastructure.residency_country"] if r.get("conflict_field") else []))
         assumptions.append("data_residency 'other': no region pinning applied; choose regions in the required jurisdiction.")
