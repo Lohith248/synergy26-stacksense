@@ -10,7 +10,7 @@ from .kb import cite
 
 # planning heuristic: description signals (context.DESC_RX flags) and compliance regimes that mean a server-side system of record,
 # so the desktop app keeps the ordinary server stack instead of the local-first one
-BLOCKER_FLAGS = ("payouts", "kyc", "chat", "collab", "iot", "otp", "sms", "web3", "digital_goods", "video_vod", "video_call",
+BLOCKER_FLAGS = ("payouts", "kyc", "chat", "collab", "iot", "otp", "sms", "web3", "digital_goods", "video_vod", "video_call", "live_media",
                  "jobs_dispatch", "approvals", "scoring_model", "lending")
 BLOCKER_COMPLIANCE = ("hipaa", "rbi_localisation", "pci_dss")
 # project types that are dynamic server products by nature stay on the server path ('web_app' and 'internal_tool' are soft types)

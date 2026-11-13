@@ -27,7 +27,7 @@ STATIC_TYPES = ("content_site", "other")
 SOFT_TYPES = ("web_app", "internal_tool")
 # description signals that mean stored user data, server-side work or integrations: any of them keeps the backend
 DYNAMIC_FLAGS = ("payouts", "ledger", "kyc", "chat", "collab", "iot", "uploads", "otp", "sms", "web3", "digital_goods", "store_billing", "video_vod",
-                 "video_call", "jobs_dispatch", "approvals", "scoring_model", "scheduler", "user_data", "lending", "gps")
+                 "video_call", "live_media", "jobs_dispatch", "approvals", "scoring_model", "scheduler", "user_data", "lending", "gps")
 DYNAMIC_COMPLIANCE = ("hipaa", "rbi_localisation")  # regulated data is stored somewhere: not a pages-only site
 
 
@@ -36,6 +36,28 @@ def dynamic_fields(req, api_only, mobile):
     return (req["requirements.auth"] != "none" or req["requirements.realtime"] or req["requirements.file_media_storage"]
             or req["requirements.multi_tenant"] or req["requirements.ml_features"] != "none" or api_only or bool(mobile)
             or req["scale.workload"] == "write_heavy")
+
+
+def dynamic_driver(c):
+    """The input field that makes the app dynamic (first of: realtime, sign-in, multi-tenant, a description signal, regulated data)."""
+    req, d = c["req"], c["desc"]
+    if req["requirements.realtime"]:
+        return "requirements.realtime"
+    if req["requirements.auth"] != "none":
+        return "requirements.auth"
+    if req["requirements.multi_tenant"]:
+        return "requirements.multi_tenant"
+    if any(d[f] for f in DYNAMIC_FLAGS):
+        return "project.description"
+    return "compliance"
+
+
+def dynamic_app(c):
+    """True when a static-site generator cannot be the web frontend: the app needs live updates, sign-in, multi-tenant data or any description signal
+    of server-side state (planning heuristic: a generator builds pages at deploy time, it holds no sessions and no live connection)."""
+    req, d = c["req"], c["desc"]
+    return bool(req["requirements.realtime"] or req["requirements.auth"] != "none" or req["requirements.multi_tenant"]
+                or any(d[f] for f in DYNAMIC_FLAGS) or set(c["compliance"]) & set(DYNAMIC_COMPLIANCE))
 
 
 def static_override(c):
@@ -58,10 +80,13 @@ def static_override(c):
     return "hosted_payments" if paying else "editorial"
 
 
-def quote(c, flag):
-    """The words of the description that set a signal (lower-case, as written), for output text."""
+def quote(c, flag, keep_case=False):
+    """The words of the description that set a signal (lower-case, as written), for output text. keep_case: the description's own capitals."""
     from .context import DESC_RX
-    m = re.search(DESC_RX[flag], (c["req"]["project.description"] or "").lower().replace("’", "'"))
+    text = (c["req"]["project.description"] or "").replace("’", "'")
+    m = re.search(DESC_RX[flag], text.lower())
+    if m and keep_case and len(text.lower()) == len(text):
+        return text[m.start():m.end()].strip()
     return m.group(0).strip() if m else ""
 
 

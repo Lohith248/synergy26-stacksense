@@ -10,6 +10,8 @@ from . import costreal
 from . import rightsize as rs
 
 SECONDS_PER_MONTH = 30 * 24 * 3600
+# A13: an existing system that already receives the device messages (an MQTT broker, a LoRaWAN network server) is reused; no second ingestion service is added beside it
+DEVICE_INTAKE_RX = r"\b(?:mqtt|mosquitto|emqx|hivemq|vernemq|nanomq)\b|network server|\bchirpstack\b|\bloraserver\b|the things (?:stack|network)|\bttn\b"
 NUM = r"(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|lakh|million|m)?"
 UNIT = {None: 1, "k": 1e3, "thousand": 1e3, "lakh": 1e5, "million": 1e6, "m": 1e6}
 
@@ -21,7 +23,7 @@ def _num(txt, unit):
 def ingest_rate(desc):
     """Device count and reporting interval stated in the description -> (devices, seconds) or None."""
     d = (desc or "").lower()
-    m = re.search(NUM + r"\s+(?:\w+\s+){0,2}(?:sensors?|devices?|meters?|trackers?|gateways?|machines?|vehicles?)", d)
+    m = re.search(NUM + r"\s+(?:\w+\s+){0,2}(?:sensors?|devices?|meters?|trackers?|gateways?|machines?|vehicles?|sites?|stations?|inverters?|pumps?|panels?|chargers?|lamps?)", d)
     t = re.search(r"every\s+(\d+(?:\.\d+)?)?\s*(seconds?|secs?|s|minutes?|mins?|hours?|hrs?)\b", d)
     if not (m and t):
         return None
@@ -29,6 +31,11 @@ def ingest_rate(desc):
     k = float(t.group(1) or 1)
     sec = k * (60 if t.group(2).startswith("min") else 3600 if t.group(2).startswith("h") else 1)
     return (int(n), sec) if n >= 1 and sec > 0 else None
+
+
+def reused_device_intake(ctx):
+    """Raw text of the existing system that already receives device messages (MQTT broker or LoRaWAN network server), or None."""
+    return next((e["raw"] for e in ctx["existing"] if re.search(DEVICE_INTAKE_RX, e["raw"].lower())), None)
 
 
 def game_server_product(p, hyper, rtxt):
@@ -124,11 +131,18 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
                      f"Telemetry rate from the description: ~{per_sec:,.0f} messages/s (~{per_month / 1e6:,.0f} million/month). Size the ingestion "
                      "workers and database writes for this rate; batching several readings per message lowers both broker and write cost.",
                      ["project.description", "scale.workload"])
-        out.append(svc("other", "Device ingestion: " + name, why + ".", paths,
-                       [("Devices calling the HTTPS API directly", "a request per reading is heavier on battery, bandwidth and servers"),
-                        ("Google Cloud IoT Core", "retired on 16 August 2023")],
-                       trade, dep, prov, True, cost, src, loc))
-        out[-1]["_note"] = note
+        intake = reused_device_intake(ctx)
+        if intake:  # A13: the existing intake keeps receiving the devices' messages; the app consumes from it
+            warn("SERVICE_NOT_ADDED", "info",
+                 rs.note("Device ingestion service", f"infrastructure.existing_systems lists '{intake}', which already receives the devices' messages, so a second "
+                         f"intake ({name.split(' in ')[0].split(' (')[0]}) beside it would split the device traffic across two systems", "the existing intake cannot take the load or the devices must move off it"),
+                 ["infrastructure.existing_systems", "project.description"])
+        else:
+            out.append(svc("other", "Device ingestion: " + name, why + ".", paths,
+                           [("Devices calling the HTTPS API directly", "a request per reading is heavier on battery, bandwidth and servers"),
+                            ("Google Cloud IoT Core", "retired on 16 August 2023")],
+                           trade, dep, prov, True, cost, src, loc))
+            out[-1]["_note"] = note
     if (iot or (req["scale.workload"] == "write_heavy" and ctx["data_gb"] >= 500)) and db and db.get("family") == "relational":
         ts = "TimescaleDB hypertables (extension supported on Azure Database for PostgreSQL)" if (p == "azure" and db["id"] == "postgresql" and not selfh) else \
             "native monthly partitions + BRIN index on the timestamp"
@@ -200,19 +214,28 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
                        ["project.description", "requirements.file_media_storage"],
                        [("Serving the original upload", "huge files, no adaptive bitrate, buffering on mobile networks"),
                         ("Third-party video API", "simplest to run, but video would be stored outside your chosen region/provider")],
-                       ["Billed per output minute (managed) or per worker-hour (FFmpeg); budget it per hour of video uploaded"],
+                       ["Billed per output minute (managed) or per worker-hour (FFmpeg); budget it per hour of video uploaded"]
+                       + (["The knowledge base names no managed transcoder for Azure, so the workers are FFmpeg containers on the Azure host"] if p == "azure" and hyper else []),
                        tdep, tprov, True, [[10, 60], [60, 400], [400, 3000], [3000, 20000]], tsrc, loc))
-    if d["video_call"] and ctx["needs_backend"]:
+    if (d["video_call"] or d["live_media"]) and ctx["needs_backend"]:
+        # A6: live streaming, karaoke or duets (no call wording) are named for what they are; the media server is the same WebRTC/SFU kind
+        label = "Video calls" if d["video_call"] and not d["live_media"] else "Live audio/video"
         if selfh or not hyper:
-            vc, vsrc, vdep, vprov = "Video calls: LiveKit (open-source WebRTC server, self-hosted)", ["livekit"], "self_hosted", "neutral"
+            vc, vsrc, vdep, vprov = f"{label}: LiveKit (open-source WebRTC server, self-hosted)", ["livekit"], "self_hosted", "neutral"
         else:
-            vc, vsrc, vdep, vprov = "Video calls: managed WebRTC video API (for example Daily); recordings off by default", ["daily-docs"], "managed", "neutral"
+            vc, vsrc, vdep, vprov = f"{label}: managed WebRTC video API (for example Daily); recordings off by default", ["daily-docs"], "managed", "neutral"
+        live_only = bool(d["live_media"] and not d["video_call"])
         out.append(svc("realtime", vc,
-                       "Live video runs through a WebRTC media server (SFU), never through the application server: the API only issues short-lived room tokens.",
+                       ("Live video runs through a WebRTC media server (SFU), never through the application server: the API only issues short-lived room tokens."
+                        if not live_only else
+                        "Live streams and real-time duets run through a WebRTC media server (SFU) that forwards each performer's audio/video to the other participants, "
+                        "never through the application server: the API only issues short-lived room tokens and app state (scores, chat, rooms) stays in the database."),
                        ["project.description"],
                        [("Relaying video through the application API", "media streams need a purpose-built server; the API would saturate"),
                         ("Peer-to-peer WebRTC only", "fails behind many mobile and corporate NATs and does not scale past a few participants")],
-                       ["Bandwidth is the main cost: priced per participant-minute (managed) or per egress GB (self-hosted)"],
+                       ["Bandwidth is the main cost: priced per participant-minute (managed) or per egress GB (self-hosted)"]
+                       + (["Planning note: a very large audience watching one performance is normally served as low-latency HLS through the CDN rather than one WebRTC connection per viewer; "
+                           "the SFU then carries only the performers"] if live_only else []),
                        vdep, vprov, False, [[0, 25], [25, 150], [150, 1000], [1000, 6000]], vsrc))
         if "hipaa" in ctx["compliance"]:
             warn("VIDEO_PHI", "warning", "Video consultations carry PHI: the video provider must sign a BAA, and recordings must stay off unless stored in your HIPAA-eligible storage.",
