@@ -217,7 +217,8 @@ def build(ctx, host, backend, db, mobile, warn):
                                "self_hosted" if kc else "library", "neutral", kc, Z, ["keycloak"], loc))
 
     # ---------------- storage
-    if req["requirements.file_media_storage"] or d["media"] or d["kyc"]:
+    # a description that has users upload files overrides requirements.file_media_storage=false (UPLOADS_VS_STORAGE_FIELD says so)
+    if req["requirements.file_media_storage"] or d["media"] or d["kyc"] or (d["uploads"] and ctx["needs_backend"]):
         dp = ["requirements.file_media_storage"] + res_path
         extra = " Private bucket, server-generated signed URLs, encryption with managed keys." if (d["kyc"] or ctx["compliance"]) else " Private bucket with signed upload/download URLs."
         if selfh:
@@ -736,6 +737,19 @@ def build(ctx, host, backend, db, mobile, warn):
                        ["infrastructure.existing_systems", "project.description"],
                        [("Separate e-mail service (SES/SendGrid)", "duplicates mail infrastructure the company already has")],
                        ["Needs admin consent for Graph application permissions"], "saas", "azure", False, Z, ["ms-graph"]))
+    if d["email_out"] and not ctx["self_host_only"] and not (ctx["existing_m365"] and d["approvals"]):
+        said = re.search(cx.DESC_RX["email_out"], (req["project.description"] or "").lower())
+        out.append(svc("other", "Email delivery: managed transactional/list email API with an authenticated sending domain (SPF, DKIM, DMARC)",
+                       f"The description sends email to users ('{said.group(0) if said else 'email'}'). Mail sent straight from an application server is often rejected "
+                       "or filed as spam, so a managed email API with an authenticated sending domain, bounce and complaint handling and an unsubscribe link carries it; "
+                       "the application only hands messages over. No provider is selected or priced here.",
+                       ["project.description"] + (["infrastructure.data_residency"] if ctx["res_named"] else []),
+                       [("Sending over SMTP from the application server", "no sender reputation: deliverability, bounce handling and SPF/DKIM/DMARC would all be yours")],
+                       ["Per-message price is not in the knowledge base and is not in the cost band",
+                        "Recipient addresses and message content pass through the provider: pick one whose sending region matches the residency requirement"
+                        if ctx["res_named"] else "Recipient addresses and message content pass through the provider",
+                        "Bulk mail needs recorded consent and a working unsubscribe link"],
+                       "saas", "neutral", False, Z, []))
     if req["requirements.multi_tenant"]:
         rls = db and db.get("rls")
         out.append(svc("other", "Tenant isolation: tenant_id on every row" + (" + database row-level security" if rls else " enforced in a repository layer"),

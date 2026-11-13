@@ -211,5 +211,102 @@ class UiSkillMismatch(unittest.TestCase):
         self.assertFalse(self.ui(run(project__platforms=["web", "android"], team__languages=["ruby"], team__size=2, team__hiring_languages=["kotlin"])))
 
 
+class DescriptionFacts(unittest.TestCase):
+    """C: facts a description states that no enum field carries (uploads vs file_media_storage, SMS, e-mail delivery, app-store
+    billing). Each is a DESC_RULES keyword signal with the shared negation guard."""
+
+    def codes(self, out):
+        return {w["code"] for w in out["warnings"]}
+
+    def test_uploads_contradicting_the_storage_field_is_surfaced_and_storage_added(self):
+        cases = [("marketplace", "Crowdfunding site. Organisers must upload hospital bills as PDFs for verification."),
+                 ("saas_b2b", "Contract workflow where clients upload signed contracts as PDF files."),
+                 ("internal_tool", "Staff upload expense receipts and managers approve them."),
+                 ("web_app", "Members upload their ID document to join.")]
+        for typ, desc in cases:
+            with self.subTest(typ=typ):
+                out = run(project__type=typ, desc=desc, requirements__file_media_storage=False)
+                hit = warns(out, "UPLOADS_VS_STORAGE_FIELD")
+                self.assertEqual(len(hit), 1, desc)
+                self.assertIn("requirements.file_media_storage", hit[0]["fields"])
+                self.assertIn("upload", hit[0]["message"])
+                self.assertTrue(sup(out, "storage"), desc)
+
+    def test_uploads_does_not_fire_when_field_true_negated_or_not_a_file(self):
+        base = dict(project__type="saas_b2b")
+        self.assertFalse(warns(run(desc="Clients upload signed contracts as PDF files.", requirements__file_media_storage=True, **base), "UPLOADS_VS_STORAGE_FIELD"))
+        for desc in ("There is no upload of documents in this release.", "Users do not upload files; staff enter everything.",
+                     "Sensors upload readings every minute.", "Devices upload telemetry to the cloud."):
+            with self.subTest(desc=desc):
+                out = run(desc=desc, requirements__file_media_storage=False, **base)
+                self.assertFalse(warns(out, "UPLOADS_VS_STORAGE_FIELD"), desc)
+
+    def test_sms_without_a_provider_gets_a_named_note(self):
+        cases = [("healthtech", "SMS reminders for appointments."), ("saas_b2b", "Customers get appointment alerts by SMS."),
+                 ("ecommerce", "Order updates are sent as text message alerts."), ("internal_tool", "Parents receive an SMS when a child is absent.")]
+        for typ, desc in cases:
+            with self.subTest(typ=typ):
+                out = run(project__type=typ, desc=desc)
+                hit = warns(out, "SMS_PROVIDER_NOT_SELECTED")
+                self.assertEqual(len(hit), 1, desc)
+                self.assertEqual(hit[0]["severity"], "info")
+                self.assertIn("not in the cost band", hit[0]["message"])
+                self.assertTrue([a for a in out["assumptions"] if "SMS provider" in a])
+
+    def test_sms_not_fired_for_negation_chat_or_phone_otp_auth(self):
+        for desc in ("We do not send SMS; reminders go by push.", "No SMS, only in-app messages.", "Users chat and send messages to each other."):
+            with self.subTest(desc=desc):
+                self.assertFalse(warns(run(desc=desc), "SMS_PROVIDER_NOT_SELECTED"), desc)
+        out = run(desc="Login uses a phone OTP.", requirements__auth="phone_otp")
+        self.assertFalse(warns(out, "SMS_PROVIDER_NOT_SELECTED"))
+
+    def test_otp_in_description_without_phone_otp_auth_is_named(self):
+        out = run(desc="Staff confirm payouts with a one-time password.", requirements__auth="email_password")
+        self.assertTrue(warns(out, "SMS_PROVIDER_NOT_SELECTED"))
+
+    def test_sms_in_an_air_gapped_network_is_a_warning(self):
+        out = run(desc="Staff get SMS reminders.", infrastructure__deployment_model="air_gapped", infrastructure__cloud_preference="none")
+        hit = warns(out, "SMS_NEEDS_TELECOM_LINK")
+        self.assertEqual(len(hit), 1)
+        self.assertEqual(hit[0]["severity"], "warning")
+
+    def test_email_delivery_component_for_list_and_transactional_mail(self):
+        cases = [("content_site", "Paid newsletter for writers: posts go out by email.", ["web"]),
+                 ("saas_b2b", "Invoicing tool that sends transactional emails to customers.", ["web"]),
+                 ("ecommerce", "Shop that sends order confirmation emails.", ["web"]),
+                 ("web_app", "Club site with a mailing list for members.", ["web"])]
+        for typ, desc, plat in cases:
+            with self.subTest(typ=typ):
+                out = run(project__type=typ, desc=desc, project__platforms=plat)
+                comp = sup(out, "Email delivery")
+                self.assertEqual(len(comp), 1, desc)
+                self.assertIn("not in the cost band", " ".join(comp[0]["tradeoffs"]))
+                self.assertIn("project.description", comp[0]["driven_by"])
+
+    def test_email_delivery_not_added_when_negated_unmentioned_or_self_hosted(self):
+        for desc in ("There is no newsletter.", "We will not send transactional emails.", "A small booking site for a salon."):
+            with self.subTest(desc=desc):
+                self.assertFalse(sup(run(desc=desc), "Email delivery"), desc)
+        out = run(desc="Staff get a weekly newsletter.", infrastructure__deployment_model="on_premise", infrastructure__cloud_preference="none")
+        self.assertFalse(sup(out, "Email delivery"))
+
+    def test_app_store_subscription_wording_selects_store_billing(self):
+        for typ, desc in (("ai_ml_product", "Language app. Subscriptions are sold through the app stores."),
+                          ("social", "Mood journal with a premium plan billed via the Apple App Store and Google Play."),
+                          ("healthtech", "Meditation app whose subscriptions are purchased on the Play Store.")):
+            with self.subTest(typ=typ):
+                out = run(project__type=typ, desc=desc, project__platforms=["ios", "android"], requirements__payments=True)
+                choice = sup(out, "payments")[0]["choice"]
+                self.assertIn("In-App Purchase", choice, desc)
+                self.assertNotIn("Stripe", choice)
+
+    def test_store_billing_not_selected_for_distribution_wording_or_marketplaces(self):
+        out = run(project__type="social", desc="Our app is available on the App Store and Google Play.", project__platforms=["ios", "android"],
+                  requirements__payments=True)
+        self.assertNotIn("In-App Purchase", sup(out, "payments")[0]["choice"])
+        out = run(project__type="marketplace", desc="Sellers are paid through the app stores.", project__platforms=["ios", "android"], requirements__payments=True)
+        self.assertNotIn("In-App Purchase", sup(out, "payments")[0]["choice"])
+
+
 if __name__ == "__main__":
     unittest.main()

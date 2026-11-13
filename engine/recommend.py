@@ -975,6 +975,14 @@ def second_region(ctx, host, db_c):
                   loc)
 
 
+def desc_quote(ctx, rx):
+    """The description sentence a signal fired on (shortened), so a warning quotes the input."""
+    for s in re.split(r"(?<=[.!?;])\s+|\n", ctx["req"]["project.description"] or ""):
+        if re.search(rx, s, re.I):
+            return s.strip().rstrip(".")[:140]
+    return "project.description"
+
+
 def contradictions(ctx, W, assumptions, host, backend):
     req = ctx["req"]
     avail = req["requirements.availability"]
@@ -1049,6 +1057,31 @@ def contradictions(ctx, W, assumptions, host, backend):
           ["team.experience", "team.size", "timeline.mvp_weeks"])
     if req["requirements.offline_support"] and not ctx["mobile"] and ctx["web"]:
         assumptions.append("offline_support on web: implemented as a PWA with service worker + IndexedDB; capability is narrower than native apps.")
+    d = ctx["desc"]
+    if d["uploads"] and not req["requirements.file_media_storage"]:
+        W("UPLOADS_VS_STORAGE_FIELD", "warning",
+          f"project.description says users upload files ('{desc_quote(ctx, cx.DESC_RX['uploads'])}') but requirements.file_media_storage is false. "
+          + ("The description is the more specific statement, so object storage with signed upload URLs was added to the stack; "
+             "set file_media_storage to true to confirm it, or take the upload requirement out of the description."
+             if ctx["needs_backend"] else
+             "No object storage was added because this stack has no application server to issue upload URLs; set file_media_storage to true to add one."),
+          ["requirements.file_media_storage", "project.description"])
+    if d["sms"] or (d["otp"] and req["requirements.auth"] != "phone_otp"):
+        what = "SMS" if d["sms"] else "one-time codes (OTP)"
+        q = desc_quote(ctx, cx.DESC_RX["sms"] if d["sms"] else cx.DESC_RX["otp"])
+        if ctx["no_internet"]:
+            W("SMS_NEEDS_TELECOM_LINK", "warning",
+              f"project.description needs {what} ('{q}') but deployment_model is air_gapped: sending SMS needs an outbound telecom link, which an air-gapped network does not have. "
+              "No SMS component is in the stack; install an on-site SMS gateway or use another channel (in-app notice, the internal mail relay).",
+              ["project.description", "infrastructure.deployment_model"])
+        else:
+            W("SMS_PROVIDER_NOT_SELECTED", "info",
+              f"project.description mentions {what} ('{q}'). No SMS provider is selected or priced in this design, and per-message fees for about {ctx['users']:,} users "
+              "are not in the cost band: choose a provider that reaches the countries your users are in"
+              + (" (Indian numbers also need a registered sender ID and registered message templates under the TRAI DLT rules)" if ctx["india_users"] or ctx["residency"] == "india" else "")
+              + (". If the codes go by e-mail instead, the e-mail delivery component covers them." if not d["sms"] else "."),
+              ["project.description"])
+            assumptions.append(f"{what} named in project.description is assumed to be bought from an SMS provider; none is chosen or priced here.")
     if req["requirements.offline_support"] and req["requirements.auth"] == "phone_otp":
         W("OFFLINE_LOGIN", "info", "Phone OTP needs signal at first login; sessions are long-lived refresh tokens so the app keeps working offline afterwards.",
           ["requirements.offline_support", "requirements.auth"])
