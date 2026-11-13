@@ -614,12 +614,22 @@ def eol_token(raw):
 # Common English words count only in their language spelling: "Go"/"Golang" (never "go"), "Rust" (never "rust"), Express
 # only as Express.js or "Express framework".
 PRIMARY_WORDS = {"ruby": r"ruby(?: on rails)?|rails", "elixir": r"elixir|phoenix", "python": r"python|django|fastapi|flask",
-                 "java": r"java|spring(?: boot)?", "kotlin": r"kotlin", "csharp": r"c#|\.net|asp\.net(?: core)?|dotnet",
+                 "java": r"java|spring(?: boot)?", "kotlin": r"kotlin(?: multiplatform)?|jetpack compose", "csharp": r"c#|\.net|asp\.net(?: core)?|dotnet|blazor",
                  "php": r"php|laravel|symfony", "go": r"golang|(?-i:Go|GO)", "rust": r"(?-i:Rust)",
-                 "javascript": r"node(?:\.?js)?|javascript|express(?:\.?js| framework)", "typescript": r"typescript|nestjs"}
+                 "javascript": r"node(?:\.?js)?|javascript|express(?:\.?js| framework)|react[- ]native|next\.?js|sveltekit|nuxt",
+                 "typescript": r"typescript|nestjs|angular(?!js)", "dart": r"dart|flutter", "swift": r"(?-i:Swift(?:UI)?)"}
+# A4 (blind8): a framework the description names as the team's own (same clause rules as the languages above) -> the knowledge-base
+# candidates it stands for; select.py gives them a bonus beside the language credit (FRAMEWORK_FIT_SHARE there).
+TEAM_FRAMEWORKS = [(r"flutter", ["flutter"]), (r"react[- ]native", ["react-native-expo"]), (r"swiftui", ["swiftui"]),
+                   (r"jetpack compose", ["kotlin-compose"]), (r"kotlin multiplatform", ["kmp-compose"]),
+                   (r"phoenix", ["elixir-phoenix"]), (r"laravel", ["php-laravel"]), (r"django", ["python-django"]),
+                   (r"fastapi", ["python-fastapi"]), (r"ruby on rails|rails", ["ruby-rails"]), (r"spring(?: boot)?", ["java-spring"]),
+                   (r"nestjs", ["node-nestjs"]), (r"express(?:\.?js| framework)", ["node-express"]),
+                   (r"asp\.net(?: core)?", ["dotnet-aspnet"]), (r"next\.?js", ["nextjs"]), (r"sveltekit", ["sveltekit"]),
+                   (r"nuxt", ["nuxt"]), (r"angular(?!js)", ["angular"]), (r"blazor", ["blazor"])]
 _PRIMARY_RX = {lang: re.compile(r"(?<![\w.#])(?:" + w + r")(?![\w#])", re.I) for lang, w in PRIMARY_WORDS.items()}
 _TEAM_NOUN = re.compile(r"\s+(?:shop|team|house|developers|engineers|devs|programmers)\b", re.I)
-_TEAM_VERB = re.compile(r"(?:team|we|developers|engineers)\s+(?:mostly |mainly |only |already |all )?(?:writes?|codes?|works?|builds?"
+_TEAM_VERB = re.compile(r"(?:team|we|developers|engineers|devs|programmers)\s+(?:mostly |mainly |only |already |all )?(?:writes?|codes?|works?|builds?"
                         r"|knows?|uses?|is fluent|are fluent)(?:\s+(?:in|with))?\s+(?:mostly |mainly |only )?", re.I)
 # a clause that negates, contrasts, looks back or plans hiring does not state the team's current language
 _NOT_OWN = re.compile(r"\bnot\b|n't\b|\bnever\b|\bno longer\b|\bunlike\b|\bprevious(?:ly)?\b|\bformer(?:ly)?\b|\bleft\b"
@@ -639,53 +649,84 @@ _EXP_OTHER = re.compile(r"(?:\bhave|\bhas|'ve)\s+been\s+(?:writing|coding|using|
 _EXP_NOUN = re.compile(r"\s+(?:apps?|applications?|services?|sites?|websites?|backends?|apis?|projects?|systems?|platforms?|products?"
                        r"|code(?:bases?)?|monoliths?|microservices?|stacks?|servers?)\b", re.I)
 _EXP_END = re.compile(r"\s+(?:for|since|professionally|in production)\b|\s*(?:[.,;:)]|$)", re.I)
+# A4: "solid Elixir/Phoenix experience", "strong Django background": the list is followed by an experience noun and a team subject
+# comes earlier in the clause, with no word that says the experience is missing or thin
+_EXP_TRAIL = re.compile(r"\s+(?:experience|expertise|background|skills?|know-how)\b", re.I)
+_EXP_THIN = re.compile(r"\b(?:no|little|limited|zero|lacks?|lacking|without|some|basic|beginner|minimal)\b", re.I)
 
 
 def _lang_at(clause, pos):
-    """(language id, end) of a language word starting exactly at pos, or None; hyphen compounds ('go-live') do not count."""
+    """(language id, end, matched word) of a language word starting exactly at pos, or None; hyphen compounds ('go-live') do not count."""
     for lang, rx in _PRIMARY_RX.items():
         m = rx.match(clause, pos)
         if m and not _COMPOUND.match(clause.lower(), m.end()):
-            return lang, m.end()
+            return lang, m.end(), m.group(0).lower()
     return None
 
 
-def primary_langs(text):
-    """Languages project.description names as the team's own (sorted ids): '<lang> shop/team/developers' or 'the team
-    writes <lang>[, <lang> and <lang>]' or experience phrasing ('our developers have built Laravel apps for years', 'years
-    of Django'), only in a clause without negation, contrast, past or hiring words."""
-    out = set()
+def _team_hits(text):
+    """(language ids, matched words) the description names as the team's own, only in a clause without negation, contrast,
+    past or hiring words."""
+    out, words = set(), set()
     for clause in re.split(r"(?<=[.!?;])\s+|\n|\s+but\s+|,\s+(?=(?:and |so |while |whereas )?(?:we|our|the|they|their|it|its|this|i)\b)",
                            text or "", flags=re.I):
         if _NOT_OWN.search(clause):
             continue
         for lang, rx in _PRIMARY_RX.items():
-            if any(not _COMPOUND.match(clause.lower(), m.end()) and _TEAM_NOUN.match(clause, m.end()) for m in rx.finditer(clause)):
-                out.add(lang)
+            for m in rx.finditer(clause):
+                if not _COMPOUND.match(clause.lower(), m.end()) and _TEAM_NOUN.match(clause, m.end()):
+                    out.add(lang)
+                    words.add(m.group(0).lower())
         for v in _TEAM_VERB.finditer(clause):
-            _walk_langs(clause, v.end(), out, False)
+            _walk_langs(clause, v.end(), out, False, words)
         for rx, need_noun in ((_EXP_BUILT, True), (_EXP_OTHER, False)):
             for v in rx.finditer(clause):
                 if _EXP_SUBJ.search(clause[:v.start()]):
-                    _walk_langs(clause, v.end(), out, need_noun)
-    return sorted(out)
+                    _walk_langs(clause, v.end(), out, need_noun, words)
+        for rx in _PRIMARY_RX.values():  # A4: "<list> experience"
+            for m in rx.finditer(clause):
+                if _EXP_SUBJ.search(clause[:m.start()]) and not _EXP_THIN.search(clause[:m.start()]):
+                    found, wset = set(), set()
+                    end = _walk_langs(clause, m.start(), found, False, wset)
+                    if _EXP_TRAIL.match(clause, end):
+                        out |= found
+                        words |= wset
+    return out, words
 
 
-def _walk_langs(clause, pos, out, need_noun):
+def primary_langs(text):
+    """Languages project.description names as the team's own (sorted ids): '<lang> shop/team/developers' or 'the team
+    writes <lang>[, <lang> and <lang>]' or experience phrasing ('our developers have built Laravel apps for years', 'years
+    of Django', 'solid Elixir/Phoenix experience'), only in a clause without negation, contrast, past or hiring words."""
+    return sorted(_team_hits(text)[0])
+
+
+@functools.lru_cache(maxsize=8)
+def team_frameworks(text):
+    """Knowledge-base candidate ids of the frameworks project.description names as the team's own (see TEAM_FRAMEWORKS)."""
+    words = _team_hits(text)[1]
+    return tuple(sorted({cid for w in words for rx, cids in TEAM_FRAMEWORKS if re.fullmatch(rx, w) for cid in cids}))
+
+
+def _walk_langs(clause, pos, out, need_noun, words=None):
     """Add each language in a list starting at pos ('Python, Go and Rust'; 'Laravel apps and Django services'). With
-    need_noun every item must be followed by a product noun or the clause end."""
+    need_noun every item must be followed by a product noun or the clause end. Returns the end of the list."""
+    end = pos
     while True:
         hit = _lang_at(clause, pos)
         if not hit:
-            return
+            return end
         end = hit[1]
         noun = _EXP_NOUN.match(clause, end)
         if need_noun and not noun and not _EXP_END.match(clause, end):
-            return
+            return end
         out.add(hit[0])
-        sep = _LIST_SEP.match(clause, noun.end() if noun else end)
+        if words is not None:
+            words.add(hit[2])
+        end = noun.end() if noun else end
+        sep = _LIST_SEP.match(clause, end)
         if not sep:
-            return
+            return end
         pos = sep.end()
 
 
@@ -818,6 +859,7 @@ def build(req):
     desc = (req["project.description"] or "").lower()
     # the description only promotes a language team.languages already lists; it never adds one
     c["desc"], c["primary_langs"] = dict(flags), [x for x in prim if x in c["langs"]]
+    c["team_frameworks"] = list(team_frameworks(req["project.description"] or ""))  # A4
     ex = []
     sentences = re.split(r"(?<=[.!?;])\s+|\n", desc)
     for raw in req["infrastructure.existing_systems"]:
