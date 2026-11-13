@@ -9,6 +9,9 @@ from . import domains
 from . import context as cx
 from . import overeng as ov
 from . import integrations as ig
+from . import localfirst as lf
+from . import consistency as cons
+from . import refresh as rf
 from . import rightsize as rs
 from .kb import cite, AS_OF
 from .select import for_noun, type_noun
@@ -368,7 +371,9 @@ def build(ctx, host, backend, db, mobile, warn):
     # ---------------- search
     if req["requirements.full_text_search"]:
         dp = ["requirements.full_text_search"]
-        if not ctx["needs_backend"]:
+        if ctx["local_first"]:
+            out.append(lf.search_service(ctx, svc, Z))
+        elif not ctx["needs_backend"]:
             out.append(svc("search", "Pagefind (static search index built at deploy time)",
                            "Search over a static site without any server: the index is generated with the pages.", dp,
                            [("Algolia", "paid SaaS for a small static site")], ["Index size grows with content"], "library", "neutral", False, Z, ["statement"]))
@@ -878,14 +883,15 @@ def build(ctx, host, backend, db, mobile, warn):
         ci_cost = [0, 4] if ctx["size"] <= 3 else ([0, 20] if ctx["size"] <= 8 else [20, 100])  # minutes scale with engineers, not users
         # E9: no "free minutes cover a team of N" (GitHub Free includes $12/month of compute, a money allowance: source gha-billing);
         # the text names what runs, where it deploys and what the cost band reserves for this team size
-        what = f"{backend['name'].split(' (')[0]} tests run" if backend else "The site build runs"
-        out.append(svc("ci_cd", "GitHub Actions", f"{what} on every push" + (f" and a passing build deploys to {host['name'].split(' (')[0]}" if host else "")
+        what = f"{backend['name'].split(' (')[0]} tests run" if backend else "The desktop app build and tests run" if ctx["local_first"] else "The site build runs"
+        target = "its installers are built for each desktop OS" if ctx["local_first"] else f"a passing build deploys to {host['name'].split(' (')[0]}"
+        out.append(svc("ci_cd", "GitHub Actions", f"{what} on every push" + (f"; on a release tag {target}" if ctx["local_first"] else f" and {target}" if host else "")
                        + f"; the cost band reserves ${ci_cost[0]}-{ci_cost[1]}/month for a team of {ctx['size']} (planning estimate)"
                        + (", more than the $12/month of compute GitHub Free includes for private repositories (public repositories run free)." if ctx["size"] > 8 else ".")
                        + ci_note,
                        ["team.size", "team.has_devops"] + ci_paths, ([(f"Keep {ci_name} as the only CI system", "reusing it avoids a second CI system, but its servers, plugins and upgrades stay the team's job; hosted runners need no CI servers")] if ci_ex else []) + [("GitLab CI", f"equally capable; for a team of {ctx['size']} " + ("with" if ctx["devops"] else "without")
                                      + f" a DevOps engineer (team.has_devops={'true' if ctx['devops'] else 'false'}), ready-made GitHub deploy actions"
-                                     + (f" for {host['name'].split(' (')[0]}" if host else "") + " mean less pipeline code to maintain")],
+                                     + (f" for {host['name'].split(' (')[0]}" if host and not ctx["local_first"] else "") + " mean less pipeline code to maintain")],
                        ["Secrets must be stored as encrypted environment secrets"], "saas", "github", False,
                        [ci_cost] * 4, ["gha-billing"]))
         ob = {"aws": (f"Amazon CloudWatch{rtxt} (logs, metrics, alarms)", "aws"),
@@ -903,7 +909,9 @@ def build(ctx, host, backend, db, mobile, warn):
                            [[0, 5], [5, 30], [30, 200], [200, 1200]], ["sentry-regions"], loc))
 
     # ---------------- other (domain-specific)
-    if req["requirements.offline_support"] and not ctx["needs_backend"]:
+    if req["requirements.offline_support"] and ctx["local_first"]:
+        out.append(lf.offline_service(ctx, svc, Z))
+    elif req["requirements.offline_support"] and not ctx["needs_backend"]:
         out.append(svc("other", "Service worker precache (Workbox) for offline reading",
                        "Must work without connectivity: the pre-built pages and assets are cached on first visit, so the site reads offline with no server or sync API.",
                        ["requirements.offline_support", "project.type"],
@@ -926,7 +934,7 @@ def build(ctx, host, backend, db, mobile, warn):
         bits = ["writes go to an on-device database first", "an outbox queue retries uploads when signal returns",
                 "each record carries a client-generated UUID so retries are idempotent",
                 "shared documents keep offline edits as CRDT updates and merge them on reconnect" if crdt
-                else "server applies last-writer-wins per field with an edit log"]
+                else cons.policy_bit(ctx)]
         if mobile and ctx["web"]:
             bits.append("the web client caches its app shell with a service worker and queues writes in IndexedDB with the same outbox rules")
         if d["media"]:
@@ -935,7 +943,7 @@ def build(ctx, host, backend, db, mobile, warn):
             bits.append("sync batches are small and compressed for 2G/3G")
         out.append(svc("other", f"Offline-first sync: {local}, outbox + idempotent sync API",
                        "Must work without connectivity: " + "; ".join(bits) + ".",
-                       ["requirements.offline_support"] + (["project.description"] if (d["media"] or d["low_bandwidth"]) else []),
+                       ["requirements.offline_support"] + (["project.description"] if (d["media"] or d["low_bandwidth"] or cons.append_only(ctx)) else []),
                        [("Firebase Firestore offline cache", "convenient but ties data to Google's global service and its pricing"),
                         ("Online-only app", "fails the stated offline requirement")],
                        ["Conflict resolution rules must be agreed with field teams", "Device storage limits on low-end phones"],
@@ -1007,6 +1015,11 @@ def build(ctx, host, backend, db, mobile, warn):
                        "KYC uploads are stored encrypted with access logging and retention rules; identity checks go through a licensed verification partner chosen by the business.",
                        ["project.description", "compliance"] + res_path, [("Storing KYC files in the app database", "large blobs and broader access")],
                        ["Verification partner contract and API not selected here"], "managed" if hyper else "self_hosted", p if hyper else "neutral", True, Z, ["rbi-digital-lending"], loc))
+    if rf.applies(ctx):  # A18: data republished on a schedule needs a publisher, an atomic switch and a short cache lifetime
+        pname, psrc = rf.publisher_name(host)
+        out.append(svc("other", pname, rf.publisher_why(ctx), ["project.description", "requirements.realtime"], rf.publisher_alts(ctx),
+                       rf.publisher_tradeoffs(ctx, host), "managed" if hyper else "saas", p if hyper else "github", False,
+                       [[0, 1], [0, 2], [1, 5], [1, 5]], psrc))  # planning estimate: a few thousand tiny invocations a month
     if ctx["desc"]["markdown"] and not ctx["needs_backend"]:
         out.append(svc("other", "Git-based Markdown content (no CMS)",
                        "The owner writes posts in Markdown in the repository; every push rebuilds and publishes the site.",

@@ -7,6 +7,7 @@ import re
 from . import overeng as ov
 from . import integrations as ig
 from . import costreal
+from . import localfirst as lf
 from .kb import TECH
 
 TIER_NAMES = ["tiny", "small", "medium", "large"]
@@ -27,6 +28,28 @@ DESC_RULES = [
     ("recurring", r"\bemi\b|subscription|recurring|per[- ]seat|pay per seat|monthly plan"),
     ("payouts", r"get paid|payout|disburs|pay (?:out|providers|sellers|vendors)|split payment|commission"),
     ("ledger", r"ledger|double[- ]entry"),
+    # A12: a rule that must hold across devices (one use per ticket, one booking per slot, no duplicate record); read with offline_support
+    # "unique" alone is not a rule ("a unique design"): it must qualify an identifier or be demanded; "one per" and stock that must not go negative count too
+    ("unique_rule", r"\bduplicat\w*|\bdupes?\b|\buniqueness\b|\bonly once\b|\bone[- ]time (?:use|only|vouchers?|coupons?|tickets?|entry)"
+                    r"|\bunique (?:\w+ ){0,2}(?:tickets?|serials?|numbers?|codes?|ids?|identifiers?|keys?|references?|barcodes?|qr|passes|vouchers?|coupons?|entr(?:y|ies)|records?|bookings?|slots?|seats?|receipts?|usernames?|e-?mails?|invoices?)\b"
+                    r"|\b(?:must|should|needs? to|has to|have to) (?:be )?(?:\w+ ){0,2}unique\b|\b(?:ensur\w*|enforc\w*|guarantee\w*|verif\w*|check\w*)\b(?:\W+\w+){0,5}?\W+unique\b"
+                    r"|\bone (?:\w+ )?per (?:person|ticket|seat|slot|attendee|member|customer|user|day|device|code)\b"
+                    r"|\b(?:stock|inventory|quantit(?:y|ies))\b(?:\W+\w+){0,4}?\W+(?:decrement\w*|deduct\w*|reduc\w*|runs? out|sold out)\b|\b(?:decrement\w*|deduct\w*|reduc\w*|decreas\w*) (?:\w+ ){0,3}(?:stock|inventory|quantit(?:y|ies))\b"
+                    r"|\b(?:used|scanned|redeemed|claimed|booked|entered|admitted) (?:twice|more than once|again)\b"
+                    r"|\bdouble[- ](?:book\w*|scan\w*|spend\w*|enter\w*|sell\w*|sold)|\bover-?(?:book\w*|sell\w*|sold)\b|\bcheck-?ins?\b"
+                    r"|\b(?:validat\w*|scan\w*|redeem\w*|issu\w*) (?:\w+ ){0,2}(?:tickets?|passes|coupons?|vouchers?|admissions?)\b"
+                    r"|\b(?:tickets?|passes|coupons?|vouchers?) (?:\w+ ){0,2}(?:validat\w*|scan\w*|redeem\w*|entr(?:y|ies))\b"
+                    r"|\bbook(?:ing|ings)\b|\breserv(?:e|es|ed|ation|ations)\b|\bappointments?\b|\bseat (?:selection|maps?|allocation)\b|\bbook(?:ed)? (?:seats?|slots?|rooms?)\b"),
+    # A18 (refresh.py): figures that are republished on a schedule (every N minutes, in batches, "latest numbers"); read only for static sites
+    ("periodic_refresh", r"\b(?:every|each)\s+(?:\d+|a few|few|couple of|two|three|five|ten|fifteen|thirty)\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?)\b"
+                         r"|\bin batches\b|\bbatch(?:es)? (?:every|roughly|about)\b"
+                         # a cadence word next to a refresh verb ("refreshed daily", "rebuilt every night"), or a feed / scrape / API pull; bare "current prices" is not enough
+                         r"|\b(?:refresh\w*|updated|republish\w*|rebuil\w*|regenerat\w*|recomput\w*|recalculat\w*|re-?import\w*|synced|scraped|polled|pulled|fetched)\b(?:\W+\w+){0,3}?\W+"
+                         r"(?:hourly|daily|nightly|every (?:hour|night|morning|day)|each (?:hour|night|morning|day)|(?:once|twice) (?:a|per) (?:day|hour)|several times (?:a|per) (?:day|hour))\b"
+                         r"|\b(?:hourly|daily|nightly) (?:refresh\w*|updates?|imports?|feeds?|snapshots?|batch(?:es)?|scrapes?|rebuilds?|sync\w*|publish\w*)\b"
+                         r"|\b(?:live|data|price|results|news|rss|upstream|source) feeds?\b|\bscrap(?:e|es|ed|ing)\b"
+                         r"|\b(?:pull|fetch|read|poll)(?:s|ed|ing)? (?:\w+ ){0,3}(?:from|via) (?:an? |the |its |their |our )?(?:\w+ ){0,2}(?:api|feed|webhook)s?\b"
+                         r"|\blive (?:results|scores|tallies|standings|counts|data)\b|\bnear[- ]real[- ]?time\b"),
     ("kyc", r"\bkyc\b|know your customer|identity verification"),
     ("chat", r"\bchat|messag"),
     ("collab", r"same board|collaborat|live cursor|multiplayer|co-edit|whiteboard|conflict-free|\bcrdts?\b"
@@ -75,6 +98,8 @@ DESC_RULES = [
                        r"|\blarge (?:files?|downloads?|media|assets)\b|\bmedia (?:files?|library|assets)\b|\bdownloadable\b|\b(?:software|installer|firmware) (?:downloads?|images?)\b"
                        r"|\b(?:watch|stream|listen to|download)\w*\s+(?:\w+\s+){0,3}(?:videos?|lectures?|audio|recordings?)\b"),
     ("web3", r"\bnfts?\b|web3|blockchain|cryptocurrenc|wallet connect|smart contract"),
+    # A2 (localfirst.py): the text mentions an upload, sync or server step
+    ("sync_server", r"\buploads?\b|\bsync(?:s|ed|ing|hroni[sz]\w*)?\b|\bservers?\b|\bback-?ups? (?:to|online)\b"),
     ("scheduler", r"remind(?:er)?s?\b|\bcron\b|nightly|scheduled (?:jobs?|tasks?|emails?)|daily (?:email|digest|report)s?"),
     ("analytics", r"dashboards?|\breports?\b|analysts?|\bbi\b|ad-hoc (?:sql|quer)|data warehouse"),
     # D16 (overeng.py): evidence that payments are a hosted button/link, that the content is editorial, and that the site stores user data
@@ -90,6 +115,30 @@ DESC_RULES = [
                   r"|stores? (?:donor|customer|user|member|visitor|personal)\w*"),
 ]
 DESC_RX = dict(DESC_RULES)
+# A2 follow-up (localfirst.py): signals that the data is shared between users/devices or lives on a server that exists or must be built.
+# Read only outside sentences that call the step optional or later (optional upload, export, backup), so "optional later upload to a club
+# server" stays optional while "syncs records with the team" or "three cashiers share one database on the LAN" does not.
+_PEOPLE = (r"(?:team|staff|colleagues?|co-?workers?|everyone|everybody|others?|members?|users?|devices?|laptops?|computers?|machines?|offices?"
+           r"|branch\w*|cashiers?|terminals?|workstations?|family|volunteers?|each other)")
+SERVER_NEED_RULES = [
+    ("server_need", DESC_RX["sync_server"]),
+    ("shared_data",
+     r"\bshar(?:e|es|ed|ing)\b(?:\W+\w+){0,6}?\W+(?:across|between|among|with (?:the |all |our |their |other |each |every |multiple |several |many )?" + _PEOPLE + r"\b)"
+     r"|\bshar(?:e|es|ed|ing) (?:\w+ ){0,3}(?:database|data|inventory|records?|files?|ledger|lists?|budget|calendar|workspace|stock|folder|drive)\b"
+     r"|\bshared (?:\w+ )?(?:database|data|inventory|records?|files?|ledger|lists?|budget|calendar|workspace|stock|folder|drive)\b"
+     r"|\bsees? (?:the )?(?:others|other \w+|each other)|\b(?:everyone|everybody|all (?:users|staff|members|colleagues|cashiers|devices)|the whole team|colleagues) "
+     r"(?:can |will |also )?(?:see|sees|view|views|edit|edits|access|accesses)\b"
+     r"|\blan\b|\blocal network\b|\bnetwork (?:drive|share|folder|database)\b|\bsingle source of truth\b|\bcentral(?:i[sz]ed)? (?:database|data ?store|repository|hub|record)\b"
+     r"|\b(?:multi|multiple|several|many|various)[- ](?:concurrent |simultaneous )?(?:users?|devices?|terminals?|cashiers?|laptops?|computers?|machines?|workstations?|tills?|registers?|offices?|branches|sites?)\b"
+     r"|\b(?:concurrent|simultaneous) (?:users?|access|editing)\b|\breal[- ]?time (?:sync\w*|shar\w*|collab\w*|updates? (?:across|between|for)|multi\w*)|\blive sync\b"),
+    ("existing_server",
+     r"\b(?:postgres(?:ql)?|mysql|mariadb|sql server|mssql|oracle|mongodb|db2|snowflake|bigquery|redshift|rest(?:ful)? apis?|graphql apis?|back-?ends?)\b"
+     r"|\b(?:our|the company'?s?|their|existing|central|corporate|head ?office) (?:\w+ ){0,2}(?:servers?|apis?|erp|crm)\b"
+     r"|\bexisting (?:\w+ ){0,2}(?:databases?|systems?|services?)\b"),
+]
+# a sentence with one of these words describes a later, optional or export-only step, not the core data path
+OPTIONAL_STEP_RX = re.compile(r"\boptional(?:ly)?\b|\blater\b|\bafterwards?\b|\beventually\b|\bexport\w*|\bback-?ups?\b|\bnice to have\b|\bin the future\b"
+                              r"|\bupload\w* (?:\w+ ){0,3}to (?:the |a )?cloud\b")
 
 # Negation guard shared by every description signal (one helper, not one per signal). A hit counts unless a negation reaches it
 # inside its own clause: before it ("no chat", "do not need a ledger", "without KYC") or right after it ("cameras are out of
@@ -618,6 +667,9 @@ def desc_signals(desc):
     breaks = clause_breaks(low)
     flags = {flag: live_hit(rx, low, low, breaks) for flag, rx in DESC_RULES}
     flags["gps"] = flags["gps"] or live_hit(r"\bGPS\b", desc, low, breaks)
+    firm = re.sub(r"[^.!?;\n]+", lambda m: " " * len(m.group()) if OPTIONAL_STEP_RX.search(m.group()) else m.group(), low)
+    fb = clause_breaks(firm)
+    flags.update({flag: live_hit(rx, firm, firm, fb) for flag, rx in SERVER_NEED_RULES})
     return flags, tuple(primary_langs(desc))
 
 
@@ -811,7 +863,10 @@ def build(req):
                     or r["requirements.file_media_storage"] or r["requirements.multi_tenant"]
                     or r["requirements.ml_features"] != "none"  # offline alone: a static site precaches (services.py)
                     or c["api_only"] or bool(c["mobile"]))
-    c["needs_backend"] = dynamic_need or (typ in DYNAMIC_TYPES and not c["static_rule"])
+    # A2: a desktop-only app with no server need is local-first (embedded database on the device), never a static site
+    dynamic_need = dynamic_need or lf.needs_server(c)  # a desktop app that shares data or talks to a server is not local-first (and not a static site)
+    c["local_first"] = lf.applies(c, dynamic_need)
+    c["needs_backend"] = dynamic_need or (typ in DYNAMIC_TYPES and not c["static_rule"] and not c["local_first"])
     c["needs_db"] = c["needs_backend"]
     c["static_search"] = (not c["needs_backend"]) and r["requirements.full_text_search"]
     return c

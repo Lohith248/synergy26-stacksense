@@ -42,6 +42,8 @@ def static_override(c):
     """'hosted_payments' (payments are a hosted button or link) or 'editorial' (a soft type with editorial content) when the input
     is static-eligible although the baseline rule would add a backend; otherwise None. c: the context under construction."""
     req, typ, d = c["req"], c["type"], c["desc"]
+    if c["desktop"] and not c["web"]:
+        return None  # A2: an installed desktop app is never a static site (localfirst.py decides its shape)
     paying = bool(req["requirements.payments"])
     if typ not in STATIC_TYPES + SOFT_TYPES or not (paying or typ in SOFT_TYPES):
         return None  # nothing to override: the baseline already says static, or the type is dynamic by nature

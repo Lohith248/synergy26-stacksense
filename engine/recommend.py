@@ -5,6 +5,9 @@ from . import ENGINE_VERSION
 from . import context as cx
 from . import overeng as ov
 from . import integrations as ig
+from . import localfirst as lf
+from . import consistency as cons
+from . import refresh as rf
 from . import costreal
 from . import rightsize as rs
 from . import select as sl
@@ -555,7 +558,7 @@ def _recommend(req, assumptions, sid):
           ["team.languages", "team.experience"])
 
     # ---- hosting
-    hs = sl.hosting_candidates(ctx)
+    hs = [] if ctx["local_first"] else sl.hosting_candidates(ctx)  # A2: the binary is the deliverable, nothing to rank
     for c in hs:
         if c.item["kind"] != "serverless" or not backend:
             continue
@@ -575,6 +578,8 @@ def _recommend(req, assumptions, sid):
             c.add("db_conn", -4, "scale.peak_concurrent_users",
                   f"~{ctx['peak']:,} concurrent users would open relational connections per function instance; needs a connection proxy")
     h_ok, h_out = sl.rank(hs)
+    if ctx["local_first"]:
+        h_ok = [sl.Cand(lf.HOST)]
     if not h_ok:  # should be prevented by hard_conflicts; keep a safe answer
         W("NO_COMPLIANT_HOSTING", "critical", "No hosting option in the knowledge base satisfies the hard constraints.", list(HARD_PATHS))
         return {"scenario_id": sid, "engine_version": ENGINE_VERSION, "status": "infeasible",
@@ -584,7 +589,9 @@ def _recommend(req, assumptions, sid):
     host_c = h_ok[0]
     host = host_c.item
     loc = ctx["res_key"]
-    if loc:
+    if ctx["local_first"]:
+        region = None
+    elif loc:
         region = host["regions"].get(loc) or next(iter(host["regions"].values()))
     elif "gdpr" in ctx["compliance"] and "eu" in host["regions"]:
         region = host["regions"]["eu"]
@@ -599,6 +606,13 @@ def _recommend(req, assumptions, sid):
         assumptions.append(f"Static site, no backend or database (over-engineering guard D16): {ov.static_facts(ctx)}"
                            + (f"; the content is editorial (\"{ov.quote(ctx, 'editorial')}\")" if ctx["static_rule"] == "editorial" else "")
                            + ". High traffic alone does not justify a backend or database: the CDN serves pre-built pages.")
+    if ctx["local_first"]:  # A2: say which inputs made this a local-first desktop app rather than a static site or a server product
+        assumptions.append("Local-first desktop app, no backend and no hosting: project.platforms is desktop only, and auth is none with no payments, "
+                           "realtime, file/media storage, multi-tenancy or ML requested. Data lives in an embedded database on the device"
+                           + ("; the optional upload described in project.description is a later, separate endpoint." if lf.optional_endpoint(ctx) else "."))
+    if rf.applies(ctx):  # A18: say which input made the data refresh a scheduled publication
+        assumptions.append(f"Static site with data refreshed {rf.interval_text(ctx)} (project.description: \"{rf.quote(ctx)}\"): a scheduled publisher writes "
+                           "static snapshot files and the CDN serves them; the audience reads files and never reaches a server or database.")
     host_extra_paths = [p for p in HARD_PATHS if any(c.excluded and c.excluded[1] == p for c in h_out)]
     if ctx["country"]:
         host_extra_paths += ctx["res_paths"]
@@ -608,18 +622,18 @@ def _recommend(req, assumptions, sid):
     if any(c.term("lock_in") for c in h_ok if c is not host_c) or host_c.term("lock_in"):
         host_extra_paths.append("infrastructure.lock_in_tolerance")
     plan = ""
-    if host.get("plans"):
+    if host.get("plans") and not ctx["local_first"]:
         ha_need = req["requirements.availability"] in ("99.95", "99.99")
         plan = host["plan_ha"] if ha_need and ctx["tier"] <= 1 else host["plans"][ctx["tier"]]
         host_c.item = host = dict(host, name=f"{host['name'][:-1]}, {plan})")
     host_name = host["name"] + (f" — {region}" if region else "")
     if not any(e["onprem"] for e in ctx["existing"]):
         host_c.item = host = dict(host, limits=[x for x in host.get("limits", []) if "Hybrid Connection" not in x])
-    hosting = component(host_c, h_ok, h_out, host_extra_paths,
+    hosting = lf.hosting(ctx) if ctx["local_first"] else component(host_c, h_ok, h_out, host_extra_paths,
                         {"deployment": host["deploy"], "provider": host["provider"], "data_bearing": ctx["needs_backend"],
                          "data_location": loc if ctx["needs_backend"] else None, "region": region}, name=host_name,
                         tail_why=envelope_text(ctx, region, host) if ctx["needs_backend"] else "", ctx=ctx)
-    if ctx["country"]:
+    if ctx["country"] and not ctx["local_first"]:
         hosting["sources"] = hosting["sources"] + [u for u in cite([REGION_SRC.get(host["provider"], "aws-regions-list")]) if u not in hosting["sources"]]
 
     # ---- backend component
@@ -630,16 +644,19 @@ def _recommend(req, assumptions, sid):
         backend_cmp = component(backend_c, b_ok, b_out, [], {"deployment": "self_hosted" if host["kind"] in ("vm", "onprem") else "library",
                                                               "provider": "neutral", "data_bearing": False, "data_location": None}, ctx=ctx,
                                 must_alt=skill_fit)
+    elif ctx["local_first"]:
+        backend_cmp = lf.backend(ctx, none_component, lambda c, flag: desc_quote(c, cx.DESC_RX[flag]))
     else:
         facts = ov.static_facts(ctx)
         add_when = "add a backend when accounts, stored user data or server-side payments appear"
         backend_cmp = none_component("backend",
-                                     ("No application server is needed: there are no accounts, payments, uploads or dynamic data; pages are pre-built at deploy time."
+                                     (rf.backend_why(ctx, rf.quote(ctx)) if rf.applies(ctx) else
+                                      "No application server is needed: there are no accounts, payments, uploads or dynamic data; pages are pre-built at deploy time."
                                       if not req["requirements.payments"] else
                                       "No application server is needed: there are no accounts, uploads or dynamic data, and payments go through the provider's hosted "
                                       "button or link, so the site never handles card data; pages are pre-built at deploy time.") + ov.traffic_clause(ctx),
                                      ["project.type", "requirements.auth", "requirements.payments"]
-                                     + (["project.description"] if ctx["static_rule"] else []) + (["scale.users_12_months"] if ctx["tier"] >= 2 else []),
+                                     + (["project.description"] if ctx["static_rule"] or rf.applies(ctx) else []) + (["scale.users_12_months"] if ctx["tier"] >= 2 else []),
                                      [("Netlify/Cloudflare serverless functions", f"nothing to compute at request time ({facts}); {add_when}"),
                                       ("Node.js + Express", "a server to run and pay for with no feature that needs it" + (
                                           f" (~{ctx['users']:,} users do not change that: the CDN serves pre-built pages)" if ctx["tier"] >= 2 else "")
@@ -705,11 +722,15 @@ def _recommend(req, assumptions, sid):
             db_c, db_cmp = kept_database(ctx, ctx["kept_db"], d_ok, loc)
             db_item = dict(db_c.item, _variant=db_c.variant)
             kept_db_checks(ctx, ctx["kept_db"], db_c, db_cmp, W)
+    elif ctx["local_first"]:
+        db_cmp = lf.database(ctx, none_component)
     else:
         db_cmp = none_component("database",
-                                "Content lives as Markdown/HTML files in the repository; there is no user data to store"
+                                (rf.database_why(ctx) if rf.applies(ctx) else "Content lives as Markdown/HTML files in the repository; there is no user data to store")
                                 + (", and payment records stay with the payment provider." if req["requirements.payments"] else "."),
-                                ["project.type", "requirements.auth"] + (["requirements.payments"] if req["requirements.payments"] else []),
+                                ["project.type", "requirements.auth"] + (["project.description"] if rf.applies(ctx) else [])
+                                + (["requirements.payments"] if req["requirements.payments"] else []),
+                                rf.database_alts(ctx) if rf.applies(ctx) else
                                 [("SQLite", "no runtime data to persist; add a database when the site starts storing accounts, orders or submissions"),
                                  ("Headless CMS database", "a single author edits files directly" if ctx["static_rule"] != "hosted_payments"
                                   else "editors update the text in the repository directly, and donations are not stored by the site")])
@@ -829,6 +850,8 @@ def _recommend(req, assumptions, sid):
     top = [(hi, name) for hi, _, name in items if hi > 0][:2]
     over_txt = costreal.over_multiple_note(items, ctx["budget"])  # E8d: explicit note for a single line above 10x the budget
     top_txt = f"; the largest upper-bound items are {' and '.join(f'{n} (up to ${v:,.0f})' for v, n in top)}" if top else ""
+    if rf.applies(ctx) and rf.metered(host) and rf.egress_warning(ctx, ctx["budget"]):  # A18: the transfer line can exceed the budget
+        W(*rf.egress_warning(ctx, ctx["budget"]))
     if cost["min"] > ctx["budget"]:
         sev = "critical" if (ctx["budget"] == 0 or cost["min"] > 2 * ctx["budget"]) else "warning"
         far_txt = costreal.dominant_text(items, ctx["budget"], cost["max"]) if sev == "critical" else ""  # E8d: which line dominates, what to cut
@@ -1050,14 +1073,19 @@ def desc_quote(ctx, rx):
 def contradictions(ctx, W, assumptions, host, backend):
     req = ctx["req"]
     avail = req["requirements.availability"]
-    if avail in ("99.95", "99.99") and (ctx["size"] <= 2 and (ctx["exp"] == "beginner" or not ctx["devops"])):
+    if avail in ("99.95", "99.99") and ctx["local_first"]:
+        W("AVAILABILITY_LOCAL_APP", "info",
+          f"A {avail}% availability target has no server to apply to: the app runs on each user's device, so availability is the app's own crash-free "
+          "operation and the health of the device; only the optional upload endpoint, if built, would carry an uptime target.",
+          ["requirements.availability", "project.platforms"])
+    elif avail in ("99.95", "99.99") and (ctx["size"] <= 2 and (ctx["exp"] == "beginner" or not ctx["devops"])):
         # statement 6 example (enterprise availability, solo beginner): critical when servers must be run; static sites need no on-call
         extreme = avail == "99.99" and ctx["size"] == 1 and ctx["exp"] == "beginner" and ctx["needs_backend"]
         W("AVAILABILITY_VS_TEAM", "critical" if extreme else "warning",
           f"A {avail}% availability target (≈{ {'99.95': '22', '99.99': '4.4'}[avail]} min downtime/month) needs on-call and redundancy that a {ctx['size']}-person {ctx['exp']} team without DevOps rarely sustains. Managed multi-zone services were preferred; plan on-call or relax the target."
           + (" Relaxed: the stack is built for the target, but a solo beginner cannot staff 24/7 on-call or failover drills, so treat 99.99% as best effort (about 99.9%) until on-call cover exists." if extreme else ""),
           ["requirements.availability", "team.size", "team.experience", "team.has_devops"])
-    if avail == "99.99":
+    if avail == "99.99" and not ctx["local_first"]:
         why = ("A 99.99% target (about 4.4 minutes of downtime a month) is beyond what one region of managed services is designed to deliver, "
                "and service SLAs compose to a lower number. ")
         if ctx.get("active_active"):
@@ -1147,6 +1175,9 @@ def contradictions(ctx, W, assumptions, host, backend):
               + (". If the codes go by e-mail instead, the e-mail delivery component covers them." if not d["sms"] else "."),
               ["project.description"])
             assumptions.append(f"{what} named in project.description is assumed to be bought from an SMS provider; none is chosen or priced here.")
+    for warn in (cons.uniqueness_warning(ctx, lambda: cons.snippet(req["project.description"], cx.DESC_RX["unique_rule"])), cons.payments_warning(ctx)):  # A12
+        if warn:
+            W(*warn)
     if req["requirements.offline_support"] and req["requirements.auth"] == "phone_otp":
         W("OFFLINE_LOGIN", "info", "Phone OTP needs signal at first login; sessions are long-lived refresh tokens so the app keeps working offline afterwards.",
           ["requirements.offline_support", "requirements.auth"])
@@ -1162,7 +1193,10 @@ def contradictions(ctx, W, assumptions, host, backend):
                                                  if ctx["res_named"] else "add a read replica or a second region when distant traffic grows."),
           ["scale.geo_spread"] + (ctx["res_paths"] if ctx["res_named"] else []))
     lat = req["requirements.p95_latency_ms"]
-    if lat is not None and lat <= 100 and ctx.get("active_active"):
+    if lat is not None and ctx["local_first"]:
+        W("LATENCY_TARGET_UNMEASURED", "info", f"p95 {lat} ms applies to the app's own operations on the user's device: no network round trip is involved; "
+          "measure it on the slowest supported computer.", ["requirements.p95_latency_ms"])
+    elif lat is not None and lat <= 100 and ctx.get("active_active"):
         W("LATENCY_TARGET_UNMEASURED", "info", f"p95 {lat} ms is planned for with the API in {len(ctx['active_active'])} regions and nearest-region "
           "routing; reads are local, writes reach the primary region. The engine cannot measure it — load-test from each continent before launch.",
           ["requirements.p95_latency_ms"])
@@ -1251,7 +1285,10 @@ def contradictions(ctx, W, assumptions, host, backend):
         W("EXISTING_IDP_NOT_USED", "info", ("An Entra tenant" if ctx["ms_idp"] else f"An existing {idp['pattern']['name']} tenant")
           + " exists but auth is not enterprise_sso; consider SSO for staff users.",
           ["infrastructure.existing_systems", "requirements.auth"])
-    if not ctx["needs_backend"] and ctx["res_key"]:
+    if ctx["local_first"] and ctx["res_key"]:
+        assumptions.append("Local-first desktop app: application data stays on the user's device, so data_residency is not engaged by the app itself; "
+                           "any optional upload endpoint would have to be placed in the stated jurisdiction when it is added.")
+    elif not ctx["needs_backend"] and ctx["res_key"]:
         assumptions.append("Static public site: content is public and contains no personal data, so a global CDN host does not breach data residency.")
 
 
@@ -1346,7 +1383,18 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         hlo, hhi = host["plan_ha_cost"]
         tier_txt = (" per instance (P0v3 about $60 at $0.082/hour Linux, Central India, Azure Retail Prices API 12 Nov 2026, up to P1v3 about $113-130); "
                     "zone redundancy is available only on Premium plans with at least two instances.")
-    add(f"Hosting {short(host['name'])}", hlo, hhi, f"Hosting {host['name']}: {{r}}" + tier_txt)
+    if rf.applies(ctx):  # A18: transfer, not compute, is the cost to watch for a heavily read static site
+        elo, ehi, ulo, uhi = rf.egress(ctx)
+        if not rf.metered(host):
+            lines.append(f"CDN egress: {host['name']} does not bill requests for static files (Cloudflare Pages documentation), so no transfer line is added; "
+                         f"the estimate would otherwise be about ${ulo:,.0f}-{uhi:,.0f}/month.")
+        elif uhi >= rf.THRESHOLDS["report_usd"]:
+            add("CDN egress (estimate)", ulo, uhi,
+                "CDN egress: " + rf.egress_text(ctx) + " = {r}; it is added to the hosting fee above and may partly overlap transfer that fee already includes.")
+    if ctx["local_first"]:
+        lines.append("Hosting: none; the app is distributed as an installer, so there is no hosting bill (code-signing certificates are not in this band).")
+    else:
+        add(f"Hosting {short(host['name'])}", hlo, hhi, f"Hosting {host['name']}: {{r}}" + tier_txt)
     if db_c and db_c.vkey == "existing":
         lines.append(f"Database {db_c.variant}: already running and paid for outside this project; not in this band.")
     elif db_item and db_c and db_c.vkey != "self":
@@ -1373,7 +1421,9 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
                      "$8-31/month, Google pricing page 11 Nov 2026). Google excludes shared-core instances from the Cloud SQL SLA and advises "
                      "against production use; a dedicated-core instance costs more.")
         add(f"Database {short(db_c.variant)}", dlo, dhi, f"Database {db_c.variant}: {{r}}" + (" (HA doubles instances)" if ha else "") + "." + size)
-    if ha and host["kind"] == "static":
+    if ha and ctx["local_first"]:
+        pass  # no server to make redundant
+    elif ha and host["kind"] == "static":
         lines.append("Availability: static files on a CDN are served from many edge locations by design, so nothing extra is billed for it.")
     elif ha and host["kind"] == "onprem":
         # A15: on your own servers a second instance is hardware, already counted in the indicative hardware line; no cloud bill
@@ -1480,6 +1530,8 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
 
 
 def architecture_style(ctx, host, backend, supporting):
+    if ctx["local_first"]:
+        return "monolith"  # one installed application with an embedded database
     if not ctx["needs_backend"]:
         return "static"
     if host["kind"] == "serverless":
@@ -1496,7 +1548,7 @@ def architecture_style(ctx, host, backend, supporting):
 
 
 def make_summary(ctx, style, fe, be, db, host_name, cost, status, onprem=False):
-    style_txt = {"static": "Static site", "monolith": "Single deployable monolith", "modular_monolith": "Modular monolith",
+    style_txt = {"static": "Static site", "monolith": "Local-first desktop app" if ctx["local_first"] else "Single deployable monolith", "modular_monolith": "Modular monolith",
                  "serverless": "Serverless application", "hybrid": "Hybrid cloud + on-premises integration",
                  "service_oriented": "Small set of services", "microservices": "Microservices", "other": "Architecture"}[style]
     if fe["choice"] != "None":
@@ -1511,7 +1563,8 @@ def make_summary(ctx, style, fe, be, db, host_name, cost, status, onprem=False):
     if onprem:  # judge B6: "$0-0" alone reads as free; the band covers only cloud/SaaS fees
         price = ("an estimated cloud bill $0; hardware/licences excluded" if cost["max"] == 0
                  else f"{price} including indicative amortised hardware (not a quote); licences and staff excluded")
-    s = " ".join(parts) + f", hosted on {_no_paren(host)}{' — ' + region if region else ''}, at {price}."  # statement 4: one or two sentences
+    where = "distributed as an installable binary (no hosting)" if ctx["local_first"] else f"hosted on {_no_paren(host)}{' — ' + region if region else ''}"
+    s = " ".join(parts) + f", {where}, at {price}."  # statement 4: one or two sentences
     if status == "ok_with_warnings":
         s += " Review the warnings."
     return s
