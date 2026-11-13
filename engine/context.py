@@ -23,7 +23,14 @@ DESC_RULES = [
     ("ledger", r"ledger|double[- ]entry"),
     ("kyc", r"\bkyc\b|know your customer|identity verification"),
     ("chat", r"\bchat|messag"),
-    ("collab", r"same board|collaborat|live cursor|multiplayer|co-edit|whiteboard"),
+    ("collab", r"same board|collaborat|live cursor|multiplayer|co-edit|whiteboard|conflict-free|\bcrdts?\b"
+               r"|edit(?:s|ing)? (?:the same|a shared) (?:document|doc|note|canvas|sheet|spreadsheet|diagram|text)"
+               r"|(?:shared|collaborative) (?:notes?|canvas|spreadsheets?|text editor)|edit(?:ing)? together|simultaneous(?:ly)? edit"),
+    # D13 right-sizing signals, read only for type gaming (engine/rightsize.py): genre vocabulary, no titles or product names
+    ("turn_based", r"turn-based|turn based|\basynchronous\b|take (?:a|their) turn|card games?|board games?|\bpuzzles?\b|\btrivia\b|\bquiz"
+                   r"|word games?|a move every"),
+    ("fast_action", r"\bshooters?\b|\bfps\b|battle royale|\bmoba\b|\bracing\b|fighting game|action game|battle (?:game|arena)"
+                    r"|real-?time (?:multiplayer|battles?|combat|pvp|matches)|\bpvp\b|tick[- ]rate|fast-paced"),
     ("markdown", r"markdown|\bmdx?\b"),
     # "GPs" (doctors) is not GPS: lower-case gps needs a location word; upper-case GPS is added in desc_signals.
     # gps = a location is recorded; media = photos or cameras. A photo is not a position (and the reverse).
