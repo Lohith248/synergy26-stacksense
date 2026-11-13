@@ -354,7 +354,7 @@
       {
         "layer": "storage",
         "choice": "Amazon S3 (ap-south-1 (Mumbai))",
-        "justification": "Uploads (images, documents) go straight from clients to object storage via signed URLs. Private bucket, server-generated signed URLs, encryption with managed keys.",
+        "justification": "~500 GB of files in 12 months: uploads (images, documents) go straight from clients to object storage via signed URLs. Private bucket, server-generated signed URLs, encryption with managed keys.",
         "driven_by": [
           "requirements.file_media_storage",
           "infrastructure.data_residency"
@@ -385,7 +385,7 @@
       {
         "layer": "cache",
         "choice": "Amazon ElastiCache for Valkey in ap-south-1 (Mumbai)",
-        "justification": "Cache and pub/sub layer: ~10,000 concurrent users.",
+        "justification": "~10,000 concurrent users (cache and pub/sub layer).",
         "driven_by": [
           "scale.peak_concurrent_users"
         ],
@@ -396,7 +396,7 @@
           },
           {
             "choice": "No cache",
-            "why_not": "database absorbs every hot read and no cross-instance pub/sub"
+            "why_not": "the database absorbs every hot read from ~10,000 concurrent users and there is no cross-instance pub/sub"
           }
         ],
         "tradeoffs": [
@@ -414,14 +414,14 @@
       {
         "layer": "queue",
         "choice": "Amazon SQS in ap-south-1 (Mumbai)",
-        "justification": "Background work: payment webhooks and ledger postings processed idempotently with retries.",
+        "justification": "Payment-gateway webhooks and ledger postings at ~300,000 users processed idempotently with retries, so none of it blocks a request.",
         "driven_by": [
           "requirements.payments"
         ],
         "alternatives": [
           {
             "choice": "Synchronous processing in the request",
-            "why_not": "slow responses and lost work when a call fails"
+            "why_not": "a slow or failed call would lose or double-apply a payment event"
           }
         ],
         "tradeoffs": [
@@ -438,7 +438,7 @@
       {
         "layer": "payments",
         "choice": "Razorpay (UPI, cards, netbanking) — RazorpayX Payouts for UPI loan disbursals to borrowers; Subscriptions with UPI AutoPay / e-mandate for recurring collections",
-        "justification": "The description requires UPI. Hosted checkout keeps card data off your servers, which can qualify for PCI DSS SAQ A (your acquirer confirms; protect the checkout page from script attacks). Payment confirmation is trusted only from signed server-side webhooks. For lending, disburse straight to the borrower's bank account and collect repayments directly into the lender's (regulated entity's) account — no pooled pass-through accounts (RBI Digital Lending Directions 2025). pci_dss: the gateway is PCI DSS Level 1; your scope still covers the pages that embed checkout.",
+        "justification": "The description requires UPI. Taking payments for a fintech product (requirements.payments) through hosted checkout keeps card data off your servers, which can qualify for PCI DSS SAQ A (your acquirer confirms; protect the checkout page from script attacks). Payment confirmation is trusted only from signed server-side webhooks. For lending, disburse straight to the borrower's bank account and collect repayments directly into the lender's (regulated entity's) account — no pooled pass-through accounts (RBI Digital Lending Directions 2025). pci_dss: the gateway is PCI DSS Level 1; your scope still covers the pages that embed checkout.",
         "driven_by": [
           "requirements.payments",
           "project.description",
@@ -479,7 +479,7 @@
       {
         "layer": "cdn",
         "choice": "Amazon CloudFront",
-        "justification": "Caches public pages and static assets near users; only public, non-personal content is cached at the edge.",
+        "justification": "At ~300,000 users, public pages and static assets are cached near users so the origin serves less traffic; only public, non-personal content is cached.",
         "driven_by": [
           "project.platforms",
           "scale.users_12_months"
@@ -504,7 +504,7 @@
       {
         "layer": "ml",
         "choice": "Separate Python inference service (FastAPI + ONNX Runtime) in the same private network",
-        "justification": "The core API is Java 21/25 LTS + Spring Boot; a small Python service serves the model behind an internal endpoint so data scientists keep their tooling. Credit-scoring outputs and their inputs are logged for audit and explainability.",
+        "justification": "The core API is Java 21/25 LTS + Spring Boot; a small Python service serves the model behind an internal endpoint, so model code stays in Python's ML tooling without changing the API's language. Credit-scoring outputs and their inputs are logged for audit and explainability.",
         "driven_by": [
           "requirements.ml_features",
           "project.description",
@@ -530,7 +530,7 @@
       {
         "layer": "ci_cd",
         "choice": "GitHub Actions",
-        "justification": "Automated tests and deploys on every push to AWS ECS on Fargate (+ Application Load Balancer); free minutes cover a team of 8.",
+        "justification": "Java 21/25 LTS + Spring Boot tests run on every push and a passing build deploys to AWS ECS on Fargate; the cost band reserves $0-20/month for a team of 8 (planning estimate).",
         "driven_by": [
           "team.size",
           "team.has_devops"
@@ -555,7 +555,7 @@
       {
         "layer": "observability",
         "choice": "Amazon CloudWatch in ap-south-1 (Mumbai) (logs, metrics, alarms)",
-        "justification": "Logs and metrics stay with the host provider in ap-south-1 (Mumbai); alerts on error rate and latency against the 300 ms p95 target.",
+        "justification": "The 300 ms p95 target and the 99.95% availability target are watched by latency and error-rate alerts; logs and metrics stay with AWS in ap-south-1 (Mumbai), so there is no second vendor.",
         "driven_by": [
           "requirements.availability",
           "requirements.p95_latency_ms",

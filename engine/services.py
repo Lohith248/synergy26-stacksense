@@ -8,10 +8,37 @@ from . import domains
 from . import context as cx
 from . import rightsize as rs
 from .kb import cite
+from .select import a_an, type_noun
 
 Z = [[0, 0], [0, 0], [0, 0], [0, 0]]
 # cloudflare.com/plans rendered 11 Nov 2026
 CF_FREE = ("Cloudflare positions the Free plan for projects that are not business-critical and gives it no uptime SLA (the 100% SLA starts at Business); move to a paid plan when the site becomes business-critical")
+
+
+def cap_first(s):
+    return s[:1].upper() + s[1:] if s else s
+
+
+CLOUD_NAME = {"aws": "AWS", "azure": "Azure", "gcp": "Google Cloud"}
+
+
+def res_name(ctx):
+    """Where residency pins data, in words: the resolved country, else the data_residency enum value."""
+    if ctx["country"]:
+        return ctx["res_label"]
+    return {"india": "India", "eu": "the EU", "us": "the US"}.get(ctx["res_key"], ctx["res_label"])
+
+
+def uses_store_billing(ctx):
+    """In-app digital goods on a mobile client are billed through the app stores (payments block and queue text share it)."""
+    return bool(ctx["mobile"]) and (ctx["type"] == "gaming" or ctx["desc"]["digital_goods"]) and ctx["type"] not in ("marketplace", "ecommerce", "fintech")
+
+
+def join_and(xs):
+    return xs[0] if len(xs) == 1 else ", ".join(xs[:-1]) + " and " + xs[-1]
+
+
+SOCIAL_NOTE = " Enable only the social providers your users already have; the providers in the choice name are what the product supports, not a decision."
 
 
 def svc(layer, choice, why, driven, alts, trade, deploy, provider, data_bearing, cost, src, location=None):
@@ -183,7 +210,7 @@ def build(ctx, host, backend, db, mobile, warn):
             social = auth == "social"
             if db and db["id"] == "supabase":
                 out.append(svc("auth", "Supabase Auth" + (" with Google/GitHub/Apple social sign-in" if social else ""),
-                               f"{auth} login from the same Supabase project as the database: users sit next to the data and row-level security policies can use the signed-in user id; free plan covers this scale.",
+                               f"{auth} login from the same Supabase project as the database: users sit next to the data and row-level security policies can use the signed-in user id; free plan covers this scale." + (SOCIAL_NOTE if social else ""),
                                dp + ["budget.monthly_infra_usd"],
                                [("Framework built-in auth", "you would own password storage, reset e-mails and MFA"),
                                 ("Auth0 / Clerk (SaaS)", "another vendor and per-user pricing on a near-zero budget")],
@@ -191,7 +218,7 @@ def build(ctx, host, backend, db, mobile, warn):
                                "saas", "supabase", True, Z, ["supabase-pricing"], loc))
             elif p == "aws" and not selfh and ctx["lock"] != "low":
                 choice = f"Amazon Cognito user pool{rtxt}" + (" with Google/Apple/Microsoft social sign-in" if social else "")
-                out.append(svc("auth", choice, f"{auth} login on AWS: managed user pool with MFA and hosted UI{rtxt}.",
+                out.append(svc("auth", choice, f"{auth} login on AWS: managed user pool with MFA and hosted UI{rtxt}." + (SOCIAL_NOTE if social else ""),
                                dp + ["infrastructure.cloud_preference"],
                                [("Framework built-in auth", "you would own password storage, reset flows and MFA")],
                                ["Cognito customisation limits"], "managed", "aws", True,
@@ -209,10 +236,12 @@ def build(ctx, host, backend, db, mobile, warn):
                 kl = "Rust" if backend and backend["id"] == "rust-axum" else "Go"  # backends without a batteries-included auth framework
                 out.append(svc("auth", lib,
                                (f"{auth} login on a self-hosted identity server: {kl} has no batteries-included auth framework, so Keycloak handles passwords, MFA and social providers{' and keeps identities in-region' if loc else ''}."
-                                if kc else f"{auth} login kept inside the application: users live in your own database{' (in-region)' if loc else ''}, so no extra vendor or data transfer."),
+                                if kc else f"{auth} login for ~{ctx['users']:,} users stays inside the application: users live in your own database{' (in-region)' if loc else ''}, so no extra vendor or data transfer."
+                                + (SOCIAL_NOTE if social else "")),
                                dp + (["team.languages"] if backend else []),
-                               [("Auth0 / Clerk (SaaS)", "extra monthly cost per active user and identity data outside your region"),
-                                (f"Hand-written auth in {kl}", "security-sensitive code the team would have to maintain") if kc else ("Keycloak", "a separate service to run for a single application")],
+                               [("Auth0 / Clerk (SaaS)", f"per-active-user pricing across ~{ctx['users']:,} users" + (f" and identity data outside {res_name(ctx)}" if loc else "")),
+                                (f"Hand-written auth in {kl}", "security-sensitive code the team would have to maintain") if kc else
+                                ("Keycloak", f"a separate service to run, patch and upgrade for a team of {ctx['size']}" + ("" if ctx["devops"] else " with no DevOps engineer"))],
                                ["You run and upgrade Keycloak"] if kc else ["You own password hashing, reset e-mails and MFA setup"],
                                "self_hosted" if kc else "library", "neutral", kc, Z, ["keycloak"], loc))
 
@@ -220,9 +249,11 @@ def build(ctx, host, backend, db, mobile, warn):
     if req["requirements.file_media_storage"] or d["media"] or d["kyc"]:
         dp = ["requirements.file_media_storage"] + res_path
         extra = " Private bucket, server-generated signed URLs, encryption with managed keys." if (d["kyc"] or ctx["compliance"]) else " Private bucket with signed upload/download URLs."
+        gb_given = req["scale.data_volume_gb_12_months"] is not None
+        gb_lead = f"~{cx.num(ctx['data_gb'])} GB of files in 12 months: " if gb_given else ""  # E9: the scenario's own volume opens the text
         if selfh:
             out.append(svc("storage", "SeaweedFS (self-hosted S3-compatible object store)",
-                           "User files must stay on your own servers; SeaweedFS exposes the S3 API so the app code stays portable." + extra,
+                           f"deployment_model {ctx['deploy']}: user files must stay on your own servers; SeaweedFS exposes the S3 API so the app code stays portable." + extra,
                            dp + ["infrastructure.deployment_model"],
                            [("MinIO", "its open-source repository was archived in April 2026 and is no longer maintained"),
                             ("Local disk / NFS volume", "no S3 API; harder backups and scaling")],
@@ -230,13 +261,14 @@ def build(ctx, host, backend, db, mobile, warn):
         else:
             name = {"aws": "Amazon S3", "azure": "Azure Blob Storage", "gcp": "Google Cloud Storage"}.get(p, "Cloudflare R2" if not loc else "Amazon S3")
             prov = p if hyper else ("cloudflare" if not loc else "aws")
-            alt = [("Storing files in the database", f"with ~{cx.num(ctx['data_gb'])} GB of data expected in 12 months (scale.data_volume_gb_12_months), "
-                    "files inside the database bloat every backup and cost more per GB than object storage")]
+            alt = [("Storing files in the database", (f"with ~{cx.num(ctx['data_gb'])} GB of data expected in 12 months (scale.data_volume_gb_12_months), "
+                                                      if gb_given else "scale.data_volume_gb_12_months is not given, but ")
+                    + "files inside the database bloat every backup and cost more per GB than object storage")]
             if hyper:
-                alt.append(("Cloudflare R2", f"zero egress fees, but a second vendor outside {p.upper()}"))
+                alt.append(("Cloudflare R2", f"zero egress fees, but a second vendor outside {CLOUD_NAME[p]}"))
             reg = region or (host["regions"].get("india") if loc == "india" else None)
             out.append(svc("storage", f"{name}{(' (' + reg + ')') if reg else ''}",
-                           f"Uploads ({'GPS-tagged photos' if d['gps'] and d['media'] else 'photos' if d['media'] else 'images, documents'}) go straight from clients to object storage via signed URLs.{extra}",
+                           f"{gb_lead}{'u' if gb_lead else 'U'}ploads ({'GPS-tagged photos' if d['gps'] and d['media'] else 'photos' if d['media'] else 'images, documents'}) go straight from clients to object storage via signed URLs.{extra}",
                            dp, alt, ["Egress charges for heavy downloads"], "managed", prov, True,
                            [[0, 2], [1, 10], [10, 80], [80, 600]], ["aws-india-data", "gcp-storage-locations", "azure-regions"], loc))
 
@@ -251,9 +283,9 @@ def build(ctx, host, backend, db, mobile, warn):
             native = {"postgresql": "PostgreSQL full-text search (tsvector + GIN index)", "supabase": "PostgreSQL full-text search (tsvector + GIN index)",
                       "mysql": "MySQL FULLTEXT indexes", "sqlserver": "SQL Server Full-Text Search"}[db["id"]]
             out.append(svc("search", native,
-                           f"At ~{ctx['users']:,} users the primary database's built-in full-text search is enough; no extra service to run or pay for.",
+                           f"With ~{ctx['users']:,} users on {db['name'].split(' (')[0].split(' — ')[0]}, its built-in full-text search is enough; no extra service to run or pay for.",
                            dp + ["scale.users_12_months"],
-                           [("Meilisearch / OpenSearch", "a separate cluster to operate before the data size needs it")],
+                           [("Meilisearch / OpenSearch", f"a separate cluster to operate at ~{ctx['users']:,} users, before the data size" + (f" ({cx.num(ctx['data_gb'])} GB)" if req["scale.data_volume_gb_12_months"] is not None else "") + " needs it")],
                            ["Typo tolerance and ranking are basic; move to a search engine if relevance becomes a product feature"],
                            "library", "neutral", False, Z, ["postgres-fts"]))
         else:
@@ -268,7 +300,7 @@ def build(ctx, host, backend, db, mobile, warn):
                 src = src + ["gcp-vertex-search"]
                 alts.append(("Vertex AI Search", "Google positions it as generative-AI search for websites, enterprise data and media, not a general "
                              "application search engine; a managed Elasticsearch-compatible service (for example Elastic Cloud on the Google Cloud Marketplace) can be priced if self-hosting is unwanted"))
-            out.append(svc("search", c, f"Search at {ctx['users']:,} users / {cx.num(ctx['data_gb'])} GB benefits from a dedicated engine with relevance tuning, kept in the same region as the data.",
+            out.append(svc("search", c, f"Search at {ctx['users']:,} users / {cx.num(ctx['data_gb'])} GB benefits from a dedicated engine with relevance tuning" + (", kept in the same region as the data." if loc else "."),
                            dp + ["scale.users_12_months"] + res_path,
                            alts,
                            ["Index must be kept in sync with the database (outbox/CDC)"],
@@ -295,7 +327,7 @@ def build(ctx, host, backend, db, mobile, warn):
                                        ["y_ex", "phoenix-channels"]),
                     "rust-axum": ("Yjs CRDT documents + yrs (Rust port of Yjs) over Axum WebSockets",
                                   "yrs, binary-compatible with Yjs, merges updates inside the Rust API", ["y-crdt"])}.get(bid)
-            base = "Many people edit the same board at once: CRDTs merge concurrent edits without conflicts and broadcast cursors/presence (awareness); "
+            base = "Several people edit the same shared item at once (description evidence): CRDTs merge concurrent edits without conflicts and broadcast cursors/presence (awareness); "
             trade = ["Stateful socket servers need sticky routing or a Redis pub/sub backplane when scaled out"]
             rcost, rnote, ralts = Z, "", []
             if port:
@@ -315,7 +347,7 @@ def build(ctx, host, backend, db, mobile, warn):
                     rcost = [e0, e0, e1, e1]
                     rnote = " Basis: one extra small always-on instance for the Node.js sync server at the host's entry price (estimate)."
             out.append(svc("realtime", rname, rwhy, dp + ["project.type", "project.description"],
-                           [("Liveblocks (managed)", "fastest to start but per-room pricing and board data held by a third party"),
+                           [("Liveblocks (managed)", "fastest to start but per-room pricing and the shared data held by a third party"),
                             ("Plain WebSocket broadcast", "last-write-wins loses concurrent edits")] + ralts,
                            trade, "self_hosted" if not hyper else "library", "neutral", False, rcost,
                            ["yjs"] + rsrc + ["liveblocks-pricing"]))
@@ -332,10 +364,10 @@ def build(ctx, host, backend, db, mobile, warn):
                 native = "Azure SignalR Service (managed)"
             if kind == "serverless" and p == "aws":
                 native = f"Amazon API Gateway WebSocket APIs{rtxt} (gateway holds connections; Lambda handles messages)"
-            why, drv, alts = (f"Live updates{' and chat' if d['chat'] else ''} over WebSockets from the same backend, so authorisation and data stay in one place.",
+            why, drv, alts = (f"requirements.realtime is set: live updates{' and chat' if d['chat'] else ''} go over WebSockets from the same {backend['name'].split(' (')[0] if backend else 'backend'} backend, so authorisation and data stay in one place.",
                               dp + (["project.description"] if d["chat"] else []),
-                              [("Ably / Pusher", "managed fan-out, but an extra vendor and per-connection cost"),
-                               ("Polling", "wastes requests and adds latency")])
+                              [("Ably / Pusher", f"managed fan-out, but an extra vendor and per-connection cost at ~{ctx['peak']:,} concurrent users"),
+                               ("Polling", f"~{ctx['peak']:,} concurrent clients would each poll, wasting requests and adding latency")])
             if gate_g:  # D13 G1: a game that needs no server-side real-time loop keeps its state in the backend
                 _, fact, when, gpaths = gate_g
                 gname = domains.game_server_product(p, hyper and not selfh and not ctx["self_host_only"], rtxt)[0].split(" (")[0]
@@ -382,10 +414,10 @@ def build(ctx, host, backend, db, mobile, warn):
             why.append("read-heavy workload: hot pages and lookups served from memory instead of the database")
         if ctx["type"] == "gaming":
             why.append("leaderboards and matchmaking queues on sorted sets")
-        out.append(svc("cache", c, "Cache and pub/sub layer: " + "; ".join(why) + ".",
+        out.append(svc("cache", c, cap_first("; ".join(why)) + " (cache and pub/sub layer).",
                        ["scale.peak_concurrent_users"] + (["scale.workload"] if read_hot else []) + (["requirements.realtime"] if req["requirements.realtime"] else []) + (["priorities.performance"] if ctx["prio"]["performance"] >= 5 else []),
                        [("Redis (7.4+)", "7.4-7.8 are source-available (RSALv2/SSPLv1) and Redis 8+ adds an AGPLv3 option (copyleft for network use); Valkey keeps the BSD licence"),
-                        ("Azure Cache for Redis", "being retired (Sept 2028); Azure Managed Redis is the replacement") if p == "azure" else ("No cache", "database absorbs every hot read and no cross-instance pub/sub")],
+                        ("Azure Cache for Redis", "being retired (Sept 2028); Azure Managed Redis is the replacement") if p == "azure" else ("No cache", f"the database absorbs every hot read from ~{ctx['peak']:,} concurrent users and there is no cross-instance pub/sub")],
                        ["Another stateful component to size and monitor"], "managed" if prov in ("aws", "azure", "gcp") else "self_hosted", prov, False, cost, src))
 
     # ---------------- queue
@@ -418,7 +450,11 @@ def build(ctx, host, backend, db, mobile, warn):
     elif need_queue and ctx["needs_backend"]:
         why = []
         if req["requirements.payments"] and ctx["tier"] >= 2:
-            why.append("payment webhooks and ledger postings processed idempotently with retries")
+            # E9: webhooks only where a gateway sends them (app-store billing sends notifications); ledger postings only when the input names a ledger
+            if uses_store_billing(ctx):
+                why.append(f"app-store purchase and refund notifications at ~{ctx['users']:,} users processed idempotently with retries")
+            else:
+                why.append(f"payment-gateway webhooks{' and ledger postings' if d['ledger'] else ''} at ~{ctx['users']:,} users processed idempotently with retries")
         if d["video_vod"]:
             why.append("video transcoding jobs queued after each upload")
         if req["requirements.offline_support"] and d["media"]:
@@ -433,11 +469,13 @@ def build(ctx, host, backend, db, mobile, warn):
             c, prov, src = {"aws": (f"Amazon SQS{rtxt}", "aws", ["aws-regional"]), "azure": (f"Azure Service Bus{rtxt}", "azure", ["azure-products-by-region"]),
                             "gcp": (f"Google Cloud Pub/Sub / Cloud Tasks{rtxt}", "gcp", ["gcp-locations"])}[p]
             cost = [[0, 1], [0, 5], [5, 30], [30, 200]]
-        out.append(svc("queue", c, "Background work: " + "; ".join(why) + ".",
+        out.append(svc("queue", c, cap_first("; ".join(why)) + ", so none of it blocks a request.",
                        [x for x in ("requirements.payments", "requirements.offline_support", "scale.workload", "requirements.ml_features")
                         if (x == "requirements.payments" and req[x] and ctx["tier"] >= 2) or (x == "requirements.offline_support" and req[x])
                         or (x == "scale.workload" and req[x] == "write_heavy" and ctx["tier"] >= 2) or (x == "requirements.ml_features" and req[x] == "training")] or ["project.description" if d["video_vod"] else "scale.workload"],
-                       [("Synchronous processing in the request", "slow responses and lost work when a call fails")],
+                       [("Synchronous processing in the request",
+                         "a slow or failed call would lose or double-apply a payment event" if req["requirements.payments"] and ctx["tier"] >= 2
+                         else "slow responses and lost work when a call fails")],
                        ["Consumers must be idempotent"], "managed" if prov in ("aws", "azure", "gcp") else "library", prov, True, cost, src, loc))
 
     # ---------------- payments
@@ -452,7 +490,7 @@ def build(ctx, host, backend, db, mobile, warn):
             via_compliance = india and ctx["residency"] != "india" and not d["upi"]
             pci = "pci_dss" in ctx["compliance"]
             feats, extra_src = [], []
-            store = bool(ctx["mobile"]) and (ctx["type"] == "gaming" or d["digital_goods"]) and ctx["type"] not in ("marketplace", "ecommerce", "fintech")
+            store = uses_store_billing(ctx)
             if store:
                 stores = [x for x in ("Google Play Billing" if "android" in ctx["mobile"] else None,
                                       "Apple In-App Purchase (StoreKit)" if "ios" in ctx["mobile"] else None) if x]
@@ -492,10 +530,12 @@ def build(ctx, host, backend, db, mobile, warn):
                 if d["payouts"] or ctx["type"] == "marketplace":
                     feats.append("Stripe Connect for " + ("marketplace " if ctx["type"] == "marketplace" else "") + "payouts")
                 alts = [("Paddle (merchant of record)", "handles global tax but higher fees and less control"),
-                        ("Adyen", "enterprise pricing/onboarding for this size")]
+                        ("Adyen", f"enterprise pricing and onboarding for ~{ctx['users']:,} users")]
                 src = ["stripe-billing-pricing"] + extra_src
                 prov = "stripe"
-            why = ("Hosted checkout keeps card data off your servers, which can qualify for PCI DSS SAQ A (your acquirer confirms; protect the checkout page from script attacks). "
+            # E9: the payment text names the product that takes the payments
+            why = (f"Taking payments for {a_an(type_noun(ctx))} (requirements.payments) through hosted checkout keeps card data off your servers, which can qualify for PCI DSS SAQ A "
+                   "(your acquirer confirms; protect the checkout page from script attacks). "
                    "Payment confirmation is trusted only from signed server-side webhooks.")
             if d["upi"]:
                 why = "The description requires UPI. " + why
@@ -544,7 +584,14 @@ def build(ctx, host, backend, db, mobile, warn):
         name = {"aws": "Amazon CloudFront", "azure": "Azure Front Door", "gcp": "Cloud CDN"}.get(p, "Cloudflare (free plan)")
         paths = (["project.platforms"] + (["requirements.seo_critical"] if req["requirements.seo_critical"] else ["scale.users_12_months"])
                  + (["scale.geo_spread"] if ctx["geo"] in ("multi_region", "global") else []))
-        why = "Caches public pages and static assets near users; only public, non-personal content is cached at the edge."
+        # E9: open with the input that made a CDN worthwhile
+        if req["requirements.seo_critical"]:
+            lead = "SEO is critical (requirements.seo_critical), so public pages and static assets are served from edge caches near users (fast pages for visitors and crawlers)"
+        elif ctx["geo"] in ("multi_region", "global"):
+            lead = f"scale.geo_spread={ctx['geo']}: public pages and static assets are cached at the edge, close to distant users"
+        else:
+            lead = f"At ~{ctx['users']:,} users, public pages and static assets are cached near users so the origin serves less traffic"
+        why = lead + "; only public, non-personal content is cached."
         # Front Door's $35 base fee (verified, R11) is more than 15% of a budget under ~$233; unless Azure was requested
         # explicitly (a hard constraint), the free Cloudflare plan in front of Azure does the same job for a small site
         if p == "azure" and req["infrastructure.cloud_preference"] != "azure" and ctx["budget"] < 35 / 0.15:
@@ -582,7 +629,7 @@ def build(ctx, host, backend, db, mobile, warn):
                 c, why = "In-process model inference (scikit-learn/XGBoost exported to ONNX Runtime)", "The backend is Python, so the trained model loads inside the API: no extra network hop, versioned model files."
             else:
                 c, why = ("Separate Python inference service (FastAPI + ONNX Runtime) in the same private network",
-                          f"The core API is {backend['name'] if backend else 'not Python'}; a small Python service serves the model behind an internal endpoint so data scientists keep their tooling.")
+                          f"The core API is {backend['name'] if backend else 'not Python'}; a small Python service serves the model behind an internal endpoint, so model code stays in Python's ML tooling without changing the API's language.")
             if d["scoring_model"]:
                 why += " Credit-scoring outputs and their inputs are logged for audit and explainability."
             alt = {"aws": ("Amazon SageMaker AI real-time endpoint", "managed MLOps, but always-on endpoint cost before volume justifies it"),
@@ -646,7 +693,12 @@ def build(ctx, host, backend, db, mobile, warn):
                        "self_hosted", "neutral", True, Z, ["grafana-stack"], loc))
     else:
         ci_cost = [0, 4] if ctx["size"] <= 3 else ([0, 20] if ctx["size"] <= 8 else [20, 100])  # minutes scale with engineers, not users
-        out.append(svc("ci_cd", "GitHub Actions", f"Automated tests and deploys on every push{' to ' + host['name'] if host else ''}; free minutes cover a team of {ctx['size']}.",
+        # E9: no "free minutes cover a team of N" (GitHub Free includes $12/month of compute, a money allowance: source gha-billing);
+        # the text names what runs, where it deploys and what the cost band reserves for this team size
+        what = f"{backend['name'].split(' (')[0]} tests run" if backend else "The site build runs"
+        out.append(svc("ci_cd", "GitHub Actions", f"{what} on every push" + (f" and a passing build deploys to {host['name'].split(' (')[0]}" if host else "")
+                       + f"; the cost band reserves ${ci_cost[0]}-{ci_cost[1]}/month for a team of {ctx['size']} (planning estimate)"
+                       + (", more than the $12/month of compute GitHub Free includes for private repositories (public repositories run free)." if ctx["size"] > 8 else "."),
                        ["team.size", "team.has_devops"], [("GitLab CI", f"equally capable; for a team of {ctx['size']} " + ("with" if ctx["devops"] else "without")
                                      + f" a DevOps engineer (team.has_devops={'true' if ctx['devops'] else 'false'}), ready-made GitHub deploy actions"
                                      + (f" for {host['name'].split(' (')[0]}" if host else "") + " mean less pipeline code to maintain")],
@@ -656,7 +708,10 @@ def build(ctx, host, backend, db, mobile, warn):
               "azure": (f"Azure Monitor + Application Insights{rtxt}", "azure"),
               "gcp": (f"Cloud Logging + Cloud Monitoring{rtxt}", "gcp")}.get(p, ("Platform logs/metrics + Prometheus/Grafana on the VM" if kind == "vm" else "Platform logs and metrics + uptime checks", p))
         if ctx["needs_backend"]:
-            out.append(svc("observability", ob[0], f"Logs and metrics stay with the host provider{rtxt}; alerts on error rate and latency{(' against the ' + str(req['requirements.p95_latency_ms']) + ' ms p95 target') if req['requirements.p95_latency_ms'] else ''}.",
+            out.append(svc("observability", ob[0],
+                           (f"The {req['requirements.p95_latency_ms']} ms p95 target and the {req['requirements.availability']}% availability target are watched by latency and error-rate alerts"
+                            if req["requirements.p95_latency_ms"] else f"The {req['requirements.availability']}% availability target is watched by error-rate alerts")
+                           + f"; logs and metrics stay with {CLOUD_NAME.get(p, host['name'].split(' (')[0])}{rtxt}, so there is no second vendor.",
                            ["requirements.availability"] + (["requirements.p95_latency_ms"] if req["requirements.p95_latency_ms"] else []) + res_path,
                            [("Sentry (SaaS)", "stores data only in the US or EU" if loc == "india" or ctx["country"] else f"an extra vendor account for a team of {ctx['size']}" + ("" if ctx["devops"] else " with no DevOps engineer")
                             + f"; {ob[0].split(' (')[0]} already covers {req['requirements.availability']}% availability alerting, add Sentry later for richer error grouping")],
@@ -707,7 +762,11 @@ def build(ctx, host, backend, db, mobile, warn):
              "the app fetches details after sign-in).", ["compliance", "project.platforms"])
     if ctx["mobile"] and (d["jobs_dispatch"] or d["notifications"] or d["chat"]) and not ctx["self_host_only"]:
         out.append(svc("other", "Firebase Cloud Messaging (push notifications)",
-                       "Mobile users must hear about new jobs/messages immediately; FCM is no-cost and also relays to iOS via APNs. Payloads carry only an ID, never personal data.",
+                       # E9: name only what the description mentions and the platforms the project targets
+                       f"{join_and(['iOS' if m == 'ios' else m.capitalize() for m in ctx['mobile']])} users must hear about "
+                       + join_and([w for w, on in (("new jobs or bookings", d["jobs_dispatch"]), ("messages", d["chat"]), ("alerts or reminders", d["notifications"])) if on])
+                       + " while the app is closed; FCM is no-cost" + (" and also relays to iOS via APNs" if "ios" in ctx["mobile"] else "")
+                       + ". Payloads carry only an ID, never personal data.",
                        ["project.platforms", "project.description"],
                        [("Polling from the app", "drains battery and misses events when the app is closed")],
                        ["Delivery is best-effort; critical updates also appear in-app"], "saas", "google", False, Z,
@@ -731,8 +790,10 @@ def build(ctx, host, backend, db, mobile, warn):
     if req["requirements.multi_tenant"]:
         rls = db and db.get("rls")
         out.append(svc("other", "Tenant isolation: tenant_id on every row" + (" + database row-level security" if rls else " enforced in a repository layer"),
-                       "Several customer organisations share the system: every query is scoped by tenant, enforced in the database so one bug cannot leak another team's boards.",
-                       ["requirements.multi_tenant"], [("Database per tenant", "strong isolation but heavy operations for thousands of small teams")],
+                       f"Several customer organisations share one {type_noun(ctx)}: every query is scoped by tenant, enforced in "
+                       + ("the database" if rls else "a repository layer") + ", so one bug cannot leak another organisation's data.",
+                       ["requirements.multi_tenant"], [("Database per tenant", "strong isolation, but a separate database to provision, migrate and back up per customer organisation"
+                                                        + f", for a team of {ctx['size']}" + ("" if ctx["devops"] else " without a DevOps engineer"))],
                        ["Every new table needs a policy"], "library", "neutral", False, Z, ["postgres-rls"]))
     if d["ledger"]:
         # name only the money flows the input names
