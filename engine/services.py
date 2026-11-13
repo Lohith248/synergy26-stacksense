@@ -141,6 +141,46 @@ GATEWAY_EEA = {"stripe": {
     "transfer_sources": ["stripe-privacy"]}}
 AREA = {"EU": "the EU", "US": "the US", "INDIA": "India"}  # res_label of a named residency, as it reads in a sentence
 
+# A15 (llm_rag): constraints the description states about the model's data and answers (planning heuristic wording signals; each is read
+# outside negated clauses). no_training = documents must not be used to train a model or must be kept zero-retention; citations = answers
+# must cite sources; legal / medical = the answers are legal or medical guidance (a disclaimer and a human route are needed).
+LLM_RX = {
+    "no_training": (r"\b(?:never|not|no|nor|without)\b(?:\W+\w+){0,6}?\W+(?:used?|using|reused?)\W+(?:\w+\W+){0,3}?(?:to train|for training|to (?:improve|tune|fine-?tune)|"
+                    r"in (?:the )?(?:training|fine-?tuning))|\bno (?:model )?training (?:on|with)\b|\bzero[- ]?(?:data[- ])?retention\b|\bnot (?:be )?train\w* (?:on|with)\b"
+                    r"|\bnever (?:trained|used) (?:on|for training)\b|\bopt[- ]?out of (?:model )?training\b"),
+    "citations": r"\bcit(?:e|es|ed|ing|ation|ations)\b|\bgrounded\b|\bsource (?:links?|references?|attributions?)\b|\breferences? (?:to )?(?:the )?sources?\b",
+    "legal": r"\blegal\b|\blaw(?:s|yers?)?\b|\bstatutes?\b|\battorneys?\b|\bsolicitors?\b|\bregulations? (?:and|or) rights\b|\btenant(?:s'?)? rights\b|\beviction\b",
+    "medical": r"\bsymptoms?\b|\bdiagnos\w+|\bmedications?\b|\bprescri\w+|\bclinical (?:advice|questions?)\b|\bmedical (?:advice|questions?|guidance)\b|\bhealth (?:advice|questions?)\b",
+}
+
+
+def small_selfhost(ctx):
+    """A20 (planning heuristic): a beginner team on its own servers (on_premise / air_gapped) at the entry scale tier runs as few
+    self-hosted tools as possible: login inside the app, no CI server, one container for health checks."""
+    return ctx["self_host_only"] and ctx["tier"] == 0 and ctx["exp"] == "beginner"
+
+
+def llm_constraints(ctx):
+    """{key: description sentence} for each LLM_RX signal the description states outside a negated clause."""
+    text = ctx["req"]["project.description"] or ""
+    low = text.lower()
+    breaks = cx.clause_breaks(low)
+    out = {}
+    for key, rx in LLM_RX.items():
+        if cx.live_hit(rx, text, low, breaks, re.I):
+            sent = next((x for x in re.split(r"(?<=[.!?;])\s+|\n", text) if re.search(rx, x, re.I)), text)
+            sent = sent.strip().rstrip(".")
+            if len(sent) > 110:  # a long sentence is cut around the words that fired the signal
+                m = re.search(rx, sent, re.I)
+                a, b = max(0, m.start() - 45), min(len(sent), m.end() + 45)
+                if a:  # cut at word boundaries, never inside a word
+                    a = sent.find(" ", a) + 1 if sent.find(" ", a, m.start()) != -1 else m.start()
+                if b < len(sent):
+                    b = sent.rfind(" ", m.end(), b) if sent.rfind(" ", m.end(), b) != -1 else m.end()
+                sent = ("..." if a else "") + sent[a:b].strip() + ("..." if b < len(sent) else "")
+            out[key] = sent
+    return out
+
 
 ENGINE_NAMES = {"sqlserver": "SQL Server", "postgresql": "PostgreSQL", "mysql": "MySQL", "mongodb": "MongoDB"}
 
@@ -213,6 +253,48 @@ def email_product(provider):
     else:
         alts = [("Resend", "a standalone email API; fine, but a second vendor and bill next to the host cloud")]
     return name, prov, f"{name} is {why}.", alts
+
+
+def llm_description_constraints(ctx, ml, selfh, model, req, warn):
+    """A15: say how the RAG component meets what the description states (no training on documents, citations, tenant-scoped
+    retrieval, a disclaimer for legal or medical guidance). Text on the 'ml' component plus warnings; no component is added."""
+    found = llm_constraints(ctx)
+    tenant = req["requirements.multi_tenant"]
+    extra, paths = [], []
+    if "no_training" in found:
+        q = f"(\"{found['no_training']}\")"
+        if selfh:
+            extra.append(f"No-training requirement {q}: the model runs on your own servers, so documents and questions cannot reach a provider's training data.")
+        else:
+            vendor = model.split(" (")[0].split(" + ")[0]
+            extra.append(f"No-training requirement {q}: the contract with the model provider must state that prompts, documents and outputs are not used "
+                         "to train models and are not retained (zero-retention or abuse-monitoring opt-out terms, where offered); the alternative is a "
+                         "self-hosted open-weight model.")
+            warn("LLM_NO_TRAINING_TERMS", "warning",
+                 f"project.description says documents must not be used for training (\"{found['no_training']}\"). The knowledge base does not confirm "
+                 f"{vendor}'s no-training or zero-retention terms for this account: get them in writing (data processing terms, any abuse-monitoring "
+                 "opt-out) before sending documents, or choose a self-hosted open-weight model.", ["project.description", "requirements.ml_features"])
+        paths.append("project.description")
+    if "citations" in found:
+        extra.append(f"Citations (\"{found['citations']}\"): the answer is returned with a citations field listing the retrieved passages it rests on "
+                     "(document, section, link); an answer with no supporting passage says so instead of guessing.")
+        paths.append("project.description")
+    if tenant:
+        extra.append("Retrieval is tenant-scoped (requirements.multi_tenant): every indexed chunk carries a tenant id and the retrieval query applies it as a "
+                     "mandatory filter in code, not in the prompt, so one tenant's documents are never retrieved for another.")
+        paths.append("requirements.multi_tenant")
+    adv = [k for k in ("legal", "medical") if k in found]
+    if adv:
+        kind = "legal" if adv[0] == "legal" else "medical"
+        warn("LLM_ADVICE_DISCLAIMER", "warning",
+             f"project.description describes {kind} guidance (\"{found[adv[0]]}\"). A language model can state wrong or outdated rules with confidence: show a "
+             f"'not {kind} advice' notice next to every answer, show the source passages the answer rests on, and give a route to a qualified {'lawyer' if kind == 'legal' else 'clinician'}"
+             "; test answers against the source material before launch.", ["project.description", "requirements.ml_features"])
+        extra.append(f"Answers carry a 'not {kind} advice' notice and a route to a qualified person (see LLM_ADVICE_DISCLAIMER).")
+        paths.append("project.description")
+    if extra:
+        ml["justification"] += " " + " ".join(extra)
+        ml["driven_by"] = sorted(set(ml["driven_by"] + paths), key=lambda x: (x not in ml["driven_by"], x))
 
 
 def build(ctx, host, backend, db, mobile, warn):
@@ -319,6 +401,21 @@ def build(ctx, host, backend, db, mobile, warn):
                                ["Relaxed: OTP availability depends on an on-site gateway"], "self_hosted", "neutral", True, Z, ["keycloak"], loc))
                 warn("PHONE_OTP_NEEDS_NETWORK", "critical",
                      "Phone OTP needs a telecom/SMS link, which contradicts an air-gapped deployment. Relaxed: OTP only via an on-site SMS gateway; otherwise use username/password + hardware tokens.",
+                     ["requirements.auth", "infrastructure.deployment_model"])
+            elif ctx["self_host_only"] and small_selfhost(ctx):
+                # A20: a beginner team on one small server runs one OTP integration inside its own app, not an identity server next to it
+                app = backend["name"].split(" (")[0] if backend else "the application"
+                out.append(svc("auth", "App-native phone-OTP login (one SMPP integration to a licensed SMS aggregator)",
+                               f"phone_otp on {ctx['deploy']} for a {ctx['size']}-person beginner team on one small server: the login lives inside {app} "
+                               "(a phone-number user table, hashed one-time codes with expiry and a retry limit, long-lived session tokens), and the only "
+                               "integration is the OTP text going out through a telecom SMPP connection. No separate identity server to install, patch and back up.",
+                               dp + ["infrastructure.deployment_model", "team.experience", "scale.users_12_months"],
+                               [("Keycloak 26 (self-hosted)", "a second service with its own database, upgrades and backups; worth it when several apps or single sign-on need it"),
+                                ("MSG91 / Twilio Verify APIs" if india else "Twilio Verify API", "SaaS identity services, excluded by the on-premise rule")],
+                               ["Needs a contract with an SMS aggregator and DLT-registered templates in India" if india else "Needs a contract with a licensed SMS aggregator",
+                                "Rate-limit OTP requests and lock repeated failures in your own code"],
+                               "self_hosted", "neutral", True, Z, ["trai-dlt"] if india else [], loc))
+                warn("EXTERNAL_TELECOM_LINK", "warning", "Phone OTP on-premises still needs an outbound telecom (SMPP) link to an SMS aggregator; this is the only external dependency of the auth layer.",
                      ["requirements.auth", "infrastructure.deployment_model"])
             elif ctx["self_host_only"]:
                 out.append(svc("auth", "Keycloak 26 (self-hosted) with OTP over an SMPP link to a licensed SMS aggregator",
@@ -975,6 +1072,7 @@ def build(ctx, host, backend, db, mobile, warn):
                 out[-1]["_note"] = " Includes one Azure AI Search Basic unit (about $74/month at $0.101/hour, East US) plus per-token model usage."
             if not selfh:  # E8d: tokens scale with users x questions (planning estimate, stated in the line)
                 out[-1]["_note"] = out[-1].get("_note", "") + costreal.llm_basis(ctx)
+            llm_description_constraints(ctx, out[-1], selfh, c, req, warn)
         else:
             managed = hyper and not ctx["self_host_only"]  # on_premise/air_gapped: own GPU hardware, outside the cloud bill
             c = {"aws": "Amazon SageMaker AI training jobs", "azure": "Azure Machine Learning training jobs", "gcp": "Vertex AI custom training"}.get(p) if managed                 else "Scheduled training job on a GPU/CPU worker (PyTorch / scikit-learn)"
@@ -1003,7 +1101,26 @@ def build(ctx, host, backend, db, mobile, warn):
     ci_note = (f" The existing {ci_name} keeps running the current pipelines; move jobs across one at a time instead of running two CI systems for the same code."
                if ci_ex else "")
     ci_paths = ["infrastructure.existing_systems"] if ci_ex else []
-    if ctx["self_host_only"]:
+    if ctx["self_host_only"] and small_selfhost(ctx) and not ci_ex:
+        # A20: no CI server for a beginner team on one small server: tests and the deploy are one script in the repository
+        what = f"{backend['name'].split(' (')[0]} tests" if backend else "The tests"
+        out.append(svc("ci_cd", "Git + a deploy script in the repository (no CI server)",
+                       f"deployment_model {ctx['deploy']} and a {ctx['size']}-person beginner team: {what} and the container build run from one script "
+                       "(run tests, build the image, restart the containers) that a person starts on the server or a laptop, so there is no CI service to install, "
+                       "patch and back up; the code stays inside your network (no SaaS CI).",
+                       ["infrastructure.deployment_model", "team.experience"] + ci_paths,
+                       [("Gitea + Gitea Actions (self-hosted)", "a git host plus a CI runner to operate; worth adding when several people push daily"),
+                        ("GitHub Actions", "SaaS, not allowed under this deployment model")],
+                       ["Releases depend on a person running the script; keep it in the repository and keep a copy of the repository off the server"], "self_hosted", "neutral", False, Z, []))
+        out.append(svc("observability", "Uptime Kuma (one self-hosted container) + container and system logs",
+                       "A beginner team on one small server needs to know when the app is down: one container checks the app's health address and sends an alert, "
+                       "and logs stay in the container and system logs on the server. No metrics database, dashboard server and log store to run.",
+                       ["infrastructure.deployment_model", "team.experience"],
+                       [("Prometheus + Grafana + Loki (self-hosted)", "three services to run and size; add them when you need metrics history or log search"),
+                        ("Sentry / Datadog", "SaaS services, not allowed here")],
+                       ["No metrics history or log search until you add them; rotate logs so the disk does not fill"],
+                       "self_hosted", "neutral", True, Z, ["uptime-kuma"], loc))
+    elif ctx["self_host_only"]:
         out.append(svc("ci_cd", "Gitea + Gitea Actions (self-hosted)",
                        f"deployment_model {ctx['deploy']}: source, builds and container images stay inside your network (no SaaS CI)." + ci_note,
                        ["infrastructure.deployment_model"] + ci_paths,
