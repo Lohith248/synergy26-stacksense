@@ -1099,7 +1099,7 @@ def build(ctx, host, backend, db, mobile, warn):
                            [("Keep reading it live after launch", "keeps the system the input is retiring in service and ties the new application to it")] if e["retire"] else
                            [("Migrate everything into the new database now", "risky in the MVP timeline and breaks existing consumers"),
                             (f"Use the {where} as the only database", f"ties availability of the new app to the {where}" + ("" if cloud_sys or mq_via else " and the relay"))],
-                           [f"Cross-network latency on queries to the {where}", f"Credentials for the {'existing' if cloud_sys else 'on-prem'} database must live in a secret store"],
+                           [f"Cross-network latency on queries to the {where}", f"Credentials for the {'existing' if cloud_sys else 'on-prem'} database must live in a secret store"]
                            if not e["retire"] else
                            ["The one-off job needs a read-only account on the old system and a maintenance window for the final copy",
                             "Credentials for the old database must live in a secret store until it is switched off"],
