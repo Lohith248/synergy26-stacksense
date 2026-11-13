@@ -7,7 +7,7 @@ import re
 from . import domains
 from . import context as cx
 from . import rightsize as rs
-from .kb import cite
+from .kb import cite, AS_OF
 
 Z = [[0, 0], [0, 0], [0, 0], [0, 0]]
 # cloudflare.com/plans rendered 11 Nov 2026
@@ -635,10 +635,18 @@ def build(ctx, host, backend, db, mobile, warn):
                                 + "). Larger models or more frequent retraining scale this linearly.") if managed else ""
 
     # ---------------- ci/cd + observability
+    # an existing CI system (Jenkins, TeamCity, ...) is named in the CI/CD component: it keeps its current pipelines, new ones go to the choice below
+    ci_ex = next((e for e in ctx["existing"] if e["pattern"] and e["pattern"]["kind"] == "ci"), None)
+    ci_name = re.sub(r"(?i)^(?:the |our )?existing ", "", ci_ex["raw"]) if ci_ex else ""
+    ci_note = (f" The existing {ci_name} keeps running the current pipelines; move jobs across one at a time instead of running two CI systems for the same code."
+               if ci_ex else "")
+    ci_paths = ["infrastructure.existing_systems"] if ci_ex else []
     if ctx["self_host_only"]:
         out.append(svc("ci_cd", "Gitea + Gitea Actions (self-hosted)",
-                       f"deployment_model {ctx['deploy']}: source, builds and container images stay inside your network (no SaaS CI).",
-                       ["infrastructure.deployment_model"], [("GitHub Actions", "SaaS, not allowed under this deployment model")],
+                       f"deployment_model {ctx['deploy']}: source, builds and container images stay inside your network (no SaaS CI)." + ci_note,
+                       ["infrastructure.deployment_model"] + ci_paths,
+                       [("GitHub Actions", "SaaS, not allowed under this deployment model")]
+                       + ([(f"Keep {ci_name} as the only CI system", "reusing it avoids a second CI system and fits this network, but its servers, plugins and upgrades stay the team's job; a repository host with built-in pipelines needs fewer moving parts")] if ci_ex else []),
                        ["Mirror base images and packages into a local registry"], "self_hosted", "neutral", False, Z, ["gitea"]))
         out.append(svc("observability", "Prometheus + Grafana + Loki (self-hosted)",
                        "Metrics, dashboards and logs without any external service.", ["infrastructure.deployment_model"],
@@ -646,8 +654,8 @@ def build(ctx, host, backend, db, mobile, warn):
                        "self_hosted", "neutral", True, Z, ["grafana-stack"], loc))
     else:
         ci_cost = [0, 4] if ctx["size"] <= 3 else ([0, 20] if ctx["size"] <= 8 else [20, 100])  # minutes scale with engineers, not users
-        out.append(svc("ci_cd", "GitHub Actions", f"Automated tests and deploys on every push{' to ' + host['name'] if host else ''}; free minutes cover a team of {ctx['size']}.",
-                       ["team.size", "team.has_devops"], [("GitLab CI", f"equally capable; for a team of {ctx['size']} " + ("with" if ctx["devops"] else "without")
+        out.append(svc("ci_cd", "GitHub Actions", f"Automated tests and deploys on every push{' to ' + host['name'] if host else ''}; free minutes cover a team of {ctx['size']}." + ci_note,
+                       ["team.size", "team.has_devops"] + ci_paths, ([(f"Keep {ci_name} as the only CI system", "reusing it avoids a second CI system, but its servers, plugins and upgrades stay the team's job; hosted runners need no CI servers")] if ci_ex else []) + [("GitLab CI", f"equally capable; for a team of {ctx['size']} " + ("with" if ctx["devops"] else "without")
                                      + f" a DevOps engineer (team.has_devops={'true' if ctx['devops'] else 'false'}), ready-made GitHub deploy actions"
                                      + (f" for {host['name'].split(' (')[0]}" if host else "") + " mean less pipeline code to maintain")],
                        ["Secrets must be stored as encrypted environment secrets"], "saas", "github", False,
@@ -768,13 +776,15 @@ def build(ctx, host, backend, db, mobile, warn):
                            "library", "neutral", False, Z, pat["src"]))
         elif pat and pat["kind"] == "database" and db and e is not ctx["kept_db"]:
             out.append(svc("other", f"Integration with existing {label} via {via}",
-                           f"{pat['how']} The new application keeps its own tables in {db['_variant']} and reads the existing data through {via}.",
+                           f"{pat.get('how_beside', pat['how'])} The new application keeps its own tables in {db['_variant']} and reads the existing data through {via}."
+                           + (f" It is past end of support ({e['life']['name']}, {e['life']['eol']}): plan its upgrade, or move its data into the new database and retire it once its owners agree."
+                              if e["life"] and e["life"]["eol"] <= AS_OF else ""),
                            ["infrastructure.existing_systems"],
                            [("Migrate everything into the new database now", "risky in the MVP timeline and breaks existing consumers"),
                             ("Use the on-prem server as the only database", "ties availability of the new app to the on-prem server and the relay")],
                            ["Cross-network latency on queries to the on-prem server", "Credentials for the on-prem database must live in a secret store"],
                            "library", "neutral", False, Z, pat["src"] + (["azure-hybrid-connections"] if p == "azure" else [])))
-        elif pat and pat["kind"] in ("erp", "crm", "legacy_app", "payments", "record", "health", "api"):
+        elif pat and pat["kind"] in ("erp", "crm", "legacy_app", "payments", "record", "health", "api", "orchestrator", "storage"):
             out.append(svc("other", f"Integration with existing {label}", pat["how"], ["infrastructure.existing_systems"],
                            [("Replacing it", "outside MVP scope")], ["Depends on the existing system's API limits"], "library", "neutral", False, Z, pat["src"]))
     domains.build(ctx, host, backend, db, svc, warn, Z, out)

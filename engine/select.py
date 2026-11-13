@@ -370,7 +370,14 @@ def database_candidates(ctx, host, backend):
             c.add("fts", 1.5 if d["fts"] else -1, "requirements.full_text_search", "built-in full-text search avoids a separate search service")
         ed = ctx["existing_db"]
         if ed and ed["pattern"].get("engine") == d["id"]:
-            c.add("existing", 9, "infrastructure.existing_systems", f"matches the existing {re.sub(r'(?i)^(?:the |our )?existing ', '', ed['raw'])} the team already runs")
+            raw_ed = re.sub(r"(?i)^(?:the |our )?existing ", "", ed["raw"])
+            # a version named in the entry ('PostgreSQL 11') is not the version chosen here: say so instead of "matches"
+            vm = re.search(r"(?i)(?:postgres(?:ql)?|mysql|mariadb|sql server|mongo(?:db)?)\s*v?(\d{1,4}(?:\.\d+)?)", raw_ed)
+            if vm and name and re.search(r"\d", name) and not re.search(r"(?<![\d.])" + re.escape(vm.group(1)) + r"(?![\d])", name):
+                c.add("existing", 9, "infrastructure.existing_systems",
+                      f"same database engine as the existing {raw_ed} the team already runs, so its skills carry over (the new database is {name}, not that version)")
+            else:
+                c.add("existing", 9, "infrastructure.existing_systems", f"matches the existing {raw_ed} the team already runs")
         if ctx["lock"] == "low" and d.get("lock_in") == "high":
             c.add("lock_in", -5, "infrastructure.lock_in_tolerance", "proprietary data model and API; leaving means rewriting data access")
         if "sql" in ctx["langs"] and d["family"] == "relational":
