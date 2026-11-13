@@ -1432,7 +1432,7 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
     elif ha and host["kind"] == "onprem":
         # A15: on your own servers a second instance is hardware, already counted in the indicative hardware line; no cloud bill
         lines.append(("Availability ≥99.95%" if ha_paths(ctx["req"])[0] == "requirements.availability" else cap(" and ".join(ha_targets(ctx["req"]))))
-                     + ": the second application server and the standby database server are hardware, counted in the indicative hardware line below; there is no cloud bill for them.")
+                     + ": the standby server is hardware, counted in the indicative hardware line below; there is no cloud bill for it.")
     elif ha:
         add("Second app instance (availability)", hlo, hhi,
             ("Availability ≥99.95%" if ha_paths(ctx["req"])[0] == "requirements.availability" else cap(" and ".join(ha_targets(ctx["req"]))))
@@ -1445,7 +1445,9 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
             add(name, clo, chi, f"{s['layer']}: {name} {{r}}." + s.get("_note", ""))
         elif s["deployment"] == "self_hosted" and not s["choice"].startswith("Existing"):
             # judge B4: a self-hosted tool is never silently free
-            if onprem:
+            if onprem and "existing" in s["choice"].lower():
+                add(name, 0, 0, f"{s['layer']}: {name} is already operated by your team: {{r}}, no new cost in this band.")
+            elif onprem:
                 add(name, 0, 0, f"{s['layer']}: {name} runs on the on-premises servers: {{r}} cloud bill (its share of the servers is in the indicative hardware line).")
             elif vm:
                 add(name, 0, 0, f"{s['layer']}: {name} runs on the app servers (same Docker Compose host): {{r}} extra; size the VM's memory and disk for it.")
