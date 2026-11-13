@@ -3,6 +3,7 @@ import re
 from datetime import date  # fromisoformat only: dates are compared with the KB date, never the clock
 from . import ENGINE_VERSION
 from . import context as cx
+from . import rightsize as rs
 from . import select as sl
 from . import services as sv
 from .kb import AS_OF, TECH, cite
@@ -754,9 +755,13 @@ def _recommend(req, assumptions, sid):
     top_txt = f"; the largest upper-bound items are {' and '.join(f'{n} (up to ${v:,.0f})' for v, n in top)}" if top else ""
     if cost["min"] > ctx["budget"]:
         sev = "critical" if (ctx["budget"] == 0 or cost["min"] > 2 * ctx["budget"]) else "warning"
+        defer = rs.deferrable(supporting, ctx)  # D13 E3b: explain what could wait; nothing is removed
+        defer_txt = (" Deferrable at launch (sized for scale, not required by a hard constraint): "
+                     + ", ".join(f"{n} (${v})" for n, v in defer)
+                     + f"; deferring all of them lowers the minimum to ${max(0, cost['min'] - sum(v for _, v in defer))}.") if defer else ""
         W("BUDGET_EXCEEDED", sev,
           f"Estimated minimum ${cost['min']}/month exceeds the ${cx.num(ctx['budget'])}/month budget{top_txt}. The stack keeps the hard constraints; "
-          "to fit the budget, reduce scope (fewer managed services, lower availability) or raise the budget.",
+          "to fit the budget, reduce scope (fewer managed services, lower availability) or raise the budget." + defer_txt,
           ["budget.monthly_infra_usd"])
     elif host["kind"] != "onprem" and ctx["budget"] >= 500 and cost["max"] * 8 < ctx["budget"]:
         W("BUDGET_FAR_ABOVE_NEED", "info", f"The ${cx.num(ctx['budget'])}/month budget is far above the estimated ${cost['min']}-{cost['max']}/month need. The stack was not inflated to use it; spare budget could buy redundancy, support plans or monitoring.",

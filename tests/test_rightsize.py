@@ -314,5 +314,65 @@ class G5NativeSearch(unittest.TestCase):
         self.assertFalse(sup(search_app(50001), "search")[0]["choice"].startswith("PostgreSQL full-text search"))
 
 
+def budget_msg(out):
+    return next((w["message"] for w in out["warnings"] if w["code"] == "BUDGET_EXCEEDED"), None)
+
+
+class E3bDeferrable(unittest.TestCase):
+    BIG = {"scale.users_12_months": 100000, "scale.peak_concurrent_users": 5000, "requirements.full_text_search": True,
+           "scale.workload": "read_heavy", "project.description": "Catalogue with search", "infrastructure.cloud_preference": "aws"}
+
+    def test_over_budget_lists_at_most_three_deferrables_and_the_new_minimum(self):
+        out = run(**self.BIG, **{"budget.monthly_infra_usd": 100})
+        msg = budget_msg(out)
+        self.assertIn("Deferrable at launch", msg)
+        listed = re.findall(r"([^,:]+?) \(\$(\d+)\)", msg[msg.index("Deferrable"):msg.index("; deferring")])
+        self.assertTrue(1 <= len(listed) <= 3, msg)
+        values = [int(v) for _, v in listed]
+        self.assertEqual(values, sorted(values, reverse=True))
+        new_min = int(re.search(r"lowers the minimum to \$(\d+)", msg).group(1))
+        self.assertEqual(new_min, out["estimated_monthly_cost_usd"]["min"] - sum(values))
+        rich = run(**self.BIG, **{"budget.monthly_infra_usd": 100000})
+        self.assertEqual(rich["stack"]["supporting"], out["stack"]["supporting"])  # text only: nothing removed
+
+    def test_under_budget_has_no_list(self):
+        out = run(**self.BIG, **{"budget.monthly_infra_usd": 100000})
+        self.assertIsNone(budget_msg(out))
+        self.assertNotIn("Deferrable", dump(out))
+
+    def test_nothing_deferrable_keeps_the_old_text(self):
+        msg = budget_msg(run(**{"budget.monthly_infra_usd": 1, "scale.users_12_months": 1000, "scale.peak_concurrent_users": 20}))
+        if msg:
+            self.assertNotIn("Deferrable", msg)
+
+
+class CrossCutting(unittest.TestCase):
+    def test_deterministic(self):
+        a = dump(run(**game("Turn-based card game"))) + dump(analytics(50)) + dump(collab_app("Shared kanban boards"))
+        b = dump(run(**game("Turn-based card game"))) + dump(analytics(50)) + dump(collab_app("Shared kanban boards"))
+        self.assertEqual(a, b)
+
+    def test_min_max_equal_the_sum_of_band_lines(self):
+        for out in (run(**game("Turn-based card game")), analytics(50, **{"infrastructure.cloud_preference": "azure"}),
+                    web("internal_tool"), collab_app("Shared kanban boards", **{"scale.users_12_months": 20000})):
+            c = out["estimated_monthly_cost_usd"]
+            lo = hi = 0
+            for line in c["assumptions"]:
+                m = re.search(r"\$([\d,]+)-([\d,]+)/month", line)
+                if m and not line.startswith(("Excluded", "Availability")) and "already running" not in line:
+                    lo, hi = lo + int(m.group(1).replace(",", "")), hi + int(m.group(2).replace(",", ""))
+            self.assertEqual((lo, hi), (c["min"], c["max"]), dump(out))
+
+    def test_no_scenario_names_or_titles_in_engine_code(self):
+        def read(f):
+            with open(os.path.join(ROOT, "engine", f), encoding="utf-8") as fh:
+                return fh.read()
+        src = "".join(read(f) for f in sorted(os.listdir(os.path.join(ROOT, "engine"))) if f.endswith(".py"))
+        for bad in ("rummy", "poker", "chess", "ArenaClash", "CampusSwap", "PeopleDesk", "CitySurvey"):
+            self.assertNotIn(bad, src, bad)
+        # D13 is the decision id, not a scenario id
+        self.assertIsNone(re.search(r"\b(?!D13\b)[PBCDEFHW]\d{1,2}\b", read("rightsize.py")))
+
+
 if __name__ == "__main__":
     unittest.main()
