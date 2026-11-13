@@ -64,7 +64,8 @@ def public_facing(ctx):
     elif d["internal_only"]:
         why = "the description says it is used only by employees"
     elif typ == "internal_tool" and not req["requirements.seo_critical"] and geo not in _GEO_WIDE:
-        why = f"project.type is internal_tool with requirements.seo_critical false and scale.geo_spread {geo}"
+        why = ("project.type is internal_tool with requirements.seo_critical false and scale.geo_spread "
+               + (f"{geo}" if geo else "not given"))
         paths = ["project.type", "requirements.seo_critical", "scale.geo_spread"]
     else:
         return True, "", "", []

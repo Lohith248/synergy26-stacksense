@@ -277,6 +277,9 @@ class G3CdnAudience(unittest.TestCase):
             self.assertEqual(n[0]["severity"], "info")
             if desc:
                 self.assertIn("only by employees", n[0]["message"])
+            else:
+                self.assertIn("scale.geo_spread not given", n[0]["message"])
+                self.assertNotIn("None", n[0]["message"])
 
     def test_employees_only_blocks_cdn_for_any_type(self):
         out = web("web_app", **{"project.description": "Used only by employees."})
