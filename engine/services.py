@@ -126,6 +126,39 @@ GATEWAY_EEA = {"stripe": {
     "transfer_sources": ["stripe-privacy"]}}
 AREA = {"EU": "the EU", "US": "the US", "INDIA": "India"}  # res_label of a named residency, as it reads in a sentence
 
+# A15 (llm_rag): constraints the description states about the model's data and answers (planning heuristic wording signals; each is read
+# outside negated clauses). no_training = documents must not be used to train a model or must be kept zero-retention; citations = answers
+# must cite sources; legal / medical = the answers are legal or medical guidance (a disclaimer and a human route are needed).
+LLM_RX = {
+    "no_training": (r"\b(?:never|not|no|nor|without)\b(?:\W+\w+){0,6}?\W+(?:used?|using|reused?)\W+(?:\w+\W+){0,3}?(?:to train|for training|to (?:improve|tune|fine-?tune)|"
+                    r"in (?:the )?(?:training|fine-?tuning))|\bno (?:model )?training (?:on|with)\b|\bzero[- ]?(?:data[- ])?retention\b|\bnot (?:be )?train\w* (?:on|with)\b"
+                    r"|\bnever (?:trained|used) (?:on|for training)\b|\bopt[- ]?out of (?:model )?training\b"),
+    "citations": r"\bcit(?:e|es|ed|ing|ation|ations)\b|\bgrounded\b|\bsource (?:links?|references?|attributions?)\b|\breferences? (?:to )?(?:the )?sources?\b",
+    "legal": r"\blegal\b|\blaw(?:s|yers?)?\b|\bstatutes?\b|\battorneys?\b|\bsolicitors?\b|\bregulations? (?:and|or) rights\b|\btenant(?:s'?)? rights\b|\beviction\b",
+    "medical": r"\bmedical\b|\bpatients?\b|\bdiagnos\w+|\bsymptoms?\b|\bclinical\b|\bprescri\w+|\bmedications?\b|\bhealth ?care\b|\bhealth (?:advice|information|questions?)\b|\bdoctors?\b",
+}
+
+
+def llm_constraints(ctx):
+    """{key: description sentence} for each LLM_RX signal the description states outside a negated clause."""
+    text = ctx["req"]["project.description"] or ""
+    low = text.lower()
+    breaks = cx.clause_breaks(low)
+    out = {}
+    for key, rx in LLM_RX.items():
+        if key == "medical" and "hipaa" in ctx["compliance"]:
+            out[key] = "compliance: hipaa"
+            continue
+        if cx.live_hit(rx, text, low, breaks, re.I):
+            sent = next((x for x in re.split(r"(?<=[.!?;])\s+|\n", text) if re.search(rx, x, re.I)), text)
+            sent = sent.strip().rstrip(".")
+            if len(sent) > 110:  # a long sentence is cut around the words that fired the signal
+                m = re.search(rx, sent, re.I)
+                a, b = max(0, m.start() - 45), min(len(sent), m.end() + 45)
+                sent = ("..." if a else "") + sent[a:b].strip() + ("..." if b < len(sent) else "")
+            out[key] = sent
+    return out
+
 
 def payment_location(gateway, prov, ctx):
     """(message, source ids, assumption) for PAYMENT_DATA_LOCATION: what is known about the gateway's handling of payer data, then what to check."""
@@ -182,6 +215,48 @@ def email_product(provider):
     else:
         alts = [("Resend", "a standalone email API; fine, but a second vendor and bill next to the host cloud")]
     return name, prov, f"{name} is {why}.", alts
+
+
+def llm_description_constraints(ctx, ml, selfh, model, req, warn):
+    """A15: say how the RAG component meets what the description states (no training on documents, citations, tenant-scoped
+    retrieval, a disclaimer for legal or medical guidance). Text on the 'ml' component plus warnings; no component is added."""
+    found = llm_constraints(ctx)
+    tenant = req["requirements.multi_tenant"]
+    extra, paths = [], []
+    if "no_training" in found:
+        q = f"(\"{found['no_training']}\")"
+        if selfh:
+            extra.append(f"No-training requirement {q}: the model runs on your own servers, so documents and questions cannot reach a provider's training data.")
+        else:
+            vendor = model.split(" (")[0].split(" + ")[0]
+            extra.append(f"No-training requirement {q}: the contract with the model provider must state that prompts, documents and outputs are not used "
+                         "to train models and are not retained (zero-retention or abuse-monitoring opt-out terms, where offered); the alternative is a "
+                         "self-hosted open-weight model.")
+            warn("LLM_NO_TRAINING_TERMS", "warning",
+                 f"project.description says documents must not be used for training (\"{found['no_training']}\"). The knowledge base does not confirm "
+                 f"{vendor}'s no-training or zero-retention terms for this account: get them in writing (data processing terms, any abuse-monitoring "
+                 "opt-out) before sending documents, or choose a self-hosted open-weight model.", ["project.description", "requirements.ml_features"])
+        paths.append("project.description")
+    if "citations" in found:
+        extra.append(f"Citations (\"{found['citations']}\"): the answer is returned with a citations field listing the retrieved passages it rests on "
+                     "(document, section, link); an answer with no supporting passage says so instead of guessing.")
+        paths.append("project.description")
+    if tenant:
+        extra.append("Retrieval is tenant-scoped (requirements.multi_tenant): every indexed chunk carries a tenant id and the retrieval query applies it as a "
+                     "mandatory filter in code, not in the prompt, so one tenant's documents are never retrieved for another.")
+        paths.append("requirements.multi_tenant")
+    adv = [k for k in ("legal", "medical") if k in found]
+    if adv:
+        kind = "legal" if adv[0] == "legal" else "medical"
+        warn("LLM_ADVICE_DISCLAIMER", "warning",
+             f"project.description describes {kind} guidance (\"{found[adv[0]]}\"). A language model can state wrong or outdated rules with confidence: show a "
+             f"'not {kind} advice' notice next to every answer, require the citations above, and give a route to a qualified {'lawyer' if kind == 'legal' else 'clinician'}"
+             "; test answers against the source material before launch.", ["project.description", "requirements.ml_features"])
+        extra.append(f"Answers carry a 'not {kind} advice' notice and a route to a qualified person (see LLM_ADVICE_DISCLAIMER).")
+        paths.append("project.description")
+    if extra:
+        ml["justification"] += " " + " ".join(extra)
+        ml["driven_by"] = sorted(set(ml["driven_by"] + paths), key=lambda x: (x not in ml["driven_by"], x))
 
 
 def build(ctx, host, backend, db, mobile, warn):
@@ -880,6 +955,7 @@ def build(ctx, host, backend, db, mobile, warn):
                 out[-1]["_note"] = " Includes one Azure AI Search Basic unit (about $74/month at $0.101/hour, East US) plus per-token model usage."
             if not selfh:  # E8d: tokens scale with users x questions (planning estimate, stated in the line)
                 out[-1]["_note"] = out[-1].get("_note", "") + costreal.llm_basis(ctx)
+            llm_description_constraints(ctx, out[-1], selfh, c, req, warn)
         else:
             managed = hyper and not ctx["self_host_only"]  # on_premise/air_gapped: own GPU hardware, outside the cloud bill
             c = {"aws": "Amazon SageMaker AI training jobs", "azure": "Azure Machine Learning training jobs", "gcp": "Vertex AI custom training"}.get(p) if managed                 else "Scheduled training job on a GPU/CPU worker (PyTorch / scikit-learn)"

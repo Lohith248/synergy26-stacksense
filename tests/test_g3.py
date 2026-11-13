@@ -168,5 +168,51 @@ class A10Latency(unittest.TestCase):
             self.assertIsNone(sev(o, "LATENCY_TARGET_VS_REACH"), kw)
 
 
+def ml(out):
+    return next(x for x in out["stack"]["supporting"] if x["layer"] == "ml")
+
+
+class A15LlmDescriptionConstraints(unittest.TestCase):
+    RAG = dict(requirements__ml_features="llm_rag", infrastructure__cloud_preference="aws")
+
+    def test_legal_assistant(self):
+        o = run("Chatbot that explains tenant rights, citing statutes. Letters must never be used to train a model.",
+                requirements__multi_tenant=True, project__type="ai_ml_product", **self.RAG)
+        j = ml(o)["justification"]
+        self.assertIn("No-training requirement", j)
+        self.assertIn("citations field", j)
+        self.assertIn("tenant-scoped", j)
+        self.assertEqual(sev(o, "LLM_NO_TRAINING_TERMS"), "warning")
+        self.assertEqual(sev(o, "LLM_ADVICE_DISCLAIMER"), "warning")
+        self.assertIn("'not legal advice'", warns(o, "LLM_ADVICE_DISCLAIMER")[0]["message"])
+
+    def test_health_questions(self):
+        o = run("Assistant answering patient questions about medication from the clinic leaflets, answers cite the leaflet.",
+                project__type="ai_ml_product", **self.RAG)
+        self.assertIn("'not medical advice'", warns(o, "LLM_ADVICE_DISCLAIMER")[0]["message"])
+        self.assertIn("citations field", ml(o)["justification"])
+        self.assertNotIn("tenant-scoped", ml(o)["justification"])
+
+    def test_self_hosted_no_training_needs_no_vendor_terms(self):
+        o = run("Internal HR policy assistant. Employee questions must not be used for training anyone's model.",
+                project__type="internal_tool", requirements__ml_features="llm_rag", infrastructure__deployment_model="on_premise",
+                infrastructure__cloud_preference="none")
+        self.assertIn("runs on your own servers", ml(o)["justification"])
+        self.assertIsNone(sev(o, "LLM_NO_TRAINING_TERMS"))
+        self.assertIsNone(sev(o, "LLM_ADVICE_DISCLAIMER"))
+
+    def test_must_not_fire(self):
+        o = run("Search assistant over our product manuals.", project__type="ai_ml_product", **self.RAG)
+        j = ml(o)["justification"]
+        for needle in ("No-training", "citations field", "tenant-scoped", "advice"):
+            self.assertNotIn(needle, j)
+        for code in ("LLM_NO_TRAINING_TERMS", "LLM_ADVICE_DISCLAIMER"):
+            self.assertIsNone(sev(o, code))
+        o = run("Support bot over manuals; we do not need citations.", project__type="ai_ml_product", **self.RAG)
+        self.assertNotIn("citations field", ml(o)["justification"])
+        o = run("Legal documents must never be used to train a model.", requirements__ml_features="inference_api")  # not llm_rag
+        self.assertIsNone(sev(o, "LLM_NO_TRAINING_TERMS"))
+
+
 if __name__ == "__main__":
     unittest.main()
