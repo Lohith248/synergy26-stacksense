@@ -583,7 +583,7 @@
       "ci_cd: GitHub Actions $0-4/month.",
       "observability: Azure Monitor + Application Insights in Central India (Pune) $5-30/month.",
       "Stored data ~50 GB after 12 months at ~$0.02-0.035/GB-month: $1-3/month (year-end volume used as an upper bound, not an average); bulk files and media are assumed to sit in object storage, while database rows stay small.",
-      "Phone OTP: 30,000 users x 0.3-1.0 OTP logins/month at India SMS ~Rs 0.20-0.25 + GST per SMS = $22-135/month (long-lived sessions keep OTPs rare).",
+      "Phone OTP: 30,000 users x 0.3-1.0 OTP logins/month at MSG91 India SMS ~Rs 0.20-0.25 + GST per SMS = $22-135/month (long-lived sessions keep OTPs rare).",
       "Excluded: payment gateway fees (~2% per transaction) are a share of revenue, not infrastructure.",
       "Excluded: taxes, domain names, paid support plans and data-egress spikes. Order-of-magnitude band, not a quote."
     ]

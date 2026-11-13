@@ -267,8 +267,11 @@ class NamedIdentityProviders(unittest.TestCase):
                 self.assertNotIn("Entra", sup(out, "auth")[0]["choice"])
 
     def test_no_named_provider_keeps_the_default_list(self):
-        a = self.auth(project__type="social", requirements__auth="social", team__languages=["javascript"])
+        # G1: the default list follows the audience: work audience keeps Google/GitHub/Microsoft, a consumer app gets Google
+        a = self.auth(project__type="saas_b2b", requirements__auth="social", team__languages=["javascript"])
         self.assertTrue(a["choice"].endswith("with Google/GitHub/Microsoft OAuth"), a["choice"])
+        a = self.auth(project__type="social", requirements__auth="social", team__languages=["javascript"])
+        self.assertTrue(a["choice"].endswith("with Google OAuth"), a["choice"])
 
 
 class OnPremisesComplianceAndAvailability(unittest.TestCase):
