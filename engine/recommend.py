@@ -20,6 +20,10 @@ SKILL_SMALL_TEAM = 5  # planning heuristic: a team of up to this many people tha
 # G1 (D19-g1), planning heuristic: compliance regimes under which a service whose data location the knowledge base does not know
 # is treated as a proven residency conflict (they mandate localisation or regulated storage); DPDP/GDPR alone do not.
 STRICT_LOCALISATION = ("rbi_localisation", "hipaa", "pci_dss")
+AUTOPAUSE_MIN_AVAILABILITY = ("99.95", "99.99")  # planning heuristic: from this availability target up, no serverless auto-pause is assumed
+AUTOPAUSE_MAX_P95_MS = 500  # planning heuristic: at or below this p95 target a cold start after idling is not acceptable
+AZURE_SQL_NEVER_PAUSE_USD = 210  # 0.5 vCore x $0.573934/vCore-hour x 730 h (azure-sql-pricing, 11 Nov 2026), rounded
+STORE_STRICT = ("rbi_localisation", "hipaa")  # app-store billing: PCI DSS scope is about card data, which the stores hold, not your systems
 
 
 def store_billing_location(s, ctx, critical):
@@ -30,7 +34,7 @@ def store_billing_location(s, ctx, critical):
            "terms, not by your servers; your backend only receives purchase receipts and notifications to validate. Where the stores process and keep "
            f"that data is not stated in the knowledge base, so it is not confirmed to stay in {area} (a gap, not a proven conflict).")
     if critical:
-        msg += (" Your compliance list (" + ", ".join(sorted(set(ctx["compliance"]) & set(STRICT_LOCALISATION))) + ") mandates localised or regulated storage: "
+        msg += (" Your compliance list (" + ", ".join(sorted(set(ctx["compliance"]) & set(STORE_STRICT))) + ") mandates localised or regulated storage: "
                 "confirm with the stores' terms and your acquirer or auditor that this flow is in scope, or take purchases outside the stores where the policy allows.")
     else:
         msg += f" Check the stores' data-processing terms for users in {area}; keep only receipt and entitlement data in your own database in {area}."
@@ -863,7 +867,7 @@ def _recommend(req, assumptions, sid):
             store = s["layer"] == "payments" and s.get("provider") in ("google", "apple")
             # G1 (D19-g1): a service whose location is merely unknown (a gap in the knowledge base) is a proven residency conflict only
             # under a compliance regime that mandates localisation; a known different location stays critical
-            critical = s["data_location"] is not None or bool(set(ctx["compliance"]) & set(STRICT_LOCALISATION))
+            critical = s["data_location"] is not None or bool(set(ctx["compliance"]) & set(STORE_STRICT if store else STRICT_LOCALISATION))
             fields = ctx["res_paths"] + (["compliance"] if critical and s["data_location"] is None else [])
             if store:
                 W("PAYMENT_DATA_LOCATION", "critical" if critical else "warning", store_billing_location(s, ctx, critical), ["requirements.payments"] + fields)
@@ -1439,6 +1443,16 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         if ha:
             dlo, dhi = round(dlo * 1.8), round(dhi * 2)
         size = ""
+        # G1 (D19-g1): serverless auto-pause (a cold start after idling) is not assumed when availability is 99.95 or higher or the p95 target is
+        # strict; a provisioned 0.5-vCore minimum that never pauses is priced instead (planning heuristic thresholds in AUTOPAUSE_*)
+        p95 = ctx["req"]["requirements.p95_latency_ms"]
+        no_pause = (db_c.vkey == "azure" and db_c.item["id"] == "sqlserver" and t <= 1
+                    and (ctx["req"]["requirements.availability"] in AUTOPAUSE_MIN_AVAILABILITY or (p95 is not None and p95 <= AUTOPAUSE_MAX_P95_MS)))
+        if no_pause:
+            dlo, dhi = max(dlo, round(AZURE_SQL_NEVER_PAUSE_USD * (1.8 if ha else 1))), max(dhi, AZURE_SQL_NEVER_PAUSE_USD * 2)
+            size = (f" Serverless auto-pause is not assumed because the availability or latency target is strict (a cold start after idling): priced as a provisioned "
+                    f"0.5-vCore minimum that never pauses, about ${AZURE_SQL_NEVER_PAUSE_USD} a month of compute (0.5 vCore x ~$0.57/vCore-hour x 730 hours, "
+                    "Central India rate, Azure Retail Prices API 11 Nov 2026).")
         if ha and db_c.vkey == "azure" and db_c.item["id"] == "postgresql":
             # Microsoft Learn PG HA concepts: zone-redundant HA is not supported on the Burstable tier; D2ds_v5 rate from R11
             dlo, dhi = max(dlo, 366), max(dhi, 480)
@@ -1448,7 +1462,7 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
             # R11 + Azure Retail Prices API (B1ms $0.0245/hour Central India, 12 Nov 2026): the band spans the burstable sizes
             size = {"azure": " Sized for Burstable B1ms (about $18 compute) to B2s (about $72 compute) plus storage; a General Purpose D2ds_v5 alone is about $183.",
                     "aws": " Sized for burstable db.t4g instances up to a db.t4g.medium (about $61 compute) plus storage; a db.m6g.large alone is about $165."}.get(db_c.vkey, "")
-        if t <= 1 and db_c.item["id"] == "sqlserver" and db_c.vkey == "azure":  # review 11 Nov: Azure Retail Prices API, Central India
+        if t <= 1 and db_c.item["id"] == "sqlserver" and db_c.vkey == "azure" and not no_pause:  # review 11 Nov: Azure Retail Prices API, Central India
             size += (f" Assumes serverless auto-pause outside working hours: about {dc[t][0] / 0.574:.0f}-{dc[t][1] / 0.574:.0f} active vCore-hours "
                      "a month at ~$0.57/vCore-hour (Central India rate, 11 Nov 2026); a 0.5-vCore minimum that never pauses is about $210/month "
                      "compute, and DTU Standard S0 (~$17/month) is the fixed-price alternative.")

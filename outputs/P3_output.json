@@ -306,7 +306,7 @@
     "supporting": [
       {
         "layer": "auth",
-        "choice": "Keycloak 26 (container next to the API) with Google OAuth",
+        "choice": "Keycloak 26 (container next to the API) with Google/GitHub/Microsoft OAuth",
         "justification": "social login on a self-hosted identity server: Go has no batteries-included auth framework, so Keycloak handles passwords, MFA and social providers and keeps identities in-region.",
         "driven_by": [
           "requirements.auth",
@@ -603,7 +603,7 @@
     "assumptions": [
       "Hosting Azure App Service (Linux, Premium v3, 2+ instances): $150-800/month at the 'medium' tier.",
       "Database Azure Database for PostgreSQL – Flexible Server 17: $150-700/month.",
-      "auth: Keycloak 26 (container next to the API) with Google OAuth runs as another app on the same Azure App Service (Linux, Premium v3, 2+ instances) plan: $0-0/month extra; size the plan's memory for it.",
+      "auth: Keycloak 26 (container next to the API) with Google/GitHub/Microsoft OAuth runs as another app on the same Azure App Service (Linux, Premium v3, 2+ instances) plan: $0-0/month extra; size the plan's memory for it.",
       "storage: Azure Blob Storage (West Europe (Netherlands)) $10-80/month.",
       "realtime: Yjs CRDT documents + Hocuspocus WebSocket server $25-150/month. Basis: one extra small always-on instance for the Node.js sync server at the host's entry price (estimate).",
       "cache: Azure Managed Redis in West Europe (Netherlands) $60-350/month.",

@@ -402,7 +402,7 @@
       {
         "layer": "other",
         "choice": "Integration with existing On-prem SQL Server 2019 via App Service Hybrid Connection (outbound 443 relay, no inbound ports)",
-        "justification": "Leave it running as it is and read the data the new application needs through a narrow data-access layer or read API; new tables go in the new database, not in the existing server. The new application keeps its own tables in Azure SQL Database (serverless/General Purpose) and reads the existing data through App Service Hybrid Connection (outbound 443 relay, no inbound ports). A second database exists only because infrastructure.existing_systems lists it without saying it must stay or be retired, so it is left untouched (SQL Server is also the engine of the new database: the new tables are a separate database, not part of the existing one); to use it as the only database, write 'keep' in its entry, and to migrate off it write 'retire'.",
+        "justification": "Leave it running as it is and read the data the new application needs through a narrow data-access layer or read API; new tables go in the new database, not in the existing server. The new application keeps its own tables in Azure SQL Database (serverless/General Purpose) and reads the existing data through App Service Hybrid Connection (outbound 443 relay, no inbound ports). A second database exists only because infrastructure.existing_systems lists it without saying it must stay or be retired, so it is left untouched (SQL Server is also the engine of the new database; the new tables are a separate database); to use it as the only database, write 'keep' in its entry, and to migrate off it write 'retire'.",
         "driven_by": [
           "infrastructure.existing_systems"
         ],

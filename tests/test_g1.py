@@ -160,6 +160,72 @@ class SocialDefaults(unittest.TestCase):
                 self.assertIn("GitHub", self.auth(run(requirements__auth="social", **kw)))
 
 
+class ReviewFixes(unittest.TestCase):
+    def test_per_seat_team_product_keeps_work_providers(self):
+        for typ in ("realtime_collab", "web_app", "ecommerce"):
+            with self.subTest(typ=typ):
+                out = run(project__type=typ, requirements__auth="social", project__description="Team whiteboard billed per seat for each team.")
+                self.assertIn("GitHub", sup(out, "auth")[0]["choice"])
+
+    def test_staff_word_alone_is_not_a_work_audience(self):
+        out = run(project__type="ecommerce", requirements__auth="social", project__description="Shop staff manage orders; customers buy cakes.")
+        self.assertNotIn("GitHub", sup(out, "auth")[0]["choice"])
+        out = run(project__type="web_app", requirements__auth="social", project__description="An intranet used by employees.")
+        self.assertIn("GitHub", sup(out, "auth")[0]["choice"])
+
+    def test_engine_is_named_not_the_product(self):
+        for typ in ("saas_b2b", "web_app", "internal_tool"):
+            with self.subTest(typ=typ):
+                out = run(project__type=typ, team__languages=["csharp"], infrastructure__cloud_preference="azure",
+                          infrastructure__existing_systems=["Azure SQL Database"])
+                t = sup(out, "Integration with existing Azure SQL")[0]["justification"]
+                self.assertIn("SQL Server is also the engine", t)
+                self.assertNotIn("Azure SQL Database is also the engine", t)
+                self.assertEqual(t.count("separate database"), 1)
+
+    def test_two_existing_databases_say_another(self):
+        out = run(project__type="saas_b2b", infrastructure__existing_systems=["Oracle Database 19c", "MySQL 8"])
+        texts = [s["justification"] for s in out["stack"]["supporting"] if "Integration with existing" in s["choice"]]
+        self.assertTrue(any("Another database exists" in t for t in texts))
+
+    def test_azure_sql_edge_is_not_azure_sql(self):
+        out = run(infrastructure__cloud_preference="azure", infrastructure__existing_systems=["Azure SQL Edge on the gateways"])
+        self.assertFalse(sup(out, "Integration with existing Azure SQL Database"))
+
+    def test_pci_dss_alone_does_not_make_store_billing_critical(self):
+        out = run(**MOBILE, project__type="gaming", infrastructure__data_residency="eu", compliance=["pci_dss", "gdpr"],
+                  project__description="Game with premium packs sold in the app.")
+        w = [x for x in warns(out, "PAYMENT_DATA_LOCATION") if "Google Play" in x["message"]]
+        self.assertEqual([x["severity"] for x in w], ["warning"])
+        out = run(**MOBILE, project__type="healthtech", infrastructure__data_residency="us", compliance=["hipaa"],
+                  project__description="Coaching app. Subscriptions are sold through the app stores.")
+        w = [x for x in warns(out, "PAYMENT_DATA_LOCATION") if "Google Play" in x["message"]]
+        self.assertEqual([x["severity"] for x in w], ["critical"])
+
+    def test_cross_cloud_existing_database_uses_vpn_or_interconnect(self):
+        for cloud, raw in (("aws", "Azure SQL Database"), ("gcp", "Amazon RDS for MySQL"), ("azure", "Cloud SQL for PostgreSQL 12 (managed)")):
+            with self.subTest(cloud=cloud):
+                out = run(infrastructure__cloud_preference=cloud, infrastructure__existing_systems=[raw])
+                comp = [s for s in sup(out, "Integration with existing") if raw in s["choice"]]
+                self.assertIn("VPN or interconnect", comp[0]["choice"])
+                self.assertNotIn("private endpoint", comp[0]["choice"])
+        out = run(infrastructure__cloud_preference="azure", infrastructure__existing_systems=["Azure SQL Database"])
+        self.assertIn("private endpoint", sup(out, "Integration with existing Azure SQL")[0]["choice"])
+
+    def test_azure_sql_is_not_priced_with_auto_pause_under_a_strict_target(self):
+        for kw in (dict(requirements__availability="99.99"), dict(requirements__p95_latency_ms=300), dict(requirements__availability="99.95")):
+            with self.subTest(kw=kw):
+                out = run(team__languages=["csharp"], infrastructure__cloud_preference="azure", infrastructure__existing_systems=["Azure SQL Database"], **kw)
+                line = [a for a in out["estimated_monthly_cost_usd"]["assumptions"] if a.startswith("Database Azure SQL")]
+                self.assertTrue(line)
+                self.assertIn("auto-pause is not assumed", line[0])
+        out = run(team__languages=["csharp"], infrastructure__cloud_preference="azure", infrastructure__existing_systems=["Azure SQL Database"],
+                  requirements__availability="99.9", requirements__p95_latency_ms=800)
+        line = [a for a in out["estimated_monthly_cost_usd"]["assumptions"] if a.startswith("Database Azure SQL")]
+        self.assertTrue(line)
+        self.assertNotIn("auto-pause is not assumed", line[0])
+
+
 class TimeSeriesText(unittest.TestCase):
     def ts(self, **kw):
         out = run(scale__workload="write_heavy", scale__data_volume_gb_12_months=20000, **kw)

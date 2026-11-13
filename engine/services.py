@@ -79,12 +79,12 @@ SOCIAL_DEFAULT = ("Google", "GitHub", "Microsoft")
 # G1 (D19-g1), planning heuristic: project types whose users sign in with a work or developer account; every other type is a
 # consumer audience, whose default social providers are Google plus Apple when the app ships on iOS
 WORK_AUDIENCE_TYPES = ("saas_b2b", "internal_tool", "api_platform", "data_analytics")
-WORK_AUDIENCE_RX = re.compile(r"\b(?:developers?|engineers?|github|devops|workplace|employees?|staff)\b", re.I)
+WORK_AUDIENCE_RX = re.compile(r"\b(?:(?:used|run|operated|managed) by (?:our )?(?:employees|staff|engineers)|for (?:our )?(?:developers|engineers|employees|staff|teams?)|developers?(?: tool| platform| portal)|github|devops|workplace)\b", re.I)
 
 
 def social_defaults(ctx):
     """Default social providers for the audience the input describes (project.type, description, platforms)."""
-    if ctx["type"] in WORK_AUDIENCE_TYPES or WORK_AUDIENCE_RX.search(ctx["req"]["project.description"] or ""):
+    if ctx["type"] in WORK_AUDIENCE_TYPES or seat_pricing(ctx) or WORK_AUDIENCE_RX.search(ctx["req"]["project.description"] or ""):
         return SOCIAL_DEFAULT
     return ("Google", "Apple") if "ios" in ctx["mobile"] else ("Google",)
 
@@ -141,12 +141,17 @@ GATEWAY_EEA = {"stripe": {
 AREA = {"EU": "the EU", "US": "the US", "INDIA": "India"}  # res_label of a named residency, as it reads in a sentence
 
 
+ENGINE_NAMES = {"sqlserver": "SQL Server", "postgresql": "PostgreSQL", "mysql": "MySQL", "mongodb": "MongoDB"}
+
+
 def second_db_reason(ctx, e, pat, db):
     """G1 (D19-g1): why a second database exists beside the new one: the entry says neither that the existing database must stay
     (it would then be THE database) nor that it is going away, so it is left untouched and read through a narrow layer."""
     same = pat.get("engine") and pat["engine"] == db.get("id")
-    return ("A second database exists only because infrastructure.existing_systems lists it without saying it must stay or be retired, "
-            + (f"so it is left untouched ({pat['product']} is also the engine of the new database: the new tables are a separate database, not part of the existing one)"
+    engine = ENGINE_NAMES.get(pat.get("engine"), pat.get("product"))
+    others = sum(1 for x in ctx["existing"] if x is not e and x["pattern"] and x["pattern"]["kind"] == "database" and not x["keep"] and not x["retire"])
+    return (("Another database exists" if others else "A second database exists") + " only because infrastructure.existing_systems lists it without saying it must stay or be retired, "
+            + (f"so it is left untouched ({engine} is also the engine of the new database; the new tables are a separate database)"
                if same else
                f"so it is left untouched and the new tables go to {db['_variant']}, which scored best for this input")
             + "; to use it as the only database, write 'keep' in its entry, and to migrate off it write 'retire'.")
@@ -1096,7 +1101,11 @@ def build(ctx, host, backend, db, mobile, warn):
         label = pat["name"] if pat and pat.get("synthetic") else re.sub(r"(?i)^(?:the |our )?existing ", "", e["raw"])
         # a system that is itself a cloud service (not on-premises) is reached over the provider's private path, not a relay for on-prem servers
         cloud_sys = bool(pat and not e["onprem"] and cx._CLOUD_WORDS.search(e["raw"].lower()))
-        via = ("the provider's private network path (private endpoint or allow-listed address, no public internet path)" if cloud_sys
+        sys_cloud = next((c for rx, c in (BROKER_CLOUD[1:2] + [(r"\baws\b|\bamazon\b|\brds\b|\baurora\b|dynamodb", "aws"), (r"\bgoogle\b|\bgcp\b|cloud sql|alloydb|spanner", "gcp")])
+                          if re.search(rx, e["raw"].lower())), None)
+        cross_cloud = bool(cloud_sys and sys_cloud and p in ("aws", "azure", "gcp") and sys_cloud != p and not selfh)
+        via = ("a VPN or interconnect between the two clouds (no public internet path)" if cross_cloud else
+               "the provider's private network path (private endpoint or allow-listed address, no public internet path)" if cloud_sys
                else "App Service Hybrid Connection (outbound 443 relay, no inbound ports)" if p == "azure" else (
                    "site-to-site VPN / private link" if not selfh else "the local network"))
         where = "cloud database" if cloud_sys else "on-prem server"
