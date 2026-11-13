@@ -246,5 +246,52 @@ class G4Crdt(unittest.TestCase):
         self.assertFalse(notes(out, "CRDT"))
 
 
+def cdn(out):
+    return sup(out, "cdn")
+
+
+def web(typ, **kw):
+    return run(**{"project.type": typ, "scale.users_12_months": 20000, "scale.peak_concurrent_users": 1500, **kw})
+
+
+class G3CdnAudience(unittest.TestCase):
+    def test_tier_is_at_least_1(self):
+        self.assertGreaterEqual(ctx_of(**{"scale.users_12_months": 20000, "scale.peak_concurrent_users": 1500})["tier"], 1)
+
+    def test_public_app_gets_cdn(self):
+        out = web("web_app")
+        self.assertEqual(len(cdn(out)), 1)
+        self.assertFalse(notes(out, "CDN"))
+
+    def test_internal_tool_with_seo_or_global_users_gets_cdn(self):
+        self.assertEqual(len(cdn(web("internal_tool", **{"requirements.seo_critical": True}))), 1)
+        self.assertGreaterEqual(len(cdn(web("internal_tool", **{"scale.geo_spread": "global"}))), 1)
+
+    def test_internal_tool_without_audience_evidence_has_no_cdn_and_a_note(self):
+        for desc in ("", "Used only by employees."):
+            out = web("internal_tool", **{"project.description": desc})
+            self.assertEqual(cdn(out), [], desc)
+            n = notes(out, "CDN")
+            self.assertEqual(len(n), 1, desc)
+            self.assertIn("internal_tool", n[0]["message"])
+            self.assertEqual(n[0]["severity"], "info")
+            if desc:
+                self.assertIn("only by employees", n[0]["message"])
+
+    def test_employees_only_blocks_cdn_for_any_type(self):
+        out = web("web_app", **{"project.description": "Used only by employees."})
+        self.assertEqual(cdn(out), [])
+        self.assertEqual(len(notes(out, "CDN")), 1)
+
+    def test_tier_0_internal_tool_has_no_cdn_and_no_note(self):
+        out = run(**{"project.type": "internal_tool"})
+        self.assertEqual(cdn(out), [])
+        self.assertFalse(notes(out, "CDN"))
+
+    def test_cdn_cost_line_removed_with_the_cdn(self):
+        a, b = web("web_app"), web("internal_tool")
+        self.assertLess(b["estimated_monthly_cost_usd"]["max"], a["estimated_monthly_cost_usd"]["max"])
+
+
 if __name__ == "__main__":
     unittest.main()

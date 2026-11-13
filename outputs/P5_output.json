@@ -447,6 +447,15 @@
   },
   "warnings": [
     {
+      "code": "SERVICE_NOT_ADDED",
+      "severity": "info",
+      "message": "CDN not added: project.type is internal_tool and the description says it is used only by employees, so a known staff audience is served from one region. Add it when public pages, public media or users on several continents appear.",
+      "fields": [
+        "project.type",
+        "project.description"
+      ]
+    },
+    {
       "code": "ISO27001_CONTROLS",
       "severity": "info",
       "message": "ISO/IEC 27001:2022 certifies your organisation's ISMS, not a cloud provider's badge: keep asset inventory, access reviews, logging and change management for this system.",

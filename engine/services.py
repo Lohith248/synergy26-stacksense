@@ -538,8 +538,9 @@ def build(ctx, host, backend, db, mobile, warn):
 
     # ---------------- cdn
     public_media = ctx["mobile"] and not ctx["web"] and req["requirements.file_media_storage"] and (d["video_vod"] or ctx["type"] == "social")
-    if ((ctx["web"] or public_media) and ctx["needs_backend"] and not selfh and not d["internal_only"]
-            and (req["requirements.seo_critical"] or ctx["tier"] >= 1 or ctx["geo"] in ("multi_region", "global"))):
+    cdn_wanted = ((ctx["web"] or public_media) and ctx["needs_backend"] and not selfh
+                  and (req["requirements.seo_critical"] or ctx["tier"] >= 1 or ctx["geo"] in ("multi_region", "global")))
+    if cdn_wanted and rs.public_facing(ctx)[0]:  # D13 G3: an edge cache needs a public audience
         name = {"aws": "Amazon CloudFront", "azure": "Azure Front Door", "gcp": "Cloud CDN"}.get(p, "Cloudflare (free plan)")
         paths = (["project.platforms"] + (["requirements.seo_critical"] if req["requirements.seo_critical"] else ["scale.users_12_months"])
                  + (["scale.geo_spread"] if ctx["geo"] in ("multi_region", "global") else []))
@@ -567,6 +568,9 @@ def build(ctx, host, backend, db, mobile, warn):
                        # Azure: the $35 base fee is verified (R11); request/egress growth in the larger tiers is an estimate
                        [[35, 40], [35, 60], [50, 200], [150, 900]] if p == "azure" else [[0, 1], [1, 15], [15, 120], [120, 800]],
                        ["azure-frontdoor-pricing"] if p == "azure" else ["aws-regional"]))
+    elif cdn_wanted:  # blocked only by the audience gate: no replacement component, so the warning is the whole explanation
+        _, fact, when, cpaths = rs.public_facing(ctx)
+        warn("SERVICE_NOT_ADDED", "info", rs.note("CDN", fact, when), cpaths)
 
     # ---------------- ml
     ml = req["requirements.ml_features"]
