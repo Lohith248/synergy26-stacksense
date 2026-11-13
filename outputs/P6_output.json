@@ -23,7 +23,7 @@
         },
         {
           "choice": "Ionic Capacitor (web app wrapped)",
-          "why_not": "Heavier runtime on low-end phones (project.description); with priorities.performance=3, React Native is faster at runtime. Known limit of Ionic Capacitor: WebView performance on low-end devices."
+          "why_not": "Heavier runtime on low-end phones (project.description); with priorities.performance=3 (neutral), React Native is faster at runtime. Known limit of Ionic Capacitor: WebView performance on low-end devices."
         }
       ],
       "tradeoffs": [
@@ -71,7 +71,7 @@
       "alternatives": [
         {
           "choice": "Node.js 24 LTS + NestJS (TypeScript)",
-          "why_not": "With priorities.time_to_market=4 and priorities.security=3, Python 3.13 + Django 5.2 LTS is faster to deliver with and stronger on security. Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
+          "why_not": "With priorities.time_to_market=4 and priorities.security=3 (neutral), Python 3.13 + Django 5.2 LTS is faster to deliver with and stronger on security. Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
         },
         {
           "choice": "Python 3.13 + FastAPI",
@@ -117,7 +117,7 @@
         "label": "medium",
         "basis": "stability 0.87 (moderate) over 54 priority vectors; score margin 1.8 over the runner-up."
       },
-      "contrast": "Python 3.13 + Django 5.2 LTS rather than Node.js 24 LTS + NestJS (TypeScript). With priorities.time_to_market=4 and priorities.security=3, Python 3.13 + Django 5.2 LTS is faster to deliver with and stronger on security. Trade-off accepted: WebSockets need Django Channels.",
+      "contrast": "Python 3.13 + Django 5.2 LTS rather than Node.js 24 LTS + NestJS (TypeScript). With priorities.time_to_market=4 and priorities.security=3 (neutral), Python 3.13 + Django 5.2 LTS is faster to deliver with and stronger on security. Trade-off accepted: WebSockets need Django Channels.",
       "what_would_change": [
         {
           "edit": "requirements.realtime: false -> true",
@@ -142,7 +142,7 @@
       "alternatives": [
         {
           "choice": "Cloud SQL for MySQL 8.4",
-          "why_not": "With priorities.maintainability=4 and priorities.security=3, Cloud SQL for PostgreSQL 17 is easier to maintain and stronger on security. Known limit of Cloud SQL for MySQL 8.4: 8.0 moved to Sustaining Support (Apr 2026); no row-level security."
+          "why_not": "With priorities.maintainability=4 and priorities.security=3 (neutral), Cloud SQL for PostgreSQL 17 is easier to maintain and stronger on security. Known limit of Cloud SQL for MySQL 8.4: 8.0 moved to Sustaining Support (Apr 2026); no row-level security."
         },
         {
           "choice": "Supabase Postgres",
@@ -182,12 +182,12 @@
         "label": "high",
         "basis": "stability 1.00 (robust) over 54 priority vectors; score margin 5.6 over the runner-up."
       },
-      "contrast": "Cloud SQL for PostgreSQL 17 rather than Cloud SQL for MySQL 8.4. With priorities.maintainability=4 and priorities.security=3, Cloud SQL for PostgreSQL 17 is easier to maintain and stronger on security. Trade-off accepted: Vertical write scaling; sharding needs extensions.",
+      "contrast": "Cloud SQL for PostgreSQL 17 rather than Cloud SQL for MySQL 8.4. With priorities.maintainability=4 and priorities.security=3 (neutral), Cloud SQL for PostgreSQL 17 is easier to maintain and stronger on security. Trade-off accepted: Vertical write scaling; sharding needs extensions.",
       "what_would_change": []
     },
     "hosting": {
       "choice": "Google Cloud Run — asia-south1 (Mumbai)",
-      "justification": "Satisfies the hard constraints (managed_cloud (no servers to patch), data_residency india -> asia-south1 (Mumbai)). Scales out with requests for traffic bursts and back down (to zero) afterwards, so idle periods cost little; fully managed runtime (patching, TLS, scaling handled) for a team without a DevOps person; good low running cost (priority 5/5); good maintainability (priority 4/5).",
+      "justification": "Scales out with requests for traffic bursts and back down (to zero) afterwards, so idle periods cost little; fully managed runtime (patching, TLS, scaling handled) for a team without a DevOps person; good low running cost (priority 5/5); good maintainability (priority 4/5). Satisfies the hard constraints (managed_cloud (no servers to patch), data_residency india -> asia-south1 (Mumbai)).",
       "driven_by": [
         "scale.traffic_pattern",
         "team.has_devops",
@@ -315,7 +315,7 @@
       {
         "layer": "storage",
         "choice": "Google Cloud Storage (asia-south1 (Mumbai))",
-        "justification": "Uploads (GPS-tagged photos) go straight from clients to object storage via signed URLs. Private bucket, server-generated signed URLs, encryption with managed keys.",
+        "justification": "~100 GB of files in 12 months: uploads (GPS-tagged photos) go straight from clients to object storage via signed URLs. Private bucket, server-generated signed URLs, encryption with managed keys.",
         "driven_by": [
           "requirements.file_media_storage",
           "infrastructure.data_residency"
@@ -327,7 +327,7 @@
           },
           {
             "choice": "Cloudflare R2",
-            "why_not": "zero egress fees, but a second vendor outside GCP"
+            "why_not": "zero egress fees, but a second vendor outside Google Cloud"
           }
         ],
         "tradeoffs": [
@@ -346,7 +346,7 @@
       {
         "layer": "queue",
         "choice": "Google Cloud Pub/Sub / Cloud Tasks in asia-south1 (Mumbai)",
-        "justification": "Background work: photo post-processing (thumbnails, EXIF/GPS extraction) after bursts of offline syncs.",
+        "justification": "Photo post-processing (thumbnails, EXIF/GPS extraction) after bursts of offline syncs, so none of it blocks a request.",
         "driven_by": [
           "requirements.offline_support"
         ],
@@ -370,7 +370,7 @@
       {
         "layer": "ci_cd",
         "choice": "GitHub Actions",
-        "justification": "Automated tests and deploys on every push to Google Cloud Run; free minutes cover a team of 2.",
+        "justification": "Python 3.13 + Django 5.2 LTS tests run on every push and a passing build deploys to Google Cloud Run; the cost band reserves $0-4/month for a team of 2 (planning estimate).",
         "driven_by": [
           "team.size",
           "team.has_devops"
@@ -395,7 +395,7 @@
       {
         "layer": "observability",
         "choice": "Cloud Logging + Cloud Monitoring in asia-south1 (Mumbai)",
-        "justification": "Logs and metrics stay with the host provider in asia-south1 (Mumbai); alerts on error rate and latency.",
+        "justification": "The 99% availability target is watched by error-rate alerts; logs and metrics stay with Google Cloud in asia-south1 (Mumbai), so there is no second vendor.",
         "driven_by": [
           "requirements.availability",
           "infrastructure.data_residency"

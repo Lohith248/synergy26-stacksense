@@ -7,7 +7,7 @@
   "stack": {
     "frontend": {
       "choice": "React (Vite SPA) (web)",
-      "justification": "Rich interactive app screens; team already writes typescript for the UI; good performance (priority 5/5); good scalability (priority 5/5).",
+      "justification": "Rich interactive screens for a real-time collaboration app; team already writes typescript for the UI; good performance (priority 5/5); good scalability (priority 5/5).",
       "driven_by": [
         "project.type",
         "project.platforms",
@@ -21,7 +21,7 @@
       "alternatives": [
         {
           "choice": "Vue 3 (Vite SPA)",
-          "why_not": "With priorities.time_to_market=3, React is faster to deliver with."
+          "why_not": "With priorities.time_to_market=3 (neutral), React is faster to deliver with."
         },
         {
           "choice": "Next.js",
@@ -60,7 +60,7 @@
         "label": "high",
         "basis": "stability 0.91 (robust) over 54 priority vectors."
       },
-      "contrast": "React (Vite SPA) (web) rather than Vue 3 (Vite SPA). With priorities.time_to_market=3, React is faster to deliver with. Trade-off accepted: Client-rendered pages are weak for SEO.",
+      "contrast": "React (Vite SPA) (web) rather than Vue 3 (Vite SPA). With priorities.time_to_market=3 (neutral), React is faster to deliver with. Trade-off accepted: Client-rendered pages are weak for SEO.",
       "what_would_change": [
         {
           "edit": "requirements.seo_critical: false -> true",
@@ -93,7 +93,7 @@
       "alternatives": [
         {
           "choice": "Node.js 24 LTS + NestJS (TypeScript)",
-          "why_not": "With priorities.performance=5 and priorities.security=3, Go 1.27 is faster at runtime and stronger on security (close call). Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
+          "why_not": "With priorities.performance=5 and priorities.security=3 (neutral), Go 1.27 is faster at runtime and stronger on security (close call). Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
         },
         {
           "choice": ".NET 10 LTS + ASP.NET Core",
@@ -138,7 +138,7 @@
         "label": "low",
         "basis": "stability 0.59 (sensitive) over 54 priority vectors; score margin 0.8 over the runner-up (near-tie)."
       },
-      "contrast": "Go 1.27 (net/http + chi) rather than Node.js 24 LTS + NestJS (TypeScript). With priorities.performance=5 and priorities.security=3, Go 1.27 is faster at runtime and stronger on security (close call). Trade-off accepted: More hand-written code than batteries-included frameworks.",
+      "contrast": "Go 1.27 (net/http + chi) rather than Node.js 24 LTS + NestJS (TypeScript). With priorities.performance=5 and priorities.security=3 (neutral), Go 1.27 is faster at runtime and stronger on security (close call). Trade-off accepted: More hand-written code than batteries-included frameworks.",
       "what_would_change": [
         {
           "edit": "priorities.time_to_market: 3 -> 5",
@@ -169,7 +169,7 @@
       "alternatives": [
         {
           "choice": "Supabase Postgres",
-          "why_not": "With priorities.maintainability=4 and priorities.security=3, Azure Database for PostgreSQL – Flexible Server 17 is easier to maintain and stronger on security."
+          "why_not": "With priorities.maintainability=4 and priorities.security=3 (neutral), Azure Database for PostgreSQL – Flexible Server 17 is easier to maintain and stronger on security."
         },
         {
           "choice": "Azure Cosmos DB (NoSQL API)",
@@ -208,12 +208,12 @@
         "label": "high",
         "basis": "stability 1.00 (robust) over 54 priority vectors; score margin 3.2 over the runner-up."
       },
-      "contrast": "Azure Database for PostgreSQL – Flexible Server 17 rather than Supabase Postgres. With priorities.maintainability=4 and priorities.security=3, Azure Database for PostgreSQL – Flexible Server 17 is easier to maintain and stronger on security. Trade-off accepted: Vertical write scaling; sharding needs extensions.",
+      "contrast": "Azure Database for PostgreSQL – Flexible Server 17 rather than Supabase Postgres. With priorities.maintainability=4 and priorities.security=3 (neutral), Azure Database for PostgreSQL – Flexible Server 17 is easier to maintain and stronger on security. Trade-off accepted: Vertical write scaling; sharding needs extensions.",
       "what_would_change": []
     },
     "hosting": {
       "choice": "Azure App Service (Linux, Premium v3, 2+ instances) — West Europe (Netherlands)",
-      "justification": "Satisfies the hard constraints (managed_cloud (no servers to patch)). Good maintainability (priority 4/5); good performance (priority 5/5); deployment slots for safe releases.",
+      "justification": "Good maintainability (priority 4/5); good performance (priority 5/5); deployment slots for safe releases. Satisfies the hard constraints (managed_cloud (no servers to patch)).",
       "driven_by": [
         "infrastructure.deployment_model",
         "priorities.time_to_market",
@@ -225,11 +225,11 @@
       "alternatives": [
         {
           "choice": "Google Cloud Run",
-          "why_not": "With priorities.maintainability=4 and priorities.time_to_market=3, Azure App Service is easier to maintain and faster to deliver with. Known limit of Google Cloud Run: cold starts unless min instances are paid for."
+          "why_not": "With priorities.maintainability=4 and priorities.time_to_market=3 (neutral), Azure App Service is easier to maintain and faster to deliver with. Known limit of Google Cloud Run: cold starts unless min instances are paid for."
         },
         {
           "choice": "Azure Container Apps",
-          "why_not": "With priorities.maintainability=4 and priorities.time_to_market=3, Azure App Service is easier to maintain and faster to deliver with."
+          "why_not": "With priorities.maintainability=4 and priorities.time_to_market=3 (neutral), Azure App Service is easier to maintain and faster to deliver with."
         }
       ],
       "tradeoffs": [
@@ -276,7 +276,7 @@
         "label": "high",
         "basis": "stability 0.91 (robust) over 54 priority vectors; score margin 2.4 over the runner-up."
       },
-      "contrast": "Azure App Service (Linux, Premium v3, 2+ instances) rather than Google Cloud Run. With priorities.maintainability=4 and priorities.time_to_market=3, Azure App Service is easier to maintain and faster to deliver with. Trade-off accepted: Less control than containers for unusual runtimes.",
+      "contrast": "Azure App Service (Linux, Premium v3, 2+ instances) rather than Google Cloud Run. With priorities.maintainability=4 and priorities.time_to_market=3 (neutral), Azure App Service is easier to maintain and faster to deliver with. Trade-off accepted: Less control than containers for unusual runtimes.",
       "what_would_change": [
         {
           "edit": "requirements.realtime: true -> false",
@@ -315,7 +315,7 @@
         "alternatives": [
           {
             "choice": "Auth0 / Clerk (SaaS)",
-            "why_not": "extra monthly cost per active user and identity data outside your region"
+            "why_not": "per-active-user pricing across ~50,000 users and identity data outside the EU"
           },
           {
             "choice": "Hand-written auth in Go",
@@ -336,7 +336,7 @@
       {
         "layer": "storage",
         "choice": "Azure Blob Storage (West Europe (Netherlands))",
-        "justification": "Uploads (images, documents) go straight from clients to object storage via signed URLs. Private bucket, server-generated signed URLs, encryption with managed keys.",
+        "justification": "~200 GB of files in 12 months: uploads (images, documents) go straight from clients to object storage via signed URLs. Private bucket, server-generated signed URLs, encryption with managed keys.",
         "driven_by": [
           "requirements.file_media_storage",
           "infrastructure.data_residency"
@@ -348,7 +348,7 @@
           },
           {
             "choice": "Cloudflare R2",
-            "why_not": "zero egress fees, but a second vendor outside AZURE"
+            "why_not": "zero egress fees, but a second vendor outside Azure"
           }
         ],
         "tradeoffs": [
@@ -367,7 +367,7 @@
       {
         "layer": "realtime",
         "choice": "Yjs CRDT documents + Hocuspocus WebSocket server",
-        "justification": "Many people edit the same board at once: CRDTs merge concurrent edits without conflicts and broadcast cursors/presence (awareness); Hocuspocus persists document updates to the database. The knowledge base has no Yjs-compatible server for Go 1.27, so Hocuspocus runs as a separate Node.js service.",
+        "justification": "Several people edit the same shared item at once (description evidence): CRDTs merge concurrent edits without conflicts and broadcast cursors/presence (awareness); Hocuspocus persists document updates to the database. The knowledge base has no Yjs-compatible server for Go 1.27, so Hocuspocus runs as a separate Node.js service.",
         "driven_by": [
           "requirements.realtime",
           "project.type",
@@ -376,7 +376,7 @@
         "alternatives": [
           {
             "choice": "Liveblocks (managed)",
-            "why_not": "fastest to start but per-room pricing and board data held by a third party"
+            "why_not": "fastest to start but per-room pricing and the shared data held by a third party"
           },
           {
             "choice": "Plain WebSocket broadcast",
@@ -404,7 +404,7 @@
       {
         "layer": "cache",
         "choice": "Azure Managed Redis in West Europe (Netherlands)",
-        "justification": "Cache and pub/sub layer: ~5,000 concurrent users; pub/sub backplane so WebSocket messages reach users on every instance; performance priority 5.",
+        "justification": "~5,000 concurrent users would otherwise send every lookup to the database; pub/sub backplane so WebSocket messages reach users on every instance; performance priority 5 (cache and pub/sub layer).",
         "driven_by": [
           "scale.peak_concurrent_users",
           "requirements.realtime",
@@ -434,7 +434,7 @@
       {
         "layer": "queue",
         "choice": "Azure Service Bus in West Europe (Netherlands)",
-        "justification": "Background work: payment webhooks and ledger postings processed idempotently with retries; absorbs write bursts.",
+        "justification": "Payment-gateway webhooks at ~50,000 users processed idempotently with retries; absorbs write bursts, so none of it blocks a request.",
         "driven_by": [
           "requirements.payments",
           "scale.workload"
@@ -442,7 +442,7 @@
         "alternatives": [
           {
             "choice": "Synchronous processing in the request",
-            "why_not": "slow responses and lost work when a call fails"
+            "why_not": "a slow or failed call would lose or double-apply a payment event"
           }
         ],
         "tradeoffs": [
@@ -459,7 +459,7 @@
       {
         "layer": "payments",
         "choice": "Stripe (Checkout) — Stripe Billing with per-seat subscription quantities",
-        "justification": "Hosted checkout keeps card data off your servers, which can qualify for PCI DSS SAQ A (your acquirer confirms; protect the checkout page from script attacks). Payment confirmation is trusted only from signed server-side webhooks.",
+        "justification": "Taking payments for a real-time collaboration app (requirements.payments) through hosted checkout keeps card data off your servers, which can qualify for PCI DSS SAQ A (your acquirer confirms; protect the checkout page from script attacks). Payment confirmation is trusted only from signed server-side webhooks.",
         "driven_by": [
           "requirements.payments",
           "project.description",
@@ -472,7 +472,7 @@
           },
           {
             "choice": "Adyen",
-            "why_not": "enterprise pricing/onboarding for this size"
+            "why_not": "enterprise pricing and onboarding for ~50,000 users"
           }
         ],
         "tradeoffs": [
@@ -492,7 +492,7 @@
       {
         "layer": "cdn",
         "choice": "Azure Front Door",
-        "justification": "Caches public pages and static assets near users; only public, non-personal content is cached at the edge.",
+        "justification": "At ~50,000 users, public pages and static assets are cached near users so the origin serves less traffic; only public, non-personal content is cached.",
         "driven_by": [
           "project.platforms",
           "scale.users_12_months"
@@ -522,7 +522,7 @@
       {
         "layer": "ci_cd",
         "choice": "GitHub Actions",
-        "justification": "Automated tests and deploys on every push to Azure App Service (Linux, Premium v3, 2+ instances); free minutes cover a team of 5.",
+        "justification": "Go 1.27 tests run on every push and a passing build deploys to Azure App Service; the cost band reserves $0-20/month for a team of 5 (planning estimate).",
         "driven_by": [
           "team.size",
           "team.has_devops"
@@ -547,7 +547,7 @@
       {
         "layer": "observability",
         "choice": "Azure Monitor + Application Insights in West Europe (Netherlands)",
-        "justification": "Logs and metrics stay with the host provider in West Europe (Netherlands); alerts on error rate and latency against the 100 ms p95 target.",
+        "justification": "The 100 ms p95 target and the 99.9% availability target are watched by latency and error-rate alerts; logs and metrics stay with Azure in West Europe (Netherlands), so there is no second vendor.",
         "driven_by": [
           "requirements.availability",
           "requirements.p95_latency_ms",
@@ -573,14 +573,14 @@
       {
         "layer": "other",
         "choice": "Tenant isolation: tenant_id on every row + database row-level security",
-        "justification": "Several customer organisations share the system: every query is scoped by tenant, enforced in the database so one bug cannot leak another team's boards.",
+        "justification": "Several customer organisations share one real-time collaboration app: every query is scoped by tenant, enforced in the database, so one bug cannot leak another organisation's data.",
         "driven_by": [
           "requirements.multi_tenant"
         ],
         "alternatives": [
           {
             "choice": "Database per tenant",
-            "why_not": "strong isolation but heavy operations for thousands of small teams"
+            "why_not": "strong isolation, but a separate database to provision, migrate and back up per customer organisation, for a team of 5"
           }
         ],
         "tradeoffs": [

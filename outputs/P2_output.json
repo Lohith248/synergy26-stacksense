@@ -7,7 +7,7 @@
   "stack": {
     "frontend": {
       "choice": "Next.js (web) + React Native (Expo) (Android)",
-      "justification": "Web: Next.js — Rich interactive app screens; team already writes javascript, typescript for the UI; server-rendered/static HTML that search engines index; good fast delivery (priority 5/5); good low running cost (priority 4/5). Mobile: React Native (Expo) — Team already writes javascript, typescript for the mobile app; shares TypeScript code and skills with the web app; good fast delivery (priority 5/5); good low running cost (priority 4/5).",
+      "justification": "Web: Next.js — Rich interactive screens for a marketplace; team already writes javascript, typescript for the UI; server-rendered/static HTML that search engines index; good fast delivery (priority 5/5); good low running cost (priority 4/5). Mobile: React Native (Expo) — Team already writes javascript, typescript for the mobile app; shares TypeScript code and skills with the web app; good fast delivery (priority 5/5); good low running cost (priority 4/5).",
       "driven_by": [
         "project.type",
         "project.platforms",
@@ -24,11 +24,11 @@
         },
         {
           "choice": "SvelteKit",
-          "why_not": "With priorities.time_to_market=5, Next.js is faster to deliver with; it fits better: rich interactive app screens (project.type=marketplace)."
+          "why_not": "With priorities.time_to_market=5, Next.js is faster to deliver with; it fits better: rich interactive screens for a marketplace (project.type=marketplace)."
         },
         {
           "choice": "Ionic Capacitor (web app wrapped)",
-          "why_not": "With priorities.performance=3 and priorities.security=3, React Native is faster at runtime and stronger on security. Known limit of Ionic Capacitor: WebView performance on low-end devices."
+          "why_not": "With priorities.performance=3 (neutral) and priorities.security=3 (neutral), React Native is faster at runtime and stronger on security. Known limit of Ionic Capacitor: WebView performance on low-end devices."
         },
         {
           "choice": "Kotlin + Jetpack Compose (native Android)",
@@ -85,11 +85,11 @@
       "alternatives": [
         {
           "choice": "Python 3.13 + Django 5.2 LTS",
-          "why_not": "Node.js 24 LTS + NestJS fits better: native WebSocket support (requirements.realtime=true); with priorities.performance=3, it is faster at runtime (close call). Known limit of Python 3.13 + Django 5.2 LTS: WebSockets need Django Channels."
+          "why_not": "Node.js 24 LTS + NestJS fits better: native WebSocket support (requirements.realtime=true); with priorities.performance=3 (neutral), it is faster at runtime (close call). Known limit of Python 3.13 + Django 5.2 LTS: WebSockets need Django Channels."
         },
         {
           "choice": "Node.js 24 LTS + Express 5",
-          "why_not": "With priorities.maintainability=3 and priorities.security=3, Node.js 24 LTS + NestJS is easier to maintain and stronger on security. Known limit of Node.js 24 LTS + Express 5: little structure; large codebases need discipline."
+          "why_not": "With priorities.maintainability=3 (neutral) and priorities.security=3 (neutral), Node.js 24 LTS + NestJS is easier to maintain and stronger on security. Known limit of Node.js 24 LTS + Express 5: little structure; large codebases need discipline."
         }
       ],
       "tradeoffs": [
@@ -135,7 +135,7 @@
         "label": "low",
         "basis": "stability 0.63 (sensitive) over 54 priority vectors; score margin 0.8 over the runner-up (near-tie)."
       },
-      "contrast": "Node.js 24 LTS + NestJS (TypeScript) rather than Python 3.13 + Django 5.2 LTS. Node.js 24 LTS + NestJS fits better: native WebSocket support (requirements.realtime=true); with priorities.performance=3, it is faster at runtime (close call). Trade-off accepted: More boilerplate than Express.",
+      "contrast": "Node.js 24 LTS + NestJS (TypeScript) rather than Python 3.13 + Django 5.2 LTS. Node.js 24 LTS + NestJS fits better: native WebSocket support (requirements.realtime=true); with priorities.performance=3 (neutral), it is faster at runtime (close call). Trade-off accepted: More boilerplate than Express.",
       "what_would_change": [
         {
           "edit": "priorities.performance: 3 -> 2",
@@ -159,7 +159,7 @@
     },
     "database": {
       "choice": "Azure Database for PostgreSQL – Flexible Server 17 — Central India (Pune)",
-      "justification": "Strict ACID transactions for bookings and payments; built-in full-text search avoids a separate search service; good low running cost (priority 4/5); good fast delivery (priority 5/5).",
+      "justification": "Strict ACID transactions for marketplace transactions and payments; built-in full-text search avoids a separate search service; good low running cost (priority 4/5); good fast delivery (priority 5/5).",
       "driven_by": [
         "requirements.full_text_search",
         "requirements.payments",
@@ -171,11 +171,11 @@
       "alternatives": [
         {
           "choice": "Supabase Postgres",
-          "why_not": "With priorities.cost=4 and priorities.maintainability=3, Azure Database for PostgreSQL – Flexible Server 17 is cheaper to run and easier to maintain. Known limit of Supabase Postgres: free projects pause after 1 week of inactivity; production needs Pro."
+          "why_not": "With priorities.cost=4 and priorities.maintainability=3 (neutral), Azure Database for PostgreSQL – Flexible Server 17 is cheaper to run and easier to maintain. Known limit of Supabase Postgres: free projects pause after 1 week of inactivity; production needs Pro."
         },
         {
           "choice": "Azure Database for MySQL – Flexible Server 8.4",
-          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 fits better: strict ACID transactions for bookings and payments (requirements.payments=true); with priorities.maintainability=3, it is easier to maintain. Known limit of Azure Database for MySQL – Flexible Server 8.4: 8.0 moved to Sustaining Support (Apr 2026); no row-level security."
+          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 fits better: strict ACID transactions for marketplace transactions and payments (requirements.payments=true); with priorities.maintainability=3 (neutral), it is easier to maintain. Known limit of Azure Database for MySQL – Flexible Server 8.4: 8.0 moved to Sustaining Support (Apr 2026); no row-level security."
         }
       ],
       "tradeoffs": [
@@ -210,12 +210,12 @@
         "label": "high",
         "basis": "stability 1.00 (robust) over 54 priority vectors; score margin 6.0 over the runner-up."
       },
-      "contrast": "Azure Database for PostgreSQL – Flexible Server 17 rather than Supabase Postgres. With priorities.cost=4 and priorities.maintainability=3, Azure Database for PostgreSQL – Flexible Server 17 is cheaper to run and easier to maintain. Trade-off accepted: Vertical write scaling; sharding needs extensions.",
+      "contrast": "Azure Database for PostgreSQL – Flexible Server 17 rather than Supabase Postgres. With priorities.cost=4 and priorities.maintainability=3 (neutral), Azure Database for PostgreSQL – Flexible Server 17 is cheaper to run and easier to maintain. Trade-off accepted: Vertical write scaling; sharding needs extensions.",
       "what_would_change": []
     },
     "hosting": {
       "choice": "Azure App Service (Linux, Basic B2 / Standard S1) — Central India (Pune)",
-      "justification": "Satisfies the hard constraints (managed_cloud (no servers to patch), data_residency india -> Central India (Pune)). Fully managed runtime (patching, TLS, scaling handled) for a team without a DevOps person; good fast delivery (priority 5/5); good low running cost (priority 4/5).",
+      "justification": "Fully managed runtime (patching, TLS, scaling handled) for a team without a DevOps person; good fast delivery (priority 5/5); good low running cost (priority 4/5). Satisfies the hard constraints (managed_cloud (no servers to patch), data_residency india -> Central India (Pune)).",
       "driven_by": [
         "team.has_devops",
         "infrastructure.deployment_model",
@@ -228,7 +228,7 @@
       "alternatives": [
         {
           "choice": "Google Cloud Run",
-          "why_not": "With priorities.time_to_market=5 and priorities.maintainability=3, Azure App Service is faster to deliver with and easier to maintain. Known limit of Google Cloud Run: cold starts unless min instances are paid for."
+          "why_not": "With priorities.time_to_market=5 and priorities.maintainability=3 (neutral), Azure App Service is faster to deliver with and easier to maintain. Known limit of Google Cloud Run: cold starts unless min instances are paid for."
         },
         {
           "choice": "Azure Container Apps",
@@ -279,7 +279,7 @@
         "label": "medium",
         "basis": "stability 0.85 (moderate) over 54 priority vectors; score margin 1.6 over the runner-up."
       },
-      "contrast": "Azure App Service (Linux, Basic B2 / Standard S1) rather than Google Cloud Run. With priorities.time_to_market=5 and priorities.maintainability=3, Azure App Service is faster to deliver with and easier to maintain. Trade-off accepted: Less control than containers for unusual runtimes.",
+      "contrast": "Azure App Service (Linux, Basic B2 / Standard S1) rather than Google Cloud Run. With priorities.time_to_market=5 and priorities.maintainability=3 (neutral), Azure App Service is faster to deliver with and easier to maintain. Trade-off accepted: Less control than containers for unusual runtimes.",
       "what_would_change": [
         {
           "edit": "infrastructure.cloud_preference: any -> aws",
@@ -343,7 +343,7 @@
       {
         "layer": "storage",
         "choice": "Azure Blob Storage (Central India (Pune))",
-        "justification": "Uploads (images, documents) go straight from clients to object storage via signed URLs. Private bucket, server-generated signed URLs, encryption with managed keys.",
+        "justification": "~50 GB of files in 12 months: uploads (images, documents) go straight from clients to object storage via signed URLs. Private bucket, server-generated signed URLs, encryption with managed keys.",
         "driven_by": [
           "requirements.file_media_storage",
           "infrastructure.data_residency"
@@ -355,7 +355,7 @@
           },
           {
             "choice": "Cloudflare R2",
-            "why_not": "zero egress fees, but a second vendor outside AZURE"
+            "why_not": "zero egress fees, but a second vendor outside Azure"
           }
         ],
         "tradeoffs": [
@@ -374,7 +374,7 @@
       {
         "layer": "search",
         "choice": "PostgreSQL full-text search (tsvector + GIN index)",
-        "justification": "At ~30,000 users the primary database's built-in full-text search is enough; no extra service to run or pay for.",
+        "justification": "With ~30,000 users on PostgreSQL, its built-in full-text search is enough; no extra service to run or pay for.",
         "driven_by": [
           "requirements.full_text_search",
           "scale.users_12_months"
@@ -382,7 +382,7 @@
         "alternatives": [
           {
             "choice": "Meilisearch / OpenSearch",
-            "why_not": "a separate cluster to operate before the data size needs it"
+            "why_not": "a separate cluster to operate at ~30,000 users, before the data size (50 GB) needs it"
           }
         ],
         "tradeoffs": [
@@ -399,7 +399,7 @@
       {
         "layer": "realtime",
         "choice": "Socket.IO on the Node API",
-        "justification": "Live updates and chat over WebSockets from the same backend, so authorisation and data stay in one place.",
+        "justification": "requirements.realtime is set: live updates and chat go over WebSockets from the same Node.js 24 LTS + NestJS backend, so authorisation and data stay in one place.",
         "driven_by": [
           "requirements.realtime",
           "project.description"
@@ -407,11 +407,11 @@
         "alternatives": [
           {
             "choice": "Ably / Pusher",
-            "why_not": "managed fan-out, but an extra vendor and per-connection cost"
+            "why_not": "managed fan-out, but an extra vendor and per-connection cost at ~800 concurrent users"
           },
           {
             "choice": "Polling",
-            "why_not": "wastes requests and adds latency"
+            "why_not": "~800 concurrent clients would each poll, wasting requests and adding latency"
           }
         ],
         "tradeoffs": [
@@ -428,7 +428,7 @@
       {
         "layer": "payments",
         "choice": "Razorpay (UPI, cards, netbanking) — Route/RazorpayX Payouts to pay service providers",
-        "justification": "Hosted checkout keeps card data off your servers, which can qualify for PCI DSS SAQ A (your acquirer confirms; protect the checkout page from script attacks). Payment confirmation is trusted only from signed server-side webhooks.",
+        "justification": "Taking payments for a marketplace (requirements.payments) through hosted checkout keeps card data off your servers, which can qualify for PCI DSS SAQ A (your acquirer confirms; protect the checkout page from script attacks). Payment confirmation is trusted only from signed server-side webhooks.",
         "driven_by": [
           "requirements.payments",
           "project.description",
@@ -464,7 +464,7 @@
       {
         "layer": "cdn",
         "choice": "Cloudflare (free plan) in front of Azure",
-        "justification": "Caches public pages and static assets near users; only public, non-personal content is cached at the edge. Azure Front Door's $35/month base fee would take 23% of the $150 budget, so the free plan is used.",
+        "justification": "SEO is critical (requirements.seo_critical), so public pages and static assets are served from edge caches near users (fast pages for visitors and crawlers); only public, non-personal content is cached. Azure Front Door's $35/month base fee would take 23% of the $150 budget, so the free plan is used.",
         "driven_by": [
           "project.platforms",
           "requirements.seo_critical",
@@ -496,7 +496,7 @@
       {
         "layer": "ci_cd",
         "choice": "GitHub Actions",
-        "justification": "Automated tests and deploys on every push to Azure App Service (Linux, Basic B2 / Standard S1); free minutes cover a team of 3.",
+        "justification": "Node.js 24 LTS + NestJS tests run on every push and a passing build deploys to Azure App Service; the cost band reserves $0-4/month for a team of 3 (planning estimate).",
         "driven_by": [
           "team.size",
           "team.has_devops"
@@ -521,7 +521,7 @@
       {
         "layer": "observability",
         "choice": "Azure Monitor + Application Insights in Central India (Pune)",
-        "justification": "Logs and metrics stay with the host provider in Central India (Pune); alerts on error rate and latency against the 500 ms p95 target.",
+        "justification": "The 500 ms p95 target and the 99.9% availability target are watched by latency and error-rate alerts; logs and metrics stay with Azure in Central India (Pune), so there is no second vendor.",
         "driven_by": [
           "requirements.availability",
           "requirements.p95_latency_ms",
@@ -547,7 +547,7 @@
       {
         "layer": "other",
         "choice": "Firebase Cloud Messaging (push notifications)",
-        "justification": "Mobile users must hear about new jobs/messages immediately; FCM is no-cost and also relays to iOS via APNs. Payloads carry only an ID, never personal data.",
+        "justification": "Android users must hear about new jobs or bookings and messages while the app is closed; FCM is no-cost. Payloads carry only an ID, never personal data.",
         "driven_by": [
           "project.platforms",
           "project.description"

@@ -121,7 +121,8 @@ class SupportingBoilerplate(unittest.TestCase):
                 self.assertNotEqual(w, "extra vendor; add later for richer error grouping", sid)
                 if a["choice"] == "Storing files in the database":
                     self.assertIn("GB", w)
-                    self.assertRegex(w, r"\d+ GB", (sid, w))
+                    # a stated volume is quoted as a number; an unset one says so by field name (no invented figure)
+                    self.assertRegex(w, r"\d+ GB|scale\.data_volume_gb_12_months is not given", (sid, w))
                 if a["choice"] == "GitLab CI":
                     self.assertRegex(w, r"team of \d+", (sid, w))
 

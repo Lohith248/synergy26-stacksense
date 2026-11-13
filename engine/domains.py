@@ -112,8 +112,12 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
         ts = "TimescaleDB hypertables (extension supported on Azure Database for PostgreSQL)" if (p == "azure" and db["id"] == "postgresql" and not selfh) else \
             "native monthly partitions + BRIN index on the timestamp"
         out.append(svc("other", f"Time-series storage: {ts}",
-                       f"~{ctx['data_gb']:,.0f} GB of append-only readings: time partitions keep inserts fast, old partitions are dropped or archived "
-                       "to object storage, and dashboards read pre-aggregated rollups instead of raw rows.",
+                       # E9: "readings" only when the input is an IoT/sensor workload; otherwise the premise is the write-heavy workload
+                       (f"~{ctx['data_gb']:,.0f} GB of append-only readings" if iot else f"~{ctx['data_gb']:,.0f} GB in a write-heavy workload (scale.workload=write_heavy)")
+                       + (": time partitions keep inserts fast, old partitions are dropped or archived "
+                          "to object storage, and " + ("dashboards" if iot or d["analytics"] else "reports") + " read pre-aggregated rollups instead of raw rows."
+                          if iot else ": for the tables that grow by time (events, logs, sensor-style rows), monthly partitions keep inserts fast and old partitions can be dropped "
+                          "or archived to object storage; reports read pre-aggregated rollups instead of raw rows."),
                        ["scale.data_volume_gb_12_months", "scale.workload"] + (["project.type"] if typ == "iot" else []),
                        [("One unpartitioned table", "index bloat and slow deletes as data grows"),
                         ("Amazon Timestream for LiveAnalytics", "closed to new customers since June 2025")],

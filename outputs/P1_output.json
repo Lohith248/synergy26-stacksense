@@ -284,7 +284,7 @@
       {
         "layer": "ci_cd",
         "choice": "GitHub Actions",
-        "justification": "Automated tests and deploys on every push to Cloudflare Pages; free minutes cover a team of 1.",
+        "justification": "The site build runs on every push and a passing build deploys to Cloudflare Pages; the cost band reserves $0-4/month for a team of 1 (planning estimate).",
         "driven_by": [
           "team.size",
           "team.has_devops"

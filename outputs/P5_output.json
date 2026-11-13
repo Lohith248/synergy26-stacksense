@@ -7,7 +7,7 @@
   "stack": {
     "frontend": {
       "choice": "React (Vite SPA) (web)",
-      "justification": "Rich interactive app screens; team already writes javascript for the UI; internal app behind login needs no SEO; good fast delivery (priority 5/5); good maintainability (priority 5/5).",
+      "justification": "Rich interactive screens for an internal tool; team already writes javascript for the UI; internal app behind login needs no SEO; good fast delivery (priority 5/5); good maintainability (priority 5/5).",
       "driven_by": [
         "project.type",
         "project.description",
@@ -21,7 +21,7 @@
       "alternatives": [
         {
           "choice": "Blazor (ASP.NET Core 10)",
-          "why_not": "With priorities.time_to_market=5, React is faster to deliver with; it fits better: rich interactive app screens (project.type=internal_tool)."
+          "why_not": "With priorities.time_to_market=5, React is faster to deliver with; it fits better: rich interactive screens for an internal tool (project.type=internal_tool)."
         },
         {
           "choice": "Vue 3 (Vite SPA)",
@@ -60,7 +60,7 @@
         "label": "medium",
         "basis": "stability 0.87 (moderate) over 52 priority vectors."
       },
-      "contrast": "React (Vite SPA) (web) rather than Blazor (ASP.NET Core 10). With priorities.time_to_market=5, React is faster to deliver with; it fits better: rich interactive app screens (project.type=internal_tool). Trade-off accepted: Client-rendered pages are weak for SEO.",
+      "contrast": "React (Vite SPA) (web) rather than Blazor (ASP.NET Core 10). With priorities.time_to_market=5, React is faster to deliver with; it fits better: rich interactive screens for an internal tool (project.type=internal_tool). Trade-off accepted: Client-rendered pages are weak for SEO.",
       "what_would_change": [
         {
           "edit": "requirements.seo_critical: false -> true",
@@ -181,7 +181,7 @@
     },
     "hosting": {
       "choice": "Azure App Service (Linux, Basic B2 / Standard S1) — Central India (Pune)",
-      "justification": "Satisfies the hard constraints (cloud_preference azure, managed_cloud (no servers to patch), data_residency india -> Central India (Pune)). Hybrid Connections reach the existing on-prem database without opening inbound ports; built-in Entra ID sign-in (Easy Auth); fully managed runtime (patching, TLS, scaling handled) for a team without a DevOps person; good maintainability (priority 5/5); good fast delivery (priority 5/5).",
+      "justification": "Hybrid Connections reach the existing on-prem database without opening inbound ports; built-in Entra ID sign-in (Easy Auth); fully managed runtime (patching, TLS, scaling handled) for a team without a DevOps person; good maintainability (priority 5/5); good fast delivery (priority 5/5). Satisfies the hard constraints (cloud_preference azure, managed_cloud (no servers to patch), data_residency india -> Central India (Pune)).",
       "driven_by": [
         "team.has_devops",
         "timeline.mvp_weeks",
@@ -295,7 +295,7 @@
       {
         "layer": "storage",
         "choice": "Azure Blob Storage (Central India (Pune))",
-        "justification": "Uploads (images, documents) go straight from clients to object storage via signed URLs. Private bucket, server-generated signed URLs, encryption with managed keys.",
+        "justification": "~20 GB of files in 12 months: uploads (images, documents) go straight from clients to object storage via signed URLs. Private bucket, server-generated signed URLs, encryption with managed keys.",
         "driven_by": [
           "requirements.file_media_storage",
           "infrastructure.data_residency"
@@ -307,7 +307,7 @@
           },
           {
             "choice": "Cloudflare R2",
-            "why_not": "zero egress fees, but a second vendor outside AZURE"
+            "why_not": "zero egress fees, but a second vendor outside Azure"
           }
         ],
         "tradeoffs": [
@@ -326,7 +326,7 @@
       {
         "layer": "ci_cd",
         "choice": "GitHub Actions",
-        "justification": "Automated tests and deploys on every push to Azure App Service (Linux, Basic B2 / Standard S1); free minutes cover a team of 2.",
+        "justification": ".NET 10 LTS + ASP.NET Core tests run on every push and a passing build deploys to Azure App Service; the cost band reserves $0-4/month for a team of 2 (planning estimate).",
         "driven_by": [
           "team.size",
           "team.has_devops"
@@ -351,7 +351,7 @@
       {
         "layer": "observability",
         "choice": "Azure Monitor + Application Insights in Central India (Pune)",
-        "justification": "Logs and metrics stay with the host provider in Central India (Pune); alerts on error rate and latency against the 800 ms p95 target.",
+        "justification": "The 800 ms p95 target and the 99.9% availability target are watched by latency and error-rate alerts; logs and metrics stay with Azure in Central India (Pune), so there is no second vendor.",
         "driven_by": [
           "requirements.availability",
           "requirements.p95_latency_ms",

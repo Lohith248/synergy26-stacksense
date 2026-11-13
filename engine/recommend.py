@@ -119,7 +119,7 @@ def _flag_on(req, path):
     return bool(v and v not in ("none", "email_password") or (path == "requirements.auth" and v == "enterprise_sso"))
 
 
-def component(cand, ranked_ok, ranked_out, extra_paths, extras, name=None, base_why="", ctx=None, must_alt=None):
+def component(cand, ranked_ok, ranked_out, extra_paths, extras, name=None, base_why="", ctx=None, must_alt=None, tail_why=""):
     """Build the official component object from a winning candidate and its competitors. must_alt: an eligible
     option that is always listed (the best skill-matched backend when the winner is outside the team's languages)."""
     item = cand.item
@@ -132,7 +132,8 @@ def component(cand, ranked_ok, ranked_out, extra_paths, extras, name=None, base_
         fact = kb_fact(item, ctx)
         if fact:
             reasons = reasons + [fact[:1].lower() + fact[1:] if not any(ch.isupper() for ch in fact.split(" ")[0][1:]) else fact]
-    why = base_why + (cap("; ".join(reasons)) + "." if reasons else "")
+    # E9: the scenario fact that decided the choice opens the text; the constraint envelope trails as a short clause
+    why = base_why + (cap("; ".join(reasons)) + "." if reasons else "") + (" " + tail_why if tail_why and reasons else tail_why)
     # F11: an engine with a licence cost is offered as an alternative only when the team or its systems name it
     real = [a for a in ranked_ok[1:] if not _licence_filler(a, ctx)][:2]
     if must_alt is not None and must_alt is not cand and must_alt not in real:
@@ -254,7 +255,8 @@ def _gap_reason(win, alt, k, ctx, also=()):
     folded into the same clause ('with priorities.a=4 and priorities.b=5, X is ... and ...')."""
     if k.startswith("prio_"):
         ps = [k[5:]] + [x[5:] for x in also]
-        ws = " and ".join(f"priorities.{p}={ctx['prio'][p] if ctx else '?'}" for p in ps)
+        # E9: a priority left at the neutral 3 is labelled so, instead of reading like something the user asked for
+        ws = " and ".join(f"priorities.{p}={ctx['prio'][p] if ctx else '?'}" + (" (neutral)" if ctx and ctx["prio"][p] == 3 else "") for p in ps)
         return f"with {ws}, {_short(win.item)} is {' and '.join(PRIO_BETTER[p] for p in ps)}"
     neg = next((t for t in alt.terms if t[0] == k and t[1] < 0), None)
     if neg:
@@ -356,7 +358,7 @@ def cap(s):
 
 def envelope_text(ctx, region, host=None):
     if ctx["residency"] == "other":
-        return "Deployment/provider filters are met, but residency is unresolved until a jurisdiction is supplied. "
+        return "Deployment/provider filters are met, but residency is unresolved until a jurisdiction is supplied."
     bits = []
     if ctx["cloud"] in ("aws", "azure", "gcp"):
         bits.append(f"cloud_preference {ctx['cloud']}")
@@ -373,7 +375,7 @@ def envelope_text(ctx, region, host=None):
             bits.append(f"residency {where} stated in project.description" + (f" -> {region}" if region else ""))
         else:
             bits.append(f"data_residency {ctx['residency'] if not ctx['country'] else 'other (' + short(ctx['country']) + ')'}" + (f" -> {region}" if region else ""))
-    return "Satisfies the hard constraints (" + ", ".join(bits) + "). " if bits else ""
+    return "Satisfies the hard constraints (" + ", ".join(bits) + ")." if bits else ""
 
 
 def none_component(layer, why, paths, alts):
@@ -593,7 +595,7 @@ def _recommend(req, assumptions, sid):
     hosting = component(host_c, h_ok, h_out, host_extra_paths,
                         {"deployment": host["deploy"], "provider": host["provider"], "data_bearing": ctx["needs_backend"],
                          "data_location": loc if ctx["needs_backend"] else None, "region": region}, name=host_name,
-                        base_why=envelope_text(ctx, region, host) if ctx["needs_backend"] else "", ctx=ctx)
+                        tail_why=envelope_text(ctx, region, host) if ctx["needs_backend"] else "", ctx=ctx)
     if ctx["country"]:
         hosting["sources"] = hosting["sources"] + [u for u in cite([REGION_SRC.get(host["provider"], "aws-regions-list")]) if u not in hosting["sources"]]
 
