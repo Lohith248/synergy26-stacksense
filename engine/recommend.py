@@ -4,6 +4,7 @@ from datetime import date  # fromisoformat only: dates are compared with the KB 
 from . import ENGINE_VERSION
 from . import context as cx
 from . import overeng as ov
+from . import integrations as ig
 from . import costreal
 from . import rightsize as rs
 from . import select as sl
@@ -846,7 +847,6 @@ def _recommend(req, assumptions, sid):
           + top_txt + f". Launch near the ${cost['min']} lower bound and set billing alerts at the budget." + over_txt,
           ["budget.monthly_infra_usd"])
 
-    stack = {"frontend": fe_cmp, "backend": backend_cmp, "database": db_cmp, "hosting": hosting,
     declined = ov.declined_requests(ctx)  # A1: hype that the description asks for, declined with the numbers and the stack chosen instead
     if declined:
         picked = [x["choice"] for x in (fe_cmp, backend_cmp, db_cmp) if x["choice"] != "None"]
@@ -854,6 +854,7 @@ def _recommend(req, assumptions, sid):
           ov.decline_message(ctx, declined, " with ".join([" + ".join(picked[:2])] + ([picked[2]] if len(picked) > 2 else [])) + f" on {host_name}"),
           ["project.description", "scale.peak_concurrent_users"])
 
+    stack = {"frontend": fe_cmp, "backend": backend_cmp, "database": db_cmp, "hosting": hosting,
              "supporting": [{k: v for k, v in s.items() if not k.startswith("_")} for s in supporting]}
     style = architecture_style(ctx, host, backend, supporting)
     sev = {w["severity"] for w in W.items}
@@ -1185,7 +1186,19 @@ def contradictions(ctx, W, assumptions, host, backend):
                 W("EXISTING_SYSTEM_EXTENDED_SUPPORT", "info",
                   f"'{e['raw']}' is in extended (security-only) support until {life['eol']}; supported, but plan the upgrade path.",
                   ["infrastructure.existing_systems"])
-        if not e["pattern"] and not life:
+        ad = e.get("adapter")
+        if not e["pattern"] and not life and ad and ad["kind"] == "retire":  # A7: the description says it is going away
+            W("EXISTING_SYSTEM_UNRECOGNISED", "info", f"'{e['raw']}' is not in the knowledge base; {ig.cite(ad)} says it is going away (replaced or retired), "
+              "so no integration component is added for it. Plan its cut-over and retirement.", ["infrastructure.existing_systems"] + (["project.description"] if ad["from_desc"] else []))
+            assumptions.append(f"'{e['raw']}' is not recognised by name; {ig.cite(ad)} says it is going away (replaced or retired), so nothing is integrated "
+                               "with it and no component was added for it.")
+        elif not e["pattern"] and not life and ad:  # A7: description-driven integration instead of "assumed outside"
+            W("EXISTING_SYSTEM_UNRECOGNISED", "info", f"'{e['raw']}' is not in the knowledge base by name; from {ig.cite(ad)} it is handled "
+              f"as: {ad['title']}. Its interface details (format, protocol, credentials) are assumed: confirm them with its owners.",
+              ["infrastructure.existing_systems"] + (["project.description"] if ad["from_desc"] else []))
+            assumptions.append(f"'{e['raw']}' is not recognised by name; its integration is inferred from {ig.cite(ad)}: "
+                               f"{ad['title']}. The interface details are assumptions to confirm.")
+        elif not e["pattern"] and not life:
             W("EXISTING_SYSTEM_UNRECOGNISED", "info", f"'{e['raw']}' is not in the knowledge base; integration must be designed manually.",
               ["infrastructure.existing_systems"])
             assumptions.append(f"'{e['raw']}' is not recognised and names no known kind of system, so no component was added for it; "

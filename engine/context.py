@@ -5,6 +5,7 @@ import functools
 import re
 
 from . import overeng as ov
+from . import integrations as ig
 from . import costreal
 from .kb import TECH
 
@@ -713,10 +714,10 @@ def build(req):
     desc = (req["project.description"] or "").lower()
     # the description only promotes a language team.languages already lists; it never adds one
     c["desc"], c["primary_langs"] = dict(flags), [x for x in prim if x in c["langs"]]
-    ex = []
     # A1: a web3 word that only a stakeholder asks for ("the CTO wants blockchain receipts") or a hype word frames is not a requirement
     if c["desc"]["web3"] and ov.web3_only_requested(req["project.description"], req["project.type"]):
         c["desc"]["web3"] = False
+    ex = []
     sentences = re.split(r"(?<=[.!?;])\s+|\n", desc)
     for raw in req["infrastructure.existing_systems"]:
         low = f" {raw.lower()} "
@@ -742,7 +743,9 @@ def build(req):
         onprem = "on-prem" in low or "on prem" in low or "onprem" in low or "on-premises" in low
         if hit and hit.get("synthetic"):  # read by keyword: a mainframe, or a system that must stay and is not said to be a cloud service, is estate to bridge to
             onprem = onprem or "mainframe" in low or bool(keep and not _CLOUD_WORDS.search(low))
-        ex.append({"raw": raw, "pattern": hit, "life": life, "keep": keep, "onprem": onprem, "workforce": workforce})
+        # A7: an entry the knowledge base does not know by name is integrated by what the description does with it
+        adapter = None if hit or life else ig.infer(raw, req["project.description"])
+        ex.append({"raw": raw, "pattern": hit, "life": life, "keep": keep, "onprem": onprem, "workforce": workforce, "adapter": adapter})
     # list-order invariance: knowledge-base pattern order (identity, databases, brokers, ...), then keyword categories
     # (knowledge-base order), then name; unrecognised last
     order = {id(p): i for i, p in enumerate(TECH["existing_patterns"])}
@@ -761,6 +764,7 @@ def build(req):
     c["other_kept_dbs"] = [e for e in dbs[1:] if e["keep"]]
     queues, idps = of_kind("queue"), of_kind("identity")
     c["existing_queue"] = queues[0] if queues else None
+    c["queue_transport"] = bool(queues and re.search(ig.QUEUE_VIA_RX, desc))  # A7: the description reaches another system through the broker
     c["existing_idp"] = idps[0] if idps else None
     c["unused_existing"] = {"identity provider": idps[1:], "message broker": queues[1:]}
     c["idp_customer_login"] = bool(c["existing_idp"] and c["existing_idp"]["pattern"].get("customer_login")
