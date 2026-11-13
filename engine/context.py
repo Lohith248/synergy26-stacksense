@@ -653,6 +653,14 @@ _EXP_END = re.compile(r"\s+(?:for|since|professionally|in production)\b|\s*(?:[.
 # comes earlier in the clause, with no word that says the experience is missing or thin
 _EXP_TRAIL = re.compile(r"\s+(?:experience|expertise|background|skills?|know-how)\b", re.I)
 _EXP_THIN = re.compile(r"\b(?:no|little|limited|zero|lacks?|lacking|without|some|basic|beginner|minimal)\b", re.I)
+# present-tense possession must come before the skill ("has solid X experience", "with strong X background", "already ..."); a wish,
+# hire, learning goal, plan or a past remark in the same clause means the skill is not the team's today
+_EXP_POSS = re.compile(r"\b(?:have|has|having|with|solid|strong|deep|good|extensive|proven|already)\b|'ve\b", re.I)
+_EXP_NOT_NOW = re.compile(r"\b(?:need\w*|want\w*|wish\w*|hope\w*|look(?:ing)? for|seek\w*|hir(?:e|es|ed|ing)|gain\w*|learn\w*|acquir\w*|soon|"
+                          r"years ago|ago|used to|previous(?:ly)?|former(?:ly)?|once|consider\w*|plans? to|planned to|planning to|would like|"
+                          r"no experience|lack\w*|lacking)\b", re.I)
+# a city or place name is not the framework: "Phoenix" counts only beside Elixir or as "Phoenix framework / LiveView / app"
+_PHOENIX_NAME = re.compile(r"\bphoenix\b(?!\s+(?:framework|live\s?view|apps?)\b)", re.I)
 
 
 def _lang_at(clause, pos):
@@ -672,11 +680,13 @@ def _team_hits(text):
                            text or "", flags=re.I):
         if _NOT_OWN.search(clause):
             continue
+        if not re.search(r"\belixir\b", clause, re.I):
+            clause = _PHOENIX_NAME.sub("-", clause)
         for lang, rx in _PRIMARY_RX.items():
             for m in rx.finditer(clause):
                 if not _COMPOUND.match(clause.lower(), m.end()) and _TEAM_NOUN.match(clause, m.end()):
                     out.add(lang)
-                    words.add(m.group(0).lower())
+                    words.add((lang, m.group(0).lower()))
         for v in _TEAM_VERB.finditer(clause):
             _walk_langs(clause, v.end(), out, False, words)
         for rx, need_noun in ((_EXP_BUILT, True), (_EXP_OTHER, False)):
@@ -685,7 +695,9 @@ def _team_hits(text):
                     _walk_langs(clause, v.end(), out, need_noun, words)
         for rx in _PRIMARY_RX.values():  # A4: "<list> experience"
             for m in rx.finditer(clause):
-                if _EXP_SUBJ.search(clause[:m.start()]) and not _EXP_THIN.search(clause[:m.start()]):
+                before = clause[:m.start()]
+                if (_EXP_SUBJ.search(before) and _EXP_POSS.search(before) and not _EXP_THIN.search(before)
+                        and not _EXP_NOT_NOW.search(clause)):
                     found, wset = set(), set()
                     end = _walk_langs(clause, m.start(), found, False, wset)
                     if _EXP_TRAIL.match(clause, end):
@@ -702,10 +714,12 @@ def primary_langs(text):
 
 
 @functools.lru_cache(maxsize=8)
-def team_frameworks(text):
-    """Knowledge-base candidate ids of the frameworks project.description names as the team's own (see TEAM_FRAMEWORKS)."""
+def team_frameworks(text, langs=None):
+    """Knowledge-base candidate ids of the frameworks project.description names as the team's own (see TEAM_FRAMEWORKS). With
+    langs (team.languages ids) a framework counts only if its language is listed: the description never adds a language."""
     words = _team_hits(text)[1]
-    return tuple(sorted({cid for w in words for rx, cids in TEAM_FRAMEWORKS if re.fullmatch(rx, w) for cid in cids}))
+    return tuple(sorted({cid for lang, w in words if langs is None or lang in langs
+                         for rx, cids in TEAM_FRAMEWORKS if re.fullmatch(rx, w) for cid in cids}))
 
 
 def _walk_langs(clause, pos, out, need_noun, words=None):
@@ -722,7 +736,7 @@ def _walk_langs(clause, pos, out, need_noun, words=None):
             return end
         out.add(hit[0])
         if words is not None:
-            words.add(hit[2])
+            words.add((hit[0], hit[2]))
         end = noun.end() if noun else end
         sep = _LIST_SEP.match(clause, end)
         if not sep:
@@ -859,7 +873,7 @@ def build(req):
     desc = (req["project.description"] or "").lower()
     # the description only promotes a language team.languages already lists; it never adds one
     c["desc"], c["primary_langs"] = dict(flags), [x for x in prim if x in c["langs"]]
-    c["team_frameworks"] = list(team_frameworks(req["project.description"] or ""))  # A4
+    c["team_frameworks"] = list(team_frameworks(req["project.description"] or "", tuple(c["langs"])))  # A4
     ex = []
     sentences = re.split(r"(?<=[.!?;])\s+|\n", desc)
     for raw in req["infrastructure.existing_systems"]:

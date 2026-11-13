@@ -73,6 +73,42 @@ class ChoiceEffect(unittest.TestCase):
         self.assertEqual(run("Booking tool. We have no Elixir experience.", ["elixir", "typescript"])[1],
                          run("Booking tool.", ["elixir", "typescript"])[1])
 
+    def test_wishes_hiring_and_past_experience_are_not_the_teams_skill(self):
+        # (description, team.languages, platforms): each names a framework in an "<X> experience" phrase that is not held today
+        mobile, web = ("android", "ios"), ("web",)
+        for desc, langs, plats in (("Habit app. We need Flutter experience on the team soon.", ["dart", "kotlin"], mobile),
+                                   ("Habit app. We want to gain Flutter experience.", ["dart", "kotlin"], mobile),
+                                   ("Booking tool. We are looking for Elixir/Phoenix experience.", ["elixir", "typescript"], web),
+                                   ("Booking tool. Years ago we had Rails experience.", ["ruby", "typescript"], web),
+                                   ("Booking tool. We would like to learn Django, nobody has experience yet.", ["python", "typescript"], web)):
+            with self.subTest(desc=desc):
+                self.assertEqual(team_frameworks(desc), (), desc)
+                self.assertEqual(primary_langs(desc), [], desc)
+                head = desc.split(". ")[0] + "."
+                self.assertEqual(run(desc, langs, plats)[:2], run(head, langs, plats)[:2])
+
+    def test_present_possession_still_fires_for_other_phrasings(self):
+        for desc, fws in (("We have strong Django experience.", ("python-django",)), ("The team is with solid Rails experience.", ("ruby-rails",)),
+                          ("Our developers have good Next.js experience.", ("nextjs",))):
+            with self.subTest(desc=desc):
+                self.assertEqual(team_frameworks(desc), fws)
+
+    def test_the_description_never_adds_a_language_the_team_does_not_list(self):
+        desc = "Team has solid Elixir/Phoenix experience."
+        self.assertEqual(team_frameworks(desc, ("elixir", "typescript")), ("elixir-phoenix",))
+        self.assertEqual(team_frameworks(desc, ("typescript",)), ())
+        self.assertEqual(team_frameworks("Both devs already build Flutter apps.", ("kotlin",)), ())
+        self.assertEqual(run("Booking tool. " + desc, ["typescript"])[:2], run("Booking tool.", ["typescript"])[:2])
+
+    def test_phoenix_the_city_is_not_the_elixir_framework(self):
+        for desc in ("Our Phoenix team has strong Django experience on a Phoenix, Arizona fleet.", "We are a Phoenix shop.",
+                     "Delivery in Phoenix, Arizona; our developers write in Phoenix daily."):
+            with self.subTest(desc=desc):
+                self.assertNotIn("elixir", primary_langs(desc))
+                self.assertNotIn("elixir-phoenix", team_frameworks(desc))
+        self.assertEqual(primary_langs("We use Phoenix LiveView for the UI."), ["elixir"])
+        self.assertEqual(team_frameworks("Our team writes Elixir and Phoenix."), ("elixir-phoenix",))
+
     def test_the_bonus_is_explained_in_the_justification(self):
         out = run("Habit app. Both devs already build Flutter apps.", ["dart", "kotlin"], ("android", "ios"))[2]
         self.assertIn("names Flutter as a framework the team already builds the mobile app with", out["stack"]["frontend"]["justification"])
