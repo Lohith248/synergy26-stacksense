@@ -1,0 +1,69 @@
+{
+  "scenario_id": "D09",
+  "project": {
+    "name": "TradeShelf",
+    "type": "ecommerce",
+    "description": "Wholesale ordering portal for the retailers who stock our tea brand: tiered price lists, net-30 invoices, reorder from history. Consumer sales stay on our Shopify store and inventory lives in NetSuite. The old Magento 1.9 wholesale site our agency built in 2015 is being switched off once this is live.",
+    "platforms": [
+      "web"
+    ]
+  },
+  "scale": {
+    "traffic_pattern": "steady",
+    "workload": "read_heavy",
+    "users_at_launch": 300,
+    "users_12_months": 1200,
+    "peak_concurrent_users": 80,
+    "data_volume_gb_12_months": 10
+  },
+  "team": {
+    "has_devops": false,
+    "size": 2,
+    "experience": "intermediate",
+    "languages": [
+      "typescript",
+      "javascript",
+      "php"
+    ]
+  },
+  "budget": {
+    "monthly_infra_usd": 250
+  },
+  "timeline": {
+    "mvp_weeks": 8
+  },
+  "infrastructure": {
+    "cloud_preference": "any",
+    "deployment_model": "managed_cloud",
+    "data_residency": "none",
+    "existing_systems": [
+      "Shopify (consumer storefront, stays)",
+      "Oracle NetSuite ERP",
+      "Magento 1.9 wholesale site (to be retired)"
+    ]
+  },
+  "requirements": {
+    "realtime": false,
+    "offline_support": false,
+    "full_text_search": true,
+    "file_media_storage": false,
+    "payments": true,
+    "auth": "email_password",
+    "multi_tenant": false,
+    "ml_features": "none",
+    "seo_critical": false,
+    "availability": "99.9",
+    "p95_latency_ms": 800
+  },
+  "compliance": [
+    "pci_dss"
+  ],
+  "priorities": {
+    "cost": 3,
+    "time_to_market": 4,
+    "scalability": 2,
+    "performance": 3,
+    "maintainability": 4,
+    "security": 3
+  }
+}

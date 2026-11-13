@@ -1,0 +1,64 @@
+{
+  "scenario_id": "D14",
+  "project": {
+    "name": "DeskBook",
+    "type": "internal_tool",
+    "description": "Hot-desk and meeting-room booking for a 40-person architecture office. Staff log in with their Google Workspace accounts, pick a desk on a floor plan and see who is in today.",
+    "platforms": [
+      "web"
+    ]
+  },
+  "scale": {
+    "traffic_pattern": "steady",
+    "workload": "read_heavy",
+    "users_at_launch": 40,
+    "users_12_months": 45,
+    "peak_concurrent_users": 15,
+    "data_volume_gb_12_months": 1
+  },
+  "team": {
+    "has_devops": false,
+    "size": 1,
+    "experience": "intermediate",
+    "languages": [
+      "python",
+      "javascript"
+    ]
+  },
+  "budget": {
+    "monthly_infra_usd": 25
+  },
+  "timeline": {
+    "mvp_weeks": 3
+  },
+  "infrastructure": {
+    "cloud_preference": "any",
+    "deployment_model": "managed_cloud",
+    "data_residency": "none",
+    "existing_systems": [
+      "Google Workspace"
+    ]
+  },
+  "requirements": {
+    "realtime": false,
+    "offline_support": false,
+    "full_text_search": false,
+    "file_media_storage": false,
+    "payments": false,
+    "auth": "enterprise_sso",
+    "multi_tenant": false,
+    "ml_features": "none",
+    "seo_critical": false,
+    "availability": "99",
+    "p95_latency_ms": 1000
+  },
+  "compliance": [],
+  "priorities": {
+    "cost": 5,
+    "time_to_market": 4,
+    "scalability": 1,
+    "performance": 2,
+    "maintainability": 4,
+    "security": 3
+  }
+}

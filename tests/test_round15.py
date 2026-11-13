@@ -91,7 +91,7 @@ class Item1PrimaryLanguageClaims(unittest.TestCase):
 
     def test_blind_rails_and_elixir_kept(self):
         for fn, want in (("B03_DuneCart.json", "ruby-rails"), ("B10_BidPulse.json", "elixir-phoenix")):
-            with open(os.path.join(ROOT, "..", "research", "blind3", fn), encoding="utf-8") as f:
+            with open(os.path.join(ROOT, "tests", "fixtures", "blind3", fn), encoding="utf-8") as f:
                 s = json.load(f)
             self.assertEqual(evaluate(s, counterfactuals=False)["stack"]["backend"]["kb_id"], want, fn)
 

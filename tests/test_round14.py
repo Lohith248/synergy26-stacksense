@@ -20,7 +20,7 @@ BASE = {"scenario_id": "R14", "project": {"type": "web_app", "platforms": ["web"
         "budget": {"monthly_infra_usd": 400}, "timeline": {"mvp_weeks": 10},
         "infrastructure": {"data_residency": "other"},
         "requirements": {"auth": "email_password"}}
-C14 = os.path.join(ROOT, "..", "research", "blind4", "C14_QuoteEdge.json")
+C14 = os.path.join(ROOT, "tests", "fixtures", "blind4", "C14_QuoteEdge.json")
 
 
 def S(base=BASE, **kw):

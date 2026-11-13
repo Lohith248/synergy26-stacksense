@@ -1,0 +1,62 @@
+{
+  "scenario_id": "C14",
+  "project": {
+    "name": "QuoteEdge",
+    "type": "api_platform",
+    "description": "Low-latency pricing and quote API used by trading and travel partners in North America, Europe and Asia. Every call must answer within 30 ms at p95 as seen by the customer, wherever they are.",
+    "platforms": [
+      "api_only"
+    ]
+  },
+  "scale": {
+    "traffic_pattern": "spiky",
+    "workload": "read_heavy",
+    "users_at_launch": 2000,
+    "users_12_months": 40000,
+    "peak_concurrent_users": 30000,
+    "data_volume_gb_12_months": 400
+  },
+  "team": {
+    "has_devops": true,
+    "size": 6,
+    "experience": "senior",
+    "languages": [
+      "go",
+      "rust"
+    ]
+  },
+  "budget": {
+    "monthly_infra_usd": 15000
+  },
+  "timeline": {
+    "mvp_weeks": 14
+  },
+  "infrastructure": {
+    "cloud_preference": "any",
+    "deployment_model": "managed_cloud",
+    "data_residency": "none",
+    "existing_systems": []
+  },
+  "requirements": {
+    "realtime": false,
+    "offline_support": false,
+    "full_text_search": false,
+    "file_media_storage": false,
+    "payments": false,
+    "auth": "email_password",
+    "multi_tenant": false,
+    "ml_features": "none",
+    "seo_critical": false,
+    "availability": "99.99",
+    "p95_latency_ms": 30
+  },
+  "compliance": [],
+  "priorities": {
+    "cost": 2,
+    "time_to_market": 3,
+    "scalability": 4,
+    "performance": 5,
+    "maintainability": 3,
+    "security": 3
+  }
+}

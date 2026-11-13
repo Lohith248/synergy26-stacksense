@@ -1,0 +1,67 @@
+{
+  "scenario_id": "D10",
+  "project": {
+    "name": "StackRoom",
+    "type": "web_app",
+    "description": "Replacement for the university library's inter-library loan and room booking app, currently a Perl CGI script from 2006 that nobody wants to touch. Students and staff already sign in to six campus apps through our Keycloak realm, and the library's PostgreSQL 16 server on a Compute Engine VM holds the catalogue data the new app must read.",
+    "platforms": [
+      "web"
+    ]
+  },
+  "scale": {
+    "traffic_pattern": "seasonal",
+    "workload": "read_heavy",
+    "users_at_launch": 4000,
+    "users_12_months": 18000,
+    "peak_concurrent_users": 600,
+    "data_volume_gb_12_months": 40
+  },
+  "team": {
+    "has_devops": true,
+    "size": 3,
+    "experience": "intermediate",
+    "languages": [
+      "python",
+      "java",
+      "sql"
+    ]
+  },
+  "budget": {
+    "monthly_infra_usd": 350
+  },
+  "timeline": {
+    "mvp_weeks": 10
+  },
+  "infrastructure": {
+    "cloud_preference": "gcp",
+    "deployment_model": "self_hosted_cloud_vm",
+    "data_residency": "none",
+    "existing_systems": [
+      "Keycloak (campus SSO realm)",
+      "PostgreSQL 16 on Compute Engine VM",
+      "Perl CGI loan app (to be replaced)"
+    ]
+  },
+  "requirements": {
+    "realtime": false,
+    "offline_support": false,
+    "full_text_search": true,
+    "file_media_storage": false,
+    "payments": false,
+    "auth": "enterprise_sso",
+    "multi_tenant": false,
+    "ml_features": "none",
+    "seo_critical": false,
+    "availability": "99.9",
+    "p95_latency_ms": 700
+  },
+  "compliance": [],
+  "priorities": {
+    "cost": 3,
+    "time_to_market": 3,
+    "scalability": 2,
+    "performance": 3,
+    "maintainability": 5,
+    "security": 4
+  }
+}

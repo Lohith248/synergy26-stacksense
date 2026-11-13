@@ -1,0 +1,68 @@
+{
+  "scenario_id": "D08",
+  "project": {
+    "name": "BillBridge",
+    "type": "fintech",
+    "description": "UPI bill-payment and recharge app for Indian customers paying Indian utilities. Our US investors want all production data in a single US region next to their analytics team.",
+    "platforms": [
+      "android",
+      "web"
+    ]
+  },
+  "scale": {
+    "traffic_pattern": "spiky",
+    "workload": "balanced",
+    "users_at_launch": 20000,
+    "users_12_months": 200000,
+    "peak_concurrent_users": 5000,
+    "data_volume_gb_12_months": 200
+  },
+  "team": {
+    "has_devops": true,
+    "size": 6,
+    "experience": "senior",
+    "languages": [
+      "java",
+      "kotlin",
+      "typescript"
+    ]
+  },
+  "budget": {
+    "monthly_infra_usd": 3000
+  },
+  "timeline": {
+    "mvp_weeks": 12
+  },
+  "infrastructure": {
+    "cloud_preference": "aws",
+    "deployment_model": "managed_cloud",
+    "data_residency": "us",
+    "existing_systems": []
+  },
+  "requirements": {
+    "realtime": false,
+    "offline_support": false,
+    "full_text_search": false,
+    "file_media_storage": false,
+    "payments": true,
+    "auth": "phone_otp",
+    "multi_tenant": false,
+    "ml_features": "none",
+    "seo_critical": false,
+    "availability": "99.95",
+    "p95_latency_ms": 400
+  },
+  "compliance": [
+    "rbi_localisation",
+    "pci_dss",
+    "dpdp"
+  ],
+  "priorities": {
+    "cost": 3,
+    "time_to_market": 3,
+    "scalability": 4,
+    "performance": 3,
+    "maintainability": 4,
+    "security": 5
+  }
+}

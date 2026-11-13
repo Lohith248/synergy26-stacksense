@@ -1,0 +1,64 @@
+{
+  "scenario_id": "D05",
+  "project": {
+    "name": "FleetRoute",
+    "type": "web_app",
+    "description": "Dispatch and route optimisation for a cold-chain delivery company in Java and Bali. Dispatchers plan next-day routes with time windows and vehicle capacities (vehicle routing solver runs nightly and re-optimises when orders change); drivers use an Android app that records GPS every 15 seconds and proof-of-delivery photos, and keeps working when signal drops. Our anchor customer is a state-owned enterprise whose contract requires all data to be stored inside Indonesia.",
+    "platforms": [
+      "web",
+      "android"
+    ]
+  },
+  "scale": {
+    "traffic_pattern": "steady",
+    "workload": "write_heavy",
+    "users_at_launch": 300,
+    "users_12_months": 1500,
+    "peak_concurrent_users": 600,
+    "data_volume_gb_12_months": 300
+  },
+  "team": {
+    "has_devops": false,
+    "size": 3,
+    "experience": "intermediate",
+    "languages": [
+      "python",
+      "kotlin",
+      "typescript"
+    ]
+  },
+  "budget": {
+    "monthly_infra_usd": 700
+  },
+  "timeline": {
+    "mvp_weeks": 12
+  },
+  "infrastructure": {
+    "cloud_preference": "any",
+    "deployment_model": "managed_cloud",
+    "data_residency": "other",
+    "existing_systems": []
+  },
+  "requirements": {
+    "realtime": true,
+    "offline_support": true,
+    "full_text_search": false,
+    "file_media_storage": true,
+    "payments": false,
+    "auth": "email_password",
+    "multi_tenant": false,
+    "ml_features": "none",
+    "seo_critical": false,
+    "availability": "99.9",
+    "p95_latency_ms": 800
+  },
+  "compliance": [],
+  "priorities": {
+    "cost": 3,
+    "time_to_market": 3,
+    "scalability": 3,
+    "performance": 4,
+    "maintainability": 4,
+    "security": 3
+  }
+}

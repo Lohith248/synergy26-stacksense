@@ -1,0 +1,63 @@
+{
+  "scenario_id": "B03",
+  "project": {
+    "name": "DuneCart",
+    "type": "ecommerce",
+    "description": "Online home-furnishing store selling in the UAE and Saudi Arabia, Arabic and English storefront. Local regulations require customer and order data to stay in the Gulf region (not in India, Europe or the US). Team is a Ruby on Rails shop.",
+    "platforms": [
+      "web",
+      "android"
+    ]
+  },
+  "scale": {
+    "traffic_pattern": "seasonal",
+    "workload": "read_heavy",
+    "users_at_launch": 5000,
+    "users_12_months": 80000,
+    "peak_concurrent_users": 900,
+    "data_volume_gb_12_months": 300
+  },
+  "team": {
+    "has_devops": false,
+    "size": 4,
+    "experience": "intermediate",
+    "languages": [
+      "ruby",
+      "javascript"
+    ]
+  },
+  "budget": {
+    "monthly_infra_usd": 800
+  },
+  "timeline": {
+    "mvp_weeks": 10
+  },
+  "infrastructure": {
+    "cloud_preference": "any",
+    "deployment_model": "managed_cloud",
+    "data_residency": "other",
+    "existing_systems": []
+  },
+  "requirements": {
+    "realtime": false,
+    "offline_support": false,
+    "full_text_search": true,
+    "file_media_storage": true,
+    "payments": true,
+    "auth": "email_password",
+    "multi_tenant": false,
+    "ml_features": "none",
+    "seo_critical": true,
+    "availability": "99.9",
+    "p95_latency_ms": 800
+  },
+  "compliance": [],
+  "priorities": {
+    "cost": 3,
+    "time_to_market": 4,
+    "scalability": 3,
+    "performance": 3,
+    "maintainability": 3,
+    "security": 3
+  }
+}

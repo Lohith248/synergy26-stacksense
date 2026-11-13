@@ -1,0 +1,62 @@
+{
+  "scenario_id": "D06",
+  "project": {
+    "name": "TurnTide",
+    "type": "gaming",
+    "description": "Asynchronous turn-based strategy game for phones: players take a turn, get a push notification when the opponent moves, and matches last days. Needs accounts, matchmaking by rating, leaderboards, cosmetic in-app purchases and cloud saves. Our client devs build in Unity.",
+    "platforms": [
+      "ios",
+      "android"
+    ]
+  },
+  "scale": {
+    "traffic_pattern": "spiky",
+    "workload": "balanced",
+    "users_at_launch": 20000,
+    "users_12_months": 250000,
+    "peak_concurrent_users": 15000,
+    "data_volume_gb_12_months": 120
+  },
+  "team": {
+    "has_devops": false,
+    "size": 3,
+    "experience": "intermediate",
+    "languages": [
+      "csharp"
+    ]
+  },
+  "budget": {
+    "monthly_infra_usd": 400
+  },
+  "timeline": {
+    "mvp_weeks": 12
+  },
+  "infrastructure": {
+    "cloud_preference": "any",
+    "deployment_model": "managed_cloud",
+    "data_residency": "none",
+    "existing_systems": []
+  },
+  "requirements": {
+    "realtime": false,
+    "offline_support": false,
+    "full_text_search": false,
+    "file_media_storage": false,
+    "payments": true,
+    "auth": "social",
+    "multi_tenant": false,
+    "ml_features": "none",
+    "seo_critical": false,
+    "availability": "99.9",
+    "p95_latency_ms": 400
+  },
+  "compliance": [],
+  "priorities": {
+    "cost": 4,
+    "time_to_market": 4,
+    "scalability": 4,
+    "performance": 3,
+    "maintainability": 3,
+    "security": 3
+  }
+}

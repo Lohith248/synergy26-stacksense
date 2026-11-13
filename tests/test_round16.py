@@ -15,7 +15,7 @@ from engine.run import evaluate  # noqa: E402
 from engine.context import desc_signals, primary_langs  # noqa: E402
 from test_round9 import PUBLIC, dump  # noqa: E402
 
-BLIND5 = os.path.join(ROOT, "..", "research", "blind5")
+BLIND5 = os.path.join(ROOT, "tests", "fixtures", "blind5")
 
 
 def blind(fn):

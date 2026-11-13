@@ -1,0 +1,67 @@
+{
+  "scenario_id": "D11",
+  "project": {
+    "name": "GateRush",
+    "type": "ecommerce",
+    "description": "Ticketing for music festivals and club nights. Tickets go on sale at announced times and sell out in minutes, so we need a fair queue and no overselling. We are moving away from PHP: the old Laravel monolith keeps falling over on sale days, and every new service since last year is TypeScript.",
+    "platforms": [
+      "web",
+      "android",
+      "ios"
+    ]
+  },
+  "scale": {
+    "traffic_pattern": "spiky",
+    "workload": "write_heavy",
+    "users_at_launch": 50000,
+    "users_12_months": 400000,
+    "peak_concurrent_users": 40000,
+    "data_volume_gb_12_months": 80
+  },
+  "team": {
+    "has_devops": true,
+    "size": 6,
+    "experience": "senior",
+    "languages": [
+      "php",
+      "typescript",
+      "javascript"
+    ]
+  },
+  "budget": {
+    "monthly_infra_usd": 2500
+  },
+  "timeline": {
+    "mvp_weeks": 14
+  },
+  "infrastructure": {
+    "cloud_preference": "any",
+    "deployment_model": "managed_cloud",
+    "data_residency": "none",
+    "existing_systems": []
+  },
+  "requirements": {
+    "realtime": true,
+    "offline_support": false,
+    "full_text_search": false,
+    "file_media_storage": false,
+    "payments": true,
+    "auth": "email_password",
+    "multi_tenant": false,
+    "ml_features": "none",
+    "seo_critical": true,
+    "availability": "99.95",
+    "p95_latency_ms": 300
+  },
+  "compliance": [
+    "pci_dss"
+  ],
+  "priorities": {
+    "cost": 3,
+    "time_to_market": 3,
+    "scalability": 5,
+    "performance": 4,
+    "maintainability": 4,
+    "security": 4
+  }
+}
