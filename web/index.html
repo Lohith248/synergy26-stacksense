@@ -355,7 +355,9 @@ const LABELS = {
   "priorities.cost": "Low running cost", "priorities.time_to_market": "Fast delivery", "priorities.scalability": "Scalability", "priorities.performance": "Performance",
   "priorities.maintainability": "Maintainability", "priorities.security": "Security",
 };
-const MARGIN_TIP = "Score points: the gap between the best and second-best option on the engine's weighted score. A bigger gap means a clearer win.";
+// The number stays in the tooltip; the visible text is qualitative (same 1.5 threshold as the engine's "(close call)").
+const marginWord = m => m < 0 ? "chosen for team skill" : m < 1.5 ? "close call" : "clear lead";
+const marginTip = m => `Score margin ${m}: the gap between the best and second-best option on the engine's weighted score. A bigger gap means a clearer win.`;
 const SEVG = {critical: "▲", warning: "●", info: "○"}, SEVORD = {critical: 0, warning: 1, info: 2};
 const SECTIONS = [
   ["project", "Project", f => f.path === "scenario_id" || f.path.startsWith("project."), ""],
@@ -688,7 +690,7 @@ function layerPanel(doc, key, label, c, chg) {
       layerFacts(c),
       c.driven_by && c.driven_by.length ? h("div", {}, h("h4", {text: "Driven by"}), chipList(c.driven_by)) : null,
       c.contrast ? h("div", {}, h("h4", {text: "Why this over the runner-up"}), h("p", {class: "wrap", text: c.contrast})) : null,
-      c.score_margin !== undefined ? h("div", {class: "muted", title: MARGIN_TIP, text: `Margin over runner-up: ${c.score_margin} score points.`}) : null,
+      c.score_margin !== undefined ? h("div", {class: "muted", title: marginTip(c.score_margin), text: `Margin over runner-up: ${marginWord(c.score_margin)}.`}) : null,
       c.confidence && c.confidence.basis ? h("div", {class: "muted wrap", text: "Confidence basis: " + c.confidence.basis}) : null,
       stabilityBlock(c.stability),
       c.pareto ? h("div", {}, h("h4", {text: "Pareto check"}), h("div", {class: "wrap"}, h("b", {text: c.pareto.optimal ? "Pareto-optimal. " : "Dominated by " + (c.pareto.dominated_by || []).join(", ") + ". "}), c.pareto.note)) : null,
@@ -800,7 +802,7 @@ function renderDoc(i) {
     const lc = chg && chg.changes.find(x => x.layer === k);
     return h("button", {type: "button", class: "gcard", onclick: () => { const p = $("layer-" + k); p.open = true; p.scrollIntoView({behavior: REDUCED ? "auto" : "smooth", block: "start"}); p.querySelector("summary").focus({preventScroll: true}); }},
       h("span", {class: "l", text: n}), h("span", {class: "c", text: c.choice}), confBadge(c.confidence),
-      c.score_margin !== undefined ? h("span", {class: "m", title: MARGIN_TIP, text: `${c.score_margin} score points ahead of runner-up`}) : null,
+      c.score_margin !== undefined ? h("span", {class: "m", title: marginTip(c.score_margin), text: `${marginWord(c.score_margin)} over runner-up`}) : null,
       c.region || (c.provider && c.provider !== "neutral") ? h("span", {class: "m", text: [c.provider !== "neutral" ? c.provider : null, c.region].filter(Boolean).join(" / ")}) : null,
       lc ? h("span", {class: "chg", text: "Changed: was " + (lc.was || "none")}) : null);
   })));

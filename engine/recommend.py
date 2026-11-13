@@ -179,7 +179,7 @@ def pareto(cand, ranked_ok):
 
 PRIO_BETTER = {"cost": "cheaper to run", "time_to_market": "faster to deliver with", "scalability": "built to scale further",
                "performance": "faster at runtime", "maintainability": "easier to maintain", "security": "stronger on security"}
-CLOSE_CALL = 1.5  # a gap below this many score points is reported as "(close call)"; the number itself is in score_margin
+CLOSE_CALL = 1.5  # a score gap below this is reported as "(close call)"; the number itself is only in score_margin
 
 
 def _licence_filler(a, ctx):
@@ -274,7 +274,7 @@ def why_not(win, alt, ctx=None):
     if total < 0:
         langs = ctx and ",".join(ctx["langs"])
         return (f"Rates higher on the weighted priorities, but the team-language preference keeps {win.item['name']}"
-                + (f" (team.languages={langs})" if langs else "") + f" within the {SKILL_BAND}-point switching-cost band."
+                + (f" (team.languages={langs})" if langs else "") + " within the switching-cost band of changing the team's language."
                 + known_limit(alt, ctx, always=True))
     if total < 0.1:
         return (f"Tied with {wn}; the stable id-based tie-break keeps the result deterministic, so either is defensible."
@@ -496,8 +496,8 @@ def _recommend(req, assumptions, sid):
             fit = next((c for c in b_ok if set(c.item["langs"]) & team), None)
             if fit and backend_c.score - fit.score <= SKILL_BAND:
                 # switching language has costs the scores do not capture (ramp-up, hiring, review quality)
-                assumptions.append(f"{fit.item['name']} uses the team's language and is within {SKILL_BAND:g} points of "
-                                   f"{backend_c.item['name']} ({fit.score} vs {backend_c.score}); team skill is preferred inside that band.")
+                assumptions.append(f"{fit.item['name']} uses the team's language and ranks behind {backend_c.item['name']} by less than the ramp-up "
+                                   "cost of switching languages, so team skill is preferred.")
                 b_ok.remove(fit)
                 b_ok.insert(0, fit)
                 backend_c = fit
@@ -507,7 +507,7 @@ def _recommend(req, assumptions, sid):
         fit = next((c for c in b_ok if set(c.item["langs"]) & set(ctx["langs"])), None)
         W("SKILL_MISMATCH", "warning",
           f"{backend['name']} is not in the team's languages ({', '.join(ctx['langs'])}); it was chosen for the stated priorities and requirements. "
-          + (f"The best skill-matched option, {fit.item['name']}, scored {round(backend_c.score - fit.score, 1)} points lower: "
+          + (f"The best skill-matched option, {fit.item['name']}, ranks lower: "
              f"{why_not(backend_c, fit, ctx)} Choose it if ramp-up time matters more." if fit else "No option in the knowledge base uses the team's languages.")
           + " Budget training time into the timeline.",
           ["team.languages", "team.experience"])
@@ -630,7 +630,7 @@ def _recommend(req, assumptions, sid):
         if "rbi_localisation" in ctx["compliance"] and db_c.vkey != "self":
             db_cmp["justification"] += f" Automated backups and snapshots stay in {db_region or 'the Indian region'} (no cross-region copies), as RBI localisation requires."
             db_cmp["driven_by"] = order_paths(db_cmp["driven_by"] + ["compliance"])
-        if ctx["desc"]["gps_media"] and db_c.id in ("postgresql", "supabase"):
+        if ctx["desc"]["gps"] and db_c.id in ("postgresql", "supabase"):
             db_cmp["justification"] += " GPS coordinates are stored as PostGIS geography points, so area and distance queries run in the database."
             db_cmp["driven_by"] = order_paths(db_cmp["driven_by"] + ["project.description"])
             db_cmp["sources"] = db_cmp["sources"] + cite(["postgis"])
@@ -687,7 +687,7 @@ def _recommend(req, assumptions, sid):
             light = next((c for c in m_ok[1:] if c.item["low_end"] >= 5), None)
             fe_why.append(f"Low-end devices: {mob.item['name']} adds a JavaScript runtime, so keep the bundle small, use the default Hermes engine, "
                           "lazy-load screens and profile memory on a 2 GB phone"
-                          + (f"; {light.item['name']} ({round(mob.score - light.score, 1)} points behind) is the fallback if memory is tight." if light else "."))
+                          + (f"; {light.item['name']} is the fallback if memory is tight, though it ranks lower here: {_lower1(why_not(mob, light, ctx))}" if light else "."))
             fe_src.append(cite(["rn-hermes"])[0])
     if ctx["desktop"]:
         if web:

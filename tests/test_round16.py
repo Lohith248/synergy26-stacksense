@@ -66,7 +66,7 @@ class Item1ExperiencePhrasing(unittest.TestCase):
 
 class Item2GpsAcronym(unittest.TestCase):
     def test_unit(self):
-        g = lambda d: desc_signals(d)[0]["gps_media"]  # noqa: E731
+        g = lambda d: any(desc_signals(d)[0][k] for k in ("gps", "media"))  # noqa: E731  (signal split into gps + media, 13 Nov)
         for d in ("Appointment booking for independent GPs and physiotherapists.", "Our gps practice list.",
                   "Phototherapy clinic bookings.", "A telephoto lens shop catalogue."):
             self.assertFalse(g(d), d)

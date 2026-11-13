@@ -277,7 +277,7 @@ def backend_candidates(ctx, host):
         if ctx["ms_idp"] and b["id"] == "dotnet-aspnet":  # Microsoft identity only; Okta/Auth0/... are framework-neutral OIDC
             c.add("existing_idp", 2, "infrastructure.existing_systems", "Microsoft.Identity.Web for Entra ID")
         if ctx["desc"]["ledger"] or req["project.type"] == "fintech":
-            c.add("ledger", (b["enterprise"] - 3) * 1.0, "project.type",
+            c.add("ledger", (b["enterprise"] - 3) * 1.0, "project.type" if req["project.type"] == "fintech" else "project.description",
                   "strong transactional frameworks for money movement" if b["enterprise"] >= 4 else "less transaction tooling")
         cands.append(c)
     return cands
@@ -357,7 +357,9 @@ def database_candidates(ctx, host, backend):
                     "ecommerce": "orders, stock and payments"}.get(req["project.type"], "payments and the records they change")
             if ctx["desc"]["ledger"]:
                 what = "money movement and ledger postings"
-            c.add("acid", (d["acid"] - 3) * 2.5, "requirements.payments",
+            # cite the input that triggered the term, not payments when payments is off
+            why_path = "requirements.payments" if req["requirements.payments"] else "project.description" if ctx["desc"]["ledger"] else "project.type"
+            c.add("acid", (d["acid"] - 3) * 2.5, why_path,
                   f"strict ACID transactions for {what}" if d["acid"] >= 4 else f"weaker multi-record transactions for {what}")
         if req["scale.workload"] == "write_heavy":
             c.add("write", (d["write"] - 3) * 1.5, "scale.workload", "handles write-heavy load" if d["write"] >= 4 else "write throughput limits")

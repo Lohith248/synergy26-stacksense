@@ -1,4 +1,5 @@
 """Derived signals from validated input. Every derived value records the input paths it came from."""
+import bisect
 import copy
 import functools
 import re
@@ -24,9 +25,14 @@ DESC_RULES = [
     ("chat", r"\bchat|messag"),
     ("collab", r"same board|collaborat|live cursor|multiplayer|co-edit|whiteboard"),
     ("markdown", r"markdown|\bmdx?\b"),
-    # "GPs" (doctors) is not GPS: lower-case gps needs a location word; upper-case GPS is added in desc_signals
-    ("gps_media", r"\bgps[- ](?:track\w*|coordinates?|locations?|positions?|fix(?:es)?|pings?|tag\w*|enabled|data|traces?)\b"
-                  r"|\bphotos?\b|\bphotograph\w*|\bcameras?\b|\bgeo-?tag"),
+    # "GPs" (doctors) is not GPS: lower-case gps needs a location word; upper-case GPS is added in desc_signals.
+    # gps = a location is recorded; media = photos or cameras. A photo is not a position (and the reverse).
+    ("gps", r"\bgps[- ](?:track\w*|coordinates?|locations?|positions?|fix(?:es)?|pings?|tag\w*|enabled|data|traces?)\b"
+            r"|\bgeo-?tag|\blat(?:itude)?\s*(?:/|,|and|&)\s*long(?:itude)?\b|\b(?:gps|geo\w*|map|location)[- ]coordinates?\b"),
+    ("media", r"\bphotos?\b|\bphotograph\w*|\bcameras?\b"),
+    # words that let a signal's text name lending only when the input does
+    ("lending", r"\bloans?\b|\blend(?:ing|er|ers)?\b|\bborrowers?\b"),
+    ("emi", r"\bemi\b"),
     ("low_bandwidth", r"\b2g\b|\b3g\b|intermittent|low bandwidth|poor (?:network|connectivity)|no signal|signal is available"),
     ("low_end", r"low-end|low end|2 ?gb ram|1 ?gb ram|budget phones?"),
     ("approvals", r"approv|leave request|workflow"),
@@ -42,6 +48,133 @@ DESC_RULES = [
     ("scheduler", r"remind(?:er)?s?\b|\bcron\b|nightly|scheduled (?:jobs?|tasks?|emails?)|daily (?:email|digest|report)s?"),
     ("analytics", r"dashboards?|\breports?\b|analysts?|\bbi\b|ad-hoc (?:sql|quer)|data warehouse"),
 ]
+
+# Negation guard shared by every description signal (one helper, not one per signal). A hit counts unless a negation reaches it
+# inside its own clause: before it ("no chat", "do not need a ledger", "without KYC") or right after it ("cameras are out of
+# scope", "chat: not needed"). Clauses end at punctuation, at "but/however/yet/so/because/since/who/which/that" and at
+# "..., and we/now/need ...". A short list ("no in-app chat or messaging", "not adding payments, UPI or cards") shares one cue.
+# A negation does not apply when
+#   (a) it is a double negation ("cannot ... without KYC", "nothing ships without approval"); "without" negates only when a word
+#       comes before it in its sentence ("an app without chat"), so "Without KYC, no account opens" is a requirement,
+#   (b) a loss or omission verb sits between the cue and the hit or follows it ("must not lose a ledger entry", "no messages are lost"),
+#   (c) the negation is a prohibition or a complaint, not a scope decision: an imperative ("Do not send alerts", "Never assign two
+#       jobs"), the rest of the clause says without/unless/until, the negation is about the past ("never used one before") or about
+#       today ("Today, staff cannot chat"). Scope verbs ("do not need/plan/build/add ...") and "not needed" stay negations.
+# Known limit: a negator more than one word before the hit (or 5 after a scope verb) is not seen, so the signal fires (a missed
+# negation adds one supporting service; a false negation would drop a stated requirement). Only a window of _SCAN characters
+# around each hit is examined, so cost is linear in the text length.
+_SCAN = 120
+_CLAUSE_BREAK = re.compile(r"[.!?;:,\n()\[\]]|\s[-\u2013\u2014]+\s"
+                           r"|\b(?:but|however|although|though|yet|whereas|while|instead|so|because|since|who|which|that)\b"
+                           r"|\band\s+(?:we|they|you|it|i|now|then|also|need|want|require)\b")
+# a modal verb ends a relative clause ("users who don't have phones can still chat"): a negation does not reach past it;
+# a hyphenated compound ("in-app") is one word
+_W = r"(?:\W+(?!(?:can|could|will|would|should|may|might|must|shall)\b)\w+(?:-\w+)*)"
+# kind "plain": reaches at most one word ("not chat", "no in-app chat"); "scope": a scope verb reaches further
+_STRONG = (
+    ("plain", re.compile(r"(?P<cue>\b(?:not|never|neither|nor|cannot)\b(?!\W+(?:only|just|merely|even)\b)|n't\b|\bno need(?: for| of)?\b"
+                         r"|\bout of scope\b|\bno longer\b|\bdecided against\b|\brul(?:e|ed) out\b"
+                         r"|(?<!can )(?<!may )(?<!could )(?<!might )\bskip(?:ping)?\b)" + _W + r"{0,1}\W*$")),
+    ("scope", re.compile(r"(?P<cue>\b(?:not|never)\b|n't\b)\W+(?:plan|want|intend|build|need|use|include|require|support|add|offer"
+                         r"|provide|allow|implement)\w*" + _W + r"{0,5}\W*$")),
+    ("scope", re.compile(r"(?P<cue>\b(?:will|shall|would) not|\bwon't|\bwouldn't)\W+be\W+(?:any|an?|the)" + _W + r"{0,1}\W*$")),
+    ("plain", re.compile(r"(?P<cue>\bnobody\b|\bno one\b|\bnone of\b)" + _W + r"{0,3}\W*$")),
+    ("plain", re.compile(r"(?P<cue>\bno\b(?![- ]?code))" + _W + r"{0,2}(?:\W+(?:or|and|nor))?\W*$")),
+)
+_WEAK = re.compile(r"(?P<cue>\b(?:without|excluding|except)\b)" + _W + r"{0,4}\W*$")
+_ANY_NEGATOR = re.compile(r"\b(?:not|never|no|neither|nor|cannot|nobody|nothing|none|no one)\b|n't\b")
+_IMPERATIVE = re.compile(r"\W*(?:do\W*)?$")
+_LOSS = re.compile(r"\b(?:lose|loses|losing|lost|miss|misses|missed|missing|skip(?:s|ped|ping)?|bypass(?:es|ed|ing)?"
+                   r"|delete[sd]?|deleting|drop(?:s|ped|ping)?|leak(?:s|ed|ing|age)?|alter(?:s|ed|ing)?|edit(?:s|ed|ing)?"
+                   r"|wait(?:s|ed|ing)?|forget(?:s|ting)?|forgot(?:ten)?|omit(?:s|ted|ting)?)\b")
+_LATER_COND = re.compile(r"\b(?:without|unless|until)\b")
+_PAST_AFTER = re.compile(r"\W*(?:before|previously|so far|until now|in the past)\b")
+_NOW = re.compile(r"\b(?:today|currently|right now|at the moment|at present|as it stands|yet)\b")
+_LABEL = re.compile(r"\s*(?::|[-\u2013\u2014]+\s)")
+_LIST_NEXT = re.compile(r"\s*(?:or|and|nor)\b")
+_LIST_LAST = re.compile(r"\W*(?:or|and|nor)\W*$")
+_CONJ_OPEN = re.compile(r"(?:but|yet|while|whereas|although|though|however|instead|and\b.*)$")
+_NEG_AFTER = re.compile(r"\W*(?:\w+\W+){0,2}?(?:(?:is|are|was|were|will be|would be|stays?|remains?)\s+)?"
+                        r"(?:out of scope|ruled out|excluded|decided against|not a (?:requirement|priority|goal)"
+                        r"|(?:not|no longer)\s+(?:needed|required|necessary|in scope|supported|used|planned|wanted|part)"
+                        r"|(?:isn't|aren't|wasn't|weren't)\s+(?:needed|required|necessary|in scope|supported|used|planned|wanted))")
+
+
+def clause_breaks(low):
+    spans = [m.span() for m in _CLAUSE_BREAK.finditer(low)]
+    return [b[0] for b in spans], [b[1] for b in spans]
+
+
+def _cue(pre, opening):
+    """The negation cue reaching the end of pre: (match, kind) with kind plain/scope/weak, or (None, None)."""
+    found = []
+    for kind, rx in _STRONG:
+        m = rx.search(pre)
+        if not m:
+            continue
+        before = pre[:m.start("cue")]
+        word = m.group("cue")
+        # an imperative prohibition ("Do not send alerts", "Never assign two jobs") states a rule, not a scope decision
+        if kind == "plain" and _IMPERATIVE.match(before) and (
+                word == "never" or (before.strip() and word in ("not", "n't") and re.search(r"\w", pre[m.end("cue"):]))):
+            continue
+        found.append((m, kind))
+    strong = min(found, key=lambda t: (t[0].start(), t[1] != "scope")) if found else None
+    weak = _WEAK.search(pre)
+    if weak and weak.group("cue") != "excluding":
+        # "without"/"except" negate only after a word ("an app without chat"); "Without KYC, no account opens" is a requirement
+        if not re.search(r"\w", pre[:weak.start("cue")]) and not _CONJ_OPEN.match(opening):
+            weak = None
+    if weak and not strong and _ANY_NEGATOR.search(pre, 0, weak.start("cue")):
+        weak = None  # double negation
+    if strong and not weak:
+        return strong
+    if weak and not strong:
+        return weak, "weak"
+    return None, None
+
+
+def negated_at(low, breaks, start, end):
+    """True when low[start:end] sits in a clause that negates it (see the rules above)."""
+    starts, ends = breaks
+    i = bisect.bisect_right(ends, start)
+    j = bisect.bisect_left(starts, end)
+    ce = starts[j] if j < len(starts) else len(low)
+    post = low[end:min(ce, end + _SCAN)]
+    for _ in range(3):
+        cs = ends[i - 1] if i else 0
+        pre = low[max(cs, start - _SCAN):start]
+        opening = low[starts[i - 1]:ends[i - 1]].strip() if i else ""
+        cue, kind = _cue(pre, opening)
+        # a comma list shares one cue: "not adding payments, UPI or cards"
+        if cue or not i or opening != "," or not (_LIST_NEXT.match(post) or _LIST_LAST.match(pre)):
+            break
+        i -= 1
+    if cue:
+        neg = not _LOSS.search(pre, cue.end("cue"))
+    else:
+        kind = "after"
+        label = post if post.strip() else low[end:end + _SCAN] if _LABEL.match(low, end) else ""
+        neg = bool(_NEG_AFTER.match(label.split(".")[0] if label else post))
+    if not neg or _LOSS.search(post) or _PAST_AFTER.match(post):
+        return False
+    if kind != "weak" and _LATER_COND.search(post):
+        return False
+    if kind == "plain":  # today's problem is a requirement ("Today, staff cannot chat")
+        sp = low[max(0, start - 2 * _SCAN):start]
+        sp = sp[max(map(sp.rfind, ".!?;\n")) + 1:]
+        sq = low[end:end + 2 * _SCAN]
+        m = re.search(r"[.!?;\n]", sq)
+        if _NOW.search(sp + " " + (sq[:m.start()] if m else sq)):
+            return False
+    return True
+
+
+def live_hit(rx, text, low, breaks, flags=0):
+    """rx matches text outside every negated clause (low = lower-cased text of the same length, breaks = clause_breaks(low))."""
+    same = len(text) == len(low)
+    return any(not (same and negated_at(low, breaks, m.start(), m.end())) for m in re.finditer(rx, text, flags))
+
 
 # An existing system the input says must not be replaced (entry text or a description sentence naming it).
 # STRONG: a negated removal ("cannot be migrated") is a keep even though it contains a removal verb.
@@ -395,9 +528,10 @@ def _walk_langs(clause, pos, out, need_noun):
 def desc_signals(desc):
     """Description flags (lower-cased text) and primary languages (original case: 'Go' vs 'go'), computed once per
     description: counterfactual reruns rebuild the context ~125 times with the same (up to 20,000-character) text."""
-    low = desc.lower()
-    flags = {flag: bool(re.search(rx, low)) for flag, rx in DESC_RULES}
-    flags["gps_media"] = flags["gps_media"] or bool(re.search(r"\bGPS\b", desc))
+    low = desc.lower().replace("\u2019", "'")
+    breaks = clause_breaks(low)
+    flags = {flag: live_hit(rx, low, low, breaks) for flag, rx in DESC_RULES}
+    flags["gps"] = flags["gps"] or live_hit(r"\bGPS\b", desc, low, breaks)
     return flags, tuple(primary_langs(desc))
 
 

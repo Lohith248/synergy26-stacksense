@@ -216,7 +216,7 @@ def build(ctx, host, backend, db, mobile, warn):
                                "self_hosted" if kc else "library", "neutral", kc, Z, ["keycloak"], loc))
 
     # ---------------- storage
-    if req["requirements.file_media_storage"] or d["gps_media"] or d["kyc"]:
+    if req["requirements.file_media_storage"] or d["media"] or d["kyc"]:
         dp = ["requirements.file_media_storage"] + res_path
         extra = " Private bucket, server-generated signed URLs, encryption with managed keys." if (d["kyc"] or ctx["compliance"]) else " Private bucket with signed upload/download URLs."
         if selfh:
@@ -235,7 +235,7 @@ def build(ctx, host, backend, db, mobile, warn):
                 alt.append(("Cloudflare R2", f"zero egress fees, but a second vendor outside {p.upper()}"))
             reg = region or (host["regions"].get("india") if loc == "india" else None)
             out.append(svc("storage", f"{name}{(' (' + reg + ')') if reg else ''}",
-                           f"Uploads ({'GPS-tagged photos' if d['gps_media'] else 'images, documents'}) go straight from clients to object storage via signed URLs.{extra}",
+                           f"Uploads ({'GPS-tagged photos' if d['gps'] and d['media'] else 'photos' if d['media'] else 'images, documents'}) go straight from clients to object storage via signed URLs.{extra}",
                            dp, alt, ["Egress charges for heavy downloads"], "managed", prov, True,
                            [[0, 2], [1, 10], [10, 80], [80, 600]], ["aws-india-data", "gcp-storage-locations", "azure-regions"], loc))
 
@@ -372,7 +372,7 @@ def build(ctx, host, backend, db, mobile, warn):
 
     # ---------------- queue
     need_queue = (req["requirements.payments"] and ctx["tier"] >= 2) or req["requirements.ml_features"] == "training" or (
-        req["scale.workload"] == "write_heavy" and ctx["tier"] >= 2) or (req["requirements.offline_support"] and d["gps_media"]) or d["video_vod"]
+        req["scale.workload"] == "write_heavy" and ctx["tier"] >= 2) or (req["requirements.offline_support"] and d["media"]) or d["video_vod"]
     eq = ctx["existing_queue"]
     # an existing broker is reused when the design needs a queue, devices stream into it, or the input says it must stay;
     # otherwise it is only noted (no queue layer the application would not use)
@@ -403,8 +403,8 @@ def build(ctx, host, backend, db, mobile, warn):
             why.append("payment webhooks and ledger postings processed idempotently with retries")
         if d["video_vod"]:
             why.append("video transcoding jobs queued after each upload")
-        if req["requirements.offline_support"] and d["gps_media"]:
-            why.append("photo post-processing (thumbnails, EXIF/GPS extraction) after bursts of offline syncs")
+        if req["requirements.offline_support"] and d["media"]:
+            why.append(f"photo post-processing (thumbnails, EXIF{'/GPS' if d['gps'] else ''} extraction) after bursts of offline syncs")
         if req["scale.workload"] == "write_heavy" and ctx["tier"] >= 2:
             why.append("absorbs write bursts")
         if req["requirements.ml_features"] == "training":
@@ -453,8 +453,11 @@ def build(ctx, host, backend, db, mobile, warn):
             elif india:
                 name = "Razorpay (UPI, cards, netbanking)"
                 if d["payouts"] or ctx["type"] == "marketplace":
-                    lend = ctx["type"] == "fintech" or bool(re.search(r"loan|disburs|lend", (req["project.description"] or "").lower()))
-                    feats.append("RazorpayX Payouts for UPI loan disbursals to borrowers" if lend else "Route/RazorpayX Payouts to pay service providers")
+                    low = (req["project.description"] or "").lower()
+                    payee = next((n for rx, n in ((r"(?<!cloud )(?<!hosting )(?<!payment )(?<!internet )(?<!identity )(?<!email )\bproviders?\b", "service providers"),
+                                                  (r"\bsellers?\b", "sellers"), (r"\bvendors?\b", "vendors"), (r"\bmerchants?\b", "merchants")) if re.search(rx, low)),
+                                 "service providers" if ctx["type"] == "marketplace" else "recipients")
+                    feats.append("RazorpayX Payouts for UPI loan disbursals to borrowers" if d["lending"] else f"Route/RazorpayX Payouts to pay {payee}")
                     extra_src += ["razorpay-route", "razorpayx-payouts"]
                 if d["recurring"]:
                     feats.append("Subscriptions with UPI AutoPay / e-mandate for recurring collections")
@@ -469,7 +472,7 @@ def build(ctx, host, backend, db, mobile, warn):
                     feats.append("Stripe Billing with per-seat subscription quantities")
                     extra_src += ["stripe-quantities", "stripe-billing-pricing"]
                 if d["payouts"] or ctx["type"] == "marketplace":
-                    feats.append("Stripe Connect for marketplace payouts")
+                    feats.append("Stripe Connect for " + ("marketplace " if ctx["type"] == "marketplace" else "") + "payouts")
                 alts = [("Paddle (merchant of record)", "handles global tax but higher fees and less control"),
                         ("Adyen", "enterprise pricing/onboarding for this size")]
                 src = ["stripe-billing-pricing"] + extra_src
@@ -478,7 +481,7 @@ def build(ctx, host, backend, db, mobile, warn):
                    "Payment confirmation is trusted only from signed server-side webhooks.")
             if d["upi"]:
                 why = "The description requires UPI. " + why
-            if ctx["type"] == "fintech" and d["ledger"]:
+            if ctx["type"] == "fintech" and d["ledger"] and d["lending"]:
                 why += (" For lending, disburse straight to the borrower's bank account and collect repayments directly into the "
                         "lender's (regulated entity's) account — no pooled pass-through accounts (RBI Digital Lending Directions 2025).")
                 src += ["rbi-digital-lending"]
@@ -665,13 +668,13 @@ def build(ctx, host, backend, db, mobile, warn):
                 else "server applies last-writer-wins per field with an edit log"]
         if mobile and ctx["web"]:
             bits.append("the web client caches its app shell with a service worker and queues writes in IndexedDB with the same outbox rules")
-        if d["gps_media"]:
+        if d["media"]:
             bits.append("photos are compressed on-device and uploaded with resumable chunks")
         if d["low_bandwidth"]:
             bits.append("sync batches are small and compressed for 2G/3G")
         out.append(svc("other", f"Offline-first sync: {local}, outbox + idempotent sync API",
                        "Must work without connectivity: " + "; ".join(bits) + ".",
-                       ["requirements.offline_support"] + (["project.description"] if (d["gps_media"] or d["low_bandwidth"]) else []),
+                       ["requirements.offline_support"] + (["project.description"] if (d["media"] or d["low_bandwidth"]) else []),
                        [("Firebase Firestore offline cache", "convenient but ties data to Google's global service and its pricing"),
                         ("Online-only app", "fails the stated offline requirement")],
                        ["Conflict resolution rules must be agreed with field teams", "Device storage limits on low-end phones"],
@@ -710,9 +713,13 @@ def build(ctx, host, backend, db, mobile, warn):
                        ["requirements.multi_tenant"], [("Database per tenant", "strong isolation but heavy operations for thousands of small teams")],
                        ["Every new table needs a policy"], "library", "neutral", False, Z, ["postgres-rls"]))
     if d["ledger"]:
+        # name only the money flows the input names
+        parts = (["Loan disbursals"] if d["lending"] else []) + (["EMI collections"] if d["emi"] else [])
+        flows = " and ".join(parts) if parts else "Every money movement"
         out.append(svc("other", "Double-entry ledger module (append-only journal, SERIALIZABLE transactions, idempotency keys)",
-                       "Loan disbursals and EMI collections post balanced debit/credit entries that are never updated in place; reconciliation compares the ledger with gateway settlement reports.",
-                       ["project.description", "requirements.payments"], [("Balance columns updated in place", "no audit trail and race conditions")],
+                       f"{flows} {'post' if parts else 'posts'} balanced debit/credit entries that are never updated in place; reconciliation compares the ledger with "
+                       f"{'gateway settlement reports' if req['requirements.payments'] else 'the source records'}.",
+                       ["project.description"] + (["requirements.payments"] if req["requirements.payments"] else []), [("Balance columns updated in place", "no audit trail and race conditions")],
                        ["Corrections are reversing entries, not edits"], "library", "neutral", True, Z, ["postgres-versioning"], loc))
     if d["kyc"]:
         out.append(svc("other", "KYC document vault (private encrypted bucket) + regulated KYC verification partner",
