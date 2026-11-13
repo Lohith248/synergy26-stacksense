@@ -227,5 +227,69 @@ class BudgetFloor(unittest.TestCase):
                 self.assertEqual(on["stack"][layer]["choice"], off["stack"][layer]["choice"], (typ, layer))
 
 
+def ml_layer(out):
+    return sup(out, "ml")[0]
+
+
+class SmallTeam(unittest.TestCase):
+    """Rule 3: one deployable for a small team: no separate inference service when the API's language has a documented ONNX Runtime
+    binding, and no Kubernetes on-premises unless the team is above the small-team size."""
+
+    ML = {"requirements.ml_features": "inference_api", "project.description": "Predicts a score for each item."}
+
+    def test_in_process_inference_for_small_teams(self):
+        for typ, langs, binding in (("ai_ml_product", ["typescript"], "Node.js"), ("ecommerce", ["java"], "Java"),
+                                    ("saas_b2b", ["csharp"], "C#")):
+            out = run(**{**self.ML, "project.type": typ, "team.languages": langs, "team.size": 4})
+            m = ml_layer(out)
+            self.assertTrue(m["choice"].startswith("In-process model inference (model trained in Python"), (typ, m["choice"]))
+            self.assertIn(binding, m["choice"])
+            self.assertNotEqual(out["architecture_style"], "service_oriented", typ)
+            self.assertTrue(any("Separate Python inference service" in a["choice"] for a in m["alternatives"]))
+            self.assertIn("team.size", m["driven_by"])
+            self.assertIn("https://onnxruntime.ai/docs/get-started/", m["sources"])
+
+    def test_team_size_boundary(self):
+        kw = {**self.ML, "project.type": "ai_ml_product", "team.languages": ["typescript"]}
+        self.assertTrue(ml_layer(run(**{**kw, "team.size": ov.THRESHOLDS["small_team"]}))["choice"].startswith("In-process"))
+        big = run(**{**kw, "team.size": ov.THRESHOLDS["small_team"] + 1})
+        self.assertTrue(ml_layer(big)["choice"].startswith("Separate Python inference service"))
+        self.assertEqual(big["architecture_style"], "service_oriented")
+
+    def test_must_not_fire(self):
+        # python backend: already in-process; backend without a documented binding keeps the separate service and says why
+        py = run(**{**self.ML, "project.type": "ai_ml_product", "team.languages": ["python"], "team.size": 3})
+        self.assertTrue(ml_layer(py)["choice"].startswith("In-process model inference (scikit-learn"))
+        php = run(**{**self.ML, "project.type": "ecommerce", "team.languages": ["php"], "team.size": 3})
+        m = ml_layer(php)
+        self.assertTrue(m["choice"].startswith("Separate Python inference service"))
+        self.assertIn("no ONNX Runtime binding", m["justification"])
+        # an LLM/RAG or training feature is untouched
+        rag = run(**{"requirements.ml_features": "llm_rag", "project.type": "ai_ml_product", "team.languages": ["typescript"], "team.size": 3})
+        self.assertNotIn("In-process model inference (model trained", ml_layer(rag)["choice"])
+
+    def test_kubernetes_needs_more_than_a_small_team(self):
+        from engine import context as cx, select as sl
+        from engine.validate import validate
+
+        def k3s_fit(size):
+            req, _, _ = validate(S(**{"infrastructure.deployment_model": "on_premise", "team.size": size, "team.has_devops": True,
+                                      "scale.users_12_months": 100000, "scale.peak_concurrent_users": 4000}))
+            cand = next(c for c in sl.hosting_candidates(cx.build(req)) if c.id == "onprem-k3s")
+            return cand.term("fit")
+        for size in (1, 3, ov.THRESHOLDS["small_team"]):
+            self.assertEqual(k3s_fit(size), -6, size)  # penalised
+        self.assertEqual(k3s_fit(ov.THRESHOLDS["small_team"] + 1), 0)  # a bigger team with DevOps at medium scale may justify it
+
+    def test_no_microservices_or_kubernetes_is_ever_chosen_for_small_teams(self):
+        for typ in ("web_app", "saas_b2b", "marketplace", "ecommerce", "social"):
+            out = run(**{"project.type": typ, "team.size": 3, **BIGISH})
+            self.assertIn(out["architecture_style"], ("monolith", "modular_monolith", "serverless", "static", "hybrid"), typ)
+            self.assertNotIn("Kubernetes", out["stack"]["hosting"]["choice"], typ)
+
+
+BIGISH = {"scale.users_12_months": 400000, "scale.peak_concurrent_users": 15000}
+
+
 if __name__ == "__main__":
     unittest.main()

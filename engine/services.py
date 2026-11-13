@@ -97,6 +97,9 @@ def payment_location(gateway, prov, ctx):
 BROKER_CLOUD = [(r"\bmsk\b|\bamazon\b|\baws\b", "aws"), (r"\bazure\b|event hubs?", "azure"), (r"\bgoogle\b|\bgcp\b", "gcp")]
 
 
+ONNX_BINDING = {"node-nestjs": "Node.js", "nextjs-fullstack": "Node.js", "java-spring": "Java", "dotnet-aspnet": "C#"}  # languages in the vendor's documented API list
+
+
 def search_engine(p, selfh, rtxt):
     """(name, provider, cost per tier, sources) of the dedicated search engine for a host."""
     if p == "aws" and not selfh:
@@ -719,20 +722,33 @@ def build(ctx, host, backend, db, mobile, warn):
         dp = ["requirements.ml_features"]
         py = backend and "python" in backend["langs"]
         if ml == "inference_api":
+            binding = ONNX_BINDING.get(backend["id"]) if backend else None
             if py:
                 c, why = "In-process model inference (scikit-learn/XGBoost exported to ONNX Runtime)", "The backend is Python, so the trained model loads inside the API: no extra network hop, versioned model files."
+            elif binding and ov.small_team(ctx):
+                # D16: one deployable for a small team; ONNX Runtime documents a binding for this backend's language
+                c = f"In-process model inference (model trained in Python, exported to ONNX, loaded by the ONNX Runtime {binding} binding)"
+                why = (f"The core API is {backend['name']}; ONNX Runtime documents a {binding} API, so the exported model loads inside the API: one deployable "
+                       f"for a team of {ctx['size']}, no second service to run, deploy and monitor.")
             else:
                 c, why = ("Separate Python inference service (FastAPI + ONNX Runtime) in the same private network",
-                          f"The core API is {backend['name'] if backend else 'not Python'}; a small Python service serves the model behind an internal endpoint, so model code stays in Python's ML tooling without changing the API's language.")
+                          f"The core API is {backend['name'] if backend else 'not Python'}; a small Python service serves the model behind an internal endpoint, so model code stays in Python's ML tooling without changing the API's language."
+                          + (f" The knowledge base lists no ONNX Runtime binding for this backend, so a second service is kept despite the team of {ctx['size']}."
+                             if ov.small_team(ctx) and not binding else ""))
             if d["scoring_model"]:
                 why += " Credit-scoring outputs and their inputs are logged for audit and explainability."
+            inproc = c.startswith("In-process model inference (model trained")
             alt = {"aws": ("Amazon SageMaker AI real-time endpoint", "managed MLOps, but always-on endpoint cost before volume justifies it"),
                    "azure": ("Azure Machine Learning online endpoint", "managed MLOps, but extra always-on cost now"),
                    "gcp": ("Vertex AI online prediction", "managed MLOps, but extra always-on cost now")}.get(p, ("Hosted inference API (third party)", "sends personal data to another vendor"))
-            out.append(svc("ml", c, why, dp + (["project.description"] if d["scoring_model"] else []) + res_path,
-                           [alt], ["Model versioning, drift monitoring and fairness review are your responsibility"],
+            out.append(svc("ml", c, why, dp + (["project.description"] if d["scoring_model"] else []) + res_path + (["team.size"] if inproc else []),
+                           ([("Separate Python inference service (FastAPI + ONNX Runtime)",
+                              f"a second deployable and network hop for a team of {ctx['size']}; add it when serving needs Python-only libraries or a different scaling profile")]
+                            if inproc else []) + [alt],
+                           ["Model versioning, drift monitoring and fairness review are your responsibility"]
+                           + (["Pre- and post-processing must be reproduced in the API's language or baked into the exported model"] if inproc else []),
                            "self_hosted" if selfh else "library", "neutral", True,
-                           [[0, 10], [10, 40], [40, 200], [200, 1000]], ["aws-sagemaker"], loc))
+                           [[0, 10], [10, 40], [40, 200], [200, 1000]], ["aws-sagemaker"] + (["onnxruntime-languages"] if inproc else []), loc))
         elif ml == "llm_rag":
             if selfh:
                 c, prov, src = "Self-hosted open-weight LLM (vLLM/Ollama on a GPU node) + pgvector", "neutral", ["postgres-versioning"]

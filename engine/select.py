@@ -6,6 +6,7 @@ ties break by id. Excluded candidates carry the hard reason. Nothing here reads 
 import re
 
 from . import context as cx
+from . import overeng as ov
 from .kb import TECH
 
 PRIO_LABEL = {"cost": "low running cost", "time_to_market": "fast delivery", "scalability": "scalability",
@@ -210,7 +211,7 @@ def hosting_candidates(ctx):
             c.add("existing_idp", 1.5, "infrastructure.existing_systems", "built-in Entra ID sign-in (Easy Auth)")
         if kind == "static" and not ctx["needs_backend"]:
             c.add("fit", 4, "project.type", "a static site needs nothing more than a CDN host")
-        if kind == "onprem" and h["id"] == "onprem-k3s" and not (ctx["tier"] >= 2 and ctx["devops"]):
+        if kind == "onprem" and h["id"] == "onprem-k3s" and not (ctx["tier"] >= 2 and ctx["devops"] and not ov.small_team(ctx)):  # D16: also needs a team above the small-team size
             c.add("fit", -6, "team.size", "Kubernetes is unjustified for this team size/scale")
         cands.append(c)
     return cands

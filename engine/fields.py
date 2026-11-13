@@ -25,7 +25,7 @@ AFFECTS = {
     "scale.traffic_pattern": "database hosting supporting cost warnings ranking",
     "scale.workload": "supporting cost ranking",
     "scale.data_volume_gb_12_months": "supporting cost warnings ranking",
-    "team.size": "frontend backend cost warnings ranking",
+    "team.size": "frontend backend supporting cost warnings ranking",
     "team.experience": "frontend backend warnings ranking",
     "team.languages": "frontend backend hosting supporting cost warnings ranking",
     "team.has_devops": "ranking",
