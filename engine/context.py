@@ -261,6 +261,24 @@ def keep_in_text(name_rx, text):
     return False
 
 
+def name_rx_plain(pat):
+    """Regex for the system's own names in a description (the pattern's match list only, never the vendor's first word)."""
+    return r"(?<![a-z0-9])(?:" + "|".join(pat["match"]) + r")(?![a-z0-9])"
+
+
+def life_rx(life):
+    return r"(?<![a-z0-9])(?:" + (life["rx"] if life.get("rx") else re.escape(life["pattern"])) + r")(?![a-z0-9])"
+
+
+def removal_in_text(name_rx, text):
+    """A description clause that names the system and says it is going away ('migrating off a creaking phpBB 3.0 install',
+    'the Flash console must be replaced'), without a negated removal."""
+    for clause in re.split(r"[,;:]\s*|\s+(?:but|while|whereas)\s+", text):
+        if re.search(name_rx, clause) and re.search(REMOVE_RX, clause) and not re.search(STRONG_KEEP_RX, clause):
+            return True
+    return False
+
+
 # Server-side language named by an existing system (frameworks and app servers included; front-end frameworks are not).
 # Node needs a version or an app noun ('Kubernetes node pool' is not Node.js).
 EXISTING_LANG = {"java": r"\bjava\b|\btomcat\b|\bspring\b|\bjboss\b|\bwildfly\b|\bweblogic\b|\bwebsphere\b",
@@ -500,8 +518,87 @@ def lifecycle_text(low):
     low = re.sub(r"\boracle\s+database\b", "oracle", low)
     low = re.sub(r"\b(?:vb|visual\s+basic)[\s\-_]*6(?:\.0)?(?![\d.]*\d)", "visual basic 6", low)
     low = re.sub(r"\bwin(?:dows)?[\s\-_]*server[\s\-_]*(?=\d)", "windows server ", low)
+    # A3 (blind8): legacy runtimes and products often named with a vendor prefix or a 1.x style version
+    low = re.sub(r"\b(?:java(?:\s*se)?|jdk|jre|j2se)[\s\-_]*(?:1\.)?(?=[67](?!\d))", "java ", low)
+    low = re.sub(r"\bstruts[\s\-_]*v?(?=1(?!\d))", "struts ", low)
+    low = re.sub(r"\b(?:(?:adobe|macromedia)\s+)?flash(?:\s+player)?(?=[\s\-]+(?:player|plugin|app\b|apps\b|application|client|front-?end|ui\b|console|movie|based|admin|portal|widget|site|website|game|content|applet)|\s*$|\s*[,/;)(])", "adobe flash", low)
+    low = re.sub(r"\boracle\s+forms(?:\s+(?:and|&)\s+reports)?[\s\-_]*v?(?=\d)", "oracle forms ", low)
+    low = re.sub(r"\bphp[\s\-_]*bb[\s\-_]*v?(?=\d)", "phpbb ", low)
+    low = re.sub(r"\bshare[\s\-_]*point(?:\s+server)?[\s\-_]*(?=(?:20|19)\d\d\b)", "sharepoint ", low)
+    low = re.sub(r"\b(?:eclipse\s+)?mosquitto[\s\-_]*v?(?=\d)", "mosquitto ", low)
+    low = re.sub(r"\bcold[\s\-]?fusion(?:\s+(?:server|cfml))?[\s\-_]*v?(?=\d|mx\b)", "coldfusion ", low)
+    low = re.sub(r"\bclassic[\s\-]*asp\b|\basp[\s\-]*classic\b|\basp\s*3(?:\.0)?\b", "asp classic", low)
+    low = re.sub(r"\b(?:ms\s+)?(?:microsoft\s+)?\.?net[\s\-]*framework[\s\-_]*v?(?=\d)", ".net framework ", low)
+    low = re.sub(r"\b(?:apache\s+)?tomcat[\s\-_]*v?(?=\d)", "tomcat ", low)
+    low = re.sub(r"\binternet explorer[\s\-_]*v?(?=\d)|\bie[\s\-_]*v?(?=\d{1,2}\b)", "internet explorer ", low)
     return re.sub(r"\b(node|python|postgresql|postgres|\.net|vue|mysql|angular|php|django|laravel|mongodb|centos|rails|ruby|oracle|elasticsearch|ubuntu)[\s\-_]*v?(?=\d)",
                   r"\1 ", low)
+
+
+def lifecycle_hit(norm):
+    """First knowledge-base lifecycle entry the (normalised) text names, or None. An entry matches its literal pattern as a whole
+    token, or its optional "rx" regular expression; a digit may not follow a literal pattern."""
+    for lc in TECH["lifecycle"]:
+        if lc.get("rx"):
+            if re.search(r"(?<![a-z0-9])(?:" + lc["rx"] + r")", norm):
+                return lc
+            continue
+        lead = r"(?<![a-z0-9])" if lc["pattern"][0].isalnum() else ""
+        if re.search(lead + re.escape(lc["pattern"]) + r"(?!\d)", norm):
+            return lc
+    return None
+
+
+# A3 (blind8): a "Server" edition or a versioned release of a Microsoft collaboration product ('SharePoint Server 2013',
+# 'Exchange 2010 on-prem') is self-hosted software; the Microsoft 365 / Graph / Entra profile does not describe it
+_MS_SELF_HOSTED = re.compile(r"(?<![a-z0-9])(?:sharepoint|exchange|skype for business|lync)\s+(?:server(?![a-z0-9])|(?:19|20)\d\d\b)"
+                             r"|(?<![a-z0-9])(?:sharepoint|exchange)\b[^,;()]*\bon[- ]?prem", re.I)
+
+
+def life_what(life):
+    """Why an existing system's lifecycle entry is a warning: sentence tail for 'X <what> (<product>)'. Entries marked soft
+    carry dates the knowledge base did not re-check against the vendor page (source status official-unverified), so the text
+    says so and prints no day-level date."""
+    kind = life.get("kind")
+    if life.get("soft"):
+        if kind == "older_line":
+            return (f"belongs to an older release line than the current {life.get('line', 'one')}; the knowledge base does not confirm "
+                    "whether it still receives security fixes")
+        if kind == "legacy":
+            return ("is a legacy technology without new development; its support depends on the platform it runs on, "
+                    "which the knowledge base does not confirm in detail")
+        if life.get("approx"):
+            return f"is past its vendor's end of support (around {life['approx']}; the knowledge base has not re-checked the exact date)"
+        return ("is older than any release its vendor still lists as supported; the exact end-of-support date is not confirmed "
+                "in the knowledge base")
+    return {"unmaintained": f"is no longer maintained (repository archived {life['eol']})",
+            "unsupported": f"is no longer supported by its vendor as of {life['eol']}",
+            "closed": f"is closed to new customers (since {life['eol']})", "deprecated": f"was deprecated on {life['eol']}"}.get(
+        kind, f"reached end of support on {life['eol']}")
+
+
+def life_short(life):
+    """Short predicate for text that follows a lifecycle warning ('It is past end of support')."""
+    if life.get("soft") and life.get("kind") == "older_line":
+        return "is on an older release line"
+    if life.get("soft") and life.get("kind") == "legacy":
+        return "is a legacy technology"
+    return "is past end of support"
+
+
+# A3 (blind8), planning heuristic: an existing_systems entry with no lifecycle data whose text carries an old-release marker
+# (a product year of 2015 or earlier not introduced by since/from/in, an Oracle 8i-11g style tag, a 1.x line, or a
+# long-retired product name) is flagged END_OF_LIFE_SUSPECTED instead of being silently assumed supported.
+EOL_TOKEN_RX = re.compile(
+    r"(?<![a-z0-9])(?:(?<!since )(?<!from )(?<!in )(?<!of )(?<!to )(?<!until )(?<!by )(?:19[89]\d|200\d|201[0-5])"
+    r"|\d{1,2}[ig]|v?1\.x|(?:adobe |macromedia )?flash(?= (?:player|plugin|apps?|application|client|front-?end|ui|console|movie|based|admin|portal|widget|site|website|game|content|applet)\b)|(?:adobe|macromedia) flash|silverlight|activex|java applets?|cobol|foxpro|powerbuilder|lotus notes|clipper|netware"
+    r"|windows (?:xp|vista|nt)|win(?:dows)? ?(?:95|98|me|2000)|asp classic|classic asp)(?![a-z0-9])", re.I)
+
+
+def eol_token(raw):
+    """The old-release marker in an existing_systems entry (see EOL_TOKEN_RX), or None."""
+    m = EOL_TOKEN_RX.search(raw)
+    return m.group(0) if m else None
 
 
 # F1 (round 11): the team's own server language named in project.description ("Rails shop", "the team writes Elixir",
@@ -718,14 +815,11 @@ def build(req):
     for raw in req["infrastructure.existing_systems"]:
         low = f" {raw.lower()} "
         hit = next((pat for pat in TECH["existing_patterns"] if word_rx(pat["match"]).search(low)), None)
+        if hit and hit["kind"] == "collaboration" and _MS_SELF_HOSTED.search(low):
+            hit = None  # self-hosted release: never the Microsoft 365 / Graph profile
         hit = hit or fallback_pattern(raw, low)
-        life = None
         norm = lifecycle_text(low)
-        for lc in TECH["lifecycle"]:
-            lead = r"(?<![a-z0-9])" if lc["pattern"][0].isalnum() else ""
-            if re.search(lead + re.escape(lc["pattern"]) + r"(?!\d)", norm):
-                life = lc
-                break
+        life = lifecycle_hit(norm)
         # "must stay": in the entry itself, or in a description sentence that names the same system (its patterns, or the
         # product's first word: 'Keep the Oracle database' names 'Oracle 19c')
         name_rx = None
@@ -739,7 +833,17 @@ def build(req):
         onprem = "on-prem" in low or "on prem" in low or "onprem" in low or "on-premises" in low
         if hit and hit.get("synthetic"):  # read by keyword: a mainframe, or a system that must stay and is not said to be a cloud service, is estate to bridge to
             onprem = onprem or "mainframe" in low or bool(keep and not _CLOUD_WORDS.search(low))
-        ex.append({"raw": raw, "pattern": hit, "life": life, "keep": keep, "onprem": onprem, "workforce": workforce})
+        # A3: the input says the system is going away (entry text, or a description clause that names it): its integration is a
+        # one-off read, then retirement
+        retire = False
+        if not keep and (hit or life):
+            if re.search(REMOVE_RX, low) and not re.search(STRONG_KEEP_RX, low):
+                retire = True
+            else:
+                names = ([name_rx_plain(hit)] if hit else []) + ([life_rx(life)] if life else [])
+                retire = any(removal_in_text(n, lifecycle_text(s)) for n in names for s in sentences)
+        ex.append({"raw": raw, "pattern": hit, "life": life, "keep": keep, "onprem": onprem, "workforce": workforce,
+                   "retire": retire})
     # list-order invariance: knowledge-base pattern order (identity, databases, brokers, ...), then keyword categories
     # (knowledge-base order), then name; unrecognised last
     order = {id(p): i for i, p in enumerate(TECH["existing_patterns"])}

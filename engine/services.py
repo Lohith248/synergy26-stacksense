@@ -985,16 +985,31 @@ def build(ctx, host, backend, db, mobile, warn):
                            "library", "neutral", False, Z, pat["src"]))
         elif pat and pat["kind"] == "database" and db and e is not ctx["kept_db"]:
             out.append(svc("other", f"Integration with existing {label} via {via}",
-                           f"{pat.get('how_beside', pat['how'])} The new application keeps its own tables in {db['_variant']} and reads the existing data through {via}."
-                           + (f" It is past end of support ({e['life']['name']}, {e['life']['eol']}): plan its upgrade, or move its data into the new database and retire it once its owners agree."
+                           (f"The input says it is going away: read its data once through an export or ETL job over {via} into the new database ({db['_variant']}), "
+                            "check row counts and checksums, and switch it off once its owners agree. The new application does not depend on a live connection to it afterwards."
+                            if e["retire"] else
+                            f"{pat.get('how_beside', pat['how'])} The new application keeps its own tables in {db['_variant']} and reads the existing data through {via}.")
+                           + (f" It {cx.life_short(e['life'])} ({e['life']['name']}{'' if e['life'].get('soft') else ', ' + e['life']['eol']})"
+                              + (", which is a further reason to retire it." if e["retire"] else
+                                 ": plan its upgrade, or move its data into the new database and retire it once its owners agree.")
                               if e["life"] and e["life"]["eol"] <= AS_OF else ""),
                            ["infrastructure.existing_systems"],
+                           [("Keep reading it live after launch", "keeps the system the input is retiring in service and ties the new application to it")] if e["retire"] else
                            [("Migrate everything into the new database now", "risky in the MVP timeline and breaks existing consumers"),
                             (f"Use the {where} as the only database", f"ties availability of the new app to the {where}" + ("" if cloud_sys else " and the relay"))],
-                           [f"Cross-network latency on queries to the {where}", f"Credentials for the {'existing' if cloud_sys else 'on-prem'} database must live in a secret store"],
+                           [f"Cross-network latency on queries to the {where}", f"Credentials for the {'existing' if cloud_sys else 'on-prem'} database must live in a secret store"]
+                           if not e["retire"] else
+                           ["The one-off job needs a read-only account on the old system and a maintenance window for the final copy",
+                            "Credentials for the old database must live in a secret store until it is switched off"],
                            "library", "neutral", False, Z, pat["src"] + (["azure-hybrid-connections"] if p == "azure" and not cloud_sys else [])))
         elif pat and pat["kind"] in ("erp", "crm", "legacy_app", "payments", "record", "health", "api", "orchestrator", "storage"):
-            out.append(svc("other", f"Integration with existing {label}", pat["how"], ["infrastructure.existing_systems"],
-                           [("Replacing it", "outside MVP scope")], ["Depends on the existing system's API limits"], "library", "neutral", False, Z, pat["src"]))
+            retire = e["retire"] and pat["kind"] in ("erp", "crm", "legacy_app", "record", "storage")
+            out.append(svc("other", f"Integration with existing {label}",
+                           "The input says it is going away: read its data once through an export or ETL job (or its own API), check row counts, "
+                           "and switch it off once its owners agree; the new application does not depend on it afterwards." if retire else pat["how"],
+                           ["infrastructure.existing_systems"],
+                           [("Keep integrating with it after launch", "keeps the system the input is retiring in service")] if retire else [("Replacing it", "outside MVP scope")],
+                           ["The one-off job needs a read-only account on the old system"] if retire else ["Depends on the existing system's API limits"],
+                           "library", "neutral", False, Z, pat["src"]))
     domains.build(ctx, host, backend, db, svc, warn, Z, out)
     return out
