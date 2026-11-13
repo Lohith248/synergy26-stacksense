@@ -694,11 +694,14 @@ def build(ctx, host, backend, db, mobile, warn):
         # E9: open with the input that made a CDN worthwhile
         if req["requirements.seo_critical"]:
             lead = "SEO is critical (requirements.seo_critical), so public pages and static assets are served from edge caches near users (fast pages for visitors and crawlers)"
-        elif ctx["geo"] in ("multi_region", "global"):
-            lead = f"scale.geo_spread={ctx['geo']}: public pages and static assets are cached at the edge, close to distant users"
         else:
-            lead = f"At ~{ctx['users']:,} users, public pages and static assets are cached near users so the origin serves less traffic"
-        why = lead + "; only public, non-personal content is cached."
+            # A8: "public pages" only when the input says there are some (SEO, a public project type, editorial wording)
+            what = "public pages and static assets" if rs.public_pages(ctx) else "static assets (scripts, images, fonts)"
+            if ctx["geo"] in ("multi_region", "global"):
+                lead = f"scale.geo_spread={ctx['geo']}: {what} are cached at the edge, close to distant users"
+            else:
+                lead = f"At ~{ctx['users']:,} users, {what} are cached near users so the origin serves less traffic"
+        why = lead + ("; only public, non-personal content is cached." if rs.public_pages(ctx) else "; only non-personal files are cached, never signed-in responses.")
         # Front Door's $35 base fee (verified, R11) is more than 15% of a budget under ~$233; unless Azure was requested
         # explicitly (a hard constraint), the free Cloudflare plan in front of Azure does the same job for a small site
         if p == "azure" and req["infrastructure.cloud_preference"] != "azure" and ctx["budget"] < 35 / 0.15:
