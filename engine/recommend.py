@@ -847,6 +847,13 @@ def _recommend(req, assumptions, sid):
           ["budget.monthly_infra_usd"])
 
     stack = {"frontend": fe_cmp, "backend": backend_cmp, "database": db_cmp, "hosting": hosting,
+    declined = ov.declined_requests(ctx)  # A1: hype that the description asks for, declined with the numbers and the stack chosen instead
+    if declined:
+        picked = [x["choice"] for x in (fe_cmp, backend_cmp, db_cmp) if x["choice"] != "None"]
+        W("OVERENGINEERING_REQUEST_DECLINED", "info",
+          ov.decline_message(ctx, declined, " with ".join([" + ".join(picked[:2])] + ([picked[2]] if len(picked) > 2 else [])) + f" on {host_name}"),
+          ["project.description", "scale.peak_concurrent_users"])
+
              "supporting": [{k: v for k, v in s.items() if not k.startswith("_")} for s in supporting]}
     style = architecture_style(ctx, host, backend, supporting)
     sev = {w["severity"] for w in W.items}

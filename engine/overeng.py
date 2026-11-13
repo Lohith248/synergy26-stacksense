@@ -19,6 +19,7 @@ THRESHOLDS = {
     "floor_share": 0.15,    # heuristic: an optional add-on whose cheapest tier costs more than this share of the budget is replaced or deferred
                             # (same 15% as the Azure Front Door rule in services.py, which was derived from its verified $35 base fee)
     "guard_max_tier": 2,    # heuristic: at the 'large' scale tier (>500,000 users) the add-ons carry load; BUDGET_EXCEEDED explains the gap instead
+    "decline_max_tier": 1,  # heuristic: up to this scale tier (<= 50,000 users, <= 2,000 concurrent) a requested cluster / microservices / blockchain / AI agent is declined
 }
 
 # types that may be static; web_app and internal_tool only when the description says the content is editorial
@@ -105,3 +106,101 @@ def num(x):
 
 def small_team(c):
     return c["size"] <= THRESHOLDS["small_team"]
+
+
+# ---- A1: requested or wished-for buzzwords (hype) are declined with a reason, not built
+# A request is a sentence in which a stakeholder role asks / wants / suggests the thing, or which carries a hype word. Planning heuristics:
+_ROLE = r"(?:cto|cio|ceo|cfo|director|boss|board|investors?|executives?|management|managers?|stakeholders?|vp|head of \w+)"
+_ASK = (r"(?:asked|asks?|wants?|wanted|wishes|wished|would like|insists?|insisted|suggest\w*|propos\w*|read|heard|keen|likes?|demand\w*"
+        r"|expects?|pushing|pushes)")
+REQUEST_RX = r"\b" + _ROLE + r"\b(?:\W+\w+){0,6}?\W+" + _ASK + r"\b"
+HYPE_RX = (r"\b(?:buzz\w*|hype\w*|trendy|fashionable|modern look|cutting[- ]edge|state[- ]of[- ]the[- ]art|nice to have|to impress|for the wow)\b")
+# project types for which a web3 term is usually the product itself: a role asking for it there is still a requirement
+WEB3_NATIVE_TYPES = ("marketplace", "ecommerce", "gaming", "fintech", "social")
+# (label, pattern, why it is declined at a small scale). The reasons are engineering judgement, not vendor facts.
+HYPE_TERMS = (
+    ("Kubernetes", r"\bkubernetes\b|\bk8s\b",
+     "a cluster adds nodes to patch, upgrade and pay for, and its load-balancing is not needed by one deployable"),
+    ("microservices", r"\bmicro-?services?\b|\bservice mesh\b",
+     "separately deployed services multiply releases, monitoring and network failure modes without any scaling need"),
+    ("blockchain", r"\bblockchain\b|\bnfts?\b|\bsmart contracts?\b|\bweb3\b|\bcryptocurrenc\w+",
+     "a chain adds node or RPC costs and key handling for what a database with an append-only audit log already records"),
+    ("an AI agent", r"\bai[- ]agents?\b|\bagentic\b|\bautonomous agents?\b",
+     "an agent adds per-request model cost and unpredictable behaviour, and requirements.ml_features is none"),
+    ("a 'future proof' architecture", r"\bfuture[- ]?proof\w*",
+     "a simple design with portable data is what keeps change cheap; extra architecture now is cost without a trigger"),
+    ("a Netflix-style architecture", r"\bnetflix\b",
+     "architectures built for millions of simultaneous viewers solve a problem this load does not have"),
+    ("event sourcing / CQRS", r"\bevent[- ]sourcing\b|\bcqrs\b",
+     "two data models and a replay mechanism are extra moving parts when one relational schema covers the need"),
+)
+
+
+def _sentence(low, start, end):
+    a = max((low.rfind(ch, 0, start) for ch in ".!?;\n"), default=-1) + 1
+    nxt = [i for i in (low.find(ch, end) for ch in ".!?;\n") if i >= 0]
+    return low[a:min(nxt) if nxt else len(low)]
+
+
+def _live_hits(low, rx):
+    from .context import clause_breaks, negated_at
+    br = clause_breaks(low)
+    return [m for m in re.finditer(rx, low) if not negated_at(low, br, m.start(), m.end())]
+
+
+def requested(sentence, typ=None):
+    """True when the sentence asks for / wishes for the thing rather than describing the product. `typ`: project.type; a role asking
+    for a web3 term in a web3-native type is still a requirement (only hype words suppress there)."""
+    if re.search(HYPE_RX, sentence):
+        return True
+    return bool(re.search(REQUEST_RX, sentence)) and typ not in WEB3_NATIVE_TYPES
+
+
+def web3_only_requested(desc, typ):
+    """True when every live web3 hit sits in a sentence that only asks for it (a stakeholder's wish or a hype word), so no on-chain
+    component or crypto-payment caution is added for it."""
+    from .context import DESC_RX
+    low = (desc or "").lower().replace("’", "'")
+    hits = _live_hits(low, DESC_RX["web3"])
+    return bool(hits) and all(requested(_sentence(low, m.start(), m.end()), typ) for m in hits)
+
+
+def declined_requests(c):
+    """[(label, quoted words, reason)] for hype terms the description asks for although the scale tier is small. Terms the inputs
+    justify (an existing cluster, a real web3 product, ml_features set) are not declined."""
+    if c["tier"] > THRESHOLDS["decline_max_tier"]:
+        return []
+    req = c["req"]
+    text = (req["project.description"] or "")
+    low = text.lower().replace("’", "'")
+    existing = " ".join(req["infrastructure.existing_systems"]).lower()
+    out = []
+    for label, rx, why in HYPE_TERMS:
+        if label == "blockchain" and c["desc"]["web3"]:
+            continue
+        if label == "an AI agent" and req["requirements.ml_features"] != "none":
+            continue
+        if label in ("Kubernetes", "microservices") and re.search(rx, existing):
+            continue
+        for m in _live_hits(low, rx):
+            if requested(_sentence(low, m.start(), m.end())):
+                out.append((label, m.group(0).strip(), why))
+                break
+    return out
+
+
+def decline_message(c, found, stack):
+    """Text of OVERENGINEERING_REQUEST_DECLINED: what was asked, why it is not justified at these numbers, what is chosen instead."""
+    names = [f[0] for f in found]
+    lst = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+    sent = next((s.strip() for s in re.split(r"(?<=[.!?;])\s+|\n", c["req"]["project.description"] or "")
+                 if any(re.search(rx, s, re.I) for lab, rx, _ in HYPE_TERMS if lab == found[0][0])), "")
+    team = f" and a team of {c['size']}" if small_team(c) else ""
+    msg = (f"project.description asks for {lst}" + (f" ('{sent if len(sent) <= 160 else sent[:157].rstrip() + '...'}')" if sent else "") + ". That is not adopted: at about "
+           f"{c['users']:,} users (~{c['peak']:,} concurrent){team}: " + "; ".join(f"{f[0]}: {f[2]}" for f in found) + ". The stack chosen instead is "
+           + stack + ", one deployable that the team can run and upgrade. Revisit the request when expected users pass about 50,000 or "
+           "concurrent users pass about 2,000 (planning heuristic scale tiers), or when a measured bottleneck needs it.")
+    if c["req"]["priorities.scalability"] == 5:
+        msg += (" priorities.scalability is 5, but the expected load is far below the next tier; it is met by the growth path "
+                "(larger instances and managed services first), not by adding architecture now.")
+    return msg
