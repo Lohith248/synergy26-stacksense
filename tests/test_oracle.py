@@ -359,6 +359,8 @@ class Invariants(unittest.TestCase):
 
     def test_high_availability_names_redundancy(self):
         for sid, s, o in self._each():
+            if any(a.startswith("Sized for 99.9% availability") for a in o["assumptions"]):
+                continue  # g3 A10: a relaxed stack is sized below the asked target and says so in an assumption
             if float(s.get("requirements", {}).get("availability", "99")) >= 99.95 and s["infrastructure"].get("deployment_model") == "managed_cloud":
                 text = " ".join(o["stack"][k]["choice"] + o["stack"][k]["justification"] for k in ("database", "hosting")).lower()
                 self.assertTrue(any(w in text for w in ("multi-az", "zone", "standby", "replica", "failover")), sid)
