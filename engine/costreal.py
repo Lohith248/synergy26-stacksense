@@ -19,6 +19,36 @@ DB_SSD_RATE = (0.10, 0.25)   # $/GB-month managed database SSD (Cloud SQL SSD $0
 OBJ_RATE = (0.02, 0.035)     # $/GB-month object storage
 BLOCK_RATE = (0.08, 0.12)    # planning estimate: block disk under a database the team runs itself on a cloud VM
 BROKER_NODE_MSGS_PER_S = 2000  # planning heuristic: one small self-run MQTT broker node
+# A14: write-heavy or device-fed data at or above this volume is sized for ingest and for a database that holds it (planning heuristic)
+INGEST_HEAVY_GB = 1000        # at 1 TB a write-heavy store needs an ingest buffer and no longer fits the smallest database tier
+INGEST_DB_MIN_TIER = 2        # index into the tier names: 2 = 'medium'
+# A13: managed WebSocket service (Azure Web PubSub / SignalR Service) billed per unit of concurrent connections; price NOT in the knowledge base
+REALTIME_UNIT_CONNECTIONS = 1000        # planning heuristic: connections one unit carries
+REALTIME_UNIT_USD_MONTH = (40, 60)      # planning estimate, official-unverified
+
+
+def realtime_units(peak):
+    return max(1, math.ceil(peak / REALTIME_UNIT_CONNECTIONS))
+
+
+# Video egress (planning heuristic, shaped on the Google Cloud CDN cache egress tiers, source gcp-cdn-pricing): GB streamed per user per month
+# (about 2-30 minutes of adaptive-bitrate video), the low-end rate, and the tiered rates for the high-end volume as (GB per month up to, USD per GB)
+VIDEO_GB_PER_USER = (0.05, 0.5)
+VIDEO_LOW_RATE = 0.02
+VIDEO_EGRESS_TIERS = ((10_000, 0.09), (150_000, 0.06), (500_000, 0.04), (float("inf"), 0.03))
+
+
+def tiered_egress(gb):
+    """USD for gb GB in a month, each slice at its tier's rate."""
+    cost, prev = 0.0, 0
+    for cap, rate in VIDEO_EGRESS_TIERS:
+        if gb <= prev:
+            break
+        cost += (min(gb, cap) - prev) * rate
+        prev = cap
+    return cost
+
+
 ASSUMED_REPORT_SECONDS = 60    # planning assumption when the description gives a device count but no reporting interval
 # Azure IoT Hub Standard tiers, list prices as published (NOT in the knowledge base, so printed as a planning estimate):
 # (name, USD per unit-month, messages per unit-day)
@@ -102,7 +132,7 @@ def stored_data_split(ctx, obj, db_managed):
 # ---------------------------------------------------------------- IoT ingestion
 def device_count(desc):
     d = (desc or "").lower()
-    m = re.search(r"(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|lakh|million|m)?\s+(?:\w+\s+){0,2}(?:sensors?|devices?|meters?|trackers?|gateways?|machines?|vehicles?)", d)
+    m = re.search(r"(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|lakh|million|m)?\s+(?:\w+\s+){0,2}(?:sensors?|devices?|meters?|trackers?|gateways?|machines?|vehicles?|sites?|stations?|inverters?|pumps?|panels?|chargers?|lamps?)", d)
     if not m:
         return None
     unit = {None: 1, "k": 1e3, "thousand": 1e3, "lakh": 1e5, "million": 1e6, "m": 1e6}[m.group(2)]

@@ -83,7 +83,7 @@ def public_pages(ctx):
 
 def media_delivery(ctx):
     """True when the description says video, audio or large files are delivered to users: a CDN pays off for media whatever the sign-in."""
-    return bool(ctx["desc"]["media_delivery"] or ctx["desc"]["video_vod"])
+    return bool(ctx["desc"]["media_delivery"] or ctx["desc"]["video_vod"] or ctx["desc"]["large_downloads"])
 
 
 def public_facing(ctx):
