@@ -715,7 +715,8 @@ def build(req):
     # the description only promotes a language team.languages already lists; it never adds one
     c["desc"], c["primary_langs"] = dict(flags), [x for x in prim if x in c["langs"]]
     # A1: a web3 word that only a stakeholder asks for ("the CTO wants blockchain receipts") or a hype word frames is not a requirement
-    if c["desc"]["web3"] and ov.web3_only_requested(req["project.description"], req["project.type"]):
+    # (only where the decline also fires: a large project keeps what its stakeholders asked for)
+    if c["desc"]["web3"] and c["tier"] <= ov.THRESHOLDS["decline_max_tier"] and ov.web3_only_requested(req["project.description"], req["project.type"]):
         c["desc"]["web3"] = False
     ex = []
     sentences = re.split(r"(?<=[.!?;])\s+|\n", desc)

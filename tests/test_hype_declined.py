@@ -68,6 +68,40 @@ class HypeDeclined(unittest.TestCase):
             out = run(**{**SMALL, "project.description": desc, **extra})
             self.assertEqual(warn(out, DECLINED), [], desc)
 
+    def test_review_f2_fixes(self):
+        big = {"scale.users_at_launch": 2000000, "scale.users_12_months": 5000000, "scale.peak_concurrent_users": 200000,
+               "team.size": 25, "budget.monthly_infra_usd": 50000}
+        # B1: a large project keeps what its stakeholder asked for (on-chain component and caution), no decline at that scale
+        for typ in ("web_app", "saas_b2b", "internal_tool"):
+            out = run(**{**big, "project.type": typ, "project.description": "The board wants blockchain receipts for every purchase."})
+            self.assertIn("WEB3_CAUTION", codes(out), typ)
+            self.assertEqual(warn(out, DECLINED), [], typ)
+        # B2 / B3: leaving a technology, or reading about it, is not asking for it
+        for desc in ["The CTO wants to migrate off Kubernetes.", "The director wants to avoid microservices.",
+                     "The board wants to get rid of the old blockchain ledger.", "Our founder wants to stop using Kubernetes.",
+                     "Managers read the AI agent transcripts exported by the support desk.",
+                     "The CTO heard about microservices at a conference but nothing was decided."]:
+            self.assertEqual(warn(run(**{**SMALL, "project.description": desc}), DECLINED), [], desc)
+        # ... while replacing something WITH the technology is still a request
+        self.assertTrue(warn(run(**{**SMALL, "project.description": "The CTO wants to replace the single server with Kubernetes."}), DECLINED))
+        # N1: first-person and founder / client / customer / owner requests are declined at small scale only
+        for typ, desc in [("web_app", "We want microservices and Kubernetes."), ("saas_b2b", "Our founder needs an AI agent in the first release."),
+                          ("internal_tool", "The client insists on microservices."), ("content_site", "The owner wants Kubernetes.")]:
+            out = run(**{**SMALL, "project.type": typ, "project.description": desc})
+            w = warn(out, DECLINED)
+            self.assertEqual(len(w), 1, desc)
+        self.assertEqual(warn(run(**{**SMALL, "project.description": "We want microservices and Kubernetes.", **{
+            "scale.users_at_launch": 200000, "scale.users_12_months": 900000, "scale.peak_concurrent_users": 30000,
+            "budget.monthly_infra_usd": 20000, "team.size": 12}}), DECLINED), [])
+        for desc in ["We do not need Kubernetes.", "We run the club roster; customers pay by card.", "Customers want fast pages, and the site is small."]:
+            self.assertEqual(warn(run(**{**SMALL, "project.description": desc}), DECLINED), [], desc)
+
+    def test_decline_message_has_no_doubled_colon(self):
+        out = run(**{**SMALL, "project.description": "The CTO wants Kubernetes."})
+        msg = warn(out, DECLINED)[0]["message"]
+        self.assertNotIn("): Kubernetes:", msg)
+        self.assertIn("a team of 2, Kubernetes: ", msg)
+
     def test_real_web3_products_still_get_on_chain_access(self):
         for typ, desc in [("marketplace", "Collectors mint and trade NFTs; users connect a wallet and ownership is read from the blockchain."),
                           ("gaming", "Card game where players own NFT cards on a public blockchain."),

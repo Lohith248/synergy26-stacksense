@@ -110,10 +110,18 @@ def small_team(c):
 
 # ---- A1: requested or wished-for buzzwords (hype) are declined with a reason, not built
 # A request is a sentence in which a stakeholder role asks / wants / suggests the thing, or which carries a hype word. Planning heuristics:
-_ROLE = r"(?:cto|cio|ceo|cfo|director|boss|board|investors?|executives?|management|managers?|stakeholders?|vp|head of \w+)"
-_ASK = (r"(?:asked|asks?|wants?|wanted|wishes|wished|would like|insists?|insisted|suggest\w*|propos\w*|read|heard|keen|likes?|demand\w*"
-        r"|expects?|pushing|pushes)")
-REQUEST_RX = r"\b" + _ROLE + r"\b(?:\W+\w+){0,6}?\W+" + _ASK + r"\b"
+_ROLE = (r"(?:cto|cio|ceo|cfo|director|boss|board|investors?|executives?|management|managers?|stakeholders?|vp|head of \w+"
+         r"|founders?|clients?|customers?|owners?)")
+# request verbs only: a verb that merely reports ("read", "heard") or describes ("likes") is not a request
+_ASK = (r"(?:ask(?:s|ed|ing)?|wants?|wanted|needs?|needed|requires?|required|wishes|wished|would like|must have|insists?|insisted|suggest\w*"
+        r"|propos\w*|keen|demand\w*|expects?|expected|plans? to use|planned to use|pushing|pushes)")
+# first person ("We want microservices"): only the direct form, so "we do not need" and "we run" never match
+_FIRST = r"\b(?:we|i)\s+(?:(?:really|also|definitely|absolutely)\s+)?(?:want|need|require|insist|expect|would like|plan to use|must have)\b"
+REQUEST_RX = r"\b" + _ROLE + r"\b(?:\W+\w+){0,6}?\W+" + _ASK + r"\b|" + _FIRST
+# a hype term that is the object of one of these verbs ("migrate off Kubernetes", "avoid microservices") is being dropped, not asked for;
+# up to four words may sit between verb and term, but not a word that starts a new object ("replace Heroku with Kubernetes")
+DROP_RX = (r"\b(?:(?:migrat|mov)\w* (?:off|away from)|avoid\w*|rid of|drop\w*|replac\w*|stop(?:ped|ping)? using|leav\w*|abandon\w*"
+           r"|retir\w*|sunset\w*|remov\w*)(?:\s+(?!(?:to|onto|into|with|by|for|and|or|in|instead|from|but)\b)[\w'-]+){0,4}\s+$")
 HYPE_RX = (r"\b(?:buzz\w*|hype\w*|trendy|fashionable|modern look|cutting[- ]edge|state[- ]of[- ]the[- ]art|nice to have|to impress|for the wow)\b")
 # project types for which a web3 term is usually the product itself: a role asking for it there is still a requirement
 WEB3_NATIVE_TYPES = ("marketplace", "ecommerce", "gaming", "fintech", "social")
@@ -148,6 +156,13 @@ def _live_hits(low, rx):
     return [m for m in re.finditer(rx, low) if not negated_at(low, br, m.start(), m.end())]
 
 
+def dropped(low, m):
+    """True when the hit m sits in a clause that moves away from it ("wants to migrate off Kubernetes")."""
+    pre = low[:m.start()]
+    pre = pre[max((pre.rfind(ch) for ch in ".!?;:,\n("), default=-1) + 1:]
+    return bool(re.search(DROP_RX, pre + " "))
+
+
 def requested(sentence, typ=None):
     """True when the sentence asks for / wishes for the thing rather than describing the product. `typ`: project.type; a role asking
     for a web3 term in a web3-native type is still a requirement (only hype words suppress there)."""
@@ -158,11 +173,11 @@ def requested(sentence, typ=None):
 
 def web3_only_requested(desc, typ):
     """True when every live web3 hit sits in a sentence that only asks for it (a stakeholder's wish or a hype word), so no on-chain
-    component or crypto-payment caution is added for it."""
+    component or crypto-payment caution is added for it. The caller applies it only where the decline also fires (small scale)."""
     from .context import DESC_RX
     low = (desc or "").lower().replace("’", "'")
     hits = _live_hits(low, DESC_RX["web3"])
-    return bool(hits) and all(requested(_sentence(low, m.start(), m.end()), typ) for m in hits)
+    return bool(hits) and all(requested(_sentence(low, m.start(), m.end()), typ) and not dropped(low, m) for m in hits)
 
 
 def declined_requests(c):
@@ -183,7 +198,7 @@ def declined_requests(c):
         if label in ("Kubernetes", "microservices") and re.search(rx, existing):
             continue
         for m in _live_hits(low, rx):
-            if requested(_sentence(low, m.start(), m.end())):
+            if requested(_sentence(low, m.start(), m.end())) and not dropped(low, m):
                 out.append((label, m.group(0).strip(), why))
                 break
     return out
@@ -197,7 +212,7 @@ def decline_message(c, found, stack):
                  if any(re.search(rx, s, re.I) for lab, rx, _ in HYPE_TERMS if lab == found[0][0])), "")
     team = f" and a team of {c['size']}" if small_team(c) else ""
     msg = (f"project.description asks for {lst}" + (f" ('{sent if len(sent) <= 160 else sent[:157].rstrip() + '...'}')" if sent else "") + ". That is not adopted: at about "
-           f"{c['users']:,} users (~{c['peak']:,} concurrent){team}: " + "; ".join(f"{f[0]}: {f[2]}" for f in found) + ". The stack chosen instead is "
+           f"{c['users']:,} users (~{c['peak']:,} concurrent){team}, " + "; ".join(f"{f[0]}: {f[2]}" for f in found) + ". The stack chosen instead is "
            + stack + ", one deployable that the team can run and upgrade. Revisit the request when expected users pass about 50,000 or "
            "concurrent users pass about 2,000 (planning heuristic scale tiers), or when a measured bottleneck needs it.")
     if c["req"]["priorities.scalability"] == 5:
