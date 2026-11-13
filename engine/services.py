@@ -4,6 +4,7 @@ Each entry is a complete component object plus extra fields (deployment, provide
 cost per tier, sources). Choices respect the same envelope as the core layers.
 """
 import re
+from . import costreal
 from . import domains
 from . import context as cx
 from . import overeng as ov
@@ -750,6 +751,7 @@ def build(ctx, host, backend, db, mobile, warn):
                            "self_hosted" if selfh else "library", "neutral", True,
                            [[0, 10], [10, 40], [40, 200], [200, 1000]], ["aws-sagemaker"] + (["onnxruntime-languages"] if inproc else []), loc))
         elif ml == "llm_rag":
+            ulo, uhi = (0, 0) if selfh else [round(x) for x in costreal.llm_usage(ctx)]
             if selfh:
                 c, prov, src = "Self-hosted open-weight LLM (vLLM/Ollama on a GPU node) + pgvector", "neutral", ["postgres-versioning"]
                 warn("LLM_SELF_HOSTED_CAPACITY", "warning", "Self-hosted LLM needs GPU hardware; quality and latency depend on the model you can run locally.",
@@ -781,23 +783,33 @@ def build(ctx, host, backend, db, mobile, warn):
                            dp, [("Fine-tuning a model", "costlier and slower to update than retrieval")],
                            ["GPU hardware, power and operations must be sized separately; evaluate answer quality"] if selfh else ["Per-token cost; evaluate answer quality"],
                            "managed" if prov != "neutral" else "self_hosted", prov, True,
-                           Z if selfh else [[lo + 74 * search_idx, hi + 74 * search_idx] for lo, hi in [[5, 30], [30, 200], [200, 1500], [1500, 8000]]],
+                           Z if selfh else [[max(lo, ulo) + 74 * search_idx, max(hi, uhi) + 74 * search_idx]
+                                            for lo, hi in [[5, 30], [30, 200], [200, 1500], [1500, 8000]]],
                            src + (["azure-ai-search-basic-price"] if search_idx else []), loc))
             if search_idx:  # judge F16: an always-on Basic search unit is the floor (Azure Retail Prices API, East US, 12 Nov 2026)
                 out[-1]["_note"] = " Includes one Azure AI Search Basic unit (about $74/month at $0.101/hour, East US) plus per-token model usage."
+            if not selfh:  # E8d: tokens scale with users x questions (planning estimate, stated in the line)
+                out[-1]["_note"] = out[-1].get("_note", "") + costreal.llm_basis(ctx)
         else:
             managed = hyper and not ctx["self_host_only"]  # on_premise/air_gapped: own GPU hardware, outside the cloud bill
             c = {"aws": "Amazon SageMaker AI training jobs", "azure": "Azure Machine Learning training jobs", "gcp": "Vertex AI custom training"}.get(p) if managed                 else "Scheduled training job on a GPU/CPU worker (PyTorch / scikit-learn)"
+            # E8b: managed training never costs less than a floor tied to the stored data volume (planning heuristic)
+            tcost, tfloor = costreal.training_cost(ctx, [[10, 50], [50, 200], [200, 1500], [1500, 8000]])
             out.append(svc("ml", c, "Model training runs as scheduled batch jobs separate from the serving path.", dp,
                            [("Training inside the web API", "starves user requests of CPU/memory")],
                            ["Training data governance and cost control"] + (["GPU hardware, power and operations must be sized separately"] if ctx["self_host_only"] else []),
                            "managed" if managed else "self_hosted", p if managed else "neutral", True,
-                           Z if ctx["self_host_only"] else [[10, 50], [50, 200], [200, 1500], [1500, 8000]], ["aws-sagemaker"], loc))
+                           Z if ctx["self_host_only"] else tcost,
+                           ["aws-sagemaker"], loc))
             lo, hi = out[-1]["_cost"][ctx["tier"]]  # ml.g4dn.xlarge Training $0.736/h us-east-1, AWS price data 11 Nov 2026
-            out[-1]["_note"] = (f" Basis: about {lo / 0.736:,.0f}-{hi / 0.736:,.0f} GPU-hours a month on one T4-class GPU at $0.736/hour ("
-                                + ("ml.g4dn.xlarge on-demand training, us-east-1, AWS price data 11 Nov 2026" if p == "aws"
-                                   else "AWS ml.g4dn.xlarge reference rate; this provider's T4 rate was not checked")
-                                + "). Larger models or more frequent retraining scale this linearly.") if managed else ""
+            basis = (f" Basis: about {lo / 0.736:,.0f}-{hi / 0.736:,.0f} GPU-hours a month on one T4-class GPU at $0.736/hour ("
+                     + ("ml.g4dn.xlarge on-demand training, us-east-1, AWS price data 11 Nov 2026" if p == "aws"
+                        else "AWS ml.g4dn.xlarge reference rate; this provider's T4 rate was not checked")
+                     + "). Larger models or more frequent retraining scale this linearly.") if managed else ""
+            floor = (f" Floor from the stored data: {ctx['data_gb']:,.0f} GB x {costreal.TRAIN_GPU_HOURS_PER_GB[0]}-{costreal.TRAIN_GPU_HOURS_PER_GB[1]} "
+                     f"GPU-hours per GB a month (planning heuristic) = ${tfloor[0]:,}-{tfloor[1]:,} at the same GPU rate; the line is the larger of this and the tier table."
+                     if tfloor and not ctx["self_host_only"] else "")
+            out[-1]["_note"] = basis + floor
 
     # ---------------- ci/cd + observability
     # an existing CI system (Jenkins, TeamCity, ...) is named in the CI/CD component: it keeps its current pipelines, new ones go to the choice below
@@ -919,10 +931,10 @@ def build(ctx, host, backend, db, mobile, warn):
         out.append(svc("other", "Email delivery: managed transactional/list email API with an authenticated sending domain (SPF, DKIM, DMARC)",
                        f"The description sends email to users ('{said.group(0) if said else 'email'}'). Mail sent straight from an application server is often rejected "
                        "or filed as spam, so a managed email API with an authenticated sending domain, bounce and complaint handling and an unsubscribe link carries it; "
-                       "the application only hands messages over. No provider is selected or priced here.",
+                       "the application only hands messages over. No provider is selected here; the cost band carries a labelled planning estimate for the sends.",
                        ["project.description"] + (["infrastructure.data_residency"] if ctx["res_named"] else []),
                        [("Sending over SMTP from the application server", "no sender reputation: deliverability, bounce handling and SPF/DKIM/DMARC would all be yours")],
-                       ["Per-message price is not in the knowledge base and is not in the cost band",
+                       ["Per-message price is not in the knowledge base: the cost band carries a planning estimate (recipients x sends x price per 1,000), not a quote",
                         "Recipient addresses and message content pass through the provider: pick one whose sending region matches the residency requirement"
                         if ctx["res_named"] else "Recipient addresses and message content pass through the provider",
                         "Bulk mail needs recorded consent and a working unsubscribe link"],

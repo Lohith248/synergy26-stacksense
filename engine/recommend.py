@@ -4,6 +4,7 @@ from datetime import date  # fromisoformat only: dates are compared with the KB 
 from . import ENGINE_VERSION
 from . import context as cx
 from . import overeng as ov
+from . import costreal
 from . import rightsize as rs
 from . import select as sl
 from . import services as sv
@@ -501,6 +502,11 @@ def _recommend(req, assumptions, sid):
     assumptions.append(f"Scale tier '{cx.TIER_NAMES[ctx['tier']]}' from {ctx['users']:,} users and ~{ctx['peak']:,} peak concurrent users "
                        + (f"and scale.peak_rps {req['scale.peak_rps']:,} requests/s (the higher of the two tiers is used)."
                           if ctx["rps_tier"] is not None else "(people, not requests per second; used only for sizing and cost)."))
+    if ctx["peak_derived"] and ctx["peak_fraction"] != costreal.PEAK_FRACTION["default"]:
+        # E8e: the validation note says 10%; state the ratio actually used (a stated monthly audience is rarely online at once)
+        old = "estimated as 10% of users_12_months for sizing only."
+        new = (f"estimated as {ctx['peak_why']} = ~{ctx['peak']:,} concurrent users, for sizing only; never above the total user count.")
+        assumptions[:] = [a.replace(old, new) if a.startswith("scale.peak_concurrent_users") else a for a in assumptions]
     if ctx["hiring"]:
         assumptions.append(f"team.hiring_languages {', '.join(ctx['hiring'])}: counted at half the weight of languages the team already writes.")
     if ctx["lock"]:
@@ -801,19 +807,29 @@ def _recommend(req, assumptions, sid):
     # ---- cost band
     cost = cost_band(ctx, host, db_item, db_c if ctx["needs_db"] else None, supporting, assumptions)
     # judge B2: name the largest lines of the band itself (derived ones too: stored data, OTP, extra instances), by upper bound
-    top = [(hi, name) for hi, _, name in cost.pop("_items") if hi > 0][:2]
+    items = cost.pop("_items")
+    top = [(hi, name) for hi, _, name in items if hi > 0][:2]
+    over_txt = costreal.over_multiple_note(items, ctx["budget"])  # E8d: explicit note for a single line above 10x the budget
     top_txt = f"; the largest upper-bound items are {' and '.join(f'{n} (up to ${v:,.0f})' for v, n in top)}" if top else ""
     if cost["min"] > ctx["budget"]:
         sev = "critical" if (ctx["budget"] == 0 or cost["min"] > 2 * ctx["budget"]) else "warning"
+        far_txt = costreal.dominant_text(items, ctx["budget"], cost["max"]) if sev == "critical" else ""  # E8d: which line dominates, what to cut
+        hw_only = ""
+        if host["kind"] == "onprem" and sum(lo for _, lo, n in items if not n.startswith("Indicative hardware")) <= ctx["budget"]:
+            # E8c: only the indicative hardware purchase pushes the band over; servers already owned remove it, so this is not a critical conflict
+            sev = "warning"
+            far_txt = ""
+            hw_only = (" The excess is the indicative amortised hardware line (new purchases, planning heuristic); if you already own servers "
+                       "that can run this stack, the new spend is lower and the cloud/SaaS lines alone fit the budget.")
         defer = rs.deferrable(supporting, ctx)  # D13 E3b: explain what could wait; nothing is removed
         defer_txt = (" Deferrable at launch (sized for scale, not required by a hard constraint): "
                      + ", ".join(f"{n} (${v})" for n, v in defer)
                      + f"; deferring all of them lowers the minimum to ${max(0, cost['min'] - sum(v for _, v in defer))}.") if defer else ""
         W("BUDGET_EXCEEDED", sev,
           f"Estimated minimum ${cost['min']}/month exceeds the ${cx.num(ctx['budget'])}/month budget{top_txt}. The stack keeps the hard constraints; "
-          "to fit the budget, reduce scope (fewer managed services, lower availability) or raise the budget." + defer_txt,
+          "to fit the budget, reduce scope (fewer managed services, lower availability) or raise the budget." + defer_txt + hw_only + far_txt + over_txt,
           ["budget.monthly_infra_usd"])
-    elif host["kind"] != "onprem" and ctx["budget"] >= 500 and cost["max"] * 8 < ctx["budget"]:
+    elif host["kind"] != "onprem" and ctx["budget"] >= 500 and cost["max"] * 8 < ctx["budget"] and not costreal.training_open_ended(ctx):
         W("BUDGET_FAR_ABOVE_NEED", "info", f"The ${cx.num(ctx['budget'])}/month budget is far above the estimated ${cost['min']}-{cost['max']}/month need. The stack was not inflated to use it; spare budget could buy redundancy, support plans or monitoring.",
           ["budget.monthly_infra_usd"])
     elif ctx["budget"] == 0 and cost["max"] > 0:  # statement's own example code: $0 lower bound rests on free plans
@@ -827,7 +843,7 @@ def _recommend(req, assumptions, sid):
           f"Upper estimate ${cost['max']}/month is "
           + (f"{cost['max'] / ctx['budget']:.1f}x the" if far else f"{max(1, round((cost['max'] / ctx['budget'] - 1) * 100))}% above the")
           + f" ${cx.num(ctx['budget'])} budget at peak usage"
-          + top_txt + f". Launch near the ${cost['min']} lower bound and set billing alerts at the budget.",
+          + top_txt + f". Launch near the ${cost['min']} lower bound and set billing alerts at the budget." + over_txt,
           ["budget.monthly_infra_usd"])
 
     stack = {"frontend": fe_cmp, "backend": backend_cmp, "database": db_cmp, "hosting": hosting,
@@ -1328,7 +1344,7 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         elif s["deployment"] == "self_hosted" and not s["choice"].startswith("Existing"):
             # judge B4: a self-hosted tool is never silently free
             if onprem:
-                add(name, 0, 0, f"{s['layer']}: {name} runs on the on-premises servers: {{r}} cloud bill (hardware outside this band).")
+                add(name, 0, 0, f"{s['layer']}: {name} runs on the on-premises servers: {{r}} cloud bill (its share of the servers is in the indicative hardware line).")
             elif vm:
                 add(name, 0, 0, f"{s['layer']}: {name} runs on the app servers (same Docker Compose host): {{r}} extra; size the VM's memory and disk for it.")
             elif host.get("plans"):
@@ -1340,13 +1356,32 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
                 add(name, elo, max(ehi, 5), f"{s['layer']}: {name} as its own small container on {short(host['name'])}: {{r}} (the host's entry tier).")
     gb = ctx["data_gb"]
     obj = any(s["layer"] == "storage" and s["deployment"] != "self_hosted" for s in supporting)
-    if obj or (db_item and db_c.vkey not in ("self", "existing") and gb > 20):
+    db_managed = bool(db_item and db_c and db_c.vkey not in ("self", "existing"))
+    if obj or (db_managed and gb > 20):
         # object storage ~$0.02-0.035/GB-month; managed database SSD ~$0.10-0.25 (Cloud SQL SSD $0.17 Iowa / $0.20 Mumbai, rendered 11 Nov 2026)
-        r_lo, r_hi = (0.02, 0.035) if obj else (0.10, 0.25)
-        add("Stored data", gb * r_lo, gb * r_hi + 1,
-            f"Stored data ~{cx.num(gb)} GB after 12 months at ~${r_lo:.2f}-{r_hi:g}/GB-month: {{r}} (year-end volume used as an upper bound, not an average); "
-            + ("bulk files and media are assumed to sit in object storage, while database rows stay small." if obj
-               else "it lives in the managed database's SSD storage, which costs several times object storage."))
+        parts, split = costreal.stored_data_split(ctx, obj, db_managed)
+        lo_sum = sum(g * r[0] for g, r, _ in parts)
+        hi_sum = sum(g * r[1] for g, r, _ in parts) + 1
+        if split:  # E8a: write-heavy time-series rows are database rows, not files
+            (rg, rr, _), (fg, fr, _) = parts
+            add("Stored data", lo_sum, hi_sum,
+                f"Stored data ~{cx.num(gb)} GB after 12 months: {{r}} (year-end volume used as an upper bound, not an average). Write-heavy "
+                f"IoT volume: {costreal.TS_ROWS_SHARE:.0%} (~{cx.num(rg)} GB, planning heuristic) is append-only rows in the managed database at "
+                f"~${rr[0]:.2f}-{rr[1]:g}/GB-month, the other ~{cx.num(fg)} GB is files in object storage at ~${fr[0]:.2f}-{fr[1]:g}/GB-month.")
+        else:
+            r_lo, r_hi = parts[0][1]
+            add("Stored data", lo_sum, hi_sum,
+                f"Stored data ~{cx.num(gb)} GB after 12 months at ~${r_lo:.2f}-{r_hi:g}/GB-month: {{r}} (year-end volume used as an upper bound, not an average); "
+                + ("bulk files and media are assumed to sit in object storage, while database rows stay small." if obj
+                   else "it lives in the managed database's SSD storage, which costs several times object storage."))
+    elif gb > 20 and db_c and db_c.vkey == "self" and not onprem:
+        # E8a: a database the team runs itself still sits on a disk that is billed (cloud block storage, planning estimate)
+        add("Stored data (disk)", gb * costreal.BLOCK_RATE[0], gb * costreal.BLOCK_RATE[1] + 1,
+            f"Stored data ~{cx.num(gb)} GB after 12 months on the disk under the self-run database at ~${costreal.BLOCK_RATE[0]:.2f}-{costreal.BLOCK_RATE[1]:g}"
+            "/GB-month (planning estimate for block storage; the provider's disk price was not checked): {r} (year-end volume used as an upper bound).")
+    elif gb > 20 and db_c and db_c.vkey == "existing":
+        lines.append(f"Stored data ~{cx.num(gb)} GB after 12 months grows inside the existing database ({db_c.variant}); its disk and backups are paid "
+                     "outside this project and are not in this band.")
     if ctx["desc"].get("video_vod") and ctx["needs_backend"] and not onprem:
         # judge B5: Google Cloud CDN cache egress list price $0.02-0.09/GiB by region and volume (pricing page, 12 Nov 2026)
         # ponytail: one reference rate range for every CDN and a fixed 0.05-0.5 GB per user; a per-provider rate table would be finer
@@ -1354,6 +1389,9 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         add("Video egress", u * 0.05 * 0.02, u * 0.5 * 0.09,
             f"Video egress: {u:,} users x 0.05-0.5 GB streamed/month at a reference CDN rate of $0.02-0.09/GB (Google Cloud CDN cache egress list "
             "price by region and volume, 12 Nov 2026) = {r}; streaming is usually the largest bill for video products.")
+    if any(s["choice"].startswith("Email delivery") for s in supporting):  # E8d: per-message line scales with recipients x sends
+        elo, ehi, etxt = costreal.email_line(ctx)
+        add("Email", elo, ehi, etxt)
     if ctx["req"]["requirements.auth"] == "phone_otp" and not ctx["no_internet"]:
         logins = ctx["users"]
         if any("MSG91" in s["choice"] for s in supporting):
@@ -1379,8 +1417,13 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         lines.append("Fixed-capacity servers are sized for the peak, so quiet months cost the same as peak months.")
     if ctx["req"]["requirements.payments"]:
         lines.append("Excluded: payment gateway fees (~2% per transaction) are a share of revenue, not infrastructure.")
-    if onprem:
-        lines.append("Excluded: on-premises hardware, power, licences and staff time (capital/operational costs outside a cloud bill).")
+    if onprem:  # E8c: Q4 decision: an indicative amortised hardware line instead of a bare $0-0; the budget covers infrastructure
+        hlo2, hhi2, hparts = costreal.onprem_hardware(ctx, supporting, ha)
+        add("Indicative hardware", hlo2, hhi2,
+            f"Hardware (indicative, not a quote): {{r}} = {', '.join(hparts)}, bought once and amortised over {costreal.ONPREM_AMORTISE_MONTHS} months, "
+            f"plus up to {costreal.ONPREM_RUNNING_SHARE:.0%} for power, cooling and spares at the upper bound (planning heuristic for the '{cx.TIER_NAMES[t]}' "
+            f"scale tier, team of {ctx['size']}, ~{ctx['users']:,} users). Servers you already own would lower the new spend.")
+        lines.append("Excluded: software licences, staff time, the building and network (capital/operational costs beyond the indicative hardware line).")
     lines.append("Excluded: taxes, domain names, paid support plans and data-egress spikes. Order-of-magnitude band, not a quote.")
     return {"min": sum(i[1] for i in items), "max": sum(i[0] for i in items), "currency": "USD", "assumptions": lines,
             "_items": sorted(items, key=lambda i: (-i[0], i[2]))}
@@ -1419,7 +1462,7 @@ def make_summary(ctx, style, fe, be, db, host_name, cost, status, onprem=False):
     price = f"an estimated ${cost['min']}-{cost['max']}/month"
     if onprem:  # judge B6: "$0-0" alone reads as free; the band covers only cloud/SaaS fees
         price = ("an estimated cloud bill $0; hardware/licences excluded" if cost["max"] == 0
-                 else f"{price} in cloud/SaaS fees; hardware/licences excluded")
+                 else f"{price} including indicative amortised hardware (not a quote); licences and staff excluded")
     s = " ".join(parts) + f", hosted on {_no_paren(host)}{' — ' + region if region else ''}, at {price}."  # statement 4: one or two sentences
     if status == "ok_with_warnings":
         s += " Review the warnings."

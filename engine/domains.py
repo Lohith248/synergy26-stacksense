@@ -6,6 +6,7 @@ Facts are cited from kb/sources.json (research R6/R7).
 """
 import re
 
+from . import costreal
 from . import rightsize as rs
 
 SECONDS_PER_MONTH = 30 * 24 * 3600
@@ -91,18 +92,38 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
                     "plus a small disk; bigger tiers use larger or more VMs." if p == "gcp" else
                     " Rough estimate for a small VM plus disk; this provider's VM price was not checked.")
             trade = trade + ["Open-source Mosquitto is a single node: patch and monitor the VM; a clustered broker is needed for failover"]
-        if rate:
-            n, sec = rate
+        # E8a: a device count in the description sizes the ingestion cost even when no reporting interval is stated
+        devices = None if rate else costreal.device_count(req["project.description"])
+        size = rate or ((devices, costreal.ASSUMED_REPORT_SECONDS) if devices else None)
+        if size:
+            n, sec = size
             per_month = n * SECONDS_PER_MONTH / sec
             per_sec = n / sec
-            why += f". The description implies ~{n:,} devices every {sec:g} s ≈ {per_sec:,.0f} messages/s, ~{per_month / 1e6:,.0f} million/month"
+            if rate:
+                why += f". The description implies ~{n:,} devices every {sec:g} s ≈ {per_sec:,.0f} messages/s, ~{per_month / 1e6:,.0f} million/month"
+            else:
+                why += (f". The description names ~{n:,} devices but no reporting interval; one message per device every {sec:g} s is assumed for sizing "
+                        f"(planning assumption) ≈ {per_sec:,.0f} messages/s, ~{per_month / 1e6:,.0f} million/month")
             if prov == "aws":
                 lo = round(per_month / 1e6 * 1.0)
                 cost = [[lo, round(lo * 1.3)]] * 4  # ~$1 per million messages (AWS's published Europe example)
-            warn("IOT_INGEST_RATE", "warning" if per_sec >= 1000 else "info",
-                 f"Telemetry rate from the description: ~{per_sec:,.0f} messages/s (~{per_month / 1e6:,.0f} million/month). Size the ingestion "
-                 "workers and database writes for this rate; batching several readings per message lowers both broker and write cost.",
-                 ["project.description", "scale.workload"])
+                note = f" Basis: ~{per_month / 1e6:,.0f} million messages a month at about $1 per million (aws-iot-core), upper bound +30%."
+            elif prov == "azure" and dep == "managed":
+                tier_name, units, usd = costreal.iot_hub_cost(per_month)
+                cost = [[usd, round(usd * 1.3)]] * 4
+                note = (f" Basis (planning estimate: the knowledge base lists the IoT Hub tiers but no price): ~{per_month / 1e6:,.0f} million messages a month "
+                        f"is about {per_month / 30 / 1e6:,.1f} million a day, which Standard {tier_name} x {units} covers at about ${usd // units:,} per unit-month "
+                        "(planning estimate, not verified here); upper bound +30%.")
+            elif dep == "self_hosted" and not selfh:
+                nodes = costreal.broker_nodes(per_sec)
+                cost = [[lo * nodes, hi * nodes] for lo, hi in cost]
+                note += (f" Sized for {per_sec:,.0f} messages/s: {nodes} broker node{'s' if nodes > 1 else ''} at about "
+                         f"{costreal.BROKER_NODE_MSGS_PER_S:,} messages/s each (planning heuristic).")
+            if rate:
+                warn("IOT_INGEST_RATE", "warning" if per_sec >= 1000 else "info",
+                     f"Telemetry rate from the description: ~{per_sec:,.0f} messages/s (~{per_month / 1e6:,.0f} million/month). Size the ingestion "
+                     "workers and database writes for this rate; batching several readings per message lowers both broker and write cost.",
+                     ["project.description", "scale.workload"])
         out.append(svc("other", "Device ingestion: " + name, why + ".", paths,
                        [("Devices calling the HTTPS API directly", "a request per reading is heavier on battery, bandwidth and servers"),
                         ("Google Cloud IoT Core", "retired on 16 August 2023")],

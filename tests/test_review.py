@@ -146,7 +146,17 @@ class OnPremCost(unittest.TestCase):
         s['budget']['monthly_infra_usd'] = 1500
         out = evaluate(s, counterfactuals=False)
         cost = out['estimated_monthly_cost_usd']
-        self.assertEqual((cost['min'], cost['max']), (0, 0))
+        # E8c: no managed cloud fee is acquired; the band is the indicative hardware line alone
+        import re
+        rng = re.compile(r"\$([\d,]+)-([\d,]+)/month")
+        hw = [x for x in cost['assumptions'] if x.startswith('Hardware (indicative')]
+        self.assertEqual(len(hw), 1)
+        for x in cost['assumptions']:
+            m = rng.search(x)
+            if m and x not in hw:
+                self.assertEqual((m.group(1), m.group(2)), ('0', '0'), x)
+        m = rng.search(hw[0])
+        self.assertEqual((cost['min'], cost['max']), (int(m.group(1).replace(',', '')), int(m.group(2).replace(',', ''))))
         self.assertTrue(any('hardware' in x for x in cost['assumptions']))
         self.assertNotIn('BUDGET_FAR_ABOVE_NEED', [w['code'] for w in out['warnings']])
         ml = next(x for x in out['stack']['supporting'] if x['layer'] == 'ml')
