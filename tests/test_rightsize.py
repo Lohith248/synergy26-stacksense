@@ -293,5 +293,26 @@ class G3CdnAudience(unittest.TestCase):
         self.assertLess(b["estimated_monthly_cost_usd"]["max"], a["estimated_monthly_cost_usd"]["max"])
 
 
+def search_app(users):
+    return run(**{"project.type": "marketplace", "project.description": "Students buy and sell used books, search by course code.",
+                  "budget.monthly_infra_usd": 0, "team.experience": "beginner", "team.size": 3, "team.has_devops": False,
+                  "team.languages": ["javascript", "python"], "requirements.full_text_search": True,
+                  "scale.users_at_launch": 200, "scale.peak_concurrent_users": 100, "scale.users_12_months": users})
+
+
+class G5NativeSearch(unittest.TestCase):
+    def test_supabase_uses_postgresql_full_text_search(self):
+        out = search_app(5000)
+        self.assertIn("Supabase", out["stack"]["database"]["choice"])
+        s = sup(out, "search")
+        self.assertEqual(len(s), 1)
+        self.assertTrue(s[0]["choice"].startswith("PostgreSQL full-text search"))
+        self.assertTrue(any("Meilisearch" in a["choice"] for a in s[0]["alternatives"]))
+
+    def test_tier_rule_boundary_is_unchanged(self):
+        self.assertTrue(sup(search_app(50000), "search")[0]["choice"].startswith("PostgreSQL full-text search"))
+        self.assertFalse(sup(search_app(50001), "search")[0]["choice"].startswith("PostgreSQL full-text search"))
+
+
 if __name__ == "__main__":
     unittest.main()

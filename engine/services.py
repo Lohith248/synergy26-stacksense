@@ -247,9 +247,9 @@ def build(ctx, host, backend, db, mobile, warn):
             out.append(svc("search", "Pagefind (static search index built at deploy time)",
                            "Search over a static site without any server: the index is generated with the pages.", dp,
                            [("Algolia", "paid SaaS for a small static site")], ["Index size grows with content"], "library", "neutral", False, Z, ["statement"]))
-        elif db and db["id"] in ("postgresql", "mysql", "sqlserver") and ctx["tier"] <= 1:
-            native = {"postgresql": "PostgreSQL full-text search (tsvector + GIN index)", "mysql": "MySQL FULLTEXT indexes",
-                      "sqlserver": "SQL Server Full-Text Search"}[db["id"]]
+        elif db and db["id"] in ("postgresql", "supabase", "mysql", "sqlserver") and ctx["tier"] <= 1:  # D13 G5: Supabase is PostgreSQL
+            native = {"postgresql": "PostgreSQL full-text search (tsvector + GIN index)", "supabase": "PostgreSQL full-text search (tsvector + GIN index)",
+                      "mysql": "MySQL FULLTEXT indexes", "sqlserver": "SQL Server Full-Text Search"}[db["id"]]
             out.append(svc("search", native,
                            f"At ~{ctx['users']:,} users the primary database's built-in full-text search is enough; no extra service to run or pay for.",
                            dp + ["scale.users_12_months"],
