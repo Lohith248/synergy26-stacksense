@@ -197,9 +197,13 @@ A supporting service that is sized for scale or latency the input does not state
 | Analytics warehouse | type `data_analytics` with `scale.data_volume_gb_12_months` >= 100 (inferred from analytics words and `read_heavy`: >= 200) | BI dashboards read the application database |
 | CDN | a public audience: not "used only by employees"; an `internal_tool` only with `seo_critical` or multi-region/global users | none (warning only) |
 | CRDT sync server | the description names simultaneous editing of one document, note or canvas (the type `realtime_collab` alone is not enough; never for games) | native realtime of the backend |
-| Dedicated search engine | scale tier above 1 (Supabase counts as PostgreSQL for the built-in full-text search) | database full-text search |
+| Dedicated search engine | scale tier above 1 (Supabase counts as PostgreSQL for the built-in full-text search) and, below the 'large' tier, an engine cheaper than 15% of the budget (D16) | database full-text search |
 
-When the estimated minimum exceeds the budget, the `BUDGET_EXCEEDED` message also lists up to three services that could wait (managed cache, dedicated search, CDN without SEO/geo need, warehouse, game servers, the extra Node sync instance) and the minimum without them. This is text only; nothing is removed.
+When the estimated minimum exceeds the budget, the `BUDGET_EXCEEDED` message also lists up to three services that could wait (managed cache, dedicated search, CDN without SEO/geo need, warehouse, game servers, the extra Node sync instance) and the minimum without them. Services the budget guard below already replaced or left out (D16) are not listed again; the listing itself is text only.
+
+### Over-engineering guard (D16)
+
+The statement asks for simple stacks (no microservices or Kubernetes without justification) for high traffic that is really static, small tools and tiny teams. Three input-driven rules, with thresholds in `engine/overeng.py` (`THRESHOLDS`, planning heuristics): (1) a site with no accounts, uploads, realtime, multi-tenancy, ML or stored-user-data wording, whose payments (if any) are a hosted button or link, is a static site with no backend or database, however much traffic it gets; the output quotes the inputs and says when to add a backend; (2) below the 'large' tier, an optional cache, dedicated search engine, managed queue or AWS/Google CDN whose cheapest tier is more than 15% of the budget is replaced by the cheaper option already in the knowledge base (or not added, with `SERVICE_NOT_ADDED`), and the budget warning still appears if the stack does not fit; (3) for a team of 5 or fewer, inference runs in-process where ONNX Runtime documents a binding for the API's language, and on-premises Kubernetes needs a larger team. Complex stacks whose input asks for them (enterprise scale, regulated lending, large teams) are unchanged. DECISIONS.md row D16 is proposed and awaits participant confirmation.
 
 ## Project structure
 
