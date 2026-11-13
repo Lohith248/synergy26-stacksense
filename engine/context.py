@@ -28,7 +28,12 @@ DESC_RULES = [
     ("payouts", r"get paid|payout|disburs|pay (?:out|providers|sellers|vendors)|split payment|commission"),
     ("ledger", r"ledger|double[- ]entry"),
     # A12: a rule that must hold across devices (one use per ticket, one booking per slot, no duplicate record); read with offline_support
-    ("unique_rule", r"\bduplicat\w*|\bdupes?\b|\bunique(?:ness)?\b|\bonly once\b|\bone[- ]time (?:use|only|vouchers?|coupons?|tickets?|entry)"
+    # "unique" alone is not a rule ("a unique design"): it must qualify an identifier or be demanded; "one per" and stock that must not go negative count too
+    ("unique_rule", r"\bduplicat\w*|\bdupes?\b|\buniqueness\b|\bonly once\b|\bone[- ]time (?:use|only|vouchers?|coupons?|tickets?|entry)"
+                    r"|\bunique (?:\w+ ){0,2}(?:tickets?|serials?|numbers?|codes?|ids?|identifiers?|keys?|references?|barcodes?|qr|passes|vouchers?|coupons?|entr(?:y|ies)|records?|bookings?|slots?|seats?|receipts?|usernames?|e-?mails?|invoices?)\b"
+                    r"|\b(?:must|should|needs? to|has to|have to) (?:be )?(?:\w+ ){0,2}unique\b|\b(?:ensur\w*|enforc\w*|guarantee\w*|verif\w*|check\w*)\b(?:\W+\w+){0,5}?\W+unique\b"
+                    r"|\bone (?:\w+ )?per (?:person|ticket|seat|slot|attendee|member|customer|user|day|device|code)\b"
+                    r"|\b(?:stock|inventory|quantit(?:y|ies))\b(?:\W+\w+){0,4}?\W+(?:decrement\w*|deduct\w*|reduc\w*|runs? out|sold out)\b|\b(?:decrement\w*|deduct\w*|reduc\w*|decreas\w*) (?:\w+ ){0,3}(?:stock|inventory|quantit(?:y|ies))\b"
                     r"|\b(?:used|scanned|redeemed|claimed|booked|entered|admitted) (?:twice|more than once|again)\b"
                     r"|\bdouble[- ](?:book\w*|scan\w*|spend\w*|enter\w*|sell\w*|sold)|\bover-?(?:book\w*|sell\w*|sold)\b|\bcheck-?ins?\b"
                     r"|\b(?:validat\w*|scan\w*|redeem\w*|issu\w*) (?:\w+ ){0,2}(?:tickets?|passes|coupons?|vouchers?|admissions?)\b"

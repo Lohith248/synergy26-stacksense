@@ -284,5 +284,24 @@ class RefreshWording(unittest.TestCase):
             self.assertEqual("shorter than the shortest interval" in tr, expect, (cloud, interval))
 
 
+class UniquenessWording(unittest.TestCase):
+    """Review fix N4: 'unique' must qualify an identifier or be demanded; stock counters count as a cross-device rule."""
+
+    def test_fires(self):
+        for typ, desc in (("other", "Gate staff scan tickets; each ticket code must be unique and is admitted once."),
+                          ("internal_tool", "Warehouse handhelds record serial numbers; the system must ensure every serial is unique."),
+                          ("marketplace", "Market stalls hand out one voucher per customer from tablets with poor signal."),
+                          ("ecommerce", "Stall staff sell from stock on tablets and the stock quantity is decremented offline.")):
+            out = run(**{**OFFLINE, "project.type": typ, "project.description": desc})
+            self.assertIn("OFFLINE_UNIQUENESS", codes(out), desc)
+
+    def test_must_not_fire(self):
+        for typ, desc in (("other", "Field survey app with a unique visual style for each region."),
+                          ("internal_tool", "A unique brand colour and a unique logo; staff record visit notes on phones."),
+                          ("other", "Staff record household answers; the unique selling point is speed in poor coverage.")):
+            out = run(**{**OFFLINE, "project.type": typ, "project.description": desc})
+            self.assertNotIn("OFFLINE_UNIQUENESS", codes(out), desc)
+
+
 if __name__ == "__main__":
     unittest.main()

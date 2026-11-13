@@ -33,7 +33,7 @@ def uniqueness_warning(c, quote):
         return None
     return ("OFFLINE_UNIQUENESS", "warning",
             f"offline_support is on and the description names a rule that must hold across devices (\"{quote()}\"). While a device is "
-            "disconnected it cannot see what the other devices accepted, so uniqueness cannot be guaranteed offline. Design for it: the server "
+            "disconnected it cannot see what the other devices accepted, so uniqueness (or a stock count that must not go below zero) cannot be guaranteed offline. Design for it: the server "
             "stays the single authority and enforces the rule with a unique constraint when records sync; each device holds a local allow-list "
             "or deny-list downloaded before it goes offline; entries accepted offline are marked provisional until reconciled; a double entry "
             "found at sync goes to a manual resolution queue. Decide how many double entries the business can tolerate while partitioned.",
