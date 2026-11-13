@@ -1168,11 +1168,12 @@ def build(ctx, host, backend, db, mobile, warn):
                            (f"The input says it is going away: read its data once through an export or ETL job over {via} into the new database ({db['_variant']}), "
                             "check row counts and checksums, and switch it off once its owners agree. The new application does not depend on a live connection to it afterwards."
                             if e["retire"] else
-                            f"{pat.get('how_beside', pat['how'])} The new application keeps its own tables in {db['_variant']} and reads the existing data through {via}. "
+                            f"{pat.get('how_beside', pat['how']).replace('Leave it running as it is and read', 'Until it is migrated or retired, read') if e['life'] and e['life']['eol'] <= AS_OF else pat.get('how_beside', pat['how'])} The new application keeps its own tables in {db['_variant']} and reads the existing data through {via}. "
                             + second_db_reason(ctx, e, pat, db))
                            + (f" It {cx.life_short(e['life'])} ({e['life']['name']}{'' if e['life'].get('soft') else ', ' + e['life']['eol']})"
                               + (", which is a further reason to retire it." if e["retire"] else
-                                 ": plan its upgrade, or move its data into the new database and retire it once its owners agree.")
+                                 ": plan its upgrade" + (f" to {e['life']['successor']}" if e["life"].get("successor") else "")
+                                 + ", or move its data into the new database and retire it once its owners agree.")
                               if e["life"] and e["life"]["eol"] <= AS_OF else ""),
                            ["infrastructure.existing_systems"],
                            [("Keep reading it live after launch", "keeps the system the input is retiring in service and ties the new application to it")] if e["retire"] else

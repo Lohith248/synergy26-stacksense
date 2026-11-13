@@ -8,7 +8,7 @@ from . import overeng as ov
 from . import integrations as ig
 from . import costreal
 from . import localfirst as lf
-from .kb import TECH
+from .kb import AS_OF, TECH
 
 TIER_NAMES = ["tiny", "small", "medium", "large"]
 EXP_FACTOR = {"beginner": 1.6, "intermediate": 1.2, "mixed": 1.2, "senior": 0.7}
@@ -122,6 +122,11 @@ DESC_RULES = [
     ("sync_server", r"\buploads?\b|\bsync(?:s|ed|ing|hroni[sz]\w*)?\b|\bservers?\b|\bback-?ups? (?:to|online)\b"),
     ("scheduler", r"remind(?:er)?s?\b|\bcron\b|nightly|scheduled (?:jobs?|tasks?|emails?)|daily (?:email|digest|report)s?"),
     ("analytics", r"dashboards?|\breports?\b|analysts?|\bbi\b|ad-hoc (?:sql|quer)|data warehouse"),
+    # h1 (blind9 A8): wording that the data is a time-ordered stream (readings, metrics, logs, events, ledger rows); with write_heavy and a
+    # large volume it adds the time-series storage item (domains.py). write_heavy alone (a social feed, a chat) is not evidence.
+    ("time_series", r"time[- ]?series|\btelemetry\b|\bmetrics?\b|\bsensors?\b|\bmeasurements?\b|\bclick-?streams?\b|\bticks?\b|\bevent (?:logs?|streams?|stor\w+)"
+                    r"|\b(?:audit|access|application|server|transaction) (?:logs?|trail)s?\b|\bledgers?\b|\bhistorical (?:prices?|rates?|data)\b|\bquotes? feeds?\b|\blog (?:ingest\w*|aggregat\w*|analy\w*)\b"
+                    r"|\blive location\b|\blocation (?:pings?|updates|history|tracks?|tracking)\b|\bgps\b|\btelematics\b"),
     # D16 (overeng.py): evidence that payments are a hosted button/link, that the content is editorial, and that the site stores user data
     ("hosted_pay", r"\b(?:donat\w*|payments?|pay|buy|checkout|tip|order)\s+(?:buttons?|links?)\b|\bhosted\s+(?:checkout|payments?|donations?|payment pages?)\b"
                    r"|\bembedded\s+(?:checkout|payments?|donations?)\b|\b(?:paypal|stripe|razorpay|givebutter|ko-?fi|buy ?me ?a ?coffee|gumroad)\s+(?:donat\w*\s+|payment\s+|checkout\s+)?(?:buttons?|links?)\b"),
@@ -613,6 +618,7 @@ def lifecycle_text(low):
     low = re.sub(r"\boracle\s+database\b", "oracle", low)
     low = re.sub(r"\b(?:vb|visual\s+basic)[\s\-_]*6(?:\.0)?(?![\d.]*\d)", "visual basic 6", low)
     low = re.sub(r"\bwin(?:dows)?[\s\-_]*server[\s\-_]*(?=\d)", "windows server ", low)
+    low = re.sub(r"\b(?:vmware\s+)?(?:vsphere|esxi?)[\s\-_]*(?:server\s*)?v?(?=\d)", "vsphere ", low)  # h1: vSphere / ESXi 7 -> "vsphere 7"
     # A3 (blind8): legacy runtimes and products often named with a vendor prefix or a 1.x style version
     low = re.sub(r"\b(?:java(?:\s*se)?|jdk|jre|j2se)[\s\-_]*(?:1\.)?(?=[67](?!\d))", "java ", low)
     low = re.sub(r"\bstruts[\s\-_]*v?(?=1(?!\d))", "struts ", low)
@@ -649,6 +655,19 @@ def lifecycle_hits(norm):
 # 'Exchange 2010 on-prem') is self-hosted software; the Microsoft 365 / Graph / Entra profile does not describe it
 _MS_SELF_HOSTED = re.compile(r"(?<![a-z0-9])(?:sharepoint|exchange|skype for business|lync)\s+(?:server(?![a-z0-9])|(?:19|20)\d\d\b)"
                              r"|(?<![a-z0-9])(?:sharepoint|exchange)\b[^,;()]*\bon[- ]?prem", re.I)
+
+
+# h1 (blind9 A1), planning heuristic: the lowest release line of a few well-known product families that the knowledge base holds
+# lifecycle rows for (kb "version_floors"). An existing_systems entry that names an older version of one of them and matches no
+# lifecycle row is flagged END_OF_LIFE_SUSPECTED ("older version of a known product") with soft wording: the date is not stated.
+def old_version_hit(norm):
+    """The version-floor family an entry names below its oldest known line, or None. Returns {family, version, oldest, successor}."""
+    for fl in TECH.get("version_floors", []):
+        for m in re.finditer(r"(?<![a-z0-9])" + fl["rx"] + r"(?!\d)", norm):
+            ver = tuple(int(g) for g in m.groups() if g)
+            if ver + (0,) * (2 - len(ver)) < tuple(fl["floor"]):
+                return {"family": fl["family"], "version": ".".join(g for g in m.groups() if g), "oldest": fl["oldest"], "successor": fl.get("successor")}
+    return None
 
 
 def life_what(life):
@@ -689,7 +708,7 @@ def life_short(life):
 # long-retired product name) is flagged END_OF_LIFE_SUSPECTED instead of being silently assumed supported. A bare year is no
 # trigger: a contract or upgrade date ("2014 contract", "upgraded 2015") says nothing about the product's release.
 EOL_TOKEN_RX = re.compile(
-    r"(?<![a-z0-9])(?:\d{1,2}[ig]|v?1\.x|(?:adobe |macromedia )?flash(?= (?:player|plugin|apps?|application|client|front-?end|ui|console|movie|based|admin|portal|widget|site|website|game|content|applet)\b)|(?:adobe|macromedia) flash|silverlight|activex|java applets?|cobol|foxpro|powerbuilder|lotus notes|clipper|netware"
+    r"(?<![a-z0-9])(?:\d{1,2}[ig]|v?1\.x|(?:adobe |macromedia )?flash(?= (?:player|plugin|apps?|application|client|front-?end|ui|console|movie|based|admin|portal|widget|site|website|game|content|applet)\b)|(?:adobe|macromedia) flash|silverlight|activex|java applets?|foxpro|powerbuilder|lotus notes|clipper|netware"
     r"|windows (?:xp|vista|nt)|win(?:dows)? ?(?:95|98|me|2000)|asp classic|classic asp)(?![a-z0-9])", re.I)
 
 
@@ -877,6 +896,9 @@ def lang_norm(langs):
     return sorted({LANG_ALIASES.get(x, x) for x in langs})
 
 
+PEAK_RATE_RX = re.compile(r"\bper\s+(?:second|sec)\b|\b(?:tps|rps|qps)\b|\b(?:requests?|transactions?|calls?|messages?|events?)\s*(?:/\s*s\b|a second\b)", re.I)
+
+
 def build(req):
     c = {"req": req}
     plats = req["project.platforms"]
@@ -890,6 +912,14 @@ def build(req):
     c["peak_derived"], c["peak_fraction"], c["peak_why"] = peak is None, None, ""
     if peak is None:  # E8e: users x a documented fraction, never above users
         peak, c["peak_fraction"], c["peak_why"] = costreal.derived_peak(users, req, req["project.type"])
+    # h1 (blind9 A6): an explicit peak above the total user count is capped at the users for sizing (planning heuristic). An API-shaped
+    # project (api_platform, or api_only among the platforms) counts its customers' end users or requests, not its own accounts, so it
+    # is never capped; if its description gives the peak as a rate ("5,000 transactions per second") the warning is dropped too.
+    api_shaped = req["project.type"] == "api_platform" or "api_only" in plats
+    c["peak_is_rate"] = api_shaped and bool(PEAK_RATE_RX.search(req["project.description"] or ""))
+    c["peak_capped_from"] = None
+    if peak > users and not api_shaped:
+        c["peak_capped_from"], peak = peak, users
     c["users"], c["peak"] = users, peak
     if users <= 5000 and peak <= 200:
         tier = 0
@@ -1001,6 +1031,9 @@ def build(req):
         norm = lifecycle_text(low)
         lifes = lifecycle_hits(norm)
         life = lifes[0] if lifes else None
+        if life and life.get("discontinued") and life["eol"] <= AS_OF:
+            hit = None  # h1: a retired service cannot be integrated with, whatever product family its name resembles ("MongoDB Atlas Device Sync")
+        old_ver = None if life else old_version_hit(norm)
         # "must stay": in the entry itself, or in a description sentence that names the same system (its patterns, or the
         # product's first word: 'Keep the Oracle database' names 'Oracle 19c')
         name_rx = None
@@ -1025,7 +1058,7 @@ def build(req):
             else:
                 names = ([name_rx_plain(hit)] if hit else []) + ([life_rx(life)] if life else [])
                 retire = any(removal_in_text(n, lifecycle_text(s)) for n in names for s in sentences)
-        ex.append({"raw": raw, "pattern": hit, "life": life, "life_more": lifes[1:], "keep": keep, "onprem": onprem, "workforce": workforce,
+        ex.append({"raw": raw, "pattern": hit, "life": life, "life_more": lifes[1:], "old_ver": old_ver, "keep": keep, "onprem": onprem, "workforce": workforce,
                    "retire": retire, "adapter": adapter})
     # list-order invariance: knowledge-base pattern order (identity, databases, brokers, ...), then keyword categories
     # (knowledge-base order), then name; unrecognised last

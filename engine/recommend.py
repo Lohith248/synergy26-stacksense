@@ -1171,9 +1171,12 @@ def contradictions(ctx, W, assumptions, host, backend):
     peak = req["scale.peak_concurrent_users"]
     if peak is not None:
         top = max(req["scale.users_12_months"], req["scale.users_at_launch"])
-        if peak > top:
-            W("PEAK_EXCEEDS_USERS", "warning", f"peak_concurrent_users ({peak:,}) exceeds the total user count ({top:,}); check the numbers.",
+        if peak > top and not ctx.get("peak_is_rate"):
+            W("PEAK_EXCEEDS_USERS", "warning", f"peak_concurrent_users ({peak:,}) exceeds the total user count ({top:,}); check the numbers."
+              + (f" Sizing uses the total user count ({top:,}) as the peak instead." if ctx.get("peak_capped_from") else ""),
               ["scale.peak_concurrent_users", "scale.users_12_months"])
+            if ctx.get("peak_capped_from"):
+                assumptions.append(f"scale.peak_concurrent_users ({peak:,}) is higher than the total user count ({top:,}); it is capped at the total users for sizing (planning heuristic).")
         elif peak == req["scale.users_at_launch"] and peak > 1000:
             W("PEAK_EQUALS_LAUNCH_USERS", "info", f"Every launch user ({req['scale.users_at_launch']:,}) is assumed online at once at peak; sizing uses this conservative figure.",
               ["scale.peak_concurrent_users", "scale.users_at_launch"])
@@ -1271,20 +1274,36 @@ def contradictions(ctx, W, assumptions, host, backend):
                 what = cx.life_what(life)
                 W("END_OF_LIFE_SYSTEM", "warning",
                   f"'{e['raw']}' {what} ({life['name']}); " + ("confirm its support status with the vendor, " if life.get("soft") else "")
-                  + ("it is a discontinued service, not a version to upgrade, so do not build on it; no replacement named in the knowledge base, "
-                     "so choose one from the vendor's current guidance and plan the migration."
+                  + (("it is a discontinued service, not a version to upgrade, so do not build on it and add no integration with it; "
+                      + (f"candidate replacements (the knowledge base's suggestion, not a vendor recommendation): {life['successor']}; "
+                         "confirm the choice against the vendor's current guidance and plan the migration."
+                         if life.get("successor") else
+                         "no replacement named in the knowledge base, so choose one from the vendor's current guidance and plan the migration."))
                      if life.get("discontinued") else
-                     "keep it behind an isolated interface, do not build new features on it, and plan a migration."),
+                     "keep it behind an isolated interface, do not build new features on it, and plan a migration."
+                     + (f" Supported successor to plan for: {life['successor']}." if life.get("successor") else "")),
                   ["infrastructure.existing_systems"])
-            elif (date.fromisoformat(life["eol"]) - date.fromisoformat(AS_OF)).days <= 90:
+                if life.get("discontinued"):  # h1: nothing can be integrated with a retired service, so no component is built for it
+                    assumptions.append(f"'{e['raw']}' is a discontinued service ({life['name']}): no integration component is added for it.")
+            elif (date.fromisoformat(life["eol"]) - date.fromisoformat(AS_OF)).days <= life.get("horizon_days", 90):
+                # a row may carry its own warning horizon (h1, planning heuristic: an ERP migration takes longer than a quarter)
                 W("END_OF_LIFE_SOON", "warning",
-                  f"'{e['raw']}' ({life['name']}) reaches end of support on {life['eol']}, within 90 days of the knowledge-base date {AS_OF}; "
-                  "schedule the upgrade now and avoid building new features on it.", ["infrastructure.existing_systems"])
+                  f"'{e['raw']}' ({life['name']}) reaches {life.get('milestone', 'end of support')} on {life['eol']}, within "
+                  f"{life.get('horizon_days', 90)} days of the knowledge-base date {AS_OF}; "
+                  + (life["after"] + "; " if life.get("after") else "") + "schedule the upgrade now and avoid building new features on it."
+                  + (f" Supported successor to plan for: {life['successor']}." if life.get("successor") else ""), ["infrastructure.existing_systems"])
             elif life.get("mainstream_end") and life["mainstream_end"] <= AS_OF:
                 W("EXISTING_SYSTEM_EXTENDED_SUPPORT", "info",
                   f"'{e['raw']}' is in extended (security-only) support until {life['eol']}; supported, but plan the upgrade path.",
                   ["infrastructure.existing_systems"])
-        tok = None if life else cx.eol_token(e["raw"])
+        oldv = e.get("old_ver")
+        tok = None if life or oldv else cx.eol_token(e["raw"])
+        if oldv:  # h1: an older version of a known product family, below every line the knowledge base holds a lifecycle row for
+            W("END_OF_LIFE_SUSPECTED", "warning",
+              f"'{e['raw']}' names {oldv['family']} {oldv['version']}, an older version of a known product: older than {oldv['family']} {oldv['oldest']}, the oldest line the "
+              "knowledge base has lifecycle data for, so it is very likely out of vendor support, but the exact end-of-support date is not confirmed in the knowledge base. "
+              "Check the vendor's lifecycle page, keep it behind an isolated interface, do not build new features on it, and plan a migration"
+              + (f" to {oldv['successor']}." if oldv.get("successor") else "."), ["infrastructure.existing_systems"])
         if tok:  # A3: no lifecycle data, but the entry names an old release or retired product
             W("END_OF_LIFE_SUSPECTED", "warning",
               f"'{e['raw']}' contains '{tok}', which looks like an old or retired release, and the knowledge base has no lifecycle data for it. "
