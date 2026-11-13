@@ -72,7 +72,7 @@ HOW = {
     "scale.peak_concurrent_users": "Sizes concurrency (people, not requests/s): hosting plan, database tier, backend scale ceiling.",
     "scale.traffic_pattern": "Spiky/seasonal favour request-based autoscaling and scale-to-zero over always-on plans.",
     "scale.workload": "read_heavy adds caching/read replicas at medium+ scale; write_heavy raises database and queue needs.",
-    "scale.data_volume_gb_12_months": "Drives storage cost, partitioning/lifecycle notes and warehouse needs for large data.",
+    "scale.data_volume_gb_12_months": "Drives storage cost, partitioning/lifecycle notes and the analytics warehouse: for a data_analytics project, 100 GB or more (planning heuristic) adds one; below that reports run on the application database, with a note.",
     "team.size": "Scales CI/CD cost with team size; feeds scope-versus-team warnings; a team of up to 4 may get one Next.js app as UI and API.",
     "team.experience": "Raises learning-curve penalty for complex frameworks; managed services for beginners; scope warnings.",
     "team.languages": "Language fit for backend and client frameworks; a mismatch is penalised and warned.",

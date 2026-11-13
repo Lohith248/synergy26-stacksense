@@ -144,5 +144,59 @@ class G1GameServers(unittest.TestCase):
         self.assertLess(slow["estimated_monthly_cost_usd"]["min"], fast["estimated_monthly_cost_usd"]["min"])
 
 
+def wh_lines(out):
+    return [s for s in sup(out, "other") if s["choice"].startswith("Analytics warehouse")]
+
+
+def bi_line(out):
+    return next(s for s in sup(out, "other") if s["choice"].startswith("BI dashboards"))
+
+
+def analytics(gb=None, **kw):
+    kw["project.type"] = "data_analytics"
+    if gb is not None:
+        kw["scale.data_volume_gb_12_months"] = gb
+    return run(**kw)
+
+
+class G2Warehouse(unittest.TestCase):
+    def test_100_gb_keeps_warehouse_and_bi(self):
+        out = analytics(100)
+        self.assertEqual(len(wh_lines(out)), 1)
+        self.assertNotIn("application database", bi_line(out)["justification"])
+        self.assertFalse(notes(out, "warehouse"))
+
+    def test_99_gb_runs_reports_on_the_application_database(self):
+        out = analytics(99)
+        self.assertEqual(wh_lines(out), [])
+        bi = bi_line(out)
+        self.assertEqual(bi["choice"], "BI dashboards: Metabase (open-source edition, self-hosted container)")
+        self.assertIn("application database", bi["justification"])
+        self.assertIn("scale.data_volume_gb_12_months", bi["driven_by"])
+        alt = next(a for a in bi["alternatives"] if a["choice"].startswith("Analytics warehouse"))
+        self.assertIn("100 GB", alt["why_not"])
+        n = notes(out, "warehouse")
+        self.assertEqual(len(n), 1)
+        self.assertIn("99", n[0]["message"])
+        self.assertEqual(n[0]["fields"], ["project.type", "scale.data_volume_gb_12_months"])
+
+    def test_missing_volume_says_not_given(self):
+        out = analytics(None)
+        self.assertEqual(wh_lines(out), [])
+        self.assertIn("not given", notes(out, "warehouse")[0]["message"])
+
+    def test_description_path_boundary_is_200(self):
+        d = {"project.type": "web_app", "project.description": "Analysts run reports and dashboards", "scale.workload": "read_heavy"}
+        self.assertEqual(wh_lines(run(**d, **{"scale.data_volume_gb_12_months": 199})), [])
+        self.assertFalse(notes(run(**d, **{"scale.data_volume_gb_12_months": 199})))  # old precondition did not hold: no note
+        self.assertEqual(len(wh_lines(run(**d, **{"scale.data_volume_gb_12_months": 200}))), 1)
+
+    def test_azure_small_volume_drops_the_warehouse_floor(self):
+        kw = {"infrastructure.cloud_preference": "azure"}
+        small, big = analytics(10, **kw), analytics(100, **kw)
+        drop = big["estimated_monthly_cost_usd"]["min"] - small["estimated_monthly_cost_usd"]["min"]
+        self.assertGreaterEqual(drop, 263)
+
+
 if __name__ == "__main__":
     unittest.main()

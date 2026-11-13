@@ -120,32 +120,42 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
                        ["Retention and rollup jobs must be scheduled"], "library", "neutral", False, Z,
                        ["postgres-partitioning"] + (["azure-pg-timescale"] if "Timescale" in ts else []) + (["timestream-change"] if iot else [])))
 
-    # ---------------- analytics: warehouse + BI
+    # ---------------- analytics: warehouse + BI (D13: the warehouse needs data volume; below it reports run on the application database)
     if typ == "data_analytics" or (d["analytics"] and req["scale.workload"] == "read_heavy" and ctx["data_gb"] >= 200):
+        want_wh, wh_fact, wh_when, wh_paths = rs.warehouse(ctx)
         if selfh or not hyper:
             wh, wprov, wsrc, wdep = "ClickHouse (self-hosted columnar warehouse)", "neutral", ["clickhouse"], "self_hosted"
         else:
             wh, wprov, wsrc, wdep = {"gcp": (f"BigQuery{rtxt}", "gcp", ["bigquery-locations"], "managed"),
                                      "aws": (f"Amazon Redshift Serverless{rtxt}", "aws", ["redshift-serverless"], "managed"),
                                      "azure": (f"Microsoft Fabric Warehouse{rtxt}", "azure", ["fabric-overview", "synapse-to-fabric"], "managed")}[p]
-        out.append(svc("other", "Analytics warehouse: " + wh,
-                       f"Ad-hoc SQL and reports over ~{ctx['data_gb']:,.0f} GB run on a columnar warehouse, so analysts' heavy scans never slow the "
-                       "application database; data is loaded on a schedule (ELT) from the operational store.",
-                       ["project.type", "scale.data_volume_gb_12_months", "scale.workload"],
-                       [("Reporting straight off the OLTP database", "large scans compete with application traffic"),
-                        ("Self-managed Spark cluster", "far more operations than SQL dashboards need")],
-                       ["Pricing is per data scanned or per compute-hour; partition and cluster tables"], wdep, wprov, True,
-                       [[max(lo, 263), max(hi, 321)] if "Fabric" in wh else [lo, hi] for lo, hi in [[0, 25], [10, 100], [100, 600], [600, 4000]]],
-                       wsrc + (["fabric-capacity-price"] if "Fabric" in wh else []), loc))
-        if "Fabric" in wh:  # judge F5: Fabric bills a capacity, not queries; F2 is the smallest (Azure Retail Prices API, 12 Nov 2026)
-            out[-1]["_note"] = (" Floor is an F2 capacity (2 CU at $0.18-0.22/CU-hour, East US to West Europe) left running, about $263-321/month; "
-                                "pausing it outside working hours lowers this.")
+        if want_wh:
+            out.append(svc("other", "Analytics warehouse: " + wh,
+                           f"Ad-hoc SQL and reports over ~{ctx['data_gb']:,.0f} GB run on a columnar warehouse, so analysts' heavy scans never slow the "
+                           "application database; data is loaded on a schedule (ELT) from the operational store.",
+                           ["project.type", "scale.data_volume_gb_12_months", "scale.workload"],
+                           [("Reporting straight off the OLTP database", "large scans compete with application traffic"),
+                            ("Self-managed Spark cluster", "far more operations than SQL dashboards need")],
+                           ["Pricing is per data scanned or per compute-hour; partition and cluster tables"], wdep, wprov, True,
+                           [[max(lo, 263), max(hi, 321)] if "Fabric" in wh else [lo, hi] for lo, hi in [[0, 25], [10, 100], [100, 600], [600, 4000]]],
+                           wsrc + (["fabric-capacity-price"] if "Fabric" in wh else []), loc))
+            if "Fabric" in wh:  # judge F5: Fabric bills a capacity, not queries; F2 is the smallest (Azure Retail Prices API, 12 Nov 2026)
+                out[-1]["_note"] = (" Floor is an F2 capacity (2 CU at $0.18-0.22/CU-hour, East US to West Europe) left running, about $263-321/month; "
+                                    "pausing it outside working hours lowers this.")
+        else:
+            warn("SERVICE_NOT_ADDED", "info", rs.note("Analytics warehouse", wh_fact, wh_when), wh_paths)
+        bi_why = "Analysts build dashboards and scheduled reports with SQL or a query builder, signed in through the same identity provider."
+        bi_alts = [("Data Studio (formerly Looker Studio)", "no-cost and simple, but Google-account based and weaker on governed internal access") if p == "gcp" else
+                   ("Apache Superset", "comparable open-source tool; heavier to operate"),
+                   ("Custom React dashboards", "every new report becomes a development task")]
+        bi_drv = ["project.type", "requirements.auth"]
+        if not want_wh:
+            bi_why += (f" Reports run on the application database through a read-only role (~{ctx['data_gb']:,.0f} GB), "
+                       "so no separate warehouse is needed yet.")
+            bi_alts = [("Analytics warehouse: " + wh, f"{wh_fact}; add when {wh_when}")] + bi_alts
+            bi_drv = bi_drv + ["scale.data_volume_gb_12_months"]
         out.append(svc("other", "BI dashboards: Metabase (open-source edition, self-hosted container)",
-                       "Analysts build dashboards and scheduled reports with SQL or a query builder, signed in through the same identity provider.",
-                       ["project.type", "requirements.auth"],
-                       [("Data Studio (formerly Looker Studio)", "no-cost and simple, but Google-account based and weaker on governed internal access") if p == "gcp" else
-                        ("Apache Superset", "comparable open-source tool; heavier to operate"),
-                        ("Custom React dashboards", "every new report becomes a development task")],
+                       bi_why, bi_drv, bi_alts,
                        ["The open-source edition is AGPL: keep it unmodified or comply with the licence"], "self_hosted", "neutral", False, Z,
                        ["metabase-license", "superset"] + (["looker-studio"] if p == "gcp" else [])))
 
