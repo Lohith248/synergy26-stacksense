@@ -700,11 +700,11 @@ def _team_hits(text):
                            text or "", flags=re.I):
         if _NOT_OWN.search(clause):
             continue
-        if not re.search(r"\belixir\b", clause, re.I):
-            clause = _PHOENIX_NAME.sub("-", clause)
+        # "Phoenix shop / team" and "<X> experience" read Phoenix as the framework only beside Elixir or as "Phoenix framework/LiveView/app"
+        mclause = clause if re.search(r"\belixir\b", clause, re.I) else _PHOENIX_NAME.sub(lambda m: "_" * len(m.group(0)), clause)
         for lang, rx in _PRIMARY_RX.items():
-            for m in rx.finditer(clause):
-                if not _COMPOUND.match(clause.lower(), m.end()) and _TEAM_NOUN.match(clause, m.end()):
+            for m in rx.finditer(mclause):
+                if not _COMPOUND.match(mclause.lower(), m.end()) and _TEAM_NOUN.match(mclause, m.end()):
                     out.add(lang)
                     words.add((lang, m.group(0).lower()))
         for v in _TEAM_VERB.finditer(clause):
@@ -714,13 +714,13 @@ def _team_hits(text):
                 if _EXP_SUBJ.search(clause[:v.start()]):
                     _walk_langs(clause, v.end(), out, need_noun, words)
         for rx in _PRIMARY_RX.values():  # A4: "<list> experience"
-            for m in rx.finditer(clause):
-                before = clause[:m.start()]
+            for m in rx.finditer(mclause):
+                before = mclause[:m.start()]
                 if (_EXP_SUBJ.search(before) and _EXP_POSS.search(before) and not _EXP_THIN.search(before)
-                        and not _EXP_NOT_NOW.search(clause)):
+                        and not _EXP_NOT_NOW.search(mclause)):
                     found, wset = set(), set()
-                    end = _walk_langs(clause, m.start(), found, False, wset)
-                    if _EXP_TRAIL.match(clause, end):
+                    end = _walk_langs(mclause, m.start(), found, False, wset)
+                    if _EXP_TRAIL.match(mclause, end):
                         out |= found
                         words |= wset
     return out, words

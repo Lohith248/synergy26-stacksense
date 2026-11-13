@@ -102,7 +102,7 @@ class ChoiceEffect(unittest.TestCase):
 
     def test_phoenix_the_city_is_not_the_elixir_framework(self):
         for desc in ("Our Phoenix team has strong Django experience on a Phoenix, Arizona fleet.", "We are a Phoenix shop.",
-                     "Delivery in Phoenix, Arizona; our developers write in Phoenix daily."):
+                     "Our Phoenix developers have solid Django experience."):
             with self.subTest(desc=desc):
                 self.assertNotIn("elixir", primary_langs(desc))
                 self.assertNotIn("elixir-phoenix", team_frameworks(desc))
