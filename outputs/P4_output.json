@@ -7,7 +7,7 @@
   "stack": {
     "frontend": {
       "choice": "React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS)",
-      "justification": "Web: React (Vite SPA) — Rich interactive app screens; team already writes typescript for the UI; good security (priority 5/5); good maintainability (priority 4/5). Mobile: Kotlin Multiplatform + Compose Multiplatform — Team already writes java, kotlin for the mobile app; one codebase for Android and iOS; good security (priority 5/5); good maintainability (priority 4/5).",
+      "justification": "Web: React (Vite SPA) — Rich interactive screens for a fintech product; team already writes typescript for the UI; good security (priority 5/5); good maintainability (priority 4/5). Mobile: Kotlin Multiplatform + Compose Multiplatform — Team already writes java, kotlin for the mobile app; one codebase for Android and iOS; good security (priority 5/5); good maintainability (priority 4/5).",
       "driven_by": [
         "project.type",
         "project.platforms",
@@ -23,19 +23,19 @@
       "alternatives": [
         {
           "choice": "Angular",
-          "why_not": "With priorities.time_to_market=3, React is faster to deliver with; learning curve 4/5 for a senior team (team.experience=senior) (close call). Known limit of Angular: steeper learning curve; 24-month support per major."
+          "why_not": "With priorities.time_to_market=3 (neutral), React is faster to deliver with; learning curve 4/5 for a senior team (team.experience=senior) (close call). Known limit of Angular: steeper learning curve; 24-month support per major."
         },
         {
           "choice": "Vue 3 (Vite SPA)",
-          "why_not": "With priorities.time_to_market=3, React is faster to deliver with."
+          "why_not": "With priorities.time_to_market=3 (neutral), React is faster to deliver with."
         },
         {
           "choice": "React Native (Expo)",
-          "why_not": "With priorities.performance=3 and priorities.security=5, Kotlin Multiplatform + Compose Multiplatform is faster at runtime and stronger on security (close call). Known limit of React Native: JS runtime overhead on very low-end phones."
+          "why_not": "With priorities.performance=3 (neutral) and priorities.security=5, Kotlin Multiplatform + Compose Multiplatform is faster at runtime and stronger on security (close call). Known limit of React Native: JS runtime overhead on very low-end phones."
         },
         {
           "choice": "Ionic Capacitor (web app wrapped)",
-          "why_not": "With priorities.security=5 and priorities.performance=3, Kotlin Multiplatform + Compose Multiplatform is stronger on security and faster at runtime. Known limit of Ionic Capacitor: WebView performance on low-end devices."
+          "why_not": "With priorities.security=5 and priorities.performance=3 (neutral), Kotlin Multiplatform + Compose Multiplatform is stronger on security and faster at runtime. Known limit of Ionic Capacitor: WebView performance on low-end devices."
         }
       ],
       "tradeoffs": [
@@ -76,7 +76,7 @@
         "label": "low",
         "basis": "stability 0.50 (sensitive) over 54 priority vectors."
       },
-      "contrast": "React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) rather than Angular. With priorities.time_to_market=3, React is faster to deliver with; learning curve 4/5 for a senior team (team.experience=senior) (close call). Trade-off accepted: Client-rendered pages are weak for SEO.",
+      "contrast": "React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) rather than Angular. With priorities.time_to_market=3 (neutral), React is faster to deliver with; learning curve 4/5 for a senior team (team.experience=senior) (close call). Trade-off accepted: Client-rendered pages are weak for SEO.",
       "what_would_change": [
         {
           "edit": "priorities.time_to_market: 3 -> 2",
@@ -226,7 +226,7 @@
     },
     "hosting": {
       "choice": "AWS ECS on Fargate (+ Application Load Balancer) — ap-south-1 (Mumbai)",
-      "justification": "Satisfies the hard constraints (cloud_preference aws, managed_cloud (no servers to patch), data_residency india -> ap-south-1 (Mumbai)). Runs across availability zones for the 99.95% target; good security (priority 5/5); good scalability (priority 4/5).",
+      "justification": "Runs across availability zones for the 99.95% target; good security (priority 5/5); good scalability (priority 4/5). Satisfies the hard constraints (cloud_preference aws, managed_cloud (no servers to patch), data_residency india -> ap-south-1 (Mumbai)).",
       "driven_by": [
         "team.has_devops",
         "infrastructure.cloud_preference",

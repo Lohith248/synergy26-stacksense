@@ -7,7 +7,7 @@
   "stack": {
     "frontend": {
       "choice": "Next.js (web) + React Native (Expo) (Android)",
-      "justification": "Web: Next.js — Rich interactive app screens; team already writes javascript, typescript for the UI; server-rendered/static HTML that search engines index; good fast delivery (priority 5/5); good low running cost (priority 4/5). Mobile: React Native (Expo) — Team already writes javascript, typescript for the mobile app; shares TypeScript code and skills with the web app; good fast delivery (priority 5/5); good low running cost (priority 4/5).",
+      "justification": "Web: Next.js — Rich interactive screens for a marketplace; team already writes javascript, typescript for the UI; server-rendered/static HTML that search engines index; good fast delivery (priority 5/5); good low running cost (priority 4/5). Mobile: React Native (Expo) — Team already writes javascript, typescript for the mobile app; shares TypeScript code and skills with the web app; good fast delivery (priority 5/5); good low running cost (priority 4/5).",
       "driven_by": [
         "project.type",
         "project.platforms",
@@ -24,11 +24,11 @@
         },
         {
           "choice": "SvelteKit",
-          "why_not": "With priorities.time_to_market=5, Next.js is faster to deliver with; it fits better: rich interactive app screens (project.type=marketplace)."
+          "why_not": "With priorities.time_to_market=5, Next.js is faster to deliver with; it fits better: rich interactive screens for a marketplace (project.type=marketplace)."
         },
         {
           "choice": "Ionic Capacitor (web app wrapped)",
-          "why_not": "With priorities.performance=3 and priorities.security=3, React Native is faster at runtime and stronger on security. Known limit of Ionic Capacitor: WebView performance on low-end devices."
+          "why_not": "With priorities.performance=3 (neutral) and priorities.security=3 (neutral), React Native is faster at runtime and stronger on security. Known limit of Ionic Capacitor: WebView performance on low-end devices."
         },
         {
           "choice": "Kotlin + Jetpack Compose (native Android)",
@@ -85,11 +85,11 @@
       "alternatives": [
         {
           "choice": "Python 3.13 + Django 5.2 LTS",
-          "why_not": "Node.js 24 LTS + NestJS fits better: native WebSocket support (requirements.realtime=true); with priorities.performance=3, it is faster at runtime (close call). Known limit of Python 3.13 + Django 5.2 LTS: WebSockets need Django Channels."
+          "why_not": "Node.js 24 LTS + NestJS fits better: native WebSocket support (requirements.realtime=true); with priorities.performance=3 (neutral), it is faster at runtime (close call). Known limit of Python 3.13 + Django 5.2 LTS: WebSockets need Django Channels."
         },
         {
           "choice": "Node.js 24 LTS + Express 5",
-          "why_not": "With priorities.maintainability=3 and priorities.security=3, Node.js 24 LTS + NestJS is easier to maintain and stronger on security. Known limit of Node.js 24 LTS + Express 5: little structure; large codebases need discipline."
+          "why_not": "With priorities.maintainability=3 (neutral) and priorities.security=3 (neutral), Node.js 24 LTS + NestJS is easier to maintain and stronger on security. Known limit of Node.js 24 LTS + Express 5: little structure; large codebases need discipline."
         }
       ],
       "tradeoffs": [
@@ -135,7 +135,7 @@
         "label": "low",
         "basis": "stability 0.63 (sensitive) over 54 priority vectors; score margin 0.8 over the runner-up (near-tie)."
       },
-      "contrast": "Node.js 24 LTS + NestJS (TypeScript) rather than Python 3.13 + Django 5.2 LTS. Node.js 24 LTS + NestJS fits better: native WebSocket support (requirements.realtime=true); with priorities.performance=3, it is faster at runtime (close call). Trade-off accepted: More boilerplate than Express.",
+      "contrast": "Node.js 24 LTS + NestJS (TypeScript) rather than Python 3.13 + Django 5.2 LTS. Node.js 24 LTS + NestJS fits better: native WebSocket support (requirements.realtime=true); with priorities.performance=3 (neutral), it is faster at runtime (close call). Trade-off accepted: More boilerplate than Express.",
       "what_would_change": [
         {
           "edit": "priorities.performance: 3 -> 2",
@@ -159,7 +159,7 @@
     },
     "database": {
       "choice": "Azure Database for PostgreSQL – Flexible Server 17 — Central India (Pune)",
-      "justification": "Strict ACID transactions for bookings and payments; built-in full-text search avoids a separate search service; good low running cost (priority 4/5); good fast delivery (priority 5/5).",
+      "justification": "Strict ACID transactions for listings, orders and payments; built-in full-text search avoids a separate search service; good low running cost (priority 4/5); good fast delivery (priority 5/5).",
       "driven_by": [
         "requirements.full_text_search",
         "requirements.payments",
@@ -171,11 +171,11 @@
       "alternatives": [
         {
           "choice": "Supabase Postgres",
-          "why_not": "With priorities.cost=4 and priorities.maintainability=3, Azure Database for PostgreSQL – Flexible Server 17 is cheaper to run and easier to maintain. Known limit of Supabase Postgres: free projects pause after 1 week of inactivity; production needs Pro."
+          "why_not": "With priorities.cost=4 and priorities.maintainability=3 (neutral), Azure Database for PostgreSQL – Flexible Server 17 is cheaper to run and easier to maintain. Known limit of Supabase Postgres: free projects pause after 1 week of inactivity; production needs Pro."
         },
         {
           "choice": "Azure Database for MySQL – Flexible Server 8.4",
-          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 fits better: strict ACID transactions for bookings and payments (requirements.payments=true); with priorities.maintainability=3, it is easier to maintain. Known limit of Azure Database for MySQL – Flexible Server 8.4: 8.0 moved to Sustaining Support (Apr 2026); no row-level security."
+          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 fits better: strict ACID transactions for listings, orders and payments (requirements.payments=true); with priorities.maintainability=3 (neutral), it is easier to maintain. Known limit of Azure Database for MySQL – Flexible Server 8.4: 8.0 moved to Sustaining Support (Apr 2026); no row-level security."
         }
       ],
       "tradeoffs": [
@@ -210,12 +210,12 @@
         "label": "high",
         "basis": "stability 1.00 (robust) over 54 priority vectors; score margin 6.0 over the runner-up."
       },
-      "contrast": "Azure Database for PostgreSQL – Flexible Server 17 rather than Supabase Postgres. With priorities.cost=4 and priorities.maintainability=3, Azure Database for PostgreSQL – Flexible Server 17 is cheaper to run and easier to maintain. Trade-off accepted: Vertical write scaling; sharding needs extensions.",
+      "contrast": "Azure Database for PostgreSQL – Flexible Server 17 rather than Supabase Postgres. With priorities.cost=4 and priorities.maintainability=3 (neutral), Azure Database for PostgreSQL – Flexible Server 17 is cheaper to run and easier to maintain. Trade-off accepted: Vertical write scaling; sharding needs extensions.",
       "what_would_change": []
     },
     "hosting": {
       "choice": "Azure App Service (Linux, Basic B2 / Standard S1) — Central India (Pune)",
-      "justification": "Satisfies the hard constraints (managed_cloud (no servers to patch), data_residency india -> Central India (Pune)). Fully managed runtime (patching, TLS, scaling handled) for a team without a DevOps person; good fast delivery (priority 5/5); good low running cost (priority 4/5).",
+      "justification": "Fully managed runtime (patching, TLS, scaling handled) for a team without a DevOps person; good fast delivery (priority 5/5); good low running cost (priority 4/5). Satisfies the hard constraints (managed_cloud (no servers to patch), data_residency india -> Central India (Pune)).",
       "driven_by": [
         "team.has_devops",
         "infrastructure.deployment_model",
@@ -228,7 +228,7 @@
       "alternatives": [
         {
           "choice": "Google Cloud Run",
-          "why_not": "With priorities.time_to_market=5 and priorities.maintainability=3, Azure App Service is faster to deliver with and easier to maintain. Known limit of Google Cloud Run: cold starts unless min instances are paid for."
+          "why_not": "With priorities.time_to_market=5 and priorities.maintainability=3 (neutral), Azure App Service is faster to deliver with and easier to maintain. Known limit of Google Cloud Run: cold starts unless min instances are paid for."
         },
         {
           "choice": "Azure Container Apps",
@@ -279,7 +279,7 @@
         "label": "medium",
         "basis": "stability 0.85 (moderate) over 54 priority vectors; score margin 1.6 over the runner-up."
       },
-      "contrast": "Azure App Service (Linux, Basic B2 / Standard S1) rather than Google Cloud Run. With priorities.time_to_market=5 and priorities.maintainability=3, Azure App Service is faster to deliver with and easier to maintain. Trade-off accepted: Less control than containers for unusual runtimes.",
+      "contrast": "Azure App Service (Linux, Basic B2 / Standard S1) rather than Google Cloud Run. With priorities.time_to_market=5 and priorities.maintainability=3 (neutral), Azure App Service is faster to deliver with and easier to maintain. Trade-off accepted: Less control than containers for unusual runtimes.",
       "what_would_change": [
         {
           "edit": "infrastructure.cloud_preference: any -> aws",
