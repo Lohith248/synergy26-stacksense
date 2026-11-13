@@ -867,6 +867,15 @@ def _recommend(req, assumptions, sid):
 
     # ---- warnings from contradictions and context
     contradictions(ctx, W, assumptions, host, backend)
+    if ctx["needs_db"] and db_c.vkey == "self" and host["kind"] in ("onprem", "vm") and not ha_paths(sreq):  # A20
+        on = host["kind"] == "onprem"
+        W("BACKUP_SINGLE_SERVER", "warning",
+          f"The application, the {db_c.variant} database and their files all sit on {'one on-premises server' if on else 'one virtual machine'} with no standby: "
+          f"a failed disk, {'theft, fire or ransomware' if on else 'a deleted VM or ransomware'} loses all of it together, and a copy on the same machine does not count. "
+          "Schedule a nightly database dump and file copy to a second place ("
+          + ("a second device kept in another room or building" if on else "object storage or another machine outside this VM") + "), keep several generations, "
+          "and rehearse a restore once before launch; the data loss in a disaster is then up to a day, which is what nightly copies give.",
+          ["infrastructure.deployment_model", "requirements.availability"])
     for s in supporting:
         explicit = ctx["res_named"] or ctx["residency_from_rbi"]
         if s["layer"] == "payments" and any(w["code"] == "PAYMENT_DATA_LOCATION" for w in W.items):
@@ -1596,6 +1605,15 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         elif any("SNS" in s["choice"] for s in supporting):
             plo, phi = 0.004, 0.006  # AWS End User Messaging SMS price CSV: India local $0.004 (11 Nov 2026)
             txt = "AWS India local SMS $0.004 (AWS SMS price list, 11 Nov 2026) plus DLT and retry overhead"
+        elif any("SMPP" in s["choice"] for s in supporting):
+            # A20: the route chosen is an SMS aggregator over SMPP; its rate comes from your contract, so a reference rate is named as such
+            if ctx["india_users"] or ctx["residency"] == "india":
+                plo, phi = 0.0024, 0.0045
+                txt = ("your SMPP aggregator's rate (set by your contract, not in the knowledge base; the India reference ~Rs 0.20-0.25 + GST "
+                       "is used here)")
+            else:
+                plo, phi = 0.05, 0.06
+                txt = "your SMPP aggregator's rate (set by your contract, not in the knowledge base; ~$0.05 + SMS is used here as a reference)"
         else:
             plo, phi = 0.05, 0.06
             txt = "Twilio Verify ~$0.05 + SMS"

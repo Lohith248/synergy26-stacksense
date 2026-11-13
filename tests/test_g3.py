@@ -214,5 +214,64 @@ class A15LlmDescriptionConstraints(unittest.TestCase):
         self.assertIsNone(sev(o, "LLM_NO_TRAINING_TERMS"))
 
 
+ONPREM = dict(infrastructure__deployment_model="on_premise", infrastructure__cloud_preference="none", team__experience="beginner",
+              team__size=2, team__has_devops=False, scale__users_12_months=1500, scale__users_at_launch=100, scale__peak_concurrent_users=30,
+              budget__monthly_infra_usd=100)
+
+
+def layer_choice(out, layer):
+    return [x["choice"] for x in out["stack"]["supporting"] if x["layer"] == layer]
+
+
+class A20SmallOnPremises(unittest.TestCase):
+    def check_small(self, out):
+        self.assertNotIn("Keycloak", " ".join(layer_choice(out, "auth")))
+        self.assertTrue(layer_choice(out, "ci_cd")[0].startswith("Git + a deploy script"))
+        self.assertTrue(layer_choice(out, "observability")[0].startswith("Uptime Kuma"))
+        self.assertFalse(any("Gitea" in c or "Prometheus" in c for c in layer_choice(out, "ci_cd") + layer_choice(out, "observability")))
+        self.assertTrue(sup(out, "Uptime Kuma")[0]["sources"], "cited source")
+
+    def test_phone_otp_ledger(self):
+        o = run("Cooperative ledger for a village office.", requirements__auth="phone_otp", scale__data_volume_gb_12_months=4,
+                infrastructure__data_residency="india", **ONPREM)
+        self.check_small(o)
+        self.assertEqual(layer_choice(o, "auth")[0], "App-native phone-OTP login (one SMPP integration to a licensed SMS aggregator)")
+        otp = next(l for l in lines(o) if l.startswith("Phone OTP"))
+        self.assertIn("SMPP aggregator", otp)
+        self.assertNotIn("Twilio", otp)
+        self.assertEqual(sev(o, "EXTERNAL_TELECOM_LINK"), "warning")
+
+    def test_email_login_clinic_and_shop(self):
+        for typ in ("internal_tool", "marketplace"):
+            o = run("Small business application.", project__type=typ, requirements__auth="email_password", **ONPREM)
+            self.check_small(o)
+
+    def test_backup_warning_on_one_server(self):
+        for kw in (ONPREM, dict(ONPREM, infrastructure__deployment_model="self_hosted_cloud_vm", infrastructure__cloud_preference="any")):
+            o = run("Small business application.", requirements__auth="email_password", **kw)
+            self.assertEqual(sev(o, "BACKUP_SINGLE_SERVER"), "warning", kw["infrastructure__deployment_model"])
+            self.assertIn("nightly", warns(o, "BACKUP_SINGLE_SERVER")[0]["message"])
+        o = run("Internal wiki.", project__type="internal_tool", requirements__auth="email_password", **dict(ONPREM, team__experience="senior"))
+        self.assertEqual(sev(o, "BACKUP_SINGLE_SERVER"), "warning")
+
+    def test_must_not_fire(self):
+        # intermediate team: the full self-hosted stack stays
+        o = run("Small business application.", requirements__auth="email_password", **dict(ONPREM, team__experience="intermediate"))
+        self.assertIn("Gitea", layer_choice(o, "ci_cd")[0])
+        o = run("Small business application.", requirements__auth="phone_otp", **dict(ONPREM, team__experience="intermediate"))
+        self.assertIn("Keycloak", layer_choice(o, "auth")[0])
+        # beginner on a managed cloud: GitHub Actions, no backup warning (the provider's database keeps its own backups)
+        o = run("Small business application.", requirements__auth="email_password", team__experience="beginner", team__size=2,
+                scale__users_12_months=1500, scale__users_at_launch=100, scale__peak_concurrent_users=30, budget__monthly_infra_usd=100)
+        self.assertEqual(layer_choice(o, "ci_cd")[0], "GitHub Actions")
+        self.assertIsNone(sev(o, "BACKUP_SINGLE_SERVER"))
+        # a standby (99.95) makes it more than one server
+        o = run("Small business application.", requirements__auth="email_password", requirements__availability="99.95", **ONPREM)
+        self.assertIsNone(sev(o, "BACKUP_SINGLE_SERVER"))
+        # enterprise SSO on-prem keeps Keycloak: it is the federation point, not a login pile
+        o = run("Small business application.", requirements__auth="enterprise_sso", **ONPREM)
+        self.assertIn("Keycloak", layer_choice(o, "auth")[0])
+
+
 if __name__ == "__main__":
     unittest.main()

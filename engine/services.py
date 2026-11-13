@@ -135,8 +135,14 @@ LLM_RX = {
                     r"|\bnever (?:trained|used) (?:on|for training)\b|\bopt[- ]?out of (?:model )?training\b"),
     "citations": r"\bcit(?:e|es|ed|ing|ation|ations)\b|\bgrounded\b|\bsource (?:links?|references?|attributions?)\b|\breferences? (?:to )?(?:the )?sources?\b",
     "legal": r"\blegal\b|\blaw(?:s|yers?)?\b|\bstatutes?\b|\battorneys?\b|\bsolicitors?\b|\bregulations? (?:and|or) rights\b|\btenant(?:s'?)? rights\b|\beviction\b",
-    "medical": r"\bmedical\b|\bpatients?\b|\bdiagnos\w+|\bsymptoms?\b|\bclinical\b|\bprescri\w+|\bmedications?\b|\bhealth ?care\b|\bhealth (?:advice|information|questions?)\b|\bdoctors?\b",
+    "medical": r"\bmedical\b|\bpatients?\b|\bdiagnos\w+|\bsymptoms?\b|\bclinical\b|\bprescri\w+|\bmedications?\b|\bhealth ?care\b|\bhealth (?:advice|information|questions?)\b|\bdoctors?\b|\bhospitals?\b|\bclinicians?\b|\bnurses?\b|\bphysicians?\b",
 }
+
+
+def small_selfhost(ctx):
+    """A20 (planning heuristic): a beginner team on its own servers (on_premise / air_gapped) at the entry scale tier runs as few
+    self-hosted tools as possible: login inside the app, no CI server, one container for health checks."""
+    return ctx["self_host_only"] and ctx["tier"] == 0 and ctx["exp"] == "beginner"
 
 
 def llm_constraints(ctx):
@@ -146,9 +152,6 @@ def llm_constraints(ctx):
     breaks = cx.clause_breaks(low)
     out = {}
     for key, rx in LLM_RX.items():
-        if key == "medical" and "hipaa" in ctx["compliance"]:
-            out[key] = "compliance: hipaa"
-            continue
         if cx.live_hit(rx, text, low, breaks, re.I):
             sent = next((x for x in re.split(r"(?<=[.!?;])\s+|\n", text) if re.search(rx, x, re.I)), text)
             sent = sent.strip().rstrip(".")
@@ -250,7 +253,7 @@ def llm_description_constraints(ctx, ml, selfh, model, req, warn):
         kind = "legal" if adv[0] == "legal" else "medical"
         warn("LLM_ADVICE_DISCLAIMER", "warning",
              f"project.description describes {kind} guidance (\"{found[adv[0]]}\"). A language model can state wrong or outdated rules with confidence: show a "
-             f"'not {kind} advice' notice next to every answer, require the citations above, and give a route to a qualified {'lawyer' if kind == 'legal' else 'clinician'}"
+             f"'not {kind} advice' notice next to every answer, show the source passages the answer rests on, and give a route to a qualified {'lawyer' if kind == 'legal' else 'clinician'}"
              "; test answers against the source material before launch.", ["project.description", "requirements.ml_features"])
         extra.append(f"Answers carry a 'not {kind} advice' notice and a route to a qualified person (see LLM_ADVICE_DISCLAIMER).")
         paths.append("project.description")
@@ -363,6 +366,21 @@ def build(ctx, host, backend, db, mobile, warn):
                                ["Relaxed: OTP availability depends on an on-site gateway"], "self_hosted", "neutral", True, Z, ["keycloak"], loc))
                 warn("PHONE_OTP_NEEDS_NETWORK", "critical",
                      "Phone OTP needs a telecom/SMS link, which contradicts an air-gapped deployment. Relaxed: OTP only via an on-site SMS gateway; otherwise use username/password + hardware tokens.",
+                     ["requirements.auth", "infrastructure.deployment_model"])
+            elif ctx["self_host_only"] and small_selfhost(ctx):
+                # A20: a beginner team on one small server runs one OTP integration inside its own app, not an identity server next to it
+                app = backend["name"].split(" (")[0] if backend else "the application"
+                out.append(svc("auth", "App-native phone-OTP login (one SMPP integration to a licensed SMS aggregator)",
+                               f"phone_otp on {ctx['deploy']} for a {ctx['size']}-person beginner team on one small server: the login lives inside {app} "
+                               "(a phone-number user table, hashed one-time codes with expiry and a retry limit, long-lived session tokens), and the only "
+                               "integration is the OTP text going out through a telecom SMPP connection. No separate identity server to install, patch and back up.",
+                               dp + ["infrastructure.deployment_model", "team.experience", "scale.users_12_months"],
+                               [("Keycloak 26 (self-hosted)", "a second service with its own database, upgrades and backups; worth it when several apps or single sign-on need it"),
+                                ("MSG91 / Twilio Verify APIs" if india else "Twilio Verify API", "SaaS identity services, excluded by the on-premise rule")],
+                               ["Needs a contract with an SMS aggregator and DLT-registered templates in India" if india else "Needs a contract with a licensed SMS aggregator",
+                                "Rate-limit OTP requests and lock repeated failures in your own code"],
+                               "self_hosted", "neutral", True, Z, ["trai-dlt"] if india else [], loc))
+                warn("EXTERNAL_TELECOM_LINK", "warning", "Phone OTP on-premises still needs an outbound telecom (SMPP) link to an SMS aggregator; this is the only external dependency of the auth layer.",
                      ["requirements.auth", "infrastructure.deployment_model"])
             elif ctx["self_host_only"]:
                 out.append(svc("auth", "Keycloak 26 (self-hosted) with OTP over an SMPP link to a licensed SMS aggregator",
@@ -984,7 +1002,26 @@ def build(ctx, host, backend, db, mobile, warn):
     ci_note = (f" The existing {ci_name} keeps running the current pipelines; move jobs across one at a time instead of running two CI systems for the same code."
                if ci_ex else "")
     ci_paths = ["infrastructure.existing_systems"] if ci_ex else []
-    if ctx["self_host_only"]:
+    if ctx["self_host_only"] and small_selfhost(ctx) and not ci_ex:
+        # A20: no CI server for a beginner team on one small server: tests and the deploy are one script in the repository
+        what = f"{backend['name'].split(' (')[0]} tests" if backend else "The tests"
+        out.append(svc("ci_cd", "Git + a deploy script in the repository (no CI server)",
+                       f"deployment_model {ctx['deploy']} and a {ctx['size']}-person beginner team: {what} and the container build run from one script "
+                       "(run tests, build the image, restart the containers) that a person starts on the server or a laptop, so there is no CI service to install, "
+                       "patch and back up; the code stays inside your network (no SaaS CI).",
+                       ["infrastructure.deployment_model", "team.experience"] + ci_paths,
+                       [("Gitea + Gitea Actions (self-hosted)", "a git host plus a CI runner to operate; worth adding when several people push daily"),
+                        ("GitHub Actions", "SaaS, not allowed under this deployment model")],
+                       ["Releases depend on a person running the script; keep it in the repository and keep a copy of the repository off the server"], "self_hosted", "neutral", False, Z, []))
+        out.append(svc("observability", "Uptime Kuma (one self-hosted container) + container and system logs",
+                       "A beginner team on one small server needs to know when the app is down: one container checks the app's health address and sends an alert, "
+                       "and logs stay in the container and system logs on the server. No metrics database, dashboard server and log store to run.",
+                       ["infrastructure.deployment_model", "team.experience"],
+                       [("Prometheus + Grafana + Loki (self-hosted)", "three services to run and size; add them when you need metrics history or log search"),
+                        ("Sentry / Datadog", "SaaS services, not allowed here")],
+                       ["No metrics history or log search until you add them; rotate logs so the disk does not fill"],
+                       "self_hosted", "neutral", True, Z, ["uptime-kuma"], loc))
+    elif ctx["self_host_only"]:
         out.append(svc("ci_cd", "Gitea + Gitea Actions (self-hosted)",
                        f"deployment_model {ctx['deploy']}: source, builds and container images stay inside your network (no SaaS CI)." + ci_note,
                        ["infrastructure.deployment_model"] + ci_paths,
