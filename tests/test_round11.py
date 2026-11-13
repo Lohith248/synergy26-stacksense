@@ -92,9 +92,11 @@ class F2VendorLocation(unittest.TestCase):
         self.assertEqual(pay["data_location"], "us")
         self.assertFalse(any(w["code"] == "RESIDENCY_UNVERIFIED_SERVICE" and "Stripe" in w["message"] for w in out["warnings"]))
 
-    def test_eu_residency_still_critical(self):
+    def test_eu_residency_payment_location_is_a_warning_naming_the_mechanism(self):  # E45: a KB gap is not a proven conflict
         out = run(**{"requirements.payments": True, "infrastructure.data_residency": "eu", "compliance": ["gdpr"]})
-        self.assertEqual(next(w["severity"] for w in out["warnings"] if w["code"] == "PAYMENT_DATA_LOCATION"), "critical")
+        w = next(w for w in out["warnings"] if w["code"] == "PAYMENT_DATA_LOCATION")
+        self.assertEqual(w["severity"], "warning")
+        self.assertIn("Standard Contractual Clauses", w["message"])
 
     def test_llm_region_in_kb_needs_no_check(self):
         out = ev(blind("C10"))
@@ -102,10 +104,10 @@ class F2VendorLocation(unittest.TestCase):
         ml = sup(out, "ml")[0]
         self.assertIn("East US", ml["choice"])
 
-    def test_llm_region_unknown_stays_critical(self):
+    def test_llm_region_unknown_is_a_warning(self):  # E45: unconfirmed model region is not a proven conflict
         out = run(**{"requirements.ml_features": "llm_rag", "infrastructure.data_residency": "india",
                      "infrastructure.cloud_preference": "gcp"})
-        self.assertEqual(next(w["severity"] for w in out["warnings"] if w["code"] == "LLM_REGION_CHECK"), "critical")
+        self.assertEqual(next(w["severity"] for w in out["warnings"] if w["code"] == "LLM_REGION_CHECK"), "warning")
 
 
 class F3OfflineAndCollabFollowStack(unittest.TestCase):

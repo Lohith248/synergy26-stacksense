@@ -97,10 +97,9 @@ class HardConstraintWarnings(unittest.TestCase):
             if onprem:
                 s['infrastructure'].update(cloud_preference='none', deployment_model='on_premise')
                 code = 'EXTERNAL_IDENTITY_PROVIDER'
-            else:
-                s['infrastructure']['data_residency'] = 'eu'
-                s['compliance'] = ['gdpr']
-                code = 'PAYMENT_DATA_LOCATION'
+            else:  # E45: PAYMENT_DATA_LOCATION is a warning now; an on-premise stack with a SaaS gateway is the proven payment conflict
+                s['infrastructure'].update(cloud_preference='none', deployment_model='on_premise')
+                code = 'EXTERNAL_PAYMENT_GATEWAY'
             out = evaluate(s, counterfactuals=False)
             self.assertEqual(next(w['severity'] for w in out['warnings'] if w['code'] == code), 'critical')
             self.assertTrue(any(a.startswith('Relaxed:') for a in out['assumptions']))

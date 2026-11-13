@@ -738,6 +738,9 @@ def _recommend(req, assumptions, sid):
     if second:
         supporting.append(second)
 
+    if ctx.get("payment_location_assumption"):  # E45: a gateway-location gap is stated as an assumption, not as a relaxed constraint
+        assumptions.append(ctx["payment_location_assumption"])
+
     # ---- warnings from contradictions and context
     contradictions(ctx, W, assumptions, host, backend)
     for s in supporting:

@@ -27,8 +27,43 @@ GATEWAY_HOME = {"stripe": ("us", "stripe-privacy",
                            "Stripe's privacy policy also names India among the countries personal data may be transferred to; if processing "
                            "must stay inside the US by contract, confirm it in Stripe's data processing terms")}
 # F2: (provider, residency) -> region where a current chat + embeddings model is offered as a Standard (regional)
-# deployment, from the provider's model-region table. Missing pairs keep LLM_REGION_CHECK critical.
+# deployment, from the provider's model-region table. A missing pair is a gap in the knowledge base, not a proven
+# conflict, so LLM_REGION_CHECK is then a warning that says what to check (E45).
 LLM_REGIONS = {("azure", "us"): ("East US", "azure-openai-regions"), ("azure", "eu"): ("Sweden Central", "azure-openai-regions")}
+
+# E45: what the knowledge base verifiably knows about how a gateway handles EEA payer data (R17, 13 Nov 2026). A gap in
+# this knowledge is never a proven residency conflict, so PAYMENT_DATA_LOCATION is a warning that names the mechanism.
+GATEWAY_EEA = {"stripe": {
+    "mechanism": ("Stripe Payments Europe, Limited is a party to the agreement for processing EEA customers' personal data, and transfers to "
+                  "Stripe, LLC (US) rely on the EU-US Data Privacy Framework (Stripe's own statement; the official list was not confirmed) and "
+                  "Standard Contractual Clauses; Stripe's privacy policy also names India as a transfer country. That is a transfer mechanism, "
+                  "not an EU-only storage commitment, and none is confirmed in the knowledge base."),
+    "action": ("Check the Stripe DPA and its Data Transfers Addendum against what EU residency means for you; if payer data must stay in the "
+               "EU, use an acquirer whose DPA commits to EU storage (Adyen's DPA states EU data centres, with access from outside the EU "
+               "possible under SCCs)."),
+    "sources": ["stripe-ssa", "stripe-dpa", "stripe-privacy", "stripe-dpf-list", "ec-scc", "ec-adequacy", "adyen-dpa"],
+    "elsewhere": ("Stripe's privacy policy says personal data may be transferred to the United States and India, so in-country "
+                  "processing is not assumed."),
+    "transfer_sources": ["stripe-privacy"]}}
+AREA = {"EU": "the EU", "US": "the US", "INDIA": "India"}  # res_label of a named residency, as it reads in a sentence
+
+
+def payment_location(gateway, prov, ctx):
+    """(message, source ids, assumption) for PAYMENT_DATA_LOCATION: what is known about the gateway's handling of payer data, then what to check."""
+    g = GATEWAY_EEA.get(prov)
+    label = ctx["res_label"]
+    if g and ctx["res_key"] == "eu" and not ctx["country"]:
+        return (f"{gateway} processes payer data. {g['mechanism']} {g['action']}", g["sources"],
+                f"Payments: data_residency 'eu' is applied to {gateway} as EEA processing with safeguarded transfers, not as proof that payer data "
+                "is stored only in the EU; the payer-data warning says what to confirm in its DPA.")
+    if g:
+        msg = (f"{gateway} processes payer data; whether it stays in {label} is not confirmed in the knowledge base. {g['elsewhere']} "
+               f"Check the {gateway} data-processing terms for {label}; if law or contract requires in-country processing, choose a local acquirer.")
+        return msg, g["transfer_sources"], f"Payments: whether {gateway} keeps payer data in {label} is not confirmed; the payer-data warning says what to check."
+    return (f"{gateway} processes payer data; whether it stays in {label} is not confirmed in the knowledge base. "
+            f"Check its data-processing terms for {label} before relying on it.", [],
+            f"Payments: whether {gateway} keeps payer data in {label} is not confirmed; the payer-data warning says what to check.")
+
 
 # cloud an existing broker runs on, from its name (Amazon MSK / Amazon MQ, Azure Event Hubs, Google Pub/Sub)
 BROKER_CLOUD = [(r"\bmsk\b|\bamazon\b|\baws\b", "aws"), (r"\bazure\b|event hubs?", "azure"), (r"\bgoogle\b|\bgcp\b", "gcp")]
@@ -518,9 +553,9 @@ def build(ctx, host, backend, db, mobile, warn):
                 src = src + [home[1]]
             if not store and not india and not home_ok and ((ctx["res_key"] in ("eu", "us") and (ctx["req"]["infrastructure.data_residency"] in ("eu", "us")
                                                                                        or (ctx["res_stated"] or {}).get("pin") in ("eu", "us"))) or ctx["country"]):
-                warn("PAYMENT_DATA_LOCATION", "critical",
-                     f"{name.split(' (')[0]} processes payer data; its storage location for {ctx['res_label']} residency is not verified in the knowledge base — confirm the data-processing terms.",
-                     ["requirements.payments"] + ctx["res_paths"])
+                loc_msg, loc_src, ctx["payment_location_assumption"] = payment_location(name.split(' (')[0], prov, ctx)
+                src = src + loc_src
+                warn("PAYMENT_DATA_LOCATION", "warning", loc_msg, ["requirements.payments"] + ctx["res_paths"])
             if not store and not india and ctx["country"]:
                 warn("PAYMENT_LOCAL_ACQUIRING", "info",
                      f"{name.split(' (')[0]} is the knowledge base's default gateway outside India; whether it offers local acquiring and local payment "
@@ -605,9 +640,17 @@ def build(ctx, host, backend, db, mobile, warn):
                 if llm_region:
                     c = c.replace(" (Foundry)", f" (Foundry, Standard regional deployment in {llm_region[0]})")
                     src = src + [llm_region[1]]
-                elif loc:
-                    warn("LLM_REGION_CHECK", "critical", f"Confirm the chosen LLM model is served in {ctx['res_label']} before sending personal data to it.",
-                         ["requirements.ml_features", "infrastructure.data_residency"])
+                elif loc:  # E45: the service sits inside the residency area; only the model-level availability is unconfirmed
+                    area = AREA.get(ctx["res_label"], ctx["res_label"])
+                    if p == "aws" and region:
+                        msg = (f"Amazon Bedrock runs in {region}, inside {area}, but which models it serves in that Region is not confirmed in the "
+                               "knowledge base (availability differs by Region and model). Before sending personal data, pick a model that AWS's "
+                               f"model-region table lists for {region} and confirm requests are not routed to another Region.")
+                    else:
+                        msg = (f"{c.split(' + ')[0]} is not pinned to a location inside {area} in the knowledge base, so whether the chosen LLM model "
+                               f"is served in {area} is not confirmed. Create the model endpoint in a region inside {area} and check the provider's "
+                               "model-region table before sending personal data to it.")
+                    warn("LLM_REGION_CHECK", "warning", msg, ["requirements.ml_features", "infrastructure.data_residency"])
             search_idx = "Azure AI Search" in c
             out.append(svc("ml", c, "Retrieval-augmented generation: "
                            + ("embeddings indexed in an Azure AI Search index (a separate service from the database), " if search_idx
