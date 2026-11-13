@@ -7,7 +7,7 @@ import re
 from . import domains
 from . import context as cx
 from . import rightsize as rs
-from .kb import cite
+from .kb import cite, AS_OF
 
 Z = [[0, 0], [0, 0], [0, 0], [0, 0]]
 # cloudflare.com/plans rendered 11 Nov 2026
@@ -252,7 +252,8 @@ def build(ctx, host, backend, db, mobile, warn):
                                "self_hosted" if kc else "library", "neutral", kc, Z, ["keycloak"], loc))
 
     # ---------------- storage
-    if req["requirements.file_media_storage"] or d["media"] or d["kyc"]:
+    # a description that has users upload files overrides requirements.file_media_storage=false (UPLOADS_VS_STORAGE_FIELD says so)
+    if req["requirements.file_media_storage"] or d["media"] or d["kyc"] or (d["uploads"] and ctx["needs_backend"]):
         dp = ["requirements.file_media_storage"] + res_path
         extra = " Private bucket, server-generated signed URLs, encryption with managed keys." if (d["kyc"] or ctx["compliance"]) else " Private bucket with signed upload/download URLs."
         if selfh:
@@ -678,10 +679,18 @@ def build(ctx, host, backend, db, mobile, warn):
                                 + "). Larger models or more frequent retraining scale this linearly.") if managed else ""
 
     # ---------------- ci/cd + observability
+    # an existing CI system (Jenkins, TeamCity, ...) is named in the CI/CD component: it keeps its current pipelines, new ones go to the choice below
+    ci_ex = next((e for e in ctx["existing"] if e["pattern"] and e["pattern"]["kind"] == "ci"), None)
+    ci_name = re.sub(r"(?i)^(?:the |our )?existing ", "", ci_ex["raw"]) if ci_ex else ""
+    ci_note = (f" The existing {ci_name} keeps running the current pipelines; move jobs across one at a time instead of running two CI systems for the same code."
+               if ci_ex else "")
+    ci_paths = ["infrastructure.existing_systems"] if ci_ex else []
     if ctx["self_host_only"]:
         out.append(svc("ci_cd", "Gitea + Gitea Actions (self-hosted)",
-                       f"deployment_model {ctx['deploy']}: source, builds and container images stay inside your network (no SaaS CI).",
-                       ["infrastructure.deployment_model"], [("GitHub Actions", "SaaS, not allowed under this deployment model")],
+                       f"deployment_model {ctx['deploy']}: source, builds and container images stay inside your network (no SaaS CI)." + ci_note,
+                       ["infrastructure.deployment_model"] + ci_paths,
+                       [("GitHub Actions", "SaaS, not allowed under this deployment model")]
+                       + ([(f"Keep {ci_name} as the only CI system", "reusing it avoids a second CI system and fits this network, but its servers, plugins and upgrades stay the team's job; a repository host with built-in pipelines needs fewer moving parts")] if ci_ex else []),
                        ["Mirror base images and packages into a local registry"], "self_hosted", "neutral", False, Z, ["gitea"]))
         out.append(svc("observability", "Prometheus + Grafana + Loki (self-hosted)",
                        "Metrics, dashboards and logs without any external service.", ["infrastructure.deployment_model"],
@@ -689,8 +698,8 @@ def build(ctx, host, backend, db, mobile, warn):
                        "self_hosted", "neutral", True, Z, ["grafana-stack"], loc))
     else:
         ci_cost = [0, 4] if ctx["size"] <= 3 else ([0, 20] if ctx["size"] <= 8 else [20, 100])  # minutes scale with engineers, not users
-        out.append(svc("ci_cd", "GitHub Actions", f"Automated tests and deploys on every push{' to ' + host['name'] if host else ''}; free minutes cover a team of {ctx['size']}.",
-                       ["team.size", "team.has_devops"], [("GitLab CI", f"equally capable; for a team of {ctx['size']} " + ("with" if ctx["devops"] else "without")
+        out.append(svc("ci_cd", "GitHub Actions", f"Automated tests and deploys on every push{' to ' + host['name'] if host else ''}; free minutes cover a team of {ctx['size']}." + ci_note,
+                       ["team.size", "team.has_devops"] + ci_paths, ([(f"Keep {ci_name} as the only CI system", "reusing it avoids a second CI system, but its servers, plugins and upgrades stay the team's job; hosted runners need no CI servers")] if ci_ex else []) + [("GitLab CI", f"equally capable; for a team of {ctx['size']} " + ("with" if ctx["devops"] else "without")
                                      + f" a DevOps engineer (team.has_devops={'true' if ctx['devops'] else 'false'}), ready-made GitHub deploy actions"
                                      + (f" for {host['name'].split(' (')[0]}" if host else "") + " mean less pipeline code to maintain")],
                        ["Secrets must be stored as encrypted environment secrets"], "saas", "github", False,
@@ -771,6 +780,19 @@ def build(ctx, host, backend, db, mobile, warn):
                        ["infrastructure.existing_systems", "project.description"],
                        [("Separate e-mail service (SES/SendGrid)", "duplicates mail infrastructure the company already has")],
                        ["Needs admin consent for Graph application permissions"], "saas", "azure", False, Z, ["ms-graph"]))
+    if d["email_out"] and not ctx["self_host_only"] and not (ctx["existing_m365"] and d["approvals"]):
+        said = re.search(cx.DESC_RX["email_out"], (req["project.description"] or "").lower())
+        out.append(svc("other", "Email delivery: managed transactional/list email API with an authenticated sending domain (SPF, DKIM, DMARC)",
+                       f"The description sends email to users ('{said.group(0) if said else 'email'}'). Mail sent straight from an application server is often rejected "
+                       "or filed as spam, so a managed email API with an authenticated sending domain, bounce and complaint handling and an unsubscribe link carries it; "
+                       "the application only hands messages over. No provider is selected or priced here.",
+                       ["project.description"] + (["infrastructure.data_residency"] if ctx["res_named"] else []),
+                       [("Sending over SMTP from the application server", "no sender reputation: deliverability, bounce handling and SPF/DKIM/DMARC would all be yours")],
+                       ["Per-message price is not in the knowledge base and is not in the cost band",
+                        "Recipient addresses and message content pass through the provider: pick one whose sending region matches the residency requirement"
+                        if ctx["res_named"] else "Recipient addresses and message content pass through the provider",
+                        "Bulk mail needs recorded consent and a working unsubscribe link"],
+                       "saas", "neutral", False, Z, []))
     if req["requirements.multi_tenant"]:
         rls = db and db.get("rls")
         out.append(svc("other", "Tenant isolation: tenant_id on every row" + (" + database row-level security" if rls else " enforced in a repository layer"),
@@ -800,8 +822,12 @@ def build(ctx, host, backend, db, mobile, warn):
         pat = e["pattern"]
         # a system read by keyword is named as written (without its "(must stay)" remark)
         label = pat["name"] if pat and pat.get("synthetic") else re.sub(r"(?i)^(?:the |our )?existing ", "", e["raw"])
-        via = "App Service Hybrid Connection (outbound 443 relay, no inbound ports)" if p == "azure" else (
-            "site-to-site VPN / private link" if not selfh else "the local network")
+        # a system that is itself a cloud service (not on-premises) is reached over the provider's private path, not a relay for on-prem servers
+        cloud_sys = bool(pat and not e["onprem"] and cx._CLOUD_WORDS.search(e["raw"].lower()))
+        via = ("the provider's private network path (private endpoint or allow-listed address, no public internet path)" if cloud_sys
+               else "App Service Hybrid Connection (outbound 443 relay, no inbound ports)" if p == "azure" else (
+                   "site-to-site VPN / private link" if not selfh else "the local network"))
+        where = "cloud database" if cloud_sys else "on-prem server"
         if pat and pat.get("synthetic") and pat["kind"] == "database" and e is ctx["kept_db"]:
             out.append(svc("other", f"Integration with existing {label} via {via}",
                            f"{pat['how']} It stays the application's database and is reached through {via}.",
@@ -811,13 +837,15 @@ def build(ctx, host, backend, db, mobile, warn):
                            "library", "neutral", False, Z, pat["src"]))
         elif pat and pat["kind"] == "database" and db and e is not ctx["kept_db"]:
             out.append(svc("other", f"Integration with existing {label} via {via}",
-                           f"{pat['how']} The new application keeps its own tables in {db['_variant']} and reads the existing data through {via}.",
+                           f"{pat.get('how_beside', pat['how'])} The new application keeps its own tables in {db['_variant']} and reads the existing data through {via}."
+                           + (f" It is past end of support ({e['life']['name']}, {e['life']['eol']}): plan its upgrade, or move its data into the new database and retire it once its owners agree."
+                              if e["life"] and e["life"]["eol"] <= AS_OF else ""),
                            ["infrastructure.existing_systems"],
                            [("Migrate everything into the new database now", "risky in the MVP timeline and breaks existing consumers"),
-                            ("Use the on-prem server as the only database", "ties availability of the new app to the on-prem server and the relay")],
-                           ["Cross-network latency on queries to the on-prem server", "Credentials for the on-prem database must live in a secret store"],
-                           "library", "neutral", False, Z, pat["src"] + (["azure-hybrid-connections"] if p == "azure" else [])))
-        elif pat and pat["kind"] in ("erp", "crm", "legacy_app", "payments", "record", "health", "api"):
+                            (f"Use the {where} as the only database", f"ties availability of the new app to the {where}" + ("" if cloud_sys else " and the relay"))],
+                           [f"Cross-network latency on queries to the {where}", f"Credentials for the {'existing' if cloud_sys else 'on-prem'} database must live in a secret store"],
+                           "library", "neutral", False, Z, pat["src"] + (["azure-hybrid-connections"] if p == "azure" and not cloud_sys else [])))
+        elif pat and pat["kind"] in ("erp", "crm", "legacy_app", "payments", "record", "health", "api", "orchestrator", "storage"):
             out.append(svc("other", f"Integration with existing {label}", pat["how"], ["infrastructure.existing_systems"],
                            [("Replacing it", "outside MVP scope")], ["Depends on the existing system's API limits"], "library", "neutral", False, Z, pat["src"]))
     domains.build(ctx, host, backend, db, svc, warn, Z, out)

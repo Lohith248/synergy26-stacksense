@@ -16,6 +16,9 @@ LANG_ALIASES = {"js": "javascript", "ts": "typescript", "c#": "csharp", "golang"
                 "node": "javascript", "nodejs": "javascript", "node.js": "javascript", "c sharp": "csharp"}
 
 # Deterministic description rules (D7). Each: flag -> regex. They shape supporting services/warnings; ledger, markdown, internal_only and low_end also adjust core scores.
+# things a user uploads (a bare "devices upload readings" is not a file upload)
+UPLOAD_OBJ = (r"(?:files?|documents?|docs?|pdfs?|photos?|images?|pictures?|videos?|scans?|bills?|receipts?|invoices?|attachments?"
+              r"|certificates?|resumes?|cvs?|recordings?|audio|spreadsheets?|csv|forms?)")
 DESC_RULES = [
     ("upi", r"\bupi\b"),
     ("recurring", r"\bemi\b|subscription|recurring|per[- ]seat|pay per seat|monthly plan"),
@@ -48,13 +51,24 @@ DESC_RULES = [
     ("scoring_model", r"scoring model|credit scor|risk model|fraud model"),
     ("notifications", r"notif|alert|remind"),
     ("iot", r"\bsensors?\b|\biot\b|telemetry|\bdevices? (?:send|report|publish)|smart meters?|trackers? send"),
-    ("digital_goods", r"in-app purchase|in-game|\bcoins\b|\bgems\b|unlock|premium (?:features|content|tier)|loot|battle pass"),
+    ("digital_goods", r"in-app purchase|in-game|\bcoins\b|\bgems\b|unlock|premium (?:features|content|tier)|loot|battle pass"
+                      # E11-3: wording that sells through the app stores (store billing is mandatory for digital goods there)
+                      r"|(?:sold|billed|purchased|bought|charged|paid)\s+(?:\w+\s+){0,3}(?:through|via|in|on|with|using)\s+(?:the\s+)?(?:app stores?|apple app store|google play(?: store)?|play store)"
+                      r"|\bapp[- ]store (?:billing|subscriptions?|purchases?)|\bstore (?:subscriptions?|billing)|in-app subscriptions?"),
+    # E11-3: facts the description states that no enum field carries (each reads as a service or a named assumption)
+    ("sms", r"\bsms\b|\btext[- ]messages? (?:reminders?|alerts?|notifications?|codes?)|\btexts? reminders?|\bwhatsapp (?:reminders?|alerts?|notifications?)"),
+    ("otp", r"\botps?\b|one[- ]time (?:pass(?:word|code)s?|codes?)"),
+    ("email_out", r"newsletters?|mailing lists?|\be-?mail (?:lists?|campaigns?|receipts?|confirmations?|digests?|reminders?|notifications?)"
+                  r"|transactional e-?mails?|\b(?:confirmation|receipt|welcome|reminder|invoice|booking) e-?mails?"
+                  r"|\b(?:go|goes|sent|send|sends|delivered|delivery)\s+(?:out\s+)?(?:by|via|through|over)\s+e-?mail"),
+    ("uploads", r"\buploads?\b(?:\W+\w+){0,5}?\W+" + UPLOAD_OBJ + r"\b|\b" + UPLOAD_OBJ + r"\b(?:\W+\w+){0,3}?\W+uploaded\b"),
     ("video_vod", r"recorded video|video lectures?|short[- ]video|video (?:upload|sharing|library)|video-sharing|reels?\b|video[- ]on[- ]demand"),
     ("video_call", r"video (?:consult|calls?|chat|class|meeting)|live class|teleconsult|tele-consult|telehealth|live stream"),
     ("web3", r"\bnfts?\b|web3|blockchain|cryptocurrenc|wallet connect|smart contract"),
     ("scheduler", r"remind(?:er)?s?\b|\bcron\b|nightly|scheduled (?:jobs?|tasks?|emails?)|daily (?:email|digest|report)s?"),
     ("analytics", r"dashboards?|\breports?\b|analysts?|\bbi\b|ad-hoc (?:sql|quer)|data warehouse"),
 ]
+DESC_RX = dict(DESC_RULES)
 
 # Negation guard shared by every description signal (one helper, not one per signal). A hit counts unless a negation reaches it
 # inside its own clause: before it ("no chat", "do not need a ledger", "without KYC") or right after it ("cameras are out of
@@ -471,6 +485,8 @@ def lifecycle_text(low):
     low = re.sub(r"\bcentos\s+linux\b", "centos", low)
     low = re.sub(r"\bruby\s+on\s+rails\b", "rails", low)
     low = re.sub(r"\boracle\s+database\b", "oracle", low)
+    low = re.sub(r"\b(?:vb|visual\s+basic)[\s\-_]*6(?:\.0)?(?![\d.]*\d)", "visual basic 6", low)
+    low = re.sub(r"\bwin(?:dows)?[\s\-_]*server[\s\-_]*(?=\d)", "windows server ", low)
     return re.sub(r"\b(node|python|postgresql|postgres|\.net|vue|mysql|angular|php|django|laravel|mongodb|centos|rails|ruby|oracle|elasticsearch|ubuntu)[\s\-_]*v?(?=\d)",
                   r"\1 ", low)
 
