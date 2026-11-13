@@ -6,6 +6,7 @@ import re
 
 from . import overeng as ov
 from . import costreal
+from . import localfirst as lf
 from .kb import TECH
 
 TIER_NAMES = ["tiny", "small", "medium", "large"]
@@ -67,6 +68,8 @@ DESC_RULES = [
     ("video_vod", r"recorded video|video lectures?|short[- ]video|video (?:upload|sharing|library)|video-sharing|reels?\b|video[- ]on[- ]demand"),
     ("video_call", r"video (?:consult|calls?|chat|class|meeting)|live class|teleconsult|tele-consult|telehealth|live stream"),
     ("web3", r"\bnfts?\b|web3|blockchain|cryptocurrenc|wallet connect|smart contract"),
+    # A2 (localfirst.py): the text mentions an upload, sync or server step
+    ("sync_server", r"\buploads?\b|\bsync(?:s|ed|ing|hroni[sz]\w*)?\b|\bservers?\b|\bback-?ups? (?:to|online)\b"),
     ("scheduler", r"remind(?:er)?s?\b|\bcron\b|nightly|scheduled (?:jobs?|tasks?|emails?)|daily (?:email|digest|report)s?"),
     ("analytics", r"dashboards?|\breports?\b|analysts?|\bbi\b|ad-hoc (?:sql|quer)|data warehouse"),
     # D16 (overeng.py): evidence that payments are a hosted button/link, that the content is editorial, and that the site stores user data
@@ -774,7 +777,9 @@ def build(req):
                     or r["requirements.file_media_storage"] or r["requirements.multi_tenant"]
                     or r["requirements.ml_features"] != "none"  # offline alone: a static site precaches (services.py)
                     or c["api_only"] or bool(c["mobile"]))
-    c["needs_backend"] = dynamic_need or (typ in DYNAMIC_TYPES and not c["static_rule"])
+    # A2: a desktop-only app with no server need is local-first (embedded database on the device), never a static site
+    c["local_first"] = lf.applies(c, dynamic_need)
+    c["needs_backend"] = dynamic_need or (typ in DYNAMIC_TYPES and not c["static_rule"] and not c["local_first"])
     c["needs_db"] = c["needs_backend"]
     c["static_search"] = (not c["needs_backend"]) and r["requirements.full_text_search"]
     return c
