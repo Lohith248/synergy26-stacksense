@@ -133,5 +133,79 @@ class OfflineConflicts(unittest.TestCase):
         self.assertIn("append-only command log", off["justification"])
 
 
+STATIC = {"requirements.auth": "none", "project.platforms": ["web"], "team.size": 3, "team.languages": ["javascript"], "budget.monthly_infra_usd": 300,
+          "scale.users_at_launch": 20000, "scale.users_12_months": 3000000, "scale.peak_concurrent_users": 100000, "requirements.seo_critical": True}
+
+
+def publisher(out):
+    return [s for s in sup(out, "other") if "scheduled publisher" in s["choice"]]
+
+
+class RefreshedStatic(unittest.TestCase):
+    """A18: a static site whose data is republished on a schedule gets a scheduled publisher, atomic publish and a short cache lifetime."""
+
+    CASES = [
+        ("content_site", "Public results site: the commission publishes tallies in batches roughly every 5 min; the page shows the latest numbers."),
+        ("other", "Public scoreboard for a city marathon. Timing mats upload splits and the page shows the latest standings, refreshed every 2 minutes."),
+        ("web_app", "Public air-quality bulletin for a city. Readings arrive every 15 minutes from the monitoring network; the page shows the current readings. Read-only."),
+        ("content_site", "Transit information site: departure boards are republished every 30 seconds from the operator's feed."),
+    ]
+
+    def test_scheduled_publisher_for_different_project_types(self):
+        for typ, desc in self.CASES:
+            out = run(**{**STATIC, "project.type": typ, "project.description": desc})
+            self.assertEqual(out["architecture_style"], "static", typ)
+            self.assertEqual(out["stack"]["backend"]["choice"], "None", typ)
+            self.assertEqual(out["stack"]["database"]["choice"], "None", typ)
+            self.assertNotIn("Markdown", out["stack"]["database"]["justification"].replace("not as Markdown", ""), typ)
+            self.assertIn("scheduled publisher", out["stack"]["backend"]["justification"], typ)
+            pub = publisher(out)
+            self.assertEqual(len(pub), 1, typ)
+            for word in ("atomic publish", "short time", "latest"):
+                self.assertIn(word, pub[0]["justification"], typ)
+            self.assertTrue(any("Static site with data refreshed" in a for a in out["assumptions"]), typ)
+
+    def test_interval_is_read_from_the_text(self):
+        out = run(**{**STATIC, "project.type": "other", "project.description": "Scoreboard refreshed every 2 minutes with the latest standings."})
+        self.assertIn("about every 2 minutes", publisher(out)[0]["justification"])
+        self.assertIn("24 seconds", publisher(out)[0]["justification"])  # a fifth of the interval (planning heuristic)
+
+    def test_egress_estimate_and_budget_warning(self):
+        args = {**STATIC, "project.type": "content_site", "scale.users_12_months": 40000000, "scale.users_at_launch": 5000000,
+                "scale.peak_concurrent_users": 2500000, "budget.monthly_infra_usd": 900,
+                "project.description": "Election results; tallies come in batches every 5 min and the page shows the latest numbers."}
+        big = run(**{**args, "infrastructure.cloud_preference": "aws"})  # a host that bills transfer
+        self.assertIn("CloudFront", big["stack"]["hosting"]["choice"])
+        w = [x for x in big["warnings"] if x["code"] == "CDN_EGRESS_AT_RISK"]
+        self.assertEqual(len(w), 1)
+        self.assertIn("users x", w[0]["message"])
+        self.assertIn("scale.users_12_months", w[0]["fields"])
+        self.assertIn("BUDGET_AT_RISK", codes(big))
+        self.assertGreater(big["estimated_monthly_cost_usd"]["max"], 900)
+        free = run(**args)  # the default host does not bill static requests: an assumption line, no warning
+        self.assertIn("Cloudflare", free["stack"]["hosting"]["choice"])
+        self.assertNotIn("CDN_EGRESS_AT_RISK", codes(free))
+        self.assertTrue(any(l.startswith("CDN egress:") and "does not bill" in l for l in free["estimated_monthly_cost_usd"]["assumptions"]))
+        small = run(**{**STATIC, "project.type": "content_site", "scale.users_12_months": 3000, "scale.users_at_launch": 100,
+                       "scale.peak_concurrent_users": 50, "budget.monthly_infra_usd": 300,
+                       "project.description": "Club fixtures page; scores are republished every 10 minutes."})
+        self.assertNotIn("CDN_EGRESS_AT_RISK", codes(small))
+        self.assertEqual(len(publisher(small)), 1)
+
+    def test_must_not_fire(self):
+        # editorial static site: nothing is refreshed on a schedule
+        out = run(**{**STATIC, "project.type": "content_site", "project.description": "Parish website with news and service times. Volunteers edit the pages."})
+        self.assertEqual(publisher(out), [])
+        self.assertNotIn("scheduled publisher", out["stack"]["backend"]["justification"])
+        self.assertIn("Markdown", out["stack"]["database"]["justification"])
+        # a dynamic product keeps its backend even when its text says every 5 minutes
+        out = run(**{**STATIC, "project.type": "saas_b2b", "requirements.auth": "email_password", "project.description": "Dashboard that refreshes every 5 minutes."})
+        self.assertEqual(publisher(out), [])
+        self.assertNotEqual(out["stack"]["backend"]["choice"], "None")
+        # realtime asked for in the fields: not a static site
+        out = run(**{**STATIC, "project.type": "other", "requirements.realtime": True, "project.description": "Live scores updated every 10 seconds."})
+        self.assertEqual(publisher(out), [])
+
+
 if __name__ == "__main__":
     unittest.main()

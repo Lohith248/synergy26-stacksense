@@ -34,6 +34,11 @@ DESC_RULES = [
                     r"|\b(?:validat\w*|scan\w*|redeem\w*|issu\w*) (?:\w+ ){0,2}(?:tickets?|passes|coupons?|vouchers?|admissions?)\b"
                     r"|\b(?:tickets?|passes|coupons?|vouchers?) (?:\w+ ){0,2}(?:validat\w*|scan\w*|redeem\w*|entr(?:y|ies))\b"
                     r"|\bbook(?:ing|ings)\b|\breserv(?:e|es|ed|ation|ations)\b|\bappointments?\b|\bseat (?:selection|maps?|allocation)\b|\bbook(?:ed)? (?:seats?|slots?|rooms?)\b"),
+    # A18 (refresh.py): figures that are republished on a schedule (every N minutes, in batches, "latest numbers"); read only for static sites
+    ("periodic_refresh", r"\b(?:every|each)\s+(?:\d+|a few|few|couple of|two|three|five|ten|fifteen|thirty)\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?)\b"
+                         r"|\bin batches\b|\bbatch(?:es)? (?:every|roughly|about)\b"
+                         r"|\b(?:latest|current|up-to-date|newest) (?:numbers|results|scores|figures|tallies|prices|rates|standings|counts|readings|data)\b"
+                         r"|\blive (?:results|scores|tallies|standings|counts|data)\b|\bnear[- ]real[- ]?time\b"),
     ("kyc", r"\bkyc\b|know your customer|identity verification"),
     ("chat", r"\bchat|messag"),
     ("collab", r"same board|collaborat|live cursor|multiplayer|co-edit|whiteboard|conflict-free|\bcrdts?\b"

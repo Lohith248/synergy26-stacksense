@@ -6,6 +6,7 @@ from . import context as cx
 from . import overeng as ov
 from . import localfirst as lf
 from . import consistency as cons
+from . import refresh as rf
 from . import costreal
 from . import rightsize as rs
 from . import select as sl
@@ -597,6 +598,9 @@ def _recommend(req, assumptions, sid):
         assumptions.append("Local-first desktop app, no backend and no hosting: project.platforms is desktop only, and auth is none with no payments, "
                            "realtime, file/media storage, multi-tenancy or ML requested. Data lives in an embedded database on the device"
                            + ("; the optional upload described in project.description is a later, separate endpoint." if lf.optional_endpoint(ctx) else "."))
+    if rf.applies(ctx):  # A18: say which input made the data refresh a scheduled publication
+        assumptions.append(f"Static site with data refreshed {rf.interval_text(ctx)} (project.description: \"{rf.quote(ctx)}\"): a scheduled publisher writes "
+                           "static snapshot files and the CDN serves them; the audience reads files and never reaches a server or database.")
     host_extra_paths = [p for p in HARD_PATHS if any(c.excluded and c.excluded[1] == p for c in h_out)]
     if ctx["country"]:
         host_extra_paths += ctx["res_paths"]
@@ -634,12 +638,13 @@ def _recommend(req, assumptions, sid):
         facts = ov.static_facts(ctx)
         add_when = "add a backend when accounts, stored user data or server-side payments appear"
         backend_cmp = none_component("backend",
-                                     ("No application server is needed: there are no accounts, payments, uploads or dynamic data; pages are pre-built at deploy time."
+                                     (rf.backend_why(ctx, rf.quote(ctx)) if rf.applies(ctx) else
+                                      "No application server is needed: there are no accounts, payments, uploads or dynamic data; pages are pre-built at deploy time."
                                       if not req["requirements.payments"] else
                                       "No application server is needed: there are no accounts, uploads or dynamic data, and payments go through the provider's hosted "
                                       "button or link, so the site never handles card data; pages are pre-built at deploy time.") + ov.traffic_clause(ctx),
                                      ["project.type", "requirements.auth", "requirements.payments"]
-                                     + (["project.description"] if ctx["static_rule"] else []) + (["scale.users_12_months"] if ctx["tier"] >= 2 else []),
+                                     + (["project.description"] if ctx["static_rule"] or rf.applies(ctx) else []) + (["scale.users_12_months"] if ctx["tier"] >= 2 else []),
                                      [("Netlify/Cloudflare serverless functions", f"nothing to compute at request time ({facts}); {add_when}"),
                                       ("Node.js + Express", "a server to run and pay for with no feature that needs it" + (
                                           f" (~{ctx['users']:,} users do not change that: the CDN serves pre-built pages)" if ctx["tier"] >= 2 else "")
@@ -703,9 +708,11 @@ def _recommend(req, assumptions, sid):
         db_cmp = lf.database(ctx, none_component)
     else:
         db_cmp = none_component("database",
-                                "Content lives as Markdown/HTML files in the repository; there is no user data to store"
+                                (rf.database_why(ctx) if rf.applies(ctx) else "Content lives as Markdown/HTML files in the repository; there is no user data to store")
                                 + (", and payment records stay with the payment provider." if req["requirements.payments"] else "."),
-                                ["project.type", "requirements.auth"] + (["requirements.payments"] if req["requirements.payments"] else []),
+                                ["project.type", "requirements.auth"] + (["project.description"] if rf.applies(ctx) else [])
+                                + (["requirements.payments"] if req["requirements.payments"] else []),
+                                rf.database_alts(ctx) if rf.applies(ctx) else
                                 [("SQLite", "no runtime data to persist; add a database when the site starts storing accounts, orders or submissions"),
                                  ("Headless CMS database", "a single author edits files directly" if ctx["static_rule"] != "hosted_payments"
                                   else "editors update the text in the repository directly, and donations are not stored by the site")])
@@ -825,6 +832,8 @@ def _recommend(req, assumptions, sid):
     top = [(hi, name) for hi, _, name in items if hi > 0][:2]
     over_txt = costreal.over_multiple_note(items, ctx["budget"])  # E8d: explicit note for a single line above 10x the budget
     top_txt = f"; the largest upper-bound items are {' and '.join(f'{n} (up to ${v:,.0f})' for v, n in top)}" if top else ""
+    if rf.applies(ctx) and rf.metered(host) and rf.egress_warning(ctx, ctx["budget"]):  # A18: the transfer line can exceed the budget
+        W(*rf.egress_warning(ctx, ctx["budget"]))
     if cost["min"] > ctx["budget"]:
         sev = "critical" if (ctx["budget"] == 0 or cost["min"] > 2 * ctx["budget"]) else "warning"
         far_txt = costreal.dominant_text(items, ctx["budget"], cost["max"]) if sev == "critical" else ""  # E8d: which line dominates, what to cut
@@ -1330,6 +1339,14 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         hlo, hhi = host["plan_ha_cost"]
         tier_txt = (" per instance (P0v3 about $60 at $0.082/hour Linux, Central India, Azure Retail Prices API 12 Nov 2026, up to P1v3 about $113-130); "
                     "zone redundancy is available only on Premium plans with at least two instances.")
+    if rf.applies(ctx):  # A18: transfer, not compute, is the cost to watch for a heavily read static site
+        elo, ehi, ulo, uhi = rf.egress(ctx)
+        if not rf.metered(host):
+            lines.append(f"CDN egress: {host['name']} does not bill requests for static files (Cloudflare Pages documentation), so no transfer line is added; "
+                         f"the estimate would otherwise be about ${ulo:,.0f}-{uhi:,.0f}/month.")
+        elif uhi >= rf.THRESHOLDS["report_usd"]:
+            add("CDN egress (estimate)", ulo, uhi,
+                "CDN egress: " + rf.egress_text(ctx) + " = {r}; it is added to the hosting fee above and may partly overlap transfer that fee already includes.")
     if ctx["local_first"]:
         lines.append("Hosting: none; the app is distributed as an installer, so there is no hosting bill (code-signing certificates are not in this band).")
     else:

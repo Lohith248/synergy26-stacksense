@@ -10,6 +10,7 @@ from . import context as cx
 from . import overeng as ov
 from . import localfirst as lf
 from . import consistency as cons
+from . import refresh as rf
 from . import rightsize as rs
 from .kb import cite, AS_OF
 from .select import for_noun, type_noun
@@ -968,6 +969,11 @@ def build(ctx, host, backend, db, mobile, warn):
                        "KYC uploads are stored encrypted with access logging and retention rules; identity checks go through a licensed verification partner chosen by the business.",
                        ["project.description", "compliance"] + res_path, [("Storing KYC files in the app database", "large blobs and broader access")],
                        ["Verification partner contract and API not selected here"], "managed" if hyper else "self_hosted", p if hyper else "neutral", True, Z, ["rbi-digital-lending"], loc))
+    if rf.applies(ctx):  # A18: data republished on a schedule needs a publisher, an atomic switch and a short cache lifetime
+        pname, psrc = rf.publisher_name(host)
+        out.append(svc("other", pname, rf.publisher_why(ctx), ["project.description", "requirements.realtime"], rf.publisher_alts(ctx),
+                       rf.PUBLISHER_TRADEOFFS, "managed" if hyper else "saas", p if hyper else "github", False,
+                       [[0, 1], [0, 2], [1, 5], [1, 5]], psrc))  # planning estimate: a few thousand tiny invocations a month
     if ctx["desc"]["markdown"] and not ctx["needs_backend"]:
         out.append(svc("other", "Git-based Markdown content (no CMS)",
                        "The owner writes posts in Markdown in the repository; every push rebuilds and publishes the site.",

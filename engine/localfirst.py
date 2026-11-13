@@ -88,7 +88,7 @@ def database(c, none_component):
     req = c["req"]
     off = req["requirements.offline_support"]
     why = ("Records live in one embedded SQLite file on the device, so the app works with no network and needs no database server; "
-           "one operator per machine fits SQLite's single-writer model, and the file format has long-term support from its maintainers.")
+           "a desktop app used by one operator per machine fits SQLite's single-writer model, and the file format has long-term support from its maintainers.")
     paths = ["project.platforms", "requirements.offline_support"] if off else ["project.platforms"]
     if req["requirements.full_text_search"]:
         why += " Search uses SQLite's built-in full-text index, so there is no separate search service."
