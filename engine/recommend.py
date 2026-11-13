@@ -1076,6 +1076,14 @@ def contradictions(ctx, W, assumptions, host, backend):
         if not e["pattern"] and not life:
             W("EXISTING_SYSTEM_UNRECOGNISED", "info", f"'{e['raw']}' is not in the knowledge base; integration must be designed manually.",
               ["infrastructure.existing_systems"])
+            assumptions.append(f"'{e['raw']}' is not recognised and names no known kind of system, so no component was added for it; "
+                               "it is assumed to sit outside this design.")
+        elif e["pattern"] and e["pattern"].get("synthetic"):
+            pat = e["pattern"]
+            W("EXISTING_SYSTEM_UNRECOGNISED", "info",
+              f"'{e['raw']}' is not in the knowledge base by name; it is read as {pat['label']} from the word '{pat['keyword']}' and "
+              f"handled as one ({pat['handled']}). Its product-specific details are not known: confirm them with the system's owners.",
+              ["infrastructure.existing_systems"])
     if ctx["other_kept_dbs"]:
         W("SEVERAL_KEPT_DATABASES", "info",
           f"Several databases must stay; '{ctx['kept_db']['raw']}' is reused as the application's database and "

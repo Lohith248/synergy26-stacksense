@@ -251,6 +251,30 @@ def existing_langs(raws):
     return out
 
 
+_CLOUD_WORDS = re.compile(r"\b(?:cloud|saas|managed|aws|azure|gcp|google|amazon|atlas|hosted by)\b")
+
+
+def fallback_pattern(raw, low):
+    """An existing system the knowledge base does not know by name, read by keyword (first matching category in knowledge-base
+    order) into a stand-in pattern that the by-name handling (reused database / broker / identity provider, integration
+    component) treats like a recognised one; None when no keyword names a kind of system."""
+    for fb in TECH["existing_fallback"]:
+        m = word_rx(fb["match"]).search(low)
+        if not m:
+            continue
+        head = re.split(r"\s*[(,;]|\s+[-–—]\s", raw.strip(), maxsplit=1)[0].strip().rstrip(" .:") or fb["label"]
+        name = head[:60].rstrip()
+        pat = {"match": [re.escape(m.group(0))], "kind": fb["kind"], "name": name, "how": fb["how"], "src": fb["src"],
+               "synthetic": True, "category": fb["category"], "label": fb["label"], "handled": fb["handled"],
+               "keyword": m.group(0)}
+        if fb["kind"] == "database":
+            pat.update(engine="other", product=name)
+        elif fb["kind"] == "identity":
+            pat.update(reuse=True, provider="neutral", deployment="self_hosted")
+        return pat
+    return None
+
+
 # D12: data_residency 'other' -> jurisdiction. Ids, display names and keywords from ../research/R15-regions-other.md.
 # Whole-word, case-insensitive; acronyms in ACRONYMS match upper-case only (as written) so "mas", "sama" or "nia" in prose
 # never pick a country. Lookbehinds keep "New Mexico", "North Korea", "New England" and "New South Wales" out.
@@ -657,6 +681,7 @@ def build(req):
     for raw in req["infrastructure.existing_systems"]:
         low = f" {raw.lower()} "
         hit = next((pat for pat in TECH["existing_patterns"] if word_rx(pat["match"]).search(low)), None)
+        hit = hit or fallback_pattern(raw, low)
         life = None
         norm = lifecycle_text(low)
         for lc in TECH["lifecycle"]:
@@ -668,17 +693,22 @@ def build(req):
         # product's first word: 'Keep the Oracle database' names 'Oracle 19c')
         name_rx = None
         if hit:
-            name_rx = r"(?<![a-z0-9])(?:" + "|".join(hit["match"] + ([re.escape(hit["product"].split()[0].lower())] if hit.get("product") else [])) + r")(?![a-z0-9])"
+            name_rx = r"(?<![a-z0-9])(?:" + "|".join(hit["match"] + ([re.escape(hit["product"].split()[0].lower())] if hit.get("product") and not hit.get("synthetic") else [])) + r")(?![a-z0-9])"
         keep = "infrastructure.existing_systems" if keep_in_entry(low) else "project.description" if hit and any(
             keep_in_text(name_rx, s) for s in sentences) else None
         # a tenant described only as workforce/staff identity is not a customer login directory
         workforce = bool(re.search(r"\b(?:workforce|employees?|staff)\b", low)) and not re.search(
             r"\b(?:customers?|consumers?|ciam|b2c|external|partners?|public)\b", low)
-        ex.append({"raw": raw, "pattern": hit, "life": life, "keep": keep, "onprem": "on-prem" in low or "on prem" in low
-                   or "onprem" in low or "on-premises" in low, "workforce": workforce})
-    # list-order invariance: knowledge-base pattern order (identity, databases, brokers, ...), then name; unrecognised last
+        onprem = "on-prem" in low or "on prem" in low or "onprem" in low or "on-premises" in low
+        if hit and hit.get("synthetic"):  # read by keyword: a mainframe, or a system that must stay and is not said to be a cloud service, is estate to bridge to
+            onprem = onprem or "mainframe" in low or bool(keep and not _CLOUD_WORDS.search(low))
+        ex.append({"raw": raw, "pattern": hit, "life": life, "keep": keep, "onprem": onprem, "workforce": workforce})
+    # list-order invariance: knowledge-base pattern order (identity, databases, brokers, ...), then keyword categories
+    # (knowledge-base order), then name; unrecognised last
     order = {id(p): i for i, p in enumerate(TECH["existing_patterns"])}
-    ex.sort(key=lambda e: (order[id(e["pattern"])] if e["pattern"] else len(order), e["raw"]))
+    cats = {fb["category"]: len(order) + i for i, fb in enumerate(TECH["existing_fallback"])}
+    ex.sort(key=lambda e: (order[id(e["pattern"])] if e["pattern"] and id(e["pattern"]) in order
+                           else cats[e["pattern"]["category"]] if e["pattern"] else len(order) + len(cats), e["raw"]))
     c["existing"] = ex
     c["existing_langs"] = existing_langs(req["infrastructure.existing_systems"])
 

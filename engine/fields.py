@@ -82,7 +82,7 @@ HOW = {
     "infrastructure.cloud_preference": "Restricts hosting, database and services to that provider (or none for self-run).",
     "infrastructure.deployment_model": "managed_cloud vs VM vs on-premise vs air-gapped: filters hosting and every managed service.",
     "infrastructure.data_residency": "Pins regions for database, hosting and data-bearing services; warns when it cannot.",
-    "infrastructure.existing_systems": "Reuses recognised systems (identity providers, brokers; a database that must stay becomes the database); credits the existing app's language; warns on end-of-life ones.",
+    "infrastructure.existing_systems": "Reuses recognised systems (identity providers, brokers; a database that must stay becomes the database); credits the existing app's language; warns on end-of-life ones. A name it does not know is read by keyword (database, broker, identity, API, system of record, health interchange) and handled by that category.",
     "requirements.realtime": "Adds WebSocket/managed realtime service; penalises functions; favours realtime-capable backends.",
     "requirements.offline_support": "Local-first clients (PWA/SQLite sync); affects frontend and sync service.",
     "requirements.full_text_search": "Database full-text search or a dedicated engine, by scale and provider.",

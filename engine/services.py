@@ -733,18 +733,27 @@ def build(ctx, host, backend, db, mobile, warn):
                        ["Non-technical editors would need a CMS later"], "library", "neutral", False, Z, ["astro"]))
     for e in ctx["existing"]:
         pat = e["pattern"]
-        if pat and pat["kind"] == "database" and db and e is not ctx["kept_db"]:
-            via = "App Service Hybrid Connection (outbound 443 relay, no inbound ports)" if p == "azure" else (
-                "site-to-site VPN / private link" if not selfh else "the local network")
-            out.append(svc("other", f"Integration with existing {re.sub(r'(?i)^(?:the |our )?existing ', '', e['raw'])} via {via}",
+        # a system read by keyword is named as written (without its "(must stay)" remark)
+        label = pat["name"] if pat and pat.get("synthetic") else re.sub(r"(?i)^(?:the |our )?existing ", "", e["raw"])
+        via = "App Service Hybrid Connection (outbound 443 relay, no inbound ports)" if p == "azure" else (
+            "site-to-site VPN / private link" if not selfh else "the local network")
+        if pat and pat.get("synthetic") and pat["kind"] == "database" and e is ctx["kept_db"]:
+            out.append(svc("other", f"Integration with existing {label} via {via}",
+                           f"{pat['how']} It stays the application's database and is reached through {via}.",
+                           ["infrastructure.existing_systems"],
+                           [("Copy its data into a new database now", "risky in the MVP timeline and breaks the systems that already use it")],
+                           ["Cross-network latency on queries to the existing server", "Credentials for the existing database must live in a secret store"],
+                           "library", "neutral", False, Z, pat["src"]))
+        elif pat and pat["kind"] == "database" and db and e is not ctx["kept_db"]:
+            out.append(svc("other", f"Integration with existing {label} via {via}",
                            f"{pat['how']} The new application keeps its own tables in {db['_variant']} and reads the existing data through {via}.",
                            ["infrastructure.existing_systems"],
                            [("Migrate everything into the new database now", "risky in the MVP timeline and breaks existing consumers"),
                             ("Use the on-prem server as the only database", "ties availability of the new app to the on-prem server and the relay")],
                            ["Cross-network latency on queries to the on-prem server", "Credentials for the on-prem database must live in a secret store"],
                            "library", "neutral", False, Z, pat["src"] + (["azure-hybrid-connections"] if p == "azure" else [])))
-        elif pat and pat["kind"] in ("erp", "crm", "legacy_app", "payments"):
-            out.append(svc("other", f"Integration with existing {re.sub(r'(?i)^(?:the |our )?existing ', '', e['raw'])}", pat["how"], ["infrastructure.existing_systems"],
+        elif pat and pat["kind"] in ("erp", "crm", "legacy_app", "payments", "record", "health", "api"):
+            out.append(svc("other", f"Integration with existing {label}", pat["how"], ["infrastructure.existing_systems"],
                            [("Replacing it", "outside MVP scope")], ["Depends on the existing system's API limits"], "library", "neutral", False, Z, pat["src"]))
     domains.build(ctx, host, backend, db, svc, warn, Z, out)
     return out
