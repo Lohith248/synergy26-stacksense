@@ -762,6 +762,8 @@ def build(req):
     c["unused_existing"] = {"identity provider": idps[1:], "message broker": queues[1:]}
     c["idp_customer_login"] = bool(c["existing_idp"] and c["existing_idp"]["pattern"].get("customer_login")
                                    and not c["existing_idp"]["workforce"])
+    # A16: social sign-in providers the input names (existing_systems, in list order); the auth text lists them before the defaults
+    c["social_named"] = [e["pattern"]["name"] for e in ex if e["pattern"] and e["pattern"]["kind"] == "social_login"]
     c["ms_idp"] = bool(c["existing_idp"] and c["existing_idp"]["pattern"].get("vendor") == "microsoft")
     c["existing_m365"] = next((e for e in ex if e["pattern"] and e["pattern"]["kind"] == "collaboration"), None)
     r = req

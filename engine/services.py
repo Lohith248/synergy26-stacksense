@@ -40,6 +40,24 @@ def join_and(xs):
     return xs[0] if len(xs) == 1 else ", ".join(xs[:-1]) + " and " + xs[-1]
 
 
+# A16: social providers offered when the input names none (planning default); a named provider always comes first.
+SOCIAL_DEFAULT = ("Google", "GitHub", "Microsoft")
+
+
+def social_list(ctx, defaults=SOCIAL_DEFAULT):
+    """Providers for a social-login choice: those the input names (existing_systems) first, then the defaults not already named."""
+    named = ctx["social_named"]
+    return list(named) + [x for x in defaults if x not in named]
+
+
+def named_social_note(ctx, product):
+    """For managed auth products whose built-in provider list is not in the knowledge base: say what the input names."""
+    if not ctx["social_named"]:
+        return ""
+    return (f" The input names {join_and(ctx['social_named'])}: enable it first; whether {product} offers it built in is not in the knowledge base, "
+            "otherwise add it as a custom OAuth/OpenID provider.")
+
+
 SOCIAL_NOTE = " Enable only the social providers your users already have; the providers in the choice name are what the product supports, not a decision."
 
 
@@ -281,7 +299,7 @@ def build(ctx, host, backend, db, mobile, warn):
             social = auth == "social"
             if db and db["id"] == "supabase":
                 out.append(svc("auth", "Supabase Auth" + (" with Google/GitHub/Apple social sign-in" if social else ""),
-                               f"{auth} login from the same Supabase project as the database: users sit next to the data and row-level security policies can use the signed-in user id; free plan covers this scale." + (SOCIAL_NOTE if social else ""),
+                               f"{auth} login from the same Supabase project as the database: users sit next to the data and row-level security policies can use the signed-in user id; free plan covers this scale." + (SOCIAL_NOTE + named_social_note(ctx, "Supabase Auth") if social else ""),
                                dp + ["budget.monthly_infra_usd"],
                                [("Framework built-in auth", "you would own password storage, reset e-mails and MFA"),
                                 ("Auth0 / Clerk (SaaS)", "another vendor and per-user pricing on a near-zero budget")],
@@ -289,7 +307,7 @@ def build(ctx, host, backend, db, mobile, warn):
                                "saas", "supabase", True, Z, ["supabase-pricing"], loc))
             elif p == "aws" and not selfh and ctx["lock"] != "low":
                 choice = f"Amazon Cognito user pool{rtxt}" + (" with Google/Apple/Microsoft social sign-in" if social else "")
-                out.append(svc("auth", choice, f"{auth} login on AWS: managed user pool with MFA and hosted UI{rtxt}." + (SOCIAL_NOTE if social else ""),
+                out.append(svc("auth", choice, f"{auth} login on AWS: managed user pool with MFA and hosted UI{rtxt}." + (SOCIAL_NOTE + named_social_note(ctx, "Amazon Cognito") if social else ""),
                                dp + ["infrastructure.cloud_preference"],
                                [("Framework built-in auth", "you would own password storage, reset flows and MFA")],
                                ["Cognito customisation limits"], "managed", "aws", True,
@@ -302,7 +320,7 @@ def build(ctx, host, backend, db, mobile, warn):
                        "elixir-phoenix": "Phoenix mix phx.gen.auth (+ Ueberauth for OAuth)",
                        "rust-axum": "Keycloak 26 (container next to the API)"}.get(backend["id"] if backend else "", "Auth.js / Passport (Node)")
                 if social:
-                    lib += " with Google/GitHub/Microsoft OAuth"
+                    lib += " with " + "/".join(social_list(ctx)) + (" sign-in" if ctx["social_named"] else " OAuth")
                 kc = lib.startswith("Keycloak")
                 kl = "Rust" if backend and backend["id"] == "rust-axum" else "Go"  # backends without a batteries-included auth framework
                 out.append(svc("auth", lib,
