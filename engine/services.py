@@ -1005,7 +1005,7 @@ def build(ctx, host, backend, db, mobile, warn):
         elif e.get("adapter") and e["adapter"]["kind"] != "retire":  # A7: unrecognised by name, integrated by what the description does with it
             ad = e["adapter"]
             out.append(svc("other", ad["title"], ad["how"], ["infrastructure.existing_systems"] + (["project.description"] if ad["from_desc"] else []),
-                           [("Treating it as outside the design", f"{ig.cite(ad)} shows the application works with it, so the hand-off needs an owner and a test")],
+                           [("Treating it as outside the design", f"{ig.cite(ad)} mentions it in connection with the project, so any hand-off with it needs an owner and a test")],
                            ["The interface details are assumed from the description and must be confirmed with the system's owners",
                             "Adds code and tests to maintain, but no new paid service"], "library", "neutral", False, Z, ["statement"]))
     domains.build(ctx, host, backend, db, svc, warn, Z, out)
