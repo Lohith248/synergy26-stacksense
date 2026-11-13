@@ -19,6 +19,7 @@ THRESHOLDS = {
 # A8: project types whose pages are meant for the public. Anything else with sign-in on every route and no SEO need is an
 # authenticated app: its static files gain little from an edge cache (planning heuristic, not a vendor fact).
 PUBLIC_TYPES = ("content_site", "ecommerce", "marketplace", "social", "gaming", "web_app", "realtime_collab")
+TIER_CDN_EXEMPT = 2           # heuristic: from tier 2 (over 50,000 users in 12 months or 2,000 concurrent) a signed-in app keeps its CDN: static-file traffic is large enough to cache
 _GEO_WIDE = ("multi_region", "global")
 
 
@@ -77,7 +78,12 @@ def warehouse(ctx):
 
 def public_pages(ctx):
     """True when the input says public pages exist (SEO, a public project type, or editorial/public-page wording)."""
-    return bool(ctx["req"]["requirements.seo_critical"] or ctx["type"] in PUBLIC_TYPES or ctx["desc"]["editorial"])
+    return bool(ctx["req"]["requirements.seo_critical"] or ctx["type"] in PUBLIC_TYPES or ctx["desc"]["editorial"] or ctx["desc"]["public_pages"])
+
+
+def media_delivery(ctx):
+    """True when the description says video, audio or large files are delivered to users: a CDN pays off for media whatever the sign-in."""
+    return bool(ctx["desc"]["media_delivery"] or ctx["desc"]["video_vod"])
 
 
 def public_facing(ctx):
@@ -93,13 +99,16 @@ def public_facing(ctx):
         why = ("project.type is internal_tool with requirements.seo_critical false and scale.geo_spread "
                + (f"{geo}" if geo else "not given"))
         paths = ["project.type", "requirements.seo_critical", "scale.geo_spread"]
-    elif req["requirements.auth"] != "none" and not public_pages(ctx) and geo not in _GEO_WIDE:
-        why = (f"requirements.auth is {req['requirements.auth']}, requirements.seo_critical is false, project.type is {typ}, the description names no public pages "
+    elif req["requirements.auth"] != "none" and not public_pages(ctx) and not media_delivery(ctx) and ctx["tier"] < TIER_CDN_EXEMPT and geo not in _GEO_WIDE:
+        why = (f"requirements.auth is {req['requirements.auth']}, requirements.seo_critical is false, project.type is {typ}, the description has no public-page "
+               f"or media-delivery wording (public pages, listings, catalogue, directory, profiles, blog, video, audio, large files) "
                f"and scale.geo_spread is " + (f"{geo}" if geo else "not given") + ", which this planning heuristic reads as an app that is signed in on every route")
         paths, aud = ["requirements.auth", "requirements.seo_critical", "project.type", "scale.geo_spread"], "a signed-in audience"
     else:
         return True, "", "", []
-    return False, why + f", so {aud} is served from one region", \
+    # tier 2+ with no scale.geo_spread: the input does not say one region, so the text does not either
+    where = "served from one region" if geo or ctx["tier"] < TIER_CDN_EXEMPT else "served from wherever the application runs (scale.geo_spread is not given)"
+    return False, why + f", so {aud} is {where}", \
         "public pages, public media or users on several continents appear", paths
 
 

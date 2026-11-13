@@ -503,7 +503,7 @@ def _recommend(req, assumptions, sid):
                     "name the country only if a rule about backups, audits or support access depends on it.")
         elif not stated and not ctx["needs_db"]:
             sev = "warning"
-            msg += " This design stores no personal data on a server (no database or account store), so no region needs pinning today; the country matters if that changes."
+            msg += " This design has no database or account store, so there is no application data store to pin to a region today; the country matters if that changes."
         W("RESIDENCY_UNSPECIFIED", sev, msg,
           ["infrastructure.data_residency"] + (["project.description"] if extra else [])
           + (["infrastructure.residency_country"] if r.get("conflict_field") else []))

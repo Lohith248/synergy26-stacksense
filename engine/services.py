@@ -138,6 +138,8 @@ def search_floor(ctx, p, selfh):
 EMAIL_PRODUCT = {"aws": ("Amazon SES", "aws", "the host cloud's own sending service, so it shares the account, IAM and bill"),
                  "azure": ("Azure Communication Services Email", "azure", "the host cloud's own sending service, so it shares the subscription, RBAC and bill")}
 EMAIL_DEFAULT = ("Resend", "neutral", "a standalone email API that does not depend on the host cloud")
+# N1: official documentation pages (official-unverified in kb/sources.json) for the products named above
+EMAIL_SRC = {"Amazon SES": "ses-docs", "Azure Communication Services Email": "acs-email", "Resend": "resend-docs", "Postmark": "postmark-docs", "Brevo": "brevo-docs"}
 
 
 def email_product(provider):
@@ -714,7 +716,8 @@ def build(ctx, host, backend, db, mobile, warn):
             lead = "SEO is critical (requirements.seo_critical), so public pages and static assets are served from edge caches near users (fast pages for visitors and crawlers)"
         else:
             # A8: "public pages" only when the input says there are some (SEO, a public project type, editorial wording)
-            what = "public pages and static assets" if rs.public_pages(ctx) else "static assets (scripts, images, fonts)"
+            what = ("public pages and static assets" if rs.public_pages(ctx) else "video, audio or large files and static assets" if rs.media_delivery(ctx)
+                    else "static assets (scripts, images, fonts)")
             if ctx["geo"] in ("multi_region", "global"):
                 lead = f"scale.geo_spread={ctx['geo']}: {what} are cached at the edge, close to distant users"
             else:
@@ -978,7 +981,7 @@ def build(ctx, host, backend, db, mobile, warn):
                         "Recipient addresses and message content pass through the provider: pick one whose sending region matches the residency requirement"
                         if ctx["res_named"] else "Recipient addresses and message content pass through the provider",
                         "Bulk mail needs recorded consent and a working unsubscribe link"],
-                       "saas", mail_prov, False, Z, []))
+                       "saas", mail_prov, False, Z, [EMAIL_SRC[n] for n in [mail_name] + [a[0] for a in mail_alts] if n in EMAIL_SRC]))
     if req["requirements.multi_tenant"]:
         rls = db and db.get("rls")
         out.append(svc("other", "Tenant isolation: tenant_id on every row" + (" + database row-level security" if rls else " enforced in a repository layer"),

@@ -2,7 +2,7 @@
   "scenario_id": "P4",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Small set of services: React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) on Java 21/25 LTS + Spring Boot with Amazon RDS for PostgreSQL 17, hosted on AWS ECS on Fargate — ap-south-1 (Mumbai), at an estimated $1615-7444/month.",
+  "summary": "Small set of services: React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) on Java 21/25 LTS + Spring Boot with Amazon RDS for PostgreSQL 17, hosted on AWS ECS on Fargate — ap-south-1 (Mumbai), at an estimated $1630-7564/month.",
   "architecture_style": "service_oriented",
   "stack": {
     "frontend": {
@@ -477,6 +477,31 @@
         ]
       },
       {
+        "layer": "cdn",
+        "choice": "Amazon CloudFront",
+        "justification": "At ~300,000 users, static assets (scripts, images, fonts) are cached near users so the origin serves less traffic; only non-personal files are cached, never signed-in responses.",
+        "driven_by": [
+          "project.platforms",
+          "scale.users_12_months"
+        ],
+        "alternatives": [
+          {
+            "choice": "No CDN",
+            "why_not": "every asset request from the 300,000 expected users would hit the origin, adding latency and origin load"
+          }
+        ],
+        "tradeoffs": [
+          "Cache invalidation on deploys"
+        ],
+        "deployment": "managed",
+        "provider": "aws",
+        "data_bearing": false,
+        "data_location": null,
+        "sources": [
+          "https://aws.amazon.com/about-aws/global-infrastructure/regional-product-services/"
+        ]
+      },
+      {
         "layer": "ml",
         "choice": "Separate Python inference service (FastAPI + ONNX Runtime) in the same private network",
         "justification": "The core API is Java 21/25 LTS + Spring Boot; a small Python service serves the model behind an internal endpoint, so model code stays in Python's ML tooling without changing the API's language. Credit-scoring outputs and their inputs are logged for audit and explainability.",
@@ -607,8 +632,8 @@
     ]
   },
   "estimated_monthly_cost_usd": {
-    "min": 1615,
-    "max": 7444,
+    "min": 1630,
+    "max": 7564,
     "currency": "USD",
     "assumptions": [
       "Hosting AWS ECS on Fargate (+ Application Load Balancer): $200-900/month at the 'medium' tier.",
@@ -618,6 +643,7 @@
       "storage: Amazon S3 (ap-south-1 (Mumbai)) $10-80/month.",
       "cache: Amazon ElastiCache for Valkey in ap-south-1 (Mumbai) $50-300/month.",
       "queue: Amazon SQS in ap-south-1 (Mumbai) $5-30/month.",
+      "cdn: Amazon CloudFront $15-120/month.",
       "ml: Separate Python inference service (FastAPI + ONNX Runtime) in the same private network $40-200/month.",
       "ci_cd: GitHub Actions $0-20/month.",
       "observability: Amazon CloudWatch in ap-south-1 (Mumbai) (logs, metrics, alarms) $30-200/month.",
@@ -629,17 +655,6 @@
     ]
   },
   "warnings": [
-    {
-      "code": "SERVICE_NOT_ADDED",
-      "severity": "info",
-      "message": "CDN not added: requirements.auth is phone_otp, requirements.seo_critical is false, project.type is fintech, the description names no public pages and scale.geo_spread is not given, which this planning heuristic reads as an app that is signed in on every route, so a signed-in audience is served from one region. Add it when public pages, public media or users on several continents appear.",
-      "fields": [
-        "requirements.auth",
-        "requirements.seo_critical",
-        "project.type",
-        "scale.geo_spread"
-      ]
-    },
     {
       "code": "PEAK_EQUALS_LAUNCH_USERS",
       "severity": "info",
@@ -685,7 +700,7 @@
     {
       "code": "BUDGET_AT_RISK",
       "severity": "info",
-      "message": "Upper estimate $7444/month is 24% above the $6000 budget at peak usage; the largest upper-bound items are Phone OTP (up to $1,800) and Amazon Cognito user pool + Amazon SNS SMS OTP in ap-south-1 (Mumbai) (up to $1,595). Launch near the $1615 lower bound and set billing alerts at the budget.",
+      "message": "Upper estimate $7564/month is 26% above the $6000 budget at peak usage; the largest upper-bound items are Phone OTP (up to $1,800) and Amazon Cognito user pool + Amazon SNS SMS OTP in ap-south-1 (Mumbai) (up to $1,595). Launch near the $1630 lower bound and set billing alerts at the budget.",
       "fields": [
         "budget.monthly_infra_usd"
       ]

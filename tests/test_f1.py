@@ -62,6 +62,18 @@ class EmailProduct(unittest.TestCase):
                     self.assertTrue(any(n in comp[0]["choice"] for n in ("Amazon SES", "Azure Communication Services Email", "Resend")), comp[0]["choice"])
                 self.assertIn("planning estimate", " ".join(comp[0]["tradeoffs"]))
 
+    def test_email_products_cite_a_source_that_is_not_marked_verified(self):
+        import json
+        with open(os.path.join(ROOT, "kb", "sources.json"), encoding="utf-8") as f:
+            srcs = {v["url"]: v for v in json.load(f).values() if isinstance(v, dict)}
+        for cloud, typ, desc in (("aws", "content_site", "Newsletter sent by email."), ("azure", "saas_b2b", "Sends transactional emails."),
+                                 ("gcp", "ecommerce", "Order confirmation emails.")):
+            with self.subTest(cloud=cloud):
+                comp = sup(run(project__type=typ, desc=desc, infrastructure__cloud_preference=cloud), "Email delivery")[0]
+                self.assertTrue(comp["sources"])
+                for sid in comp["sources"]:
+                    self.assertEqual(srcs[sid]["status"], "official-unverified")
+
     def test_no_email_component_without_email_in_the_description(self):
         self.assertFalse(sup(run(desc="A small booking site for a salon."), "Email delivery"))
 
@@ -71,6 +83,7 @@ class ResidencySeverity(unittest.TestCase):
         static = run(project__type="content_site", desc="Portfolio with project pages and a blog.", requirements__auth="none",
                      infrastructure__data_residency="other")
         self.assertEqual(warns(static, "RESIDENCY_UNSPECIFIED")[0]["severity"], "warning")
+        self.assertNotIn("stores no personal data", warns(static, "RESIDENCY_UNSPECIFIED")[0]["message"])
         for name, extra in (("on_premise", ONPREM), ("air_gapped", AIRGAP)):
             with self.subTest(deploy=name):
                 out = run(project__type="internal_tool", infrastructure__data_residency="other", **extra)
@@ -116,6 +129,58 @@ class CdnAudience(unittest.TestCase):
         self.assertNotIn("public pages", sup(out, "cdn")[0]["justification"])
         out = run(project__type="ecommerce", scale__users_12_months=9000, scale__peak_concurrent_users=400)
         self.assertIn("public pages", sup(out, "cdn")[0]["justification"])
+
+    # B1: video, audio or large files delivered to users keep the CDN whatever the sign-in
+    def test_cdn_kept_for_media_delivery_behind_sign_in(self):
+        cases = (("other", "200,000 paying members watch recorded video lectures."),
+                 ("healthtech", "Patients download large imaging files and listen to audio guidance."),
+                 ("saas_b2b", "Customers stream a podcast archive and download installers."))
+        for typ, desc in cases:
+            with self.subTest(typ=typ):
+                out = run(project__type=typ, desc=desc, scale__users_12_months=9000, scale__peak_concurrent_users=400)
+                self.assertTrue(sup(out, "cdn"), desc)
+
+    def test_cdn_still_removed_for_signed_in_apps_without_media(self):
+        for typ, desc in (("saas_b2b", "Customers manage invoices and approve purchase orders."),
+                          ("fintech", "Customers see balances; video calls with an adviser are one-to-one."),
+                          ("other", "Sensor event streams are aggregated into a staff report.")):
+            with self.subTest(typ=typ):
+                out = run(project__type=typ, desc=desc, scale__users_12_months=9000, scale__peak_concurrent_users=400)
+                self.assertFalse(sup(out, "cdn"), desc)
+
+    # B3: public-page wording counts, and the text claims absence only when it is absent
+    def test_public_page_wording_keeps_the_cdn_and_the_note_never_denies_it(self):
+        for typ, desc in (("fintech", "Public loan comparison pages for anyone; sign-in to apply."),
+                          ("saas_b2b", "A public directory of suppliers, sign-in for buyers."),
+                          ("other", "Public profiles are visible to anyone; members sign in to edit.")):
+            with self.subTest(typ=typ):
+                out = run(project__type=typ, desc=desc, scale__users_12_months=9000, scale__peak_concurrent_users=400)
+                self.assertTrue(sup(out, "cdn"), desc)
+        for typ, desc in (("saas_b2b", "Customers use the public cloud and a public API behind sign-in."),
+                          ("fintech", "Public sector clients sign in to a ledger tool.")):
+            with self.subTest(must_not_fire=typ):
+                out = run(project__type=typ, desc=desc, scale__users_12_months=9000, scale__peak_concurrent_users=400)
+                self.assertFalse(sup(out, "cdn"), desc)
+                self.assertNotIn("names no public pages", warns(out, "SERVICE_NOT_ADDED")[0]["message"])
+
+    # B4: from tier 2 (over 50,000 users or 2,000 concurrent) a signed-in app keeps the CDN; smaller ones still lose it
+    def test_big_signed_in_apps_keep_the_cdn_and_small_ones_do_not(self):
+        for typ in ("saas_b2b", "fintech", "healthtech", "data_analytics"):
+            with self.subTest(typ=typ):
+                self.assertTrue(sup(run(project__type=typ, scale__users_12_months=120000, scale__peak_concurrent_users=3000), "cdn"))
+                self.assertFalse(sup(run(project__type=typ, scale__users_12_months=9000, scale__peak_concurrent_users=400), "cdn"))
+
+    def test_tier_two_text_never_claims_one_region_without_a_geo_spread(self):
+        for typ in ("internal_tool", "saas_b2b"):
+            with self.subTest(typ=typ):
+                out = run(project__type=typ, desc="Used only by employees.", scale__users_12_months=120000, scale__peak_concurrent_users=3000)
+                self.assertFalse(sup(out, "cdn"))
+                msg = warns(out, "SERVICE_NOT_ADDED")[0]["message"]
+                self.assertNotIn("served from one region", msg)
+                self.assertIn("scale.geo_spread is not given", msg)
+        small = run(project__type="internal_tool", desc="Used only by employees.", scale__geo_spread="single_region",
+                    scale__users_12_months=9000, scale__peak_concurrent_users=400)
+        self.assertIn("served from one region", warns(small, "SERVICE_NOT_ADDED")[0]["message"])
 
 
 class WarehouseGuard(unittest.TestCase):
@@ -165,13 +230,41 @@ class NamedIdentityProviders(unittest.TestCase):
         self.assertNotIn("AD FS", a["choice"])
 
     def test_named_social_providers_come_first(self):
-        for typ, systems in (("social", ["Discord OAuth"]), ("web_app", ["Steam", "LinkedIn login"]), ("marketplace", ["Discord"])):
+        for typ, systems in (("social", ["Discord OAuth"]), ("gaming", ["Steam", "LinkedIn login"]), ("marketplace", ["Discord"])):
             with self.subTest(typ=typ):
                 a = self.auth(project__type=typ, requirements__auth="social", infrastructure__existing_systems=systems,
                               team__languages=["javascript"])
                 first = a["choice"].split(" with ", 1)[1]
                 self.assertTrue(first.startswith(systems[0].split()[0]), a["choice"])
                 self.assertIn("sign-in", a["choice"])
+
+    # B2: a vendor name in a different role is never dropped silently: it is an unrecognised system, not a sign-in provider
+    def test_vendor_names_in_other_roles_raise_the_unrecognised_warning(self):
+        cases = (("social", "Discord community server for support"), ("saas_b2b", "LinkedIn Sales Navigator for lead export"),
+                 ("internal_tool", "Steam boiler SCADA historian"), ("marketplace", "Discord"))
+        for typ, raw in cases:
+            for auth in ("social", "email_password"):
+                if raw == "Discord" and auth == "social":
+                    continue  # a bare provider name with social sign-in is a sign-in provider (must not warn)
+                with self.subTest(typ=typ, auth=auth, raw=raw):
+                    out = run(project__type=typ, requirements__auth=auth, infrastructure__existing_systems=[raw], team__languages=["javascript"])
+                    self.assertTrue([w for w in warns(out, "EXISTING_SYSTEM_UNRECOGNISED") if raw in w["message"]])
+                    self.assertNotIn("The input names", " ".join(s["choice"] + s["justification"] for s in sup(out, "auth")))
+
+    def test_steam_needs_a_game_context(self):
+        a = self.auth(project__type="web_app", desc="Players unlock achievements and compare scores.", requirements__auth="social",
+                      infrastructure__existing_systems=["Steam"], team__languages=["javascript"])
+        self.assertTrue(a["choice"].split(" with ", 1)[1].startswith("Steam"), a["choice"])
+        self.assertNotIn("Steam", self.auth(project__type="web_app", requirements__auth="social", infrastructure__existing_systems=["Steam"],
+                                            team__languages=["javascript"])["choice"])
+
+    def test_adfs_is_not_treated_as_an_entra_tenant(self):
+        # ms_idp means Entra ID (its auth line, the Entra text, Microsoft.Identity.Web); AD FS must keep its own line
+        for typ in ("healthtech", "saas_b2b", "internal_tool"):
+            with self.subTest(typ=typ):
+                out = run(project__type=typ, requirements__auth="enterprise_sso", infrastructure__existing_systems=["AD FS"])
+                self.assertIn("AD FS", sup(out, "auth")[0]["choice"])
+                self.assertNotIn("Entra", sup(out, "auth")[0]["choice"])
 
     def test_no_named_provider_keeps_the_default_list(self):
         a = self.auth(project__type="social", requirements__auth="social", team__languages=["javascript"])
