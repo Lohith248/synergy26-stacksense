@@ -97,6 +97,19 @@ def payment_location(gateway, prov, ctx):
 BROKER_CLOUD = [(r"\bmsk\b|\bamazon\b|\baws\b", "aws"), (r"\bazure\b|event hubs?", "azure"), (r"\bgoogle\b|\bgcp\b", "gcp")]
 
 
+def search_engine(p, selfh, rtxt):
+    """(name, provider, cost per tier, sources) of the dedicated search engine for a host."""
+    if p == "aws" and not selfh:
+        return f"Amazon OpenSearch Service{rtxt}", "aws", [[25, 60], [60, 200], [200, 800], [800, 4000]], ["aws-opensearch", "opensearch-license"]
+    if p == "azure" and not selfh:
+        return f"Azure AI Search{rtxt}", "azure", [[0, 75], [75, 250], [250, 1000], [1000, 4000]], ["azure-ai-search"]
+    return "Meilisearch (self-hosted container, MIT core)", "neutral", [[0, 10], [10, 40], [40, 200], [200, 800]], ["meilisearch-license"]
+
+
+def search_floor(ctx, p, selfh):
+    return search_engine(p, selfh, "")[2][ctx["tier"]][0]
+
+
 def build(ctx, host, backend, db, mobile, warn):
     """host/backend/db/mobile: chosen KB items (db may be None). warn(code, sev, msg, fields)."""
     req = ctx["req"]
@@ -316,22 +329,28 @@ def build(ctx, host, backend, db, mobile, warn):
             out.append(svc("search", "Pagefind (static search index built at deploy time)",
                            "Search over a static site without any server: the index is generated with the pages.", dp,
                            [("Algolia", "paid SaaS for a small static site")], ["Index size grows with content"], "library", "neutral", False, Z, ["statement"]))
-        elif db and db["id"] in ("postgresql", "supabase", "mysql", "sqlserver") and ctx["tier"] <= 1:  # D13 G5: Supabase is PostgreSQL
+        elif db and db["id"] in ("postgresql", "supabase", "mysql", "sqlserver") and (ctx["tier"] <= 1 or ov.over_floor(ctx, search_floor(ctx, p, selfh))):  # D13 G5: Supabase is PostgreSQL
             native = {"postgresql": "PostgreSQL full-text search (tsvector + GIN index)", "supabase": "PostgreSQL full-text search (tsvector + GIN index)",
                       "mysql": "MySQL FULLTEXT indexes", "sqlserver": "SQL Server Full-Text Search"}[db["id"]]
-            out.append(svc("search", native,
-                           f"With ~{ctx['users']:,} users on {db['name'].split(' (')[0].split(' — ')[0]}, its built-in full-text search is enough; no extra service to run or pay for.",
-                           dp + ["scale.users_12_months"],
-                           [("Meilisearch / OpenSearch", f"a separate cluster to operate at ~{ctx['users']:,} users, before the data size" + (f" ({cx.num(ctx['data_gb'])} GB)" if req["scale.data_volume_gb_12_months"] is not None else "") + " needs it")],
+            budget_gate = ctx["tier"] > 1  # D16: replaced a dedicated engine because of the budget, not because of the scale tier
+            eng = search_engine(p, selfh, rtxt)[0].split(" (")[0].split(" in ")[0]
+            if budget_gate:
+                fact = ov.floor_fact(ctx, eng, search_floor(ctx, p, selfh))
+                why = (f"At ~{ctx['users']:,} users on {db['name'].split(' (')[0].split(' — ')[0]}, its built-in full-text search covers the requirement at no extra cost; "
+                       f"{fact}.")
+                alts = [(eng, f"{fact}; add it when the budget covers it or relevance (typo tolerance, ranking) becomes a product feature")]
+                warn("SERVICE_NOT_ADDED", "info", rs.note("Dedicated search engine", fact, "the budget covers it or relevance becomes a product feature"),
+                     ["requirements.full_text_search", "budget.monthly_infra_usd"])
+            else:
+                why = f"With ~{ctx['users']:,} users on {db['name'].split(' (')[0].split(' — ')[0]}, its built-in full-text search is enough; no extra service to run or pay for."
+                alts = [("Meilisearch / OpenSearch", f"a separate cluster to operate at ~{ctx['users']:,} users, before the data size" + (f" ({cx.num(ctx['data_gb'])} GB)" if req["scale.data_volume_gb_12_months"] is not None else "") + " needs it")]
+            out.append(svc("search", native, why,
+                           dp + (["scale.users_12_months"] if not budget_gate else ["budget.monthly_infra_usd"]),
+                           alts,
                            ["Typo tolerance and ranking are basic; move to a search engine if relevance becomes a product feature"],
                            "library", "neutral", False, Z, ["postgres-fts"]))
         else:
-            if p == "aws" and not selfh:
-                c, prov, cost, src = f"Amazon OpenSearch Service{rtxt}", "aws", [[25, 60], [60, 200], [200, 800], [800, 4000]], ["aws-opensearch", "opensearch-license"]
-            elif p == "azure" and not selfh:
-                c, prov, cost, src = f"Azure AI Search{rtxt}", "azure", [[0, 75], [75, 250], [250, 1000], [1000, 4000]], ["azure-ai-search"]
-            else:
-                c, prov, cost, src = "Meilisearch (self-hosted container, MIT core)", "neutral", [[0, 10], [10, 40], [40, 200], [200, 800]], ["meilisearch-license"]
+            c, prov, cost, src = search_engine(p, selfh, rtxt)
             alts = [("Database full-text search", "relevance and load isolation weaker at this scale")]
             if p == "gcp" and not selfh:  # Google Cloud has no managed engine comparable to OpenSearch / Azure AI Search
                 src = src + ["gcp-vertex-search"]
@@ -429,6 +448,17 @@ def build(ctx, host, backend, db, mobile, warn):
     live_collab = ctx["type"] == "realtime_collab" or d["collab"]
     need_cache = ctx["tier"] >= 2 or read_hot or (req["requirements.realtime"] and ctx["tier"] >= 1 and live_collab) or (
         ctx["prio"]["performance"] >= 5 and ctx["tier"] >= 1)
+    cache_cost = {"aws": [[13, 25], [15, 50], [50, 300], [300, 1500]], "azure": [[15, 30], [30, 60], [60, 350], [350, 1500]],
+                  "gcp": [[15, 40], [40, 80], [80, 350], [350, 1500]]}.get(p) if not selfh else None
+    if need_cache and ctx["needs_backend"] and cache_cost and not req["requirements.realtime"] and ov.over_floor(ctx, cache_cost[ctx["tier"]][0]):
+        # D16: optional at this scale (no live feature needs the pub/sub backplane) and costly next to the budget: the database serves the reads
+        cname = {"aws": "Amazon ElastiCache for Valkey", "azure": "Azure Managed Redis", "gcp": "Memorystore for Valkey"}[p]
+        fact = ov.floor_fact(ctx, cname, cache_cost[ctx["tier"]][0])
+        warn("SERVICE_NOT_ADDED", "info",
+             rs.note("Managed cache", fact + f"; the database serves the reads of ~{ctx['peak']:,} concurrent users meanwhile",
+                     "the budget covers it or measured database load or latency shows the hot reads need it"),
+             ["scale.peak_concurrent_users", "budget.monthly_infra_usd"])
+        need_cache = False
     if need_cache and ctx["needs_backend"]:
         if selfh:
             c, prov, cost, src = "Valkey 8 (self-hosted container)", "neutral", Z, ["valkey"]
@@ -500,20 +530,31 @@ def build(ctx, host, backend, db, mobile, warn):
             why.append("absorbs write bursts")
         if req["requirements.ml_features"] == "training":
             why.append("schedules training jobs")
+        qalts = [("Synchronous processing in the request",
+                  "a slow or failed call would lose or double-apply a payment event" if req["requirements.payments"] and ctx["tier"] >= 2
+                  else "slow responses and lost work when a call fails")]
+        qgate = False
         if selfh or not hyper:
             c, prov, cost, src = "Database-backed job queue in the app (e.g. Graphile Worker / Hangfire / Celery)", "neutral", Z, ["postgres-versioning"]
         else:
             c, prov, src = {"aws": (f"Amazon SQS{rtxt}", "aws", ["aws-regional"]), "azure": (f"Azure Service Bus{rtxt}", "azure", ["azure-products-by-region"]),
                             "gcp": (f"Google Cloud Pub/Sub / Cloud Tasks{rtxt}", "gcp", ["gcp-locations"])}[p]
             cost = [[0, 1], [0, 5], [5, 30], [30, 200]]
+            if ov.over_floor(ctx, cost[ctx["tier"]][0]):  # D16: the job queue lives in the application database instead
+                qfact = ov.floor_fact(ctx, c.split(" in ")[0], cost[ctx["tier"]][0])
+                qalts = [(c.split(" in ")[0], f"{qfact}; add it when the budget covers it or job volume outgrows the database queue")] + qalts
+                warn("SERVICE_NOT_ADDED", "info", rs.note("Managed message queue", qfact, "the budget covers it or job volume outgrows the database-backed queue"),
+                     ["budget.monthly_infra_usd", "scale.users_12_months"])
+                c, prov, cost, src = "Database-backed job queue in the app (e.g. Graphile Worker / Hangfire / Celery)", "neutral", Z, ["postgres-versioning"]
+                qgate = True
         out.append(svc("queue", c, cap_first("; ".join(why)) + ", so none of it blocks a request.",
                        [x for x in ("requirements.payments", "requirements.offline_support", "scale.workload", "requirements.ml_features")
                         if (x == "requirements.payments" and req[x] and ctx["tier"] >= 2) or (x == "requirements.offline_support" and req[x])
                         or (x == "scale.workload" and req[x] == "write_heavy" and ctx["tier"] >= 2) or (x == "requirements.ml_features" and req[x] == "training")] or ["project.description" if d["video_vod"] else "scale.workload"],
-                       [("Synchronous processing in the request",
-                         "a slow or failed call would lose or double-apply a payment event" if req["requirements.payments"] and ctx["tier"] >= 2
-                         else "slow responses and lost work when a call fails")],
+                       qalts,
                        ["Consumers must be idempotent"], "managed" if prov in ("aws", "azure", "gcp") else "library", prov, True, cost, src, loc))
+        if qgate:
+            out[-1]["driven_by"] = out[-1]["driven_by"] + ["budget.monthly_infra_usd"]
 
     # ---------------- payments
     if req["requirements.payments"]:
@@ -647,6 +688,15 @@ def build(ctx, host, backend, db, mobile, warn):
                             ("No CDN", f"every asset request from the {ctx['users']:,} expected users would hit the origin"
                             + (f"; with scale.geo_spread={ctx['geo']}, distant users wait longest" if ctx["geo"] in ("multi_region", "global") else ", adding latency and origin load"))],
                            ["Cache invalidation on deploys", "A second vendor for DNS/TLS, outside the Azure contract", CF_FREE],
+                           "saas", "cloudflare", False, [[0, 1], [0, 5], [0, 20], [20, 200]], ["cloudflare-plans"]))
+        elif p in ("aws", "gcp") and req["infrastructure.cloud_preference"] != p and ov.over_floor(ctx, [[0, 1], [1, 15], [15, 120], [120, 800]][ctx["tier"]][0]):
+            fl = [[0, 1], [1, 15], [15, 120], [120, 800]][ctx["tier"]][0]
+            out.append(svc("cdn", f"Cloudflare (free plan) in front of {'AWS' if p == 'aws' else 'Google Cloud'}",
+                           why + " " + cap_first(ov.floor_fact(ctx, name, fl)) + ", so the free plan is used.",
+                           paths + ["budget.monthly_infra_usd"],
+                           [(name, f"{ov.floor_fact(ctx, name, fl)}; switch when the budget grows"),
+                            ("No CDN", f"every asset request from the {ctx['users']:,} expected users would hit the origin")],
+                           ["Cache invalidation on deploys", "A second vendor for DNS/TLS, outside the " + ("AWS" if p == "aws" else "Google Cloud") + " contract", CF_FREE],
                            "saas", "cloudflare", False, [[0, 1], [0, 5], [0, 20], [20, 200]], ["cloudflare-plans"]))
         else:
             out.append(svc("cdn", name, why, paths,

@@ -93,8 +93,8 @@ def over_floor(c, floor):
 
 def floor_fact(c, name, floor):
     """The numbers behind an over_floor verdict, in prose."""
-    pct = f"{round(100 * floor / c['budget'])}% of" if c["budget"] > 0 else "more than all of"
-    return (f"{name} costs from about ${floor}/month at the '{['tiny', 'small', 'medium', 'large'][c['tier']]}' tier, {pct} the "
+    pct = f"{round(100 * floor / c['budget'])}% of" if c["budget"] >= 1 else "more than all of"
+    return (f"{name} is estimated at about ${floor}/month at the '{['tiny', 'small', 'medium', 'large'][c['tier']]}' tier, {pct} the "
             f"${num(c['budget'])}/month budget (budget.monthly_infra_usd; planning heuristic: an optional add-on above "
             f"{round(100 * THRESHOLDS['floor_share'])}% of the budget gives way to a cheaper option)")
 

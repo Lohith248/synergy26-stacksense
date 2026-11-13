@@ -141,5 +141,91 @@ class StaticEligible(unittest.TestCase):
                 self.assertNotIn(name, src, p)
 
 
+MID = {"scale.users_at_launch": 20000, "scale.users_12_months": 100000, "scale.peak_concurrent_users": 4000, "scale.workload": "read_heavy",
+       "requirements.full_text_search": True, "requirements.payments": True, "team.size": 3}
+
+
+def layers(out):
+    return [s["layer"] for s in out["stack"]["supporting"]]
+
+
+def not_added(out, word):
+    return [w for w in out["warnings"] if w["code"] == "SERVICE_NOT_ADDED" and w["message"].startswith(word)]
+
+
+class BudgetFloor(unittest.TestCase):
+    """Rule 2: an optional managed add-on whose cheapest tier is a large share of a small budget gives way to the cheaper option
+    the knowledge base holds (or is not added, and the output says so)."""
+
+    def test_threshold_is_one_named_place_and_boundary(self):
+        self.assertEqual(ov.THRESHOLDS["floor_share"], 0.15)
+        ctx = {"tier": 2, "budget": 100}
+        self.assertFalse(ov.over_floor(ctx, 15))  # exactly 15%: kept
+        self.assertTrue(ov.over_floor({"tier": 2, "budget": 99}, 15))
+        self.assertFalse(ov.over_floor({"tier": 3, "budget": 0}, 15))  # large scale: the add-ons carry load
+        self.assertFalse(ov.over_floor({"tier": 0, "budget": 0}, 0))  # a free option is never replaced
+        self.assertTrue(ov.over_floor({"tier": 1, "budget": 0}, 1))
+
+    def test_cache_not_added_when_budget_is_small(self):
+        for cloud, typ in (("gcp", "web_app"), ("aws", "marketplace"), ("azure", "saas_b2b")):
+            out = run(**{**MID, "project.type": typ, "infrastructure.cloud_preference": cloud, "budget.monthly_infra_usd": 100})
+            self.assertNotIn("cache", layers(out), (cloud, typ))
+            self.assertTrue(not_added(out, "Managed cache"), (cloud, typ))
+            self.assertIn("budget.monthly_infra_usd", not_added(out, "Managed cache")[0]["fields"])
+            self.assertIn("Add it when the budget covers it", not_added(out, "Managed cache")[0]["message"])
+
+    def test_cache_kept_when_budget_covers_it_or_a_live_feature_needs_it(self):
+        for kw in ({"budget.monthly_infra_usd": 5000}, {"requirements.realtime": True, "budget.monthly_infra_usd": 100},
+                   {"scale.users_12_months": 900000, "scale.peak_concurrent_users": 60000, "budget.monthly_infra_usd": 100}):
+            out = run(**{**MID, "project.type": "web_app", "infrastructure.cloud_preference": "gcp", **kw})
+            self.assertIn("cache", layers(out), kw)
+            self.assertFalse(not_added(out, "Managed cache"), kw)
+
+    def test_dedicated_search_gives_way_to_database_search(self):
+        for typ, cloud in (("web_app", "gcp"), ("marketplace", "aws"), ("ecommerce", "azure")):
+            out = run(**{**MID, "project.type": typ, "infrastructure.cloud_preference": cloud, "budget.monthly_infra_usd": 100})
+            s = sup(out, "search")
+            self.assertEqual(len(s), 1, typ)
+            self.assertIn("full-text search", s[0]["choice"], typ)
+            self.assertIn("add it when the budget covers it", s[0]["alternatives"][0]["why_not"], typ)
+            self.assertTrue(not_added(out, "Dedicated search engine"), typ)
+        out = run(**{**MID, "project.type": "web_app", "infrastructure.cloud_preference": "gcp", "budget.monthly_infra_usd": 5000})
+        self.assertNotIn("full-text", sup(out, "search")[0]["choice"])  # must not fire: budget covers the engine
+        out = run(**{**MID, "project.type": "web_app", "infrastructure.cloud_preference": "gcp", "budget.monthly_infra_usd": 100,
+                     "scale.users_12_months": 900000, "scale.peak_concurrent_users": 60000})
+        self.assertNotIn("full-text", sup(out, "search")[0]["choice"])  # must not fire: large scale
+
+    def test_queue_and_cdn_fall_back_to_free_options(self):
+        small = {**MID, "budget.monthly_infra_usd": 20, "scale.users_12_months": 100000, "infrastructure.cloud_preference": "any"}
+        for typ in ("web_app", "marketplace", "ecommerce"):
+            out = run(**{**small, "project.type": typ, "infrastructure.cloud_preference": "gcp"})
+            self.assertIn("Database-backed job queue", sup(out, "queue")[0]["choice"], typ)
+            self.assertTrue(not_added(out, "Managed message queue"), typ)
+        # CDN at tier 1 with a tiny budget: free Cloudflare plan in front of the host; unchanged when the cloud is explicit or the budget covers it
+        t1 = {"scale.users_at_launch": 2000, "scale.users_12_months": 20000, "scale.peak_concurrent_users": 500, "project.type": "web_app",
+              "requirements.seo_critical": True, "budget.monthly_infra_usd": 5}
+        out = run(**{**t1, "infrastructure.cloud_preference": "any"})
+        names = [s["choice"] for s in sup(out, "cdn")]
+        self.assertTrue(names and all("Cloudflare" in n for n in names), names)
+        out = run(**{**t1, "infrastructure.cloud_preference": "gcp"})
+        self.assertEqual([s["choice"] for s in sup(out, "cdn")], ["Cloud CDN"])  # explicit provider: unchanged
+        out = run(**{**t1, "infrastructure.cloud_preference": "aws", "budget.monthly_infra_usd": 500})
+        self.assertEqual([s["choice"] for s in sup(out, "cdn")], ["Amazon CloudFront"])  # budget covers it
+
+    def test_core_layers_are_unchanged_by_the_budget_rules(self):
+        # switching the guard off (threshold huge) must not move any core choice: the rule only touches supporting services
+        for typ in ("web_app", "marketplace", "saas_b2b"):
+            on = run(**{**MID, "project.type": typ, "budget.monthly_infra_usd": 100})
+            old = ov.THRESHOLDS["floor_share"]
+            ov.THRESHOLDS["floor_share"] = 1e9
+            try:
+                off = run(**{**MID, "project.type": typ, "budget.monthly_infra_usd": 100})
+            finally:
+                ov.THRESHOLDS["floor_share"] = old
+            self.assertNotEqual(layers(on), layers(off), typ)  # the guard did something
+            for layer in ("frontend", "backend", "database", "hosting"):
+                self.assertEqual(on["stack"][layer]["choice"], off["stack"][layer]["choice"], (typ, layer))
+
+
 if __name__ == "__main__":
     unittest.main()

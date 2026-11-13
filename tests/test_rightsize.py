@@ -296,9 +296,9 @@ class G3CdnAudience(unittest.TestCase):
         self.assertLess(b["estimated_monthly_cost_usd"]["max"], a["estimated_monthly_cost_usd"]["max"])
 
 
-def search_app(users):
+def search_app(users, budget=0):
     return run(**{"project.type": "marketplace", "project.description": "Students buy and sell used books, search by course code.",
-                  "budget.monthly_infra_usd": 0, "team.experience": "beginner", "team.size": 3, "team.has_devops": False,
+                  "budget.monthly_infra_usd": budget, "team.experience": "beginner", "team.size": 3, "team.has_devops": False,
                   "team.languages": ["javascript", "python"], "requirements.full_text_search": True,
                   "scale.users_at_launch": 200, "scale.peak_concurrent_users": 100, "scale.users_12_months": users})
 
@@ -314,7 +314,9 @@ class G5NativeSearch(unittest.TestCase):
 
     def test_tier_rule_boundary_is_unchanged(self):
         self.assertTrue(sup(search_app(50000), "search")[0]["choice"].startswith("PostgreSQL full-text search"))
-        self.assertFalse(sup(search_app(50001), "search")[0]["choice"].startswith("PostgreSQL full-text search"))
+        # D16: with a $0 budget a dedicated engine gives way to database search at any tier up to 'medium', so the tier rule is read with a funded budget
+        self.assertTrue(sup(search_app(50001), "search")[0]["choice"].startswith("PostgreSQL full-text search"))
+        self.assertFalse(sup(search_app(50001, budget=5000), "search")[0]["choice"].startswith("PostgreSQL full-text search"))
 
 
 def budget_msg(out):
@@ -335,8 +337,11 @@ class E3bDeferrable(unittest.TestCase):
         self.assertEqual(values, sorted(values, reverse=True))
         new_min = int(re.search(r"lowers the minimum to \$(\d+)", msg).group(1))
         self.assertEqual(new_min, out["estimated_monthly_cost_usd"]["min"] - sum(values))
+        # D16: the optional layers that cost more than a small budget allows are now replaced or left out, never anything else
         rich = run(**self.BIG, **{"budget.monthly_infra_usd": 100000})
-        self.assertEqual(rich["stack"]["supporting"], out["stack"]["supporting"])  # text only: nothing removed
+        self.assertEqual({k: v["choice"] for k, v in rich["stack"].items() if k != "supporting"},
+                         {k: v["choice"] for k, v in out["stack"].items() if k != "supporting"})
+        self.assertTrue({s["layer"] for s in out["stack"]["supporting"]} <= {s["layer"] for s in rich["stack"]["supporting"]})
 
     def test_under_budget_has_no_list(self):
         out = run(**self.BIG, **{"budget.monthly_infra_usd": 100000})
