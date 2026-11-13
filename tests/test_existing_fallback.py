@@ -98,18 +98,29 @@ class UnrecognisedRecords(unittest.TestCase):
 
 class StillIgnored(unittest.TestCase):
     def test_no_keyword_is_ignored_with_an_assumption(self):
-        raw = "Stamp collection spreadsheet"
+        # f2/A7: "spreadsheet" now names a file exchange (File import job); an entry with no kind-of-system word stays ignored
+        raw = "Stamp collection notebook"
         out = ex(raw)
         self.assertIn("EXISTING_SYSTEM_UNRECOGNISED", codes(out))
         self.assertFalse(integrations(out, "Stamp"))
         self.assertTrue(any(raw in a and "no component" in a for a in out["assumptions"]), out["assumptions"])
 
     def test_keywords_are_whole_words(self):
-        for raw in ("Mqtt sensor gateway", "Dbase hobby notes", "Broken windows tracker"):
+        # f2/A7: "Mqtt" is the MQTT protocol, so it gets an MQTT adapter (never the message-broker keyword 'mq', which is not matched inside it)
+        for raw in ("Dbase hobby notes", "Broken windows tracker"):
             with self.subTest(raw=raw):
                 out = ex(raw)
                 self.assertFalse(integrations(out, raw))
                 self.assertTrue(any(raw in a and "no component" in a for a in out["assumptions"]))
+        out = ex("Mqtt sensor gateway")
+        self.assertFalse(integrations(out, "Mqtt"))
+        self.assertTrue([s for s in sup(out, "other") if s["choice"].startswith("MQTT adapter")])
+        self.assertFalse([w for w in warn(out, "EXISTING_SYSTEM_UNRECOGNISED") if "message broker" in w["message"]])
+
+    def test_a_spreadsheet_entry_is_a_file_exchange(self):
+        out = ex("Stamp collection spreadsheet")
+        self.assertTrue([s for s in sup(out, "other") if s["choice"].startswith("File import job")])
+        self.assertFalse(any("no component" in a for a in out["assumptions"]))
 
 
 class KnownEntriesUnchanged(unittest.TestCase):

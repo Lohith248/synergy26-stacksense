@@ -8,6 +8,7 @@ from . import costreal
 from . import domains
 from . import context as cx
 from . import overeng as ov
+from . import integrations as ig
 from . import rightsize as rs
 from .kb import cite, AS_OF
 from .select import for_noun, type_noun
@@ -535,7 +536,7 @@ def build(ctx, host, backend, db, mobile, warn):
     eq = ctx["existing_queue"]
     # an existing broker is reused when the design needs a queue, devices stream into it, or the input says it must stay;
     # otherwise it is only noted (no queue layer the application would not use)
-    use_eq = bool(eq and ctx["needs_backend"] and (need_queue or ctx["type"] == "iot" or d["iot"] or eq["keep"]))
+    use_eq = bool(eq and ctx["needs_backend"] and (need_queue or ctx["type"] == "iot" or d["iot"] or eq["keep"] or ctx["queue_transport"]))
     if eq and ctx["needs_backend"] and not use_eq:
         warn("EXISTING_BROKER_AVAILABLE", "info",
              f"'{eq['raw']}' already exists; nothing in this design needs a message queue yet, so none is added. When background "
@@ -548,8 +549,10 @@ def build(ctx, host, backend, db, mobile, warn):
                                  ("write bursts", req["scale.workload"] == "write_heavy" and ctx["tier"] >= 2),
                                  ("training jobs", req["requirements.ml_features"] == "training"), ("video jobs", d["video_vod"])) if on]
         out.append(svc("queue", f"Existing {eq['pattern']['name']} ({'managed' if managed else 'self-managed'}, reused)",
-                       f"'{eq['raw']}' already exists: {eq['pattern']['how']}" + (f" New background work ({', '.join(extra)}) uses the same broker." if extra else ""),
-                       ["infrastructure.existing_systems"] + (["scale.workload"] if "write bursts" in extra else []),
+                       f"'{eq['raw']}' already exists: {eq['pattern']['how']}" + (f" New background work ({', '.join(extra)}) uses the same broker." if extra else "")
+                       + (" The description reaches another existing system through this broker, so requests to it and replies from it travel over its queues." if ctx["queue_transport"] else ""),
+                       ["infrastructure.existing_systems"] + (["scale.workload"] if "write bursts" in extra else [])
+                       + (["project.description"] if ctx["queue_transport"] else []),
                        [("A second managed queue on the hosting cloud", "a competing broker: events would be split across two systems")],
                        ["Topic/queue naming, retention and access are agreed with the broker's owners", "Consumers must be idempotent"]
                        + ([f"The broker runs on {bcloud.upper()} while the application runs on {p.upper() if hyper else host['name']}: "
@@ -1019,6 +1022,9 @@ def build(ctx, host, backend, db, mobile, warn):
                else "App Service Hybrid Connection (outbound 443 relay, no inbound ports)" if p == "azure" else (
                    "site-to-site VPN / private link" if not selfh else "the local network"))
         where = "cloud database" if cloud_sys else "on-prem server"
+        mq_via = bool(ctx["queue_transport"] and pat and pat["kind"] == "database" and e is not ctx["kept_db"] and ctx["existing_queue"])
+        if mq_via:  # A7: the description reads this system through the existing broker, so that is the path, not a relay
+            via = f"the existing '{ctx['existing_queue']['raw']}' queues (request and reply messages)"
         if pat and pat.get("synthetic") and pat["kind"] == "database" and e is ctx["kept_db"]:
             out.append(svc("other", f"Integration with existing {label} via {via}",
                            f"{pat['how']} It stays the application's database and is reached through {via}.",
@@ -1033,11 +1039,17 @@ def build(ctx, host, backend, db, mobile, warn):
                               if e["life"] and e["life"]["eol"] <= AS_OF else ""),
                            ["infrastructure.existing_systems"],
                            [("Migrate everything into the new database now", "risky in the MVP timeline and breaks existing consumers"),
-                            (f"Use the {where} as the only database", f"ties availability of the new app to the {where}" + ("" if cloud_sys else " and the relay"))],
+                            (f"Use the {where} as the only database", f"ties availability of the new app to the {where}" + ("" if cloud_sys or mq_via else " and the relay"))],
                            [f"Cross-network latency on queries to the {where}", f"Credentials for the {'existing' if cloud_sys else 'on-prem'} database must live in a secret store"],
-                           "library", "neutral", False, Z, pat["src"] + (["azure-hybrid-connections"] if p == "azure" and not cloud_sys else [])))
+                           "library", "neutral", False, Z, pat["src"] + (["azure-hybrid-connections"] if p == "azure" and not cloud_sys and not mq_via else [])))
         elif pat and pat["kind"] in ("erp", "crm", "legacy_app", "payments", "record", "health", "api", "orchestrator", "storage"):
             out.append(svc("other", f"Integration with existing {label}", pat["how"], ["infrastructure.existing_systems"],
                            [("Replacing it", "outside MVP scope")], ["Depends on the existing system's API limits"], "library", "neutral", False, Z, pat["src"]))
+        elif e.get("adapter") and e["adapter"]["kind"] != "retire":  # A7: unrecognised by name, integrated by what the description does with it
+            ad = e["adapter"]
+            out.append(svc("other", ad["title"], ad["how"], ["infrastructure.existing_systems"] + (["project.description"] if ad["from_desc"] else []),
+                           [("Treating it as outside the design", f"{ig.cite(ad)} mentions it in connection with the project, so any hand-off with it needs an owner and a test")],
+                           ["The interface details are assumed from the description and must be confirmed with the system's owners",
+                            "Adds code and tests to maintain, but no new paid service"], "library", "neutral", False, Z, ["statement"]))
     domains.build(ctx, host, backend, db, svc, warn, Z, out)
     return out
