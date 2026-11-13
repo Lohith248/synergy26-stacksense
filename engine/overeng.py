@@ -26,7 +26,7 @@ THRESHOLDS = {
 STATIC_TYPES = ("content_site", "other")
 SOFT_TYPES = ("web_app", "internal_tool")
 # description signals that mean stored user data, server-side work or integrations: any of them keeps the backend
-DYNAMIC_FLAGS = ("payouts", "ledger", "kyc", "chat", "collab", "iot", "uploads", "otp", "sms", "web3", "digital_goods", "video_vod",
+DYNAMIC_FLAGS = ("payouts", "ledger", "kyc", "chat", "collab", "iot", "uploads", "otp", "sms", "web3", "digital_goods", "store_billing", "video_vod",
                  "video_call", "jobs_dispatch", "approvals", "scoring_model", "scheduler", "user_data", "lending", "gps")
 DYNAMIC_COMPLIANCE = ("hipaa", "rbi_localisation")  # regulated data is stored somewhere: not a pages-only site
 

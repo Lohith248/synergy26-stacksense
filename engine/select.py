@@ -99,6 +99,17 @@ def lang_term(c, ctx, langs, weight, what, primary=()):
               f"team lists {', '.join(team)} but this needs {'/'.join(langs[:2])}")
 
 
+# A4 (blind8), planning heuristic: a framework the description names as the team's own earns this share of the layer's language
+# weight, on top of the language credit (so Flutter beats Kotlin Multiplatform for a Dart+Kotlin team that builds Flutter apps)
+FRAMEWORK_FIT_SHARE = 0.5
+
+
+def framework_term(c, ctx, weight, what):
+    if c.id in ctx.get("team_frameworks", ()):
+        c.add("framework", weight * ctx["lf"] * FRAMEWORK_FIT_SHARE, "project.description",
+              f"project.description names {c.item['name']} as a framework the team already builds {what} with")
+
+
 def learn_term(c, ctx, learning, new_lang=False):
     """new_lang: no team language fits any option in this layer, so the language itself is new too."""
     new_lang = new_lang and bool(ctx["langs"])  # F17: an empty team.languages says nothing about which language is new
@@ -252,6 +263,7 @@ def backend_candidates(ctx, host):
         c = Cand(b)
         prio_terms(c, ctx, b["r"])
         lang_term(c, ctx, b["langs"], 7, "the API", primary)
+        framework_term(c, ctx, 7, "the API")
         learn_term(c, ctx, b["learning"], new_lang)
         tier_term(c, ctx, b["max_tier"], b["name"])
         if b.get("fullstack"):  # the UI app is the backend: only for small web-only apps
@@ -429,6 +441,7 @@ def web_candidates(ctx, backend):
             c.add("api_anyway", -3, "project.platforms", "the mobile app needs a JSON API anyway, so server-rendered pages add a second presentation layer")
         prio_terms(c, ctx, f["r"])
         lang_term(c, ctx, f["langs"], 5, "the UI")
+        framework_term(c, ctx, 5, "the UI")
         learn_term(c, ctx, f["learning"])
         if req["requirements.seo_critical"]:
             c.add("seo", (f["seo"] - 3) * 3, "requirements.seo_critical",
@@ -478,6 +491,7 @@ def mobile_candidates(ctx, web_choice):
                   "game engine: rendering, physics, input, audio and asset pipeline built in" if game else "an app UI toolkit, not a game engine")
         prio_terms(c, ctx, m["r"])
         lang_term(c, ctx, m["langs"], 6, "the mobile app")
+        framework_term(c, ctx, 6, "the mobile app")
         learn_term(c, ctx, m["learning"])
         if ctx["desc"]["low_end"]:
             c.add("low_end", (m["low_end"] - 3) * 3, "project.description",

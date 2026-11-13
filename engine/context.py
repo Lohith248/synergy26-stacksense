@@ -81,6 +81,14 @@ DESC_RULES = [
                       # E11-3: wording that sells through the app stores (store billing is mandatory for digital goods there)
                       r"|(?:sold|billed|purchased|bought|charged|paid)\s+(?:\w+\s+){0,3}(?:through|via|in|on|with|using)\s+(?:the\s+)?(?:app stores?|apple app store|google play(?: store)?|play store)"
                       r"|\bapp[- ]store (?:billing|subscriptions?|purchases?)|\bstore (?:subscriptions?|billing)|in-app subscriptions?"),
+    # A5 (blind8): money taken through the app stores' own billing (a subscription, purchase, plan or pass "through the app stores"),
+    # the stores named, also without an in-app goods noun (plain "in-app payments" is not a store route); seat_plan = the price is per seat or per team, which is the only case for Stripe per-seat text
+    ("store_billing", r"\b(?:subscri\w*|purchas\w*|pay\w*|billing|billed|buy\w*|bought|sold|charg\w+|plans?|pass(?:es)?|premium|pro)\b(?:\s+(?!(?:published|listed|available|distributed|downloadable|released|installed)\b)[\w'-]+){0,6}?"
+                      r"\s+(?:through|via|in|on|with|using|by|from)\s+(?:the\s+|both\s+)?(?:app|play)\s*stores?\b"
+                      r"|\b(?:app|play)[- ]?stores?\s+(?:billing|subscriptions?|purchases?|payments?|in-app)|\bstore\s+(?:subscriptions?|billing)"
+                      r"|\biaps?\b|\b(?:google )?play (?:store )?billing\b|\bstorekit\b|\bapple in-app"),
+    ("seat_plan", r"per[- ]seats?|\bseats?\b|\bteam (?:plans?|subscriptions?|licen[cs]es?)|per[- ](?:user|member|agent|employee)\b"
+                  r"|\b(?:organi[sz]ation|workspace|company|enterprise)[- ](?:plans?|subscriptions?|licen[cs]es?)|licen[cs]es? per"),
     # E11-3: facts the description states that no enum field carries (each reads as a service or a named assumption)
     ("sms", r"\bsms\b|\btext[- ]messages? (?:reminders?|alerts?|notifications?|codes?)|\btexts? reminders?|\bwhatsapp (?:reminders?|alerts?|notifications?)"),
     ("otp", r"\botps?\b|one[- ]time (?:pass(?:word|code)s?|codes?)"),
@@ -314,6 +322,24 @@ def keep_in_text(name_rx, text):
         if re.search(REMOVE_RX, clause):
             continue
         if re.search(_KEEP_VERB + _DETS + name + _AFTER_OBJ, clause) or re.search(name + _KEEP_PRED, clause):
+            return True
+    return False
+
+
+def name_rx_plain(pat):
+    """Regex for the system's own names in a description (the pattern's match list only, never the vendor's first word)."""
+    return r"(?<![a-z0-9])(?:" + "|".join(pat["match"]) + r")(?![a-z0-9])"
+
+
+def life_rx(life):
+    return r"(?<![a-z0-9])(?:" + (life["rx"] if life.get("rx") else re.escape(life["pattern"])) + r")(?![a-z0-9])"
+
+
+def removal_in_text(name_rx, text):
+    """A description clause that names the system and says it is going away ('migrating off a creaking phpBB 3.0 install',
+    'the Flash console must be replaced'), without a negated removal."""
+    for clause in re.split(r"[,;:]\s*|\s+(?:but|while|whereas)\s+", text):
+        if re.search(name_rx, clause) and re.search(REMOVE_RX, clause) and not re.search(STRONG_KEEP_RX, clause):
             return True
     return False
 
@@ -575,8 +601,107 @@ def lifecycle_text(low):
     low = re.sub(r"\boracle\s+database\b", "oracle", low)
     low = re.sub(r"\b(?:vb|visual\s+basic)[\s\-_]*6(?:\.0)?(?![\d.]*\d)", "visual basic 6", low)
     low = re.sub(r"\bwin(?:dows)?[\s\-_]*server[\s\-_]*(?=\d)", "windows server ", low)
+    # A3 (blind8): legacy runtimes and products often named with a vendor prefix or a 1.x style version
+    low = re.sub(r"\b(?:java(?:\s*se)?|jdk|jre|j2se)[\s\-_]*(?:1\.)?(?=[67](?!\d))", "java ", low)
+    low = re.sub(r"\bstruts[\s\-_]*v?(?=1(?!\d))", "struts ", low)
+    low = re.sub(r"\b(?:(?:adobe|macromedia)\s+)?flash(?:\s+player)?(?=[\s\-]+(?:player|plugin|app\b|apps\b|application|client|front-?end|ui\b|console|movie|based|admin|portal|widget|site|website|game|content|applet)|\s*$|\s*[,/;)(])", "adobe flash", low)
+    low = re.sub(r"\boracle\s+forms(?:\s+(?:and|&)\s+reports)?[\s\-_]*v?(?=\d)", "oracle forms ", low)
+    low = re.sub(r"\bphp[\s\-_]*bb[\s\-_]*v?(?=\d)", "phpbb ", low)
+    low = re.sub(r"\bshare[\s\-_]*point(?:\s+server)?[\s\-_]*(?=(?:20|19)\d\d\b)", "sharepoint ", low)
+    low = re.sub(r"\b(?:eclipse\s+)?mosquitto[\s\-_]*v?(?=\d)", "mosquitto ", low)
+    low = re.sub(r"\bcold[\s\-]?fusion(?:\s+(?:server|cfml))?[\s\-_]*v?(?=\d|mx\b)", "coldfusion ", low)
+    low = re.sub(r"\bclassic[\s\-]*asp\b|\basp[\s\-]*classic\b|\basp\s*3(?:\.0)?\b", "asp classic", low)
+    low = re.sub(r"\b(?:ms\s+)?(?:microsoft\s+)?\.?net[\s\-]*framework[\s\-_]*v?(?=\d)", ".net framework ", low)
+    low = re.sub(r"\b(?:apache\s+)?tomcat[\s\-_]*v?(?=\d)", "tomcat ", low)
+    low = re.sub(r"\binternet explorer[\s\-_]*v?(?=\d)|\bie[\s\-_]*v?(?=\d{1,2}\b)", "internet explorer ", low)
     return re.sub(r"\b(node|python|postgresql|postgres|\.net|vue|mysql|angular|php|django|laravel|mongodb|centos|rails|ruby|oracle|elasticsearch|ubuntu)[\s\-_]*v?(?=\d)",
                   r"\1 ", low)
+
+
+def lifecycle_hits(norm):
+    """Every knowledge-base lifecycle entry the (normalised) text names, one per product name, in knowledge-base order. An entry
+    matches its literal pattern as a whole token, or its optional "rx" regular expression; a digit may not follow a literal pattern."""
+    out = []
+    for lc in TECH["lifecycle"]:
+        if lc.get("rx"):
+            hit = re.search(r"(?<![a-z0-9])(?:" + lc["rx"] + r")", norm)
+        else:
+            lead = r"(?<![a-z0-9])" if lc["pattern"][0].isalnum() else ""
+            hit = re.search(lead + re.escape(lc["pattern"]) + r"(?!\d)", norm)
+        if hit and all(o["name"] != lc["name"] for o in out):
+            out.append(lc)
+    return out
+
+
+# A3 (blind8): a "Server" edition or a versioned release of a Microsoft collaboration product ('SharePoint Server 2013',
+# 'Exchange 2010 on-prem') is self-hosted software; the Microsoft 365 / Graph / Entra profile does not describe it
+_MS_SELF_HOSTED = re.compile(r"(?<![a-z0-9])(?:sharepoint|exchange|skype for business|lync)\s+(?:server(?![a-z0-9])|(?:19|20)\d\d\b)"
+                             r"|(?<![a-z0-9])(?:sharepoint|exchange)\b[^,;()]*\bon[- ]?prem", re.I)
+
+
+def life_what(life):
+    """Why an existing system's lifecycle entry is a warning: sentence tail for 'X <what> (<product>)'. Entries marked soft
+    carry dates the knowledge base did not re-check against the vendor page (source status official-unverified), so the text
+    says so and prints no day-level date."""
+    kind = life.get("kind")
+    if life.get("soft"):
+        if kind == "older_line":
+            return (f"belongs to an older release line than the current {life.get('line', 'one')}; the knowledge base does not confirm "
+                    "whether it still receives security fixes")
+        if kind == "legacy":
+            return ("is a legacy technology without new development; its support depends on the platform it runs on, "
+                    "which the knowledge base does not confirm in detail")
+        if life.get("approx"):
+            return f"is past its vendor's end of support (around {life['approx']}; the knowledge base has not re-checked the exact date)"
+        if life.get("detail"):
+            return f"is past its vendor's end of support ({life['detail']}; the knowledge base has not re-checked the exact dates)"
+        return ("is older than any release its vendor still lists as supported; the exact end-of-support date is not confirmed "
+                "in the knowledge base")
+    return {"unmaintained": f"is no longer maintained (repository archived {life['eol']})",
+            "unsupported": f"is no longer supported by its vendor as of {life['eol']}",
+            "closed": f"is closed to new customers (since {life['eol']})", "deprecated": f"was deprecated on {life['eol']}"}.get(
+        kind, f"reached end of support on {life['eol']}")
+
+
+def life_short(life):
+    """Short predicate for text that follows a lifecycle warning ('It is past end of support')."""
+    if life.get("soft") and life.get("kind") == "older_line":
+        return "is on an older release line"
+    if life.get("soft") and life.get("kind") == "legacy":
+        return "is a legacy technology"
+    return "is past end of support"
+
+
+# A3 (blind8), planning heuristic: an existing_systems entry with no lifecycle data whose text carries an old-release marker
+# (a product edition year of 2015 or earlier written right after a product word, an Oracle 8i-11g style tag, a 1.x line, or a
+# long-retired product name) is flagged END_OF_LIFE_SUSPECTED instead of being silently assumed supported. A bare year is no
+# trigger: a contract or upgrade date ("2014 contract", "upgraded 2015") says nothing about the product's release.
+EOL_TOKEN_RX = re.compile(
+    r"(?<![a-z0-9])(?:\d{1,2}[ig]|v?1\.x|(?:adobe |macromedia )?flash(?= (?:player|plugin|apps?|application|client|front-?end|ui|console|movie|based|admin|portal|widget|site|website|game|content|applet)\b)|(?:adobe|macromedia) flash|silverlight|activex|java applets?|cobol|foxpro|powerbuilder|lotus notes|clipper|netware"
+    r"|windows (?:xp|vista|nt)|win(?:dows)? ?(?:95|98|me|2000)|asp classic|classic asp)(?![a-z0-9])", re.I)
+
+
+EOL_YEAR_RX = re.compile(r"(?<![\w.])(19[89]\d|200\d|201[0-5])(?![\w.])")
+# the word before an edition year must be a product name (capitalised as written) or a product noun, never a date or verb word
+_EOL_PRODUCT_NOUN = {"suite", "server", "edition", "release", "version", "platform", "studio", "system", "engine", "database", "office", "v"}
+_EOL_NOT_PRODUCT = {"since", "from", "in", "of", "to", "until", "by", "upgraded", "migrated", "installed", "deployed", "launched", "built", "signed",
+                    "renewed", "bought", "released", "updated", "patched", "dated", "circa", "around", "about", "before", "after", "during", "as",
+                    "at", "on", "year", "fy", "contract", "data", "established", "founded", "started", "purchased", "acquired", "implemented",
+                    "licensed", "licenced", "created", "written", "last", "late", "early", "mid", "end", "and", "or", "the", "a", "an", "est"}
+
+
+def eol_token(raw):
+    """The old-release marker in an existing_systems entry (see EOL_TOKEN_RX and EOL_YEAR_RX), or None."""
+    m = EOL_TOKEN_RX.search(raw)
+    if m:
+        return m.group(0)
+    for y in EOL_YEAR_RX.finditer(raw):
+        prev = re.search(r"([A-Za-z][\w+#-]*)\s+$", raw[:y.start()])
+        if prev:
+            w = prev.group(1)
+            if w.lower() not in _EOL_NOT_PRODUCT and (w[0].isupper() or w.lower() in _EOL_PRODUCT_NOUN):
+                return y.group(0)
+    return None
 
 
 # F1 (round 11): the team's own server language named in project.description ("Rails shop", "the team writes Elixir",
@@ -584,12 +709,22 @@ def lifecycle_text(low):
 # Common English words count only in their language spelling: "Go"/"Golang" (never "go"), "Rust" (never "rust"), Express
 # only as Express.js or "Express framework".
 PRIMARY_WORDS = {"ruby": r"ruby(?: on rails)?|rails", "elixir": r"elixir|phoenix", "python": r"python|django|fastapi|flask",
-                 "java": r"java|spring(?: boot)?", "kotlin": r"kotlin", "csharp": r"c#|\.net|asp\.net(?: core)?|dotnet",
+                 "java": r"java|spring(?: boot)?", "kotlin": r"kotlin(?: multiplatform)?|jetpack compose", "csharp": r"c#|\.net|asp\.net(?: core)?|dotnet|blazor",
                  "php": r"php|laravel|symfony", "go": r"golang|(?-i:Go|GO)", "rust": r"(?-i:Rust)",
-                 "javascript": r"node(?:\.?js)?|javascript|express(?:\.?js| framework)", "typescript": r"typescript|nestjs"}
+                 "javascript": r"node(?:\.?js)?|javascript|express(?:\.?js| framework)|react[- ]native|next\.?js|sveltekit|nuxt",
+                 "typescript": r"typescript|nestjs|angular(?!js)", "dart": r"dart|flutter", "swift": r"(?-i:Swift(?:UI)?)"}
+# A4 (blind8): a framework the description names as the team's own (same clause rules as the languages above) -> the knowledge-base
+# candidates it stands for; select.py gives them a bonus beside the language credit (FRAMEWORK_FIT_SHARE there).
+TEAM_FRAMEWORKS = [(r"flutter", ["flutter"]), (r"react[- ]native", ["react-native-expo"]), (r"swiftui", ["swiftui"]),
+                   (r"jetpack compose", ["kotlin-compose"]), (r"kotlin multiplatform", ["kmp-compose"]),
+                   (r"phoenix", ["elixir-phoenix"]), (r"laravel", ["php-laravel"]), (r"django", ["python-django"]),
+                   (r"fastapi", ["python-fastapi"]), (r"ruby on rails|rails", ["ruby-rails"]), (r"spring(?: boot)?", ["java-spring"]),
+                   (r"nestjs", ["node-nestjs"]), (r"express(?:\.?js| framework)", ["node-express"]),
+                   (r"asp\.net(?: core)?", ["dotnet-aspnet"]), (r"next\.?js", ["nextjs"]), (r"sveltekit", ["sveltekit"]),
+                   (r"nuxt", ["nuxt"]), (r"angular(?!js)", ["angular"]), (r"blazor", ["blazor"])]
 _PRIMARY_RX = {lang: re.compile(r"(?<![\w.#])(?:" + w + r")(?![\w#])", re.I) for lang, w in PRIMARY_WORDS.items()}
 _TEAM_NOUN = re.compile(r"\s+(?:shop|team|house|developers|engineers|devs|programmers)\b", re.I)
-_TEAM_VERB = re.compile(r"(?:team|we|developers|engineers)\s+(?:mostly |mainly |only |already |all )?(?:writes?|codes?|works?|builds?"
+_TEAM_VERB = re.compile(r"(?:team|we|developers|engineers|devs|programmers)\s+(?:mostly |mainly |only |already |all )?(?:writes?|codes?|works?|builds?"
                         r"|knows?|uses?|is fluent|are fluent)(?:\s+(?:in|with))?\s+(?:mostly |mainly |only )?", re.I)
 # a clause that negates, contrasts, looks back or plans hiring does not state the team's current language
 _NOT_OWN = re.compile(r"\bnot\b|n't\b|\bnever\b|\bno longer\b|\bunlike\b|\bprevious(?:ly)?\b|\bformer(?:ly)?\b|\bleft\b"
@@ -609,53 +744,98 @@ _EXP_OTHER = re.compile(r"(?:\bhave|\bhas|'ve)\s+been\s+(?:writing|coding|using|
 _EXP_NOUN = re.compile(r"\s+(?:apps?|applications?|services?|sites?|websites?|backends?|apis?|projects?|systems?|platforms?|products?"
                        r"|code(?:bases?)?|monoliths?|microservices?|stacks?|servers?)\b", re.I)
 _EXP_END = re.compile(r"\s+(?:for|since|professionally|in production)\b|\s*(?:[.,;:)]|$)", re.I)
+# A4: "solid Elixir/Phoenix experience", "strong Django background": the list is followed by an experience noun and a team subject
+# comes earlier in the clause, with no word that says the experience is missing or thin
+_EXP_TRAIL = re.compile(r"\s+(?:experience|expertise|background|skills?|know-how)\b", re.I)
+_EXP_THIN = re.compile(r"\b(?:no|little|limited|zero|lacks?|lacking|without|some|basic|beginner|minimal)\b", re.I)
+# present-tense possession must come before the skill ("has solid X experience", "with strong X background", "already ..."); a wish,
+# hire, learning goal, plan or a past remark in the same clause means the skill is not the team's today
+_EXP_POSS = re.compile(r"\b(?:have|has|having|with|solid|strong|deep|good|extensive|proven|already)\b|'ve\b", re.I)
+_EXP_NOT_NOW = re.compile(r"\b(?:need\w*|want\w*|wish\w*|hope\w*|look(?:ing)? for|seek\w*|hir(?:e|es|ed|ing)|gain\w*|learn\w*|acquir\w*|soon|"
+                          r"years ago|ago|used to|previous(?:ly)?|former(?:ly)?|once|consider\w*|plans? to|planned to|planning to|would like|"
+                          r"no experience|lack\w*|lacking)\b", re.I)
+# a city or place name is not the framework: "Phoenix" counts only beside Elixir or as "Phoenix framework / LiveView / app"
+_PHOENIX_NAME = re.compile(r"\bphoenix\b(?!\s+(?:framework|live\s?view|apps?)\b)", re.I)
 
 
 def _lang_at(clause, pos):
-    """(language id, end) of a language word starting exactly at pos, or None; hyphen compounds ('go-live') do not count."""
+    """(language id, end, matched word) of a language word starting exactly at pos, or None; hyphen compounds ('go-live') do not count."""
     for lang, rx in _PRIMARY_RX.items():
         m = rx.match(clause, pos)
         if m and not _COMPOUND.match(clause.lower(), m.end()):
-            return lang, m.end()
+            return lang, m.end(), m.group(0).lower()
     return None
+
+
+def _team_hits(text):
+    """(language ids, matched words) the description names as the team's own, only in a clause without negation, contrast,
+    past or hiring words."""
+    out, words = set(), set()
+    for clause in re.split(r"(?<=[.!?;])\s+|\n|\s+but\s+|,\s+(?=(?:and |so |while |whereas )?(?:we|our|the|they|their|it|its|this|i)\b)",
+                           text or "", flags=re.I):
+        if _NOT_OWN.search(clause):
+            continue
+        # "Phoenix shop / team" and "<X> experience" read Phoenix as the framework only beside Elixir or as "Phoenix framework/LiveView/app"
+        mclause = clause if re.search(r"\belixir\b", clause, re.I) else _PHOENIX_NAME.sub(lambda m: "_" * len(m.group(0)), clause)
+        for lang, rx in _PRIMARY_RX.items():
+            for m in rx.finditer(mclause):
+                if not _COMPOUND.match(mclause.lower(), m.end()) and _TEAM_NOUN.match(mclause, m.end()):
+                    out.add(lang)
+                    words.add((lang, m.group(0).lower()))
+        for v in _TEAM_VERB.finditer(clause):
+            _walk_langs(clause, v.end(), out, False, words)
+        for rx, need_noun in ((_EXP_BUILT, True), (_EXP_OTHER, False)):
+            for v in rx.finditer(clause):
+                if _EXP_SUBJ.search(clause[:v.start()]):
+                    _walk_langs(clause, v.end(), out, need_noun, words)
+        for rx in _PRIMARY_RX.values():  # A4: "<list> experience"
+            for m in rx.finditer(mclause):
+                before = mclause[:m.start()]
+                if (_EXP_SUBJ.search(before) and _EXP_POSS.search(before) and not _EXP_THIN.search(before)
+                        and not _EXP_NOT_NOW.search(mclause)):
+                    found, wset = set(), set()
+                    end = _walk_langs(mclause, m.start(), found, False, wset)
+                    if _EXP_TRAIL.match(mclause, end):
+                        out |= found
+                        words |= wset
+    return out, words
 
 
 def primary_langs(text):
     """Languages project.description names as the team's own (sorted ids): '<lang> shop/team/developers' or 'the team
     writes <lang>[, <lang> and <lang>]' or experience phrasing ('our developers have built Laravel apps for years', 'years
-    of Django'), only in a clause without negation, contrast, past or hiring words."""
-    out = set()
-    for clause in re.split(r"(?<=[.!?;])\s+|\n|\s+but\s+|,\s+(?=(?:and |so |while |whereas )?(?:we|our|the|they|their|it|its|this|i)\b)",
-                           text or "", flags=re.I):
-        if _NOT_OWN.search(clause):
-            continue
-        for lang, rx in _PRIMARY_RX.items():
-            if any(not _COMPOUND.match(clause.lower(), m.end()) and _TEAM_NOUN.match(clause, m.end()) for m in rx.finditer(clause)):
-                out.add(lang)
-        for v in _TEAM_VERB.finditer(clause):
-            _walk_langs(clause, v.end(), out, False)
-        for rx, need_noun in ((_EXP_BUILT, True), (_EXP_OTHER, False)):
-            for v in rx.finditer(clause):
-                if _EXP_SUBJ.search(clause[:v.start()]):
-                    _walk_langs(clause, v.end(), out, need_noun)
-    return sorted(out)
+    of Django', 'solid Elixir/Phoenix experience'), only in a clause without negation, contrast, past or hiring words."""
+    return sorted(_team_hits(text)[0])
 
 
-def _walk_langs(clause, pos, out, need_noun):
+@functools.lru_cache(maxsize=8)
+def team_frameworks(text, langs=None):
+    """Knowledge-base candidate ids of the frameworks project.description names as the team's own (see TEAM_FRAMEWORKS). With
+    langs (team.languages ids) a framework counts only if its language is listed: the description never adds a language."""
+    words = _team_hits(text)[1]
+    return tuple(sorted({cid for lang, w in words if langs is None or lang in langs
+                         for rx, cids in TEAM_FRAMEWORKS if re.fullmatch(rx, w) for cid in cids}))
+
+
+def _walk_langs(clause, pos, out, need_noun, words=None):
     """Add each language in a list starting at pos ('Python, Go and Rust'; 'Laravel apps and Django services'). With
-    need_noun every item must be followed by a product noun or the clause end."""
+    need_noun every item must be followed by a product noun or the clause end. Returns the end of the list."""
+    end = pos
     while True:
         hit = _lang_at(clause, pos)
         if not hit:
-            return
+            return end
         end = hit[1]
         noun = _EXP_NOUN.match(clause, end)
         if need_noun and not noun and not _EXP_END.match(clause, end):
-            return
+            return end
         out.add(hit[0])
-        sep = _LIST_SEP.match(clause, noun.end() if noun else end)
+        if words is not None:
+            words.add((hit[0], hit[2]))
+        end = noun.end() if noun else end
+        sep = _LIST_SEP.match(clause, end)
         if not sep:
-            return
+            return end
         pos = sep.end()
 
 
@@ -795,21 +975,20 @@ def build(req):
     # (only where the decline also fires: a large project keeps what its stakeholders asked for)
     if c["desc"]["web3"] and c["tier"] <= ov.THRESHOLDS["decline_max_tier"] and ov.web3_only_requested(req["project.description"], req["project.type"]):
         c["desc"]["web3"] = False
+    c["team_frameworks"] = list(team_frameworks(req["project.description"] or "", tuple(c["langs"])))  # A4
     ex = []
     sentences = re.split(r"(?<=[.!?;])\s+|\n", desc)
     for raw in req["infrastructure.existing_systems"]:
         low = f" {raw.lower()} "
         hit = next((pat for pat in TECH["existing_patterns"] if word_rx(pat["match"]).search(low)), None)
+        if hit and hit["kind"] == "collaboration" and _MS_SELF_HOSTED.search(low):
+            hit = None  # self-hosted release: never the Microsoft 365 / Graph profile
         hit = hit or fallback_pattern(raw, low)
         if hit and hit["kind"] == "social_login" and not social_login_counts(req, hit, raw):
             hit = fallback_pattern(raw, low)
-        life = None
         norm = lifecycle_text(low)
-        for lc in TECH["lifecycle"]:
-            lead = r"(?<![a-z0-9])" if lc["pattern"][0].isalnum() else ""
-            if re.search(lead + re.escape(lc["pattern"]) + r"(?!\d)", norm):
-                life = lc
-                break
+        lifes = lifecycle_hits(norm)
+        life = lifes[0] if lifes else None
         # "must stay": in the entry itself, or in a description sentence that names the same system (its patterns, or the
         # product's first word: 'Keep the Oracle database' names 'Oracle 19c')
         name_rx = None
@@ -825,7 +1004,17 @@ def build(req):
             onprem = onprem or "mainframe" in low or bool(keep and not _CLOUD_WORDS.search(low))
         # A7: an entry the knowledge base does not know by name is integrated by what the description does with it
         adapter = None if hit or life else ig.infer(raw, req["project.description"])
-        ex.append({"raw": raw, "pattern": hit, "life": life, "keep": keep, "onprem": onprem, "workforce": workforce, "adapter": adapter})
+        # A3: the input says the system is going away (entry text, or a description clause that names it): its integration is a
+        # one-off read, then retirement
+        retire = False
+        if not keep and (hit or life):
+            if re.search(REMOVE_RX, low) and not re.search(STRONG_KEEP_RX, low):
+                retire = True
+            else:
+                names = ([name_rx_plain(hit)] if hit else []) + ([life_rx(life)] if life else [])
+                retire = any(removal_in_text(n, lifecycle_text(s)) for n in names for s in sentences)
+        ex.append({"raw": raw, "pattern": hit, "life": life, "life_more": lifes[1:], "keep": keep, "onprem": onprem, "workforce": workforce,
+                   "retire": retire, "adapter": adapter})
     # list-order invariance: knowledge-base pattern order (identity, databases, brokers, ...), then keyword categories
     # (knowledge-base order), then name; unrecognised last
     order = {id(p): i for i, p in enumerate(TECH["existing_patterns"])}

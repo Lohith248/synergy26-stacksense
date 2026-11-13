@@ -1227,14 +1227,12 @@ def contradictions(ctx, W, assumptions, host, backend):
         W("HIPAA_HOST_NO_BAA", "critical", f"{host['name']} has no BAA in the knowledge base; PHI must not be stored there.", ["compliance"])
     for e in ctx["existing"]:
         life = e["life"]
-        if life:
+        for life in ([life] if life else []) + e["life_more"]:  # every product the entry names ("Java 6 / Struts 1")
             if life["eol"] <= AS_OF:
-                what = {"unmaintained": f"is no longer maintained (repository archived {life['eol']})",
-                        "unsupported": f"is no longer supported by its vendor as of {life['eol']}",
-                        "closed": f"is closed to new customers (since {life['eol']})", "deprecated": f"was deprecated on {life['eol']}"}.get(
-                    life.get("kind"), f"reached end of support on {life['eol']}")
+                what = cx.life_what(life)
                 W("END_OF_LIFE_SYSTEM", "warning",
-                  f"'{e['raw']}' {what} ({life['name']}); keep it behind an isolated interface, do not build new features on it, and plan a migration.",
+                  f"'{e['raw']}' {what} ({life['name']}); " + ("confirm its support status with the vendor, " if life.get("soft") else "")
+                  + "keep it behind an isolated interface, do not build new features on it, and plan a migration.",
                   ["infrastructure.existing_systems"])
             elif (date.fromisoformat(life["eol"]) - date.fromisoformat(AS_OF)).days <= 90:
                 W("END_OF_LIFE_SOON", "warning",
@@ -1244,6 +1242,12 @@ def contradictions(ctx, W, assumptions, host, backend):
                 W("EXISTING_SYSTEM_EXTENDED_SUPPORT", "info",
                   f"'{e['raw']}' is in extended (security-only) support until {life['eol']}; supported, but plan the upgrade path.",
                   ["infrastructure.existing_systems"])
+        tok = None if life else cx.eol_token(e["raw"])
+        if tok:  # A3: no lifecycle data, but the entry names an old release or retired product
+            W("END_OF_LIFE_SUSPECTED", "warning",
+              f"'{e['raw']}' contains '{tok}', which looks like an old or retired release, and the knowledge base has no lifecycle data for it. "
+              "Treat it as possibly out of vendor support until you confirm its status: keep it behind an isolated interface, "
+              "do not build new features on it, and plan a migration.", ["infrastructure.existing_systems"])
         ad = e.get("adapter")
         if not e["pattern"] and not life and ad and ad["kind"] == "retire":  # A7: the description says it is going away
             W("EXISTING_SYSTEM_UNRECOGNISED", "info", f"'{e['raw']}' is not in the knowledge base; {ig.cite(ad)} says it is going away (replaced or retired), "
