@@ -114,6 +114,24 @@ def search_floor(ctx, p, selfh):
     return search_engine(p, selfh, "")[2][ctx["tier"]][0]
 
 
+# A19: a named email product per host cloud (planning heuristic: the sending service on the cloud already in use keeps one
+# vendor, one bill and one IAM; elsewhere a standalone email API). Per-message prices are not in the knowledge base, so no
+# price or free-tier claim is made; the cost band carries the labelled planning estimate (costreal.email_line).
+EMAIL_PRODUCT = {"aws": ("Amazon SES", "aws", "the host cloud's own sending service, so it shares the account, IAM and bill"),
+                 "azure": ("Azure Communication Services Email", "azure", "the host cloud's own sending service, so it shares the subscription, RBAC and bill")}
+EMAIL_DEFAULT = ("Resend", "neutral", "a standalone email API that does not depend on the host cloud")
+
+
+def email_product(provider):
+    """(product, provider tag, why, alternatives) for the email-delivery component."""
+    name, prov, why = EMAIL_PRODUCT.get(provider, EMAIL_DEFAULT)
+    if prov == "neutral":
+        alts = [(n, "another managed email API; same job, no tie to the host cloud") for n in ("Postmark", "Brevo")]
+    else:
+        alts = [("Resend", "a standalone email API; fine, but a second vendor and bill next to the host cloud")]
+    return name, prov, f"{name} is {why}.", alts
+
+
 def build(ctx, host, backend, db, mobile, warn):
     """host/backend/db/mobile: chosen KB items (db may be None). warn(code, sev, msg, fields)."""
     req = ctx["req"]
@@ -928,17 +946,18 @@ def build(ctx, host, backend, db, mobile, warn):
                        ["Needs admin consent for Graph application permissions"], "saas", "azure", False, Z, ["ms-graph"]))
     if d["email_out"] and not ctx["self_host_only"] and not (ctx["existing_m365"] and d["approvals"]):
         said = re.search(cx.DESC_RX["email_out"], (req["project.description"] or "").lower())
-        out.append(svc("other", "Email delivery: managed transactional/list email API with an authenticated sending domain (SPF, DKIM, DMARC)",
+        mail_name, mail_prov, mail_why, mail_alts = email_product(p)
+        out.append(svc("other", f"Email delivery: {mail_name} (managed email API, authenticated sending domain: SPF, DKIM, DMARC)",
                        f"The description sends email to users ('{said.group(0) if said else 'email'}'). Mail sent straight from an application server is often rejected "
-                       "or filed as spam, so a managed email API with an authenticated sending domain, bounce and complaint handling and an unsubscribe link carries it; "
-                       "the application only hands messages over. No provider is selected here; the cost band carries a labelled planning estimate for the sends.",
+                       "or filed as spam, so a managed email API with an authenticated sending domain, bounce and complaint handling and an unsubscribe link carries it. "
+                       + mail_why + " The application only hands messages over; the cost band carries a labelled planning estimate for the sends.",
                        ["project.description"] + (["infrastructure.data_residency"] if ctx["res_named"] else []),
-                       [("Sending over SMTP from the application server", "no sender reputation: deliverability, bounce handling and SPF/DKIM/DMARC would all be yours")],
+                       [("Sending over SMTP from the application server", "no sender reputation: deliverability, bounce handling and SPF/DKIM/DMARC would all be yours")] + mail_alts,
                        ["Per-message price is not in the knowledge base: the cost band carries a planning estimate (recipients x sends x price per 1,000), not a quote",
                         "Recipient addresses and message content pass through the provider: pick one whose sending region matches the residency requirement"
                         if ctx["res_named"] else "Recipient addresses and message content pass through the provider",
                         "Bulk mail needs recorded consent and a working unsubscribe link"],
-                       "saas", "neutral", False, Z, []))
+                       "saas", mail_prov, False, Z, []))
     if req["requirements.multi_tenant"]:
         rls = db and db.get("rls")
         out.append(svc("other", "Tenant isolation: tenant_id on every row" + (" + database row-level security" if rls else " enforced in a repository layer"),
