@@ -1696,12 +1696,12 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
             # A20: the route chosen is an SMS aggregator over SMPP; its rate comes from your contract, so a reference rate is named as such
             if ctx["india_users"] or ctx["residency"] == "india":
                 plo, phi = 0.0024, 0.0045
-                txt = ("your SMPP aggregator's rate (set by your contract, not in the knowledge base; the India reference ~Rs 0.20-0.25 + GST "
-                       "is used here as a planning heuristic)")
+                txt = ("the SMPP aggregator route: its price is not in the knowledge base, so the India reference rate of ~Rs 0.20-0.25 + GST per SMS "
+                       "is used as a planning heuristic (your contract sets the real rate)")
             else:
                 plo, phi = 0.05, 0.06
-                txt = ("your SMPP aggregator's rate (set by your contract, not in the knowledge base; ~$0.05 + SMS is used here as a "
-                       "planning heuristic)")
+                txt = ("the SMPP aggregator route: its price is not in the knowledge base, so a reference rate of ~$0.05 per verification plus the "
+                       "SMS fee is used as a planning heuristic (your contract sets the real rate)")
         elif "Twilio" in auth_choice:
             plo, phi = 0.05, 0.06
             txt = "Twilio Verify ~$0.05 + SMS"
