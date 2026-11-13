@@ -674,6 +674,12 @@ def _recommend(req, assumptions, sid):
                                             "(restoring from backup takes too long for the RTO; nightly backups lose too much data for the RPO) "
                                             "and point-in-time recovery.")
             db_cmp["driven_by"] = order_paths(db_cmp["driven_by"] + hp)
+        elif ha and db_c.vkey == "self" and host["kind"] == "onprem":
+            # A15: a self-hosted database on your own servers: the standby is a second server, not a managed zone
+            hp = ha_paths(req)
+            db_cmp["justification"] += (f" {cap(' and '.join(ha_targets(req)))} {'needs' if len(hp) == 1 else 'need'} a standby database server on separate hardware (a second rack or room) "
+                                        "with streaming replication, continuous WAL archiving and a rehearsed failover; the standby server is counted in the hardware line of the cost band.")
+            db_cmp["driven_by"] = order_paths(db_cmp["driven_by"] + hp)
         rto, rpo = req["requirements.rto_minutes"], req["requirements.rpo_minutes"]
         if rpo is not None and rpo < 5 and db_c.vkey == "self":
             W("RPO_NEEDS_REPLICATION", "warning", f"RPO {rpo} min on a self-hosted database: configure streaming replication to a standby server and "
@@ -1165,6 +1171,13 @@ def contradictions(ctx, W, assumptions, host, backend):
         "soc2": ("SOC2_CONTROLS", "info", "SOC 2 requires evidence of your own controls (access, change management, monitoring) over a review period; provider reports only cover their part.", ["compliance"]),
         "hipaa": ("HIPAA_BAA_REQUIRED", "warning", "HIPAA: sign a Business Associate Agreement with the cloud provider and use only HIPAA-eligible services for PHI; SaaS add-ons without a BAA (analytics, chat widgets) must not receive PHI.", ["compliance"]),
     }
+    if ctx["self_host_only"]:  # A15: no cloud provider hosts the PHI, so there is no hosting BAA; the safeguards are the operator's own
+        notes["hipaa"] = ("HIPAA_BAA_REQUIRED", "warning",
+                          f"HIPAA with {'air-gapped' if ctx['no_internet'] else 'on-premises'} hosting: PHI stays on your own servers, so there is no cloud-provider Business Associate Agreement for hosting; "
+                          "the HIPAA Security Rule safeguards are yours to run: encrypt PHI at rest and in transit, give every user a unique id with role-based access, "
+                          "keep audit logs of PHI access, test backups and restores, and control physical access to the data centre. "
+                          "A Business Associate Agreement is still needed with any outside vendor that touches PHI (support, backup, managed-service or SaaS add-ons).",
+                          ["compliance", "infrastructure.deployment_model"])
     for c in ctx["compliance"]:
         if c in notes:
             W(*notes[c])
@@ -1342,6 +1355,10 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         add(f"Database {short(db_c.variant)}", dlo, dhi, f"Database {db_c.variant}: {{r}}" + (" (HA doubles instances)" if ha else "") + "." + size)
     if ha and host["kind"] == "static":
         lines.append("Availability: static files on a CDN are served from many edge locations by design, so nothing extra is billed for it.")
+    elif ha and host["kind"] == "onprem":
+        # A15: on your own servers a second instance is hardware, already counted in the indicative hardware line; no cloud bill
+        lines.append(("Availability ≥99.95%" if ha_paths(ctx["req"])[0] == "requirements.availability" else cap(" and ".join(ha_targets(ctx["req"]))))
+                     + ": the second application server and the standby database server are hardware, counted in the indicative hardware line below; there is no cloud bill for them.")
     elif ha:
         add("Second app instance (availability)", hlo, hhi,
             ("Availability ≥99.95%" if ha_paths(ctx["req"])[0] == "requirements.availability" else cap(" and ".join(ha_targets(ctx["req"]))))
