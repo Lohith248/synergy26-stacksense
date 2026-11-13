@@ -22,8 +22,18 @@ HOST = {"id": "binary", "name": "None (distributed binary)", "provider": "none",
         "cost": [[0, 0]] * 4, "limits": [], "src": ["statement"]}
 
 
+# planning heuristic: description signals (context.SERVER_NEED_RULES, read outside optional/later sentences) that say the data is shared
+# between users or devices, or lives on a server that exists or must be built. One user on one machine is the only local-first shape.
+SERVER_TEXT_FLAGS = ("server_need", "shared_data", "existing_server")
+
+
+def needs_server(c):
+    """A desktop-only app whose description needs a server (shared data, sync, an existing database or API); consulted before applies()."""
+    return bool(c["desktop"] and not c["web"] and any(c["desc"][f] for f in SERVER_TEXT_FLAGS))
+
+
 def applies(c, dynamic_need):
-    """True when the structured fields and the text describe a desktop-only app with no need for a server."""
+    """True when the structured fields and the text describe a desktop-only app with no need for a server (dynamic_need includes needs_server)."""
     d = c["desc"]
     if not c["desktop"] or c["web"] or c["mobile"] or c["api_only"] or dynamic_need:
         return False

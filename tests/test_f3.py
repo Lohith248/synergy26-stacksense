@@ -207,5 +207,43 @@ class RefreshedStatic(unittest.TestCase):
         self.assertEqual(publisher(out), [])
 
 
+def server_stack(out):
+    st = out["stack"]
+    return st["backend"]["choice"] != "None" and st["hosting"]["choice"] != "None (distributed binary)" and st["database"]["choice"] != "SQLite (embedded, on the device)"
+
+
+class LocalFirstNeedsNoSharedData(unittest.TestCase):
+    """Review fix B1/N3: shared data, sync with others, a LAN, or an existing server named only in the description keep the server stack."""
+
+    SHARED = [
+        ("other", "Desktop app for a field survey team of 12; each laptop collects records and syncs records with the team so everyone sees the others' entries."),
+        ("internal_tool", "Till software where three cashiers share one inventory database on the LAN."),
+        ("other", "A program for a family to share a household budget across their three laptops."),
+        ("web_app", "Back-office tool used by several users at the same time on different computers."),
+        ("other", "Volunteers on separate machines work from a central database of members."),
+    ]
+    EXISTING = [
+        ("other", "Desktop tool that pulls our existing PostgreSQL reports and shows them offline."),
+        ("internal_tool", "Viewer for orders held in the company's MySQL database."),
+        ("other", "Reads prices from the REST API of the supplier and shows them in a desktop window."),
+    ]
+
+    def test_shared_data_and_existing_servers_keep_the_server_stack(self):
+        for typ, desc in self.SHARED + self.EXISTING:
+            out = run(**{**DESKTOP, "project.type": typ, "project.description": desc})
+            self.assertTrue(server_stack(out), desc)
+            self.assertNotIn("Static site", out["summary"], desc)
+
+    def test_single_machine_text_stays_local_first(self):
+        for typ, desc in (("other", "Personal journal for one person on one laptop; entries never leave the computer."),
+                          ("other", "Lab logger on one laptop plots the measurements in real time. Optional later upload of the finished log to a club server."),
+                          ("internal_tool", "Desktop program that needs no server and no network; results can be exported to CSV and shared by e-mail afterwards."),
+                          ("other", "Photo organiser; back up the library to an external disk."),
+                          ("other", "Notes app with multiple colours and multiple fonts, used by one person.")):
+            out = run(**{**DESKTOP, "project.type": typ, "project.description": desc})
+            self.assertEqual(out["stack"]["hosting"]["choice"], "None (distributed binary)", desc)
+            self.assertEqual(out["stack"]["backend"]["choice"], "None", desc)
+
+
 if __name__ == "__main__":
     unittest.main()
