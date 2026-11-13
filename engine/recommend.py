@@ -17,6 +17,26 @@ from .kb import AS_OF, TECH, cite
 FIELD_ORDER = [f[0] for f in __import__("engine.validate", fromlist=["FIELDS"]).FIELDS]
 SKILL_BAND = 5  # a mismatched backend must beat the best skill-matched one by more than this to be chosen
 SKILL_SMALL_TEAM = 5  # planning heuristic: a team of up to this many people that is not senior, or any beginner team, pays a schedule cost for a new language
+# G1 (D19-g1), planning heuristic: compliance regimes under which a service whose data location the knowledge base does not know
+# is treated as a proven residency conflict (they mandate localisation or regulated storage); DPDP/GDPR alone do not.
+STRICT_LOCALISATION = ("rbi_localisation", "hipaa", "pci_dss")
+
+
+def store_billing_location(s, ctx, critical):
+    """PAYMENT_DATA_LOCATION text for app-store billing: the mechanism, then what the knowledge base does not know."""
+    stores = s["choice"].split(" (+")[0]
+    area = sv.AREA.get(ctx["res_label"], ctx["res_label"])
+    msg = (f"{stores}: purchases are made inside the stores' own purchase flow, so the buyer's payment details are handled by the stores under their own "
+           "terms, not by your servers; your backend only receives purchase receipts and notifications to validate. Where the stores process and keep "
+           f"that data is not stated in the knowledge base, so it is not confirmed to stay in {area} (a gap, not a proven conflict).")
+    if critical:
+        msg += (" Your compliance list (" + ", ".join(sorted(set(ctx["compliance"]) & set(STRICT_LOCALISATION))) + ") mandates localised or regulated storage: "
+                "confirm with the stores' terms and your acquirer or auditor that this flow is in scope, or take purchases outside the stores where the policy allows.")
+    else:
+        msg += f" Check the stores' data-processing terms for users in {area}; keep only receipt and entitlement data in your own database in {area}."
+    return msg
+
+
 HARD_PATHS = ("infrastructure.cloud_preference", "infrastructure.deployment_model", "infrastructure.data_residency")
 
 
@@ -840,8 +860,17 @@ def _recommend(req, assumptions, sid):
         if s["layer"] == "payments" and any(w["code"] == "PAYMENT_DATA_LOCATION" for w in W.items):
             continue
         if s["data_bearing"] and explicit and s["data_location"] not in (ctx["res_key"], "device"):
-            W("RESIDENCY_UNVERIFIED_SERVICE", "critical", f"{s['choice']} stores data but its location could not be pinned to {ctx['res_label']}.",
-              ctx["res_paths"])
+            store = s["layer"] == "payments" and s.get("provider") in ("google", "apple")
+            # G1 (D19-g1): a service whose location is merely unknown (a gap in the knowledge base) is a proven residency conflict only
+            # under a compliance regime that mandates localisation; a known different location stays critical
+            critical = s["data_location"] is not None or bool(set(ctx["compliance"]) & set(STRICT_LOCALISATION))
+            fields = ctx["res_paths"] + (["compliance"] if critical and s["data_location"] is None else [])
+            if store:
+                W("PAYMENT_DATA_LOCATION", "critical" if critical else "warning", store_billing_location(s, ctx, critical), ["requirements.payments"] + fields)
+            else:
+                W("RESIDENCY_UNVERIFIED_SERVICE", "critical" if critical else "warning",
+                  f"{s['choice']} stores data but its location could not be pinned to {ctx['res_label']}"
+                  + ("." if critical else " in the knowledge base: not a proven conflict. Confirm its region or data-processing terms before relying on it."), fields)
 
     # ---- cost band
     cost = cost_band(ctx, host, db_item, db_c if ctx["needs_db"] else None, supporting, assumptions)
@@ -1232,7 +1261,10 @@ def contradictions(ctx, W, assumptions, host, backend):
                 what = cx.life_what(life)
                 W("END_OF_LIFE_SYSTEM", "warning",
                   f"'{e['raw']}' {what} ({life['name']}); " + ("confirm its support status with the vendor, " if life.get("soft") else "")
-                  + "keep it behind an isolated interface, do not build new features on it, and plan a migration.",
+                  + ("it is a discontinued service, not a version to upgrade, so do not build on it; no replacement named in the knowledge base, "
+                     "so choose one from the vendor's current guidance and plan the migration."
+                     if life.get("discontinued") else
+                     "keep it behind an isolated interface, do not build new features on it, and plan a migration."),
                   ["infrastructure.existing_systems"])
             elif (date.fromisoformat(life["eol"]) - date.fromisoformat(AS_OF)).days <= 90:
                 W("END_OF_LIFE_SOON", "warning",
@@ -1498,21 +1530,27 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         add("Email", elo, ehi, etxt)
     if ctx["req"]["requirements.auth"] == "phone_otp" and not ctx["no_internet"]:
         logins = ctx["users"]
+        auth_choice = next((s["choice"] for s in supporting if s["layer"] == "auth"), "")
         if any("MSG91" in s["choice"] for s in supporting):
             plo, phi = 0.0024, 0.0045
-            txt = "India SMS ~Rs 0.20-0.25 + GST"
+            txt = "MSG91 India SMS ~Rs 0.20-0.25 + GST"
         elif any("SNS" in s["choice"] for s in supporting) and not (ctx["india_users"] or ctx["residency"] == "india"):
             plo, phi = 0.004, 0.006  # ponytail: only one AWS SMS rate is in the KB; per-country rates would need a price table
-            txt = "AWS SMS ~$0.004-0.006 (AWS SMS price list, 11 Nov 2026; rates vary by destination country, check the target country)"
+            txt = "Amazon SNS SMS ~$0.004-0.006 (AWS SMS price list, 11 Nov 2026; rates vary by destination country, check the target country)"
         elif any("SNS" in s["choice"] for s in supporting):
             plo, phi = 0.004, 0.006  # AWS End User Messaging SMS price CSV: India local $0.004 (11 Nov 2026)
-            txt = "AWS India local SMS $0.004 (AWS SMS price list, 11 Nov 2026) plus DLT and retry overhead"
-        else:
+            txt = "Amazon SNS India local SMS $0.004 (AWS SMS price list, 11 Nov 2026) plus DLT and retry overhead"
+        elif "Twilio" in auth_choice:
             plo, phi = 0.05, 0.06
             txt = "Twilio Verify ~$0.05 + SMS"
+        else:
+            # G1 (D19-g1): the chosen auth provider is not an SMS-priced service in the knowledge base (e.g. Keycloak with an SMPP aggregator):
+            # the Twilio Verify rate stays as a reference figure and the line says so, instead of naming a provider the stack does not use
+            plo, phi = 0.05, 0.06
+            txt = "the Twilio Verify reference rate of ~$0.05 per verification plus the SMS fee (the chosen SMS aggregator's price is not in the knowledge base)"
         olo, ohi = round(logins * 0.3 * plo), round(logins * 1.0 * phi)
         items.append((ohi, olo, "Phone OTP"))
-        lines.append(f"Phone OTP: {logins:,} users x 0.3-1.0 OTP logins/month at {txt} per SMS = ${olo:,}-{ohi:,}/month (long-lived sessions keep OTPs rare).")
+        lines.append(f"Phone OTP: {logins:,} users x 0.3-1.0 OTP logins/month at {txt}{'' if 'reference rate' in txt else ' per SMS'} = ${olo:,}-{ohi:,}/month (long-lived sessions keep OTPs rare).")
     tp = ctx["req"]["scale.traffic_pattern"]
     if tp in ("spiky", "seasonal") and host.get("scaling") in ("request", "instances"):
         lines.append(f"{'Seasonal' if tp == 'seasonal' else 'Spiky'} traffic: the upper bound is a peak month; with autoscaling, "

@@ -648,7 +648,7 @@
       "ci_cd: GitHub Actions $0-20/month.",
       "observability: Amazon CloudWatch in ap-south-1 (Mumbai) (logs, metrics, alarms) $30-200/month.",
       "Stored data ~500 GB after 12 months at ~$0.02-0.035/GB-month: $10-19/month (year-end volume used as an upper bound, not an average); bulk files and media are assumed to sit in object storage, while database rows stay small.",
-      "Phone OTP: 300,000 users x 0.3-1.0 OTP logins/month at AWS India local SMS $0.004 (AWS SMS price list, 11 Nov 2026) plus DLT and retry overhead per SMS = $360-1,800/month (long-lived sessions keep OTPs rare).",
+      "Phone OTP: 300,000 users x 0.3-1.0 OTP logins/month at Amazon SNS India local SMS $0.004 (AWS SMS price list, 11 Nov 2026) plus DLT and retry overhead per SMS = $360-1,800/month (long-lived sessions keep OTPs rare).",
       "Spiky traffic: the upper bound is a peak month; with autoscaling, quiet months run near the lower bound.",
       "Excluded: payment gateway fees (~2% per transaction) are a share of revenue, not infrastructure.",
       "Excluded: taxes, domain names, paid support plans and data-egress spikes. Order-of-magnitude band, not a quote."

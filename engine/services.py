@@ -76,9 +76,23 @@ def join_and(xs):
 SOCIAL_DEFAULT = ("Google", "GitHub", "Microsoft")
 
 
-def social_list(ctx, defaults=SOCIAL_DEFAULT):
+# G1 (D19-g1), planning heuristic: project types whose users sign in with a work or developer account; every other type is a
+# consumer audience, whose default social providers are Google plus Apple when the app ships on iOS
+WORK_AUDIENCE_TYPES = ("saas_b2b", "internal_tool", "api_platform", "data_analytics")
+WORK_AUDIENCE_RX = re.compile(r"\b(?:developers?|engineers?|github|devops|workplace|employees?|staff)\b", re.I)
+
+
+def social_defaults(ctx):
+    """Default social providers for the audience the input describes (project.type, description, platforms)."""
+    if ctx["type"] in WORK_AUDIENCE_TYPES or WORK_AUDIENCE_RX.search(ctx["req"]["project.description"] or ""):
+        return SOCIAL_DEFAULT
+    return ("Google", "Apple") if "ios" in ctx["mobile"] else ("Google",)
+
+
+def social_list(ctx, defaults=None):
     """Providers for a social-login choice: those the input names (existing_systems) first, then the defaults not already named."""
     named = ctx["social_named"]
+    defaults = defaults or social_defaults(ctx)
     return list(named) + [x for x in defaults if x not in named]
 
 
@@ -125,6 +139,17 @@ GATEWAY_EEA = {"stripe": {
                   "processing is not assumed."),
     "transfer_sources": ["stripe-privacy"]}}
 AREA = {"EU": "the EU", "US": "the US", "INDIA": "India"}  # res_label of a named residency, as it reads in a sentence
+
+
+def second_db_reason(ctx, e, pat, db):
+    """G1 (D19-g1): why a second database exists beside the new one: the entry says neither that the existing database must stay
+    (it would then be THE database) nor that it is going away, so it is left untouched and read through a narrow layer."""
+    same = pat.get("engine") and pat["engine"] == db.get("id")
+    return ("A second database exists only because infrastructure.existing_systems lists it without saying it must stay or be retired, "
+            + (f"so it is left untouched ({pat['product']} is also the engine of the new database: the new tables are a separate database, not part of the existing one)"
+               if same else
+               f"so it is left untouched and the new tables go to {db['_variant']}, which scored best for this input")
+            + "; to use it as the only database, write 'keep' in its entry, and to migrate off it write 'retire'.")
 
 
 def payment_location(gateway, prov, ctx):
@@ -1090,7 +1115,8 @@ def build(ctx, host, backend, db, mobile, warn):
                            (f"The input says it is going away: read its data once through an export or ETL job over {via} into the new database ({db['_variant']}), "
                             "check row counts and checksums, and switch it off once its owners agree. The new application does not depend on a live connection to it afterwards."
                             if e["retire"] else
-                            f"{pat.get('how_beside', pat['how'])} The new application keeps its own tables in {db['_variant']} and reads the existing data through {via}.")
+                            f"{pat.get('how_beside', pat['how'])} The new application keeps its own tables in {db['_variant']} and reads the existing data through {via}. "
+                            + second_db_reason(ctx, e, pat, db))
                            + (f" It {cx.life_short(e['life'])} ({e['life']['name']}{'' if e['life'].get('soft') else ', ' + e['life']['eol']})"
                               + (", which is a further reason to retire it." if e["retire"] else
                                  ": plan its upgrade, or move its data into the new database and retire it once its owners agree.")
