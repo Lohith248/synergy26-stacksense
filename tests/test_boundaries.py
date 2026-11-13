@@ -112,8 +112,10 @@ class Contract(unittest.TestCase):
             s["team"]["size"] = bad
             self.assertEqual(run(s)["status"], "invalid_input", bad)
         s = P(1)
-        s["team"]["size"] = 1.0
-        self.assertEqual(run(s)["status"], "invalid_input")  # D3: integers must be JSON integers
+        s["team"]["size"] = 1.0  # D14 (amends D3): an integer-valued float is read as the integer, with a recorded note
+        out = run(s)
+        self.assertNotEqual(out["status"], "invalid_input")
+        self.assertIn("INPUT_COERCED", [w["code"] for w in out["warnings"]])
 
     def test_B06_nonfinite(self):
         base = json.dumps(P(1))

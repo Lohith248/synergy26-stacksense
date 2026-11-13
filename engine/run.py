@@ -1,6 +1,6 @@
 """Entry point used by the CLI and tests: scenario object -> Section 4 output document."""
 from . import ENGINE_VERSION
-from .validate import description_warnings, null_warnings, unknown_key_warnings, validate
+from .validate import coercion_warnings, description_warnings, null_warnings, unknown_key_warnings, validate
 
 
 def invalid_output(errors, scenario_id, assumptions=()):
@@ -22,7 +22,8 @@ def invalid_output(errors, scenario_id, assumptions=()):
 def evaluate(raw, counterfactuals=True):
     sid = raw.get("scenario_id") if isinstance(raw, dict) and isinstance(raw.get("scenario_id"), str) else None
     req, errors, assumptions = validate(raw)
-    unknown = description_warnings(raw) + null_warnings(raw) + unknown_key_warnings(raw)
+    head = description_warnings(raw) + null_warnings(raw)
+    tail = unknown_key_warnings(raw)
     if errors:
         # no stack is built, so per-field defaults would describe nothing; one line says they were not used (D3 applies to built stacks)
         n = sum(1 for a in assumptions if " absent" in a)
@@ -31,5 +32,6 @@ def evaluate(raw, counterfactuals=True):
     else:
         from .recommend import recommend
         out = recommend(req, assumptions, sid, probe=not counterfactuals)
-    out["warnings"] = out["warnings"] + unknown
+        head = head + coercion_warnings(raw)  # D14: only when a stack was built
+    out["warnings"] = out["warnings"] + head + tail
     return out

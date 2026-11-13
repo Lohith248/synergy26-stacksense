@@ -16,7 +16,7 @@ Hard constraints (cloud preference, deployment model, data residency, compliance
 
 | Check | Result |
 |---|---|
-| Unit and acceptance tests (`python -I -m unittest discover -s tests`) | 461 tests OK (17 skip cleanly when the optional `research/` folder is absent) |
+| Unit and acceptance tests (`python -I -m unittest discover -s tests`) | 481 tests OK (17 skip cleanly when the optional `research/` folder is absent) |
 | Public scenarios P1-P6 | outputs in `outputs/` reproduce byte-for-byte |
 | Output contract (`tools/check_contract.py`) | PASS 6/6 |
 | One-field perturbation sweep (`tools/perturb.py`) | 1,087 edits, 0 crashes, 0 violations |
@@ -103,6 +103,7 @@ python stacksense.py run path/to/scenario.json --out outputs --explain
 ```
 
 - Input may be a single scenario object or an array of them.
+- **Input notation (D14):** values must have the types in the statement; enum values are lower-case strings exactly as written. Exactly two lossless notations are also read, each recorded as a line in `assumptions` and one `INPUT_COERCED` info warning (listing the fields): an integer-valued number for an integer field (`30000.0` is read as `30000`, `3e4` too), and a number equal to a listed `requirements.availability` value (`99.9` is read as `"99.9"`; likewise `99`, `99.95`, `99.99`). Nothing else is coerced: fractions (`2.5`), numbers as strings (`"150"`), other case (`"AWS"`), unknown enum values, booleans as strings (`"true"`) and lists of the wrong type stay `invalid_input`. A number that equals no availability value is rejected with a message naming the accepted values. No coercion note appears on `invalid_input`.
 - Output is written to `outputs/<scenario_id>_output.json`, or `scenario_output.json` when there is no id.
 - `--explain` also prints a readable explanation to the terminal.
 - `--adr` also writes `outputs/<scenario_id>_adr.md`: one Architecture Decision Record per core layer (context, decision, options table, consequences).

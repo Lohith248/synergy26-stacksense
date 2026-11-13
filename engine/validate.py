@@ -84,6 +84,51 @@ def _is_num(v):
         return False
 
 
+_INT_KINDS = ("int", "xint", "opt_int", "prio")
+_EXACT_FLOAT = 2 ** 53  # every integer up to here is exactly representable as a float, so the conversion loses nothing
+
+
+def _coerce(path, kind, extra, val):
+    """D14 (E7): the only two lossless notations accepted beyond the statement's types, nothing else.
+    (a) an integer-valued float for an integer field (30000.0 -> 30000); (b) a number equal to a requirements.availability
+    enum value (99.9 -> "99.9"). Case differences, strings-as-numbers, unknown enums and booleans are never coerced.
+    Pure function of its arguments. Returns (value, note); note is None when nothing was coerced."""
+    if kind in _INT_KINDS and isinstance(val, float) and math.isfinite(val) and val.is_integer() and abs(val) <= _EXACT_FLOAT:
+        return int(val), f"{path}: {val!r} is an integer-valued number; read as the integer {int(val)} (no value changed)."
+    if path == "requirements.availability" and isinstance(val, (int, float)) and not isinstance(val, bool) and _is_num(val):
+        for opt in extra:
+            if float(opt) == val:
+                return opt, (f"{path}: the number {val!r} equals the listed availability value {opt!r}; "
+                             f"read as the string {opt!r} (no value changed).")
+    return val, None
+
+
+def _walk(raw, path):
+    node = raw
+    for p in path.split("."):
+        if not (isinstance(node, dict) and p in node):
+            return False, None
+        node = node[p]
+    return True, node
+
+
+def coercion_warnings(raw):
+    """One info warning listing every field whose notation was coerced (D14); empty when none."""
+    if not isinstance(raw, dict):
+        return []
+    paths = []
+    for path, kind, _req, _default, extra in FIELDS:
+        found, val = _walk(raw, path)
+        if found and _coerce(path, kind, extra, val)[1]:
+            paths.append(path)
+    if not paths:
+        return []
+    return [{"code": "INPUT_COERCED", "severity": "info", "fields": paths,
+             "message": "Input written as a number was read as the equal documented value: integer-valued numbers for integer "
+                        "fields, and a number equal to a listed availability value for requirements.availability. "
+                        "No value changed (see assumptions); enum values and other types are never coerced."}]
+
+
 def _fmt(v):
     return repr(v) if isinstance(v, str) else str(v).lower() if isinstance(v, bool) else str(v)
 
@@ -222,6 +267,8 @@ def validate(raw):
                     assumptions.append(f"{how} {UNSPECIFIED_NOTE[path].split(': ', 1)[1]}" if was_null else UNSPECIFIED_NOTE[path])
             continue
         msg = None
+        shown = val  # the value as written, for messages
+        val, note = _coerce(path, kind, extra, val)
         if kind == "str":
             if not isinstance(val, str):
                 msg = "Must be a string."
@@ -230,7 +277,11 @@ def validate(raw):
                 val = val[:DESC_LIMIT]
         elif kind in ("enum", "xenum"):
             if not isinstance(val, str) or val not in extra:
-                msg = f"Must be one of {', '.join(extra)} (got {_fmt(val)})." + _did_you_mean(val, extra)
+                if path == "requirements.availability" and isinstance(val, (int, float)) and not isinstance(val, bool):
+                    msg = (f"Must be one of {', '.join(repr(o) for o in extra)} (got the number {_fmt(val)}, which equals none of them). "
+                           "Write it as a string exactly as listed; a number is accepted only when it equals one of these values.")
+                else:
+                    msg = f"Must be one of {', '.join(extra)} (got {_fmt(val)})." + _did_you_mean(val, extra)
         elif kind in ("enum_list", "enum_list0"):
             if not isinstance(val, list) or not all(isinstance(x, str) for x in val):
                 msg = "Must be a list of strings."
@@ -249,7 +300,7 @@ def validate(raw):
             elif not _is_num(val):
                 msg = "Outside the finite numeric range used for sizing and cost calculations."
             elif val < extra:
-                msg = f"Must be >= {extra} (got {val})."
+                msg = f"Must be >= {extra} (got {shown})."
         elif kind == "opt_int":
             if val is None:
                 req[path] = None
@@ -269,7 +320,7 @@ def validate(raw):
                 msg = f"Must be true or false (got {_fmt(val)})."
         elif kind == "prio":
             if not _is_int(val) or not 1 <= val <= 5:
-                msg = f"Must be an integer from 1 to 5 (got {_fmt(val)})."
+                msg = f"Must be an integer from 1 to 5 (got {_fmt(shown)})."
         elif kind in ("str_list", "xlist"):
             if not isinstance(val, list) or not all(isinstance(x, str) for x in val):
                 msg = "Must be a list of strings."
@@ -281,5 +332,7 @@ def validate(raw):
         if msg:
             errors.append({"field": path, "message": msg})
         else:
+            if note:
+                assumptions.append(note)
             req[path] = val
     return (None if errors else req), errors, assumptions
