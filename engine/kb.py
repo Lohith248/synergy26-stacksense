@@ -27,3 +27,12 @@ AS_OF = TECH["as_of"]
 def cite(ids):
     """Source ids -> list of URLs. An unknown id is a KB bug and fails loudly (exercised by the test suite)."""
     return [SOURCES[i]["url"] for i in ids]
+
+
+def region_offered(service, region_label):
+    """True/False when kb service_regions lists the service, None when the KB makes no claim.
+    region_label is the host's region text, e.g. 'asia-south1 (Mumbai)'."""
+    row = TECH.get("service_regions", {}).get(service)
+    if not row or not region_label:
+        return None
+    return region_label.split(" ")[0] in row["regions"]

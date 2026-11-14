@@ -7,6 +7,7 @@ Facts are cited from kb/sources.json (research R6/R7).
 import re
 
 from . import costreal
+from . import kb
 from . import rightsize as rs
 
 SECONDS_PER_MONTH = 30 * 24 * 3600
@@ -281,11 +282,26 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
             gdep = "managed"
         else:
             gw, gprov, gsrc, gdep = "Kong Gateway (open-source, self-hosted)", "neutral", ["kong"], "self_hosted"
+        gnote, galt, gfields = "", [], []
+        if hyper and p == "gcp" and kb.region_offered("gcp-api-gateway", region) is False:
+            # D24-p2: a residency region the managed gateway is not offered in; never place it there silently
+            hname = host["name"].split(" (")[0].split(" —")[0]
+            gw, gprov, gsrc, gdep = (f"Kong Gateway (open-source, DB-less container next to the API on {hname}){rtxt}", "neutral",
+                                     ["kong", "gcp-api-gateway-regions"], "self_hosted")
+            gnote = (f" Google Cloud API Gateway is not offered in {region} (it is not in the region list on Google's API Gateway page), "
+                     f"so the gateway runs as a container inside {region} to keep requests and API keys in the residency region.")
+            galt = [("Google Cloud API Gateway", f"not offered in {region}; it would process requests outside the residency region")]
+            gfields = ["infrastructure.data_residency"]
+            warn("SERVICE_REGION_UNAVAILABLE", "info",
+                 f"Google Cloud API Gateway is not offered in {region}, the region chosen for infrastructure.data_residency; the API gateway is a "
+                 f"self-run open-source gateway (Kong, DB-less) inside {region} instead. Its rate-limit counters are per instance unless they are "
+                 "kept in a shared store, so set limits with the instance count in mind.",
+                 ["infrastructure.data_residency", "project.type"])
         out.append(svc("other", "API gateway: " + gw,
                        "A public API needs per-customer API keys, rate limits and quotas enforced before requests reach the service, plus "
-                       "usage records for metering and abuse detection.",
-                       ["project.type", "project.platforms"] + (["requirements.payments"] if req["requirements.payments"] else []),
-                       [("Rate limiting inside the application", "every instance must share counters, and abuse still reaches your servers"),
+                       "usage records for metering and abuse detection." + gnote,
+                       ["project.type", "project.platforms"] + (["requirements.payments"] if req["requirements.payments"] else []) + gfields,
+                       galt + [("Rate limiting inside the application", "every instance must share counters, and abuse still reaches your servers"),
                         ("Third-party API marketplace", "takes a revenue share and owns the customer relationship")],
-                       ["Gateway latency adds a few milliseconds per call"], gdep, gprov, False,
+                       ["Gateway latency adds a few milliseconds per call"] + (["The team runs, configures and patches the gateway container itself"] if gnote else []), gdep, gprov, False,
                        [[0, 5], [5, 40], [40, 300], [300, 2000]], gsrc, loc))
