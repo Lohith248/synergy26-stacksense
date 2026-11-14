@@ -197,10 +197,10 @@ INTERNAL_ROLE_RX = (r"\b(?:staff|employees?|workforce|personnel|clinicians?|doct
 # Staff of another party ("customers' purchasing staff") are not covered; on a portal for customers, citizens or the public only a specific internal role
 # (clinician, teacher, caseworker ...) counts, not the bare word "staff"/"employees", which usually names who already holds a directory login.
 _OTHER_PARTY = r"(?:customers?|clients?|citizens?|consumers?|buyers?|suppliers?|vendors?|partners?|dealers?|distributors?|resellers?|tenants?|residents?|members)"
-OTHER_PARTY_STAFF_RX = r"\b" + _OTHER_PARTY + r"['\u2019]?s?['\u2019]?\s+(?:\w+\s+){0,2}?(?:staff|employees?|workforce|personnel|team members)\b"
+OTHER_PARTY_STAFF_RX = r"\b" + _OTHER_PARTY + r"(?:['\u2019]s|s['\u2019])\s+(?:\w+\s+){0,2}?(?:staff|employees?|workforce|personnel|team members)\b"
 PUBLIC_AUDIENCE_RX = (r"\b(?:citizen|customer|client|public|consumer|resident|supplier|dealer|distributor|reseller)s?\s+(?:self[- ]service\s+)?(?:portal|app|site|website|platform)\b"
                       r"|\bportal\s+(?:for|to serve)\s+(?:its |our |the |their )?(?:\w+\s+){0,2}?(?:customers?|clients?|citizens?|consumers?|residents?|suppliers?|dealers?|the public|members of the public)\b"
-                      r"|\bfor\s+(?:its |our |the |their )?(?:customers|citizens|clients|consumers|residents|the public)\b")
+                      r"|\b(?:app|site|website|platform|service)\s+(?:built\s+)?for\s+(?:its |our |the |their )?(?:customers|citizens|clients|consumers|residents|the public)\b")
 GENERIC_ROLE_RX = r"\b(?:clinicians?|doctors?|nurses?|physicians?|teachers?|faculty|caseworkers?|back[- ]office users?|internal users?)\b"
 INFERRED_STAFF_TYPES = ("internal_tool", "healthtech")  # on-premises stacks of these types are run for the organisation's own staff (planning heuristic)
 

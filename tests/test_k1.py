@@ -66,6 +66,9 @@ class StaffSigninAudience(unittest.TestCase):
                  ("web_app", "Student portal where teachers publish grades.", dict(ON_PREM, existing_systems=["Active Directory"])),
                  ("healthtech", "Clinic booking system used by clinicians.", dict(ON_PREM, existing_systems=["Active Directory"])),
                  ("internal_tool", "Employee leave tracker for the company.", dict(ON_PREM, existing_systems=["LDAP directory"])),
+                 ("web_app", "Tool for our customer service staff to look up orders.", dict(ON_PREM, existing_systems=["Active Directory"])),
+                 ("web_app", "Back-office app used by staff to process refunds for customers.", dict(ON_PREM, existing_systems=["Active Directory"])),
+                 ("internal_tool", "Internal tool for hospital staff to record patients' vitals.", dict(ON_PREM, existing_systems=["Active Directory"])),
                  ("ecommerce", "Online shop. Staff sign in through our Okta tenant to manage orders.", {"existing_systems": ["Okta workforce identity"]}))
         for typ, desc, infra in cases:
             with self.subTest(desc=desc):
