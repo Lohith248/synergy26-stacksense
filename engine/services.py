@@ -438,6 +438,41 @@ def llm_serving(ctx, p, ev, dp, res_path, loc, warn):
     return s
 
 
+HOSTED_LLM_ROUTE = {"aws": ("Amazon Bedrock", ["aws-bedrock"]), "azure": ("Azure OpenAI (Foundry)", ["azure-openai-regions"]),
+                    "gcp": ("Vertex AI Gemini", ["gcp-locations"])}
+
+HOSTED_LLM_VENDORS = [(r"\bazure openai\b", "Azure OpenAI"), (r"\bbedrock\b", "Amazon Bedrock"), (r"\bvertex ai\b", "Vertex AI"),
+                      (r"\bopenai api\b|\bchatgpt\b|\bgpt-?\d\w*", "OpenAI API"), (r"\bclaude\b", "Anthropic Claude API"), (r"\bgemini\b", "Google Gemini API")]
+
+
+def hosted_llm_api(ctx, p, ev, dp, res_path, loc, warn):
+    """p1 review: requirements.ml_features=inference_api where the model is a large language model reached through a hosted API (and no
+    self-host signal): a hosted model API priced per token (planning estimate), never an in-process scikit-learn/ONNX model."""
+    low = (ctx["req"]["project.description"] or "").lower()
+    named = next((name for rx, name in HOSTED_LLM_VENDORS if dfl.first_live(rx, low)), None)
+    route, src = HOSTED_LLM_ROUTE.get(p, ("a hosted model provider", []))
+    c = (f"Hosted LLM API called from the backend ({named}, as the description names" + (f"; {route} is the same-cloud option)" if route not in named and p in HOSTED_LLM_ROUTE else ")")
+         if named else f"Hosted LLM API called from the backend ({route})")
+    why = (f"The API answers with a large language model (\"{ev}\"), not a tabular model: the backend sends prompts to a hosted model API and "
+           "streams the reply, so no GPU or model server is run and the cost is per token. scikit-learn/ONNX Runtime cannot serve a model of this kind.")
+    lo, hi = [round(x) for x in costreal.llm_usage(ctx)]
+    cost = [[max(a, lo), max(b, hi)] for a, b in [[5, 30], [30, 200], [200, 1500], [1500, 8000]]]
+    if loc:
+        area = AREA.get(ctx["res_label"], ctx["res_label"])
+        warn("LLM_REGION_CHECK", "warning",
+             f"Personal data goes to a hosted model API: whether the chosen model is served inside {area} is not confirmed in the knowledge base. "
+             f"Pick a deployment or endpoint in a region inside {area} (or the provider's data-residency option) before sending personal data.",
+             ["requirements.ml_features", "infrastructure.data_residency"])
+    s = svc("ml", c, why, dp + ["project.description"] + res_path,
+            [("Self-hosted open-weight LLM (vLLM on a GPU VM)", "keeps prompts on your machines, but a GPU bills every hour; worth it at high volume or when data must not reach a provider"),
+             ("In-process scikit-learn/XGBoost model (ONNX Runtime)", "a tabular model; it cannot generate text")],
+            ["Per-token cost grows with usage; set a monthly spend cap and evaluate answer quality",
+             "The provider's data-retention and no-training terms must be checked for the account"],
+            "managed", p if p in HOSTED_LLM_ROUTE and (not named or route in named) else "neutral", True, cost, src, loc)
+    s["_note"] = costreal.llm_basis(ctx, rag=False)
+    return s
+
+
 TRAIN_SERVICE = {"aws": "Amazon SageMaker AI training jobs", "azure": "Azure Machine Learning training jobs", "gcp": "Vertex AI custom training"}
 SERVE_ADAPTER_RX = r"\b(?:deploy\w*|serv(?:e|es|ed|ing)|inference)\b"
 
@@ -1343,6 +1378,8 @@ def build(ctx, host, backend, db, mobile, warn):
         edge = mls.vision_edge(ctx) if ml == "inference_api" and not shllm else None
         if ml == "inference_api" and shllm:
             out.append(llm_serving(ctx, p, sh_ev, dp, res_path, loc, warn))
+        elif ml == "inference_api" and mls.llm_api(ctx):
+            out.append(hosted_llm_api(ctx, p, mls.llm_api(ctx), dp, res_path, loc, warn))
         elif ml == "inference_api" and edge:
             out.append(edge_vision(ctx, edge, dp, res_path, loc))
         elif ml == "inference_api":

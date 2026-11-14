@@ -20,11 +20,11 @@ NO_LEAVE_RX = (r"\b(?:prompts?|data|queries|questions|documents?|text)\b(?:\W+\w
                r"|\bno\s+(?:prompts?|data|queries|questions|documents?|text)\s+(?:may|must|can|should|will|shall)\s+leave\b|\bnever\s+leaves?\b")
 # A no-leave phrase followed by a place ("never leaves the EU", "must not leave India") is data residency, not a self-host signal.
 RESIDENCY_PLACE_RX = (r"\s+(?:the\s+)?(?:eu|eea|european union|europe|india|us|usa|united states|uk|united kingdom|germany|france|canada|australia"
-                      r"|japan|singapore|brazil|country|region|jurisdiction|continent)")
+                      r"|japan|singapore|brazil|country|region|jurisdiction|continent)\b")
 # A no-leave phrase that names the team's own machines ("our servers", "the premises", "our AWS account") is a self-host signal even
 # when a hosted API is also named; a bare no-leave phrase ("data never leaves") counts only when no hosted API is named.
 OWN_PREMISES_RX = (r"\s+(?:the\s+|our\s+|its\s+|their\s+|your\s+)?(?:own\s+)?(?:\w+\s+)?(?:servers?|premises|network|infrastructure|machines?"
-                   r"|vms?|data ?cent(?:er|re)s?|building|firewall|environment|account|vpc|hardware|walls)")
+                   r"|vms?|data ?cent(?:er|re)s?|building|firewall|environment|account|vpc|hardware|walls)\b")
 # A hosted model API named outright: the hosted route stays unless the description also says data must not leave.
 HOSTED_LLM_RX = (r"\bopenai api\b|\bchatgpt\b|\bgpt-?\d\w*|\bclaude\b|\bgemini\b|\bbedrock\b|\bazure openai\b|\bvertex ai\b|\bhosted (?:llm|model|api)s?\b")
 # Model size in billions of parameters ("Llama 3.1 8B", "a 70b model", "13 billion parameters").
@@ -82,6 +82,15 @@ def self_hosted_llm(ctx, selfh):
     if ml == "llm_rag" and selfh:
         return True, "a self-run VM host"
     return False, None
+
+
+def llm_api(ctx):
+    """Evidence when requirements.ml_features=inference_api serves a large language model (LLM or hosted-model-API wording), else None.
+    Called after self_hosted_llm: a self-host signal has already taken the vLLM route."""
+    if ctx["req"]["requirements.ml_features"] != "inference_api":
+        return None
+    hit = _live(HOSTED_LLM_RX, ctx) or _live(LLM_RX, ctx)
+    return hit[1] if hit else None
 
 
 def model_params_b(ctx):

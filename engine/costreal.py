@@ -275,13 +275,13 @@ def llm_usage(ctx):
     return lo, hi
 
 
-def llm_basis(ctx):
+def llm_basis(ctx, rag=True):
     qlo, qhi = LLM_QUESTIONS_PER_USER_MONTH
     tin, tout = LLM_TOKENS_PER_QUESTION
     return (f" Token basis (planning estimate, not a vendor quote): {ctx['users']:,} users x {qlo}-{qhi} questions a month x about "
             f"{tin:,} input + {tout} output tokens at ${LLM_USD_PER_MILLION_IN[0]}-{LLM_USD_PER_MILLION_IN[1]} / "
             f"${LLM_USD_PER_MILLION_OUT[0]}-{LLM_USD_PER_MILLION_OUT[1]} per million input / output tokens; the line is the larger of this "
-            "and the tier table, which also covers the vector store.")
+            "and the tier table" + (", which also covers the vector store." if rag else "."))
 
 
 # ---------------------------------------------------------------- budget explanation (explain-only)
