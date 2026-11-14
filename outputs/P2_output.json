@@ -28,7 +28,7 @@
         },
         {
           "choice": "Ionic Capacitor (web app wrapped)",
-          "why_not": "No priority or requirement this input states separates Ionic Capacitor from React Native (priorities.cost=4, priorities.time_to_market=5); React Native rates higher only on the knowledge base's general ratings. Known limit of Ionic Capacitor: WebView performance on low-end devices."
+          "why_not": "No priority or requirement this input states separates Ionic Capacitor from React Native (priorities.cost=4, priorities.time_to_market=5); React Native rates higher only on priorities this input leaves at the neutral 3 (priorities.performance=3, priorities.security=3, priorities.scalability=3). Known limit of Ionic Capacitor: WebView performance on low-end devices."
         },
         {
           "choice": "Kotlin + Jetpack Compose (native Android)",
@@ -89,7 +89,7 @@
         },
         {
           "choice": "Node.js 24 LTS + Express 5",
-          "why_not": "No priority or requirement this input states separates Node.js 24 LTS + Express 5 from Node.js 24 LTS + NestJS (priorities.cost=4, priorities.time_to_market=5); Node.js 24 LTS + NestJS rates higher only on the knowledge base's general ratings. Known limit of Node.js 24 LTS + Express 5: little structure; large codebases need discipline."
+          "why_not": "No priority or requirement this input states separates Node.js 24 LTS + Express 5 from Node.js 24 LTS + NestJS (priorities.cost=4, priorities.time_to_market=5); Node.js 24 LTS + NestJS rates higher only on priorities this input leaves at the neutral 3 (priorities.maintainability=3, priorities.security=3, priorities.scalability=3). Known limit of Node.js 24 LTS + Express 5: little structure; large codebases need discipline."
         }
       ],
       "tradeoffs": [

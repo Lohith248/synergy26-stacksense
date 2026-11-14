@@ -165,7 +165,7 @@
      "limits": ["Needs a Node server runtime for SSR", "Smaller ecosystem than Next.js"],
      "src": ["nuxt-docs", "vue-docs"]},
     {"id": "angular", "name": "Angular", "langs": ["typescript"], "kind": "spa", "seo": 2, "app": 5,
-     "r": [4, 3, 4, 4, 5, 5], "learning": 4, "max_tier": 3, "strengths": ["Batteries-included framework for large enterprise apps"], "limits": ["Steeper learning curve; 24 months of support per major from Angular 22 (12 active + 12 LTS), 18 months for v20 and v21"], "src": ["angular-releases"]},
+     "r": [4, 3, 4, 4, 5, 5], "learning": 4, "max_tier": 3, "strengths": ["Batteries-included framework for large enterprise apps"], "limits": ["Steeper learning curve", "Support lasts 24 months per major from Angular 22 (12 active + 12 LTS); v20 and v21 get 18 months"], "src": ["angular-releases"]},
     {"id": "blazor", "name": "Blazor (ASP.NET Core 10)", "langs": ["csharp"], "kind": "ssr", "seo": 3, "app": 4,
      "r": [4, 4, 4, 4, 5, 5], "learning": 2, "max_tier": 3, "strengths": ["C# end to end; shares models with ASP.NET Core APIs", "First-class Entra ID sign-in via Microsoft.Identity.Web"], "limits": ["Smaller component ecosystem than React"], "src": ["dotnet-policy"]}
   ],

@@ -23,11 +23,11 @@
       "alternatives": [
         {
           "choice": "Angular",
-          "why_not": "Learning curve 4/5 for a senior team (team.experience=senior) (close call). Known limit of Angular: steeper learning curve; 24 months of support per major from Angular 22 (12 active + 12 LTS), 18 months for v20 and v21."
+          "why_not": "React fits better: Angular's learning curve is 4/5 for a senior team (team.experience=senior) (close call). Known limit of Angular: support lasts 24 months per major from Angular 22 (12 active + 12 LTS); v20 and v21 get 18 months."
         },
         {
           "choice": "Vue 3 (Vite SPA)",
-          "why_not": "No priority or requirement this input states separates Vue 3 from React (priorities.cost=2, priorities.scalability=4, priorities.maintainability=4, priorities.security=5); React rates higher only on the knowledge base's general ratings. Known limit of Vue 3: smaller hiring pool and component ecosystem than React."
+          "why_not": "No priority or requirement this input states separates Vue 3 from React (priorities.cost=2, priorities.scalability=4, priorities.maintainability=4, priorities.security=5); React rates higher only on priorities this input leaves at the neutral 3 (priorities.time_to_market=3). Known limit of Vue 3: smaller hiring pool and component ecosystem than React."
         },
         {
           "choice": "React Native (Expo)",
@@ -76,7 +76,7 @@
         "label": "low",
         "basis": "stability 0.50 (sensitive) over 54 priority vectors."
       },
-      "contrast": "React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) rather than Angular. Learning curve 4/5 for a senior team (team.experience=senior) (close call). Trade-off accepted: The first load waits for the JavaScript bundle, so page weight matters on slow devices.",
+      "contrast": "React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) rather than Angular. React fits better: Angular's learning curve is 4/5 for a senior team (team.experience=senior) (close call). Trade-off accepted: The first load waits for the JavaScript bundle, so page weight matters on slow devices.",
       "what_would_change": [
         {
           "edit": "priorities.time_to_market: 3 -> 2",
@@ -169,7 +169,7 @@
     },
     "database": {
       "choice": "Amazon RDS for PostgreSQL 17 — ap-south-1 (Mumbai) (multi-AZ / zone-redundant HA)",
-      "justification": "Strict ACID transactions for money movement and ledger postings; good security (priority 5/5); good maintainability (priority 4/5). The 99.95% target uses a standby in a second zone with automatic failover and point-in-time recovery. Automated backups and snapshots stay in India (ap-south-1 (Mumbai)); any copy goes to a second Indian region such as ap-south-2 (Hyderabad), as RBI localisation requires.",
+      "justification": "Strict ACID transactions for money movement and ledger postings; good security (priority 5/5); good maintainability (priority 4/5). The 99.95% target uses a standby in a second zone with automatic failover and point-in-time recovery. Automated backups and snapshots stay in India, in ap-south-1 (Mumbai); if a copy is enabled, keep it in a second Indian region such as ap-south-2 (Hyderabad), as RBI localisation requires storage only in India.",
       "driven_by": [
         "requirements.payments",
         "requirements.availability",

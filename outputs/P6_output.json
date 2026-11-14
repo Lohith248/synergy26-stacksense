@@ -71,7 +71,7 @@
       "alternatives": [
         {
           "choice": "Node.js 24 LTS + NestJS (TypeScript)",
-          "why_not": "With priorities.time_to_market=4, Python 3.13 + Django 5.2 LTS is faster to deliver with; learning curve 3/5 for a mixed team (team.experience=mixed). Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
+          "why_not": "With priorities.time_to_market=4, Python 3.13 + Django 5.2 LTS is faster to deliver with; Node.js 24 LTS + NestJS's learning curve is 3/5 for a mixed team (team.experience=mixed). Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
         },
         {
           "choice": "Python 3.13 + FastAPI",
@@ -117,7 +117,7 @@
         "label": "medium",
         "basis": "stability 0.87 (moderate) over 54 priority vectors; score margin 1.8 over the runner-up."
       },
-      "contrast": "Python 3.13 + Django 5.2 LTS rather than Node.js 24 LTS + NestJS (TypeScript). With priorities.time_to_market=4, Python 3.13 + Django 5.2 LTS is faster to deliver with; learning curve 3/5 for a mixed team (team.experience=mixed). Trade-off accepted: Convention-heavy framework: less flexible than micro-frameworks for unusual architectures.",
+      "contrast": "Python 3.13 + Django 5.2 LTS rather than Node.js 24 LTS + NestJS (TypeScript). With priorities.time_to_market=4, Python 3.13 + Django 5.2 LTS is faster to deliver with; Node.js 24 LTS + NestJS's learning curve is 3/5 for a mixed team (team.experience=mixed). Trade-off accepted: Convention-heavy framework: less flexible than micro-frameworks for unusual architectures.",
       "what_would_change": [
         {
           "edit": "requirements.realtime: false -> true",

@@ -90,6 +90,58 @@ class NeutralPriorityIsNeverTheReason(unittest.TestCase):
                         or "No priority or requirement this input states separates Vue 3 from React" in alt["why_not"], alt["why_not"])
 
 
+class NeutralFallbackWording(unittest.TestCase):
+    def texts(self, **kw):
+        return [t for t in all_text(run(**kw)) if "separates" in t or "level with" in t]
+
+    def test_all_neutral_says_so_not_the_project_type(self):
+        allthree = {f"priorities__{p}": 3 for p in ("cost", "time_to_market", "scalability", "performance", "maintainability", "security")}
+        for t in ("iot", "web_app", "ecommerce"):
+            ts = self.texts(project__type=t, **allthree)
+            self.assertTrue(ts, t)
+            for x in ts:
+                self.assertIn("all six priorities are at the neutral 3", x)
+                self.assertNotIn("project.type=", x)
+
+    def test_names_the_neutral_priorities_it_rests_on(self):
+        for sc in PUBLIC:
+            for t in all_text(evaluate(sc, counterfactuals=False)):
+                if "separates" in t:
+                    self.assertIn("rates higher only on priorities this input leaves at the neutral 3 (priorities.", t)
+                    self.assertNotIn("general ratings", t)
+
+
+class LearningCurveLeadsWithTheWinner(unittest.TestCase):
+    def test_p4_angular(self):
+        out = evaluate(PUBLIC[3], counterfactuals=False)
+        ang = next(a for a in out["stack"]["frontend"]["alternatives"] if a["choice"] == "Angular")["why_not"]
+        self.assertTrue(ang.startswith("React fits better: Angular's learning curve is 4/5 for a senior team (team.experience=senior)"), ang)
+        self.assertEqual(ang.lower().count("learning curve"), 1, ang)
+        self.assertIn("Known limit of Angular: support lasts 24 months", ang)
+
+    def test_no_bare_learning_fragment_anywhere(self):
+        for sc in PUBLIC:
+            for t in all_text(evaluate(sc, counterfactuals=False)):
+                self.assertFalse(t.startswith("Learning curve"), t)
+
+
+class KnowledgeBaseHasNoDuplicateKeys(unittest.TestCase):
+    def test_loader_rejects_duplicates(self):
+        from engine import kb
+        with self.assertRaises(ValueError):
+            json.loads('{"a": 1, "a": 2}', object_pairs_hook=kb._no_duplicate_keys)
+        self.assertEqual(json.loads('{"a": 1, "b": {"a": 2}}', object_pairs_hook=kb._no_duplicate_keys), {"a": 1, "b": {"a": 2}})
+
+    def test_every_kb_file_loads_clean(self):
+        for name in sorted(os.listdir(os.path.join(ROOT, "kb"))):
+            if name.endswith(".json"):
+                with open(os.path.join(ROOT, "kb", name), encoding="utf-8") as f:
+                    json.load(f, object_pairs_hook=__import__("engine.kb", fromlist=["x"])._no_duplicate_keys)
+
+    def test_angular_source_keeps_its_claim(self):
+        self.assertIn("R3:AN-01", SOURCES["angular-releases"]["claims"])
+
+
 class ConditionalLimits(unittest.TestCase):
     WS = "WebSockets need Django Channels"
     SEO = "Client-rendered pages are weak for SEO"
@@ -168,7 +220,10 @@ class RbiBackupText(unittest.TestCase):
                       requirements__payments=True, requirements__auth="phone_otp")
             j = out["stack"]["database"]["justification"]
             self.assertNotIn("no cross-region copies", j, cloud)
-            self.assertIn("stay in India", j, cloud)
+            self.assertIn("stay in India, in ", j, cloud)
+            self.assertIn("storage only in India", j, cloud)
+            self.assertNotIn("((", j, cloud)
+            self.assertNotIn("))", j.replace("(Mumbai))", ""), cloud)
             self.assertIn(second, j, cloud)
 
     def test_not_fired_without_rbi(self):
@@ -212,8 +267,8 @@ class VendorFactsAreTrue(unittest.TestCase):
 
     def test_angular_support_text_matches_the_source(self):
         ang = next(f for f in TECH["frontend_web"] if f["id"] == "angular")
-        self.assertIn("24 months", ang["limits"][0])
-        self.assertIn("v20", ang["limits"][0])
+        self.assertIn("24 months", " ".join(ang["limits"]))
+        self.assertIn("v20", " ".join(ang["limits"]))
         self.assertIn("12 active + 12 LTS", SOURCES["angular-releases"]["title"])
 
     def test_vendor_term_cites_the_pinning_input(self):

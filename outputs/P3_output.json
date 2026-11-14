@@ -21,11 +21,11 @@
       "alternatives": [
         {
           "choice": "Vue 3 (Vite SPA)",
-          "why_not": "No priority or requirement this input states separates Vue 3 from React (priorities.cost=2, priorities.scalability=5, priorities.performance=5, priorities.maintainability=4); React rates higher only on the knowledge base's general ratings. Known limit of Vue 3: smaller hiring pool and component ecosystem than React."
+          "why_not": "No priority or requirement this input states separates Vue 3 from React (priorities.cost=2, priorities.scalability=5, priorities.performance=5, priorities.maintainability=4); React rates higher only on priorities this input leaves at the neutral 3 (priorities.time_to_market=3). Known limit of Vue 3: smaller hiring pool and component ecosystem than React."
         },
         {
           "choice": "Next.js",
-          "why_not": "Learning curve 3/5 for a senior team (team.experience=senior). Known limit of Next.js: server runtime needed for SSR; more moving parts than a static site."
+          "why_not": "React fits better: Next.js's learning curve is 3/5 for a senior team (team.experience=senior). Known limit of Next.js: server runtime needed for SSR; more moving parts than a static site."
         }
       ],
       "tradeoffs": [
@@ -60,7 +60,7 @@
         "label": "high",
         "basis": "stability 0.91 (robust) over 54 priority vectors."
       },
-      "contrast": "React (Vite SPA) (web) rather than Vue 3 (Vite SPA). No priority or requirement this input states separates Vue 3 from React (priorities.cost=2, priorities.scalability=5, priorities.performance=5, priorities.maintainability=4); React rates higher only on the knowledge base's general ratings. Trade-off accepted: The first load waits for the JavaScript bundle, so page weight matters on slow devices.",
+      "contrast": "React (Vite SPA) (web) rather than Vue 3 (Vite SPA). No priority or requirement this input states separates Vue 3 from React (priorities.cost=2, priorities.scalability=5, priorities.performance=5, priorities.maintainability=4); React rates higher only on priorities this input leaves at the neutral 3 (priorities.time_to_market=3). Trade-off accepted: The first load waits for the JavaScript bundle, so page weight matters on slow devices.",
       "what_would_change": [
         {
           "edit": "requirements.seo_critical: false -> true",
