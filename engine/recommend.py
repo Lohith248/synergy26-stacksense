@@ -55,6 +55,10 @@ class Warnings:
             self.items.append({"code": code, "severity": sev, "message": msg, "fields": list(fields)})
 
 
+# n1: field -> the value that means "no preference"; such a field never belongs in a driven_by list
+NEUTRAL_FIELDS = {"infrastructure.data_residency": "none", "infrastructure.cloud_preference": "any"}
+
+
 def order_paths(paths):
     seen = []
     for p in paths:
@@ -978,6 +982,10 @@ def _recommend(req, assumptions, sid):
     second = None if ctx.get("active_active") else second_region(ctx, host, db_c if ctx["needs_db"] else None)
     if second:
         supporting.append(second)
+    # n1: driven_by lists only fields that influenced a choice; a neutral value (data_residency 'none', cloud_preference 'any') never did.
+    # Where a stated residency is applied from another input (description sentence, compliance) that input is cited instead (context.py, below).
+    for s_ in supporting:
+        s_["driven_by"] = list(dict.fromkeys(f for f in s_["driven_by"] if f not in NEUTRAL_FIELDS or ctx["req"].get(f) != NEUTRAL_FIELDS[f]))
 
     if ctx.get("payment_location_assumption"):  # E45: a gateway-location gap is stated as an assumption, not as a relaxed constraint
         assumptions.append(ctx["payment_location_assumption"])
@@ -1777,6 +1785,7 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
             + ": a second app instance in another zone {r} (the hosting line counted again).")
     onprem, vm = host["kind"] == "onprem", host["kind"] == "vm"
     obj = any(s["layer"] == "storage" and s["deployment"] != "self_hosted" for s in supporting)
+    extra_proc = []
     for s in supporting:
         clo, chi = s["_cost"][t]
         name = short(s["choice"])
@@ -1785,6 +1794,12 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
             add(name, 0, 0, f"{s['layer']}: {name} {{r}} here: the files it holds are priced by volume in the 'Stored data' line, not charged twice.")
         elif chi:
             add(s.get("_label", name), clo, chi, f"{s['layer']}: {name} {{r}}." + s.get("_note", ""))
+            if s.get("_extra_proc"):
+                extra_proc.append(name)
+        elif s.get("_on_plan"):
+            # n1: same rule as the self-hosted branch below, for an extra process whose deployment label is "library" on a hyperscaler host
+            add(name, 0, 0, f"{s['layer']}: {name} runs as another app on the same {short(host['name'])} plan: {{r}} extra; size the plan's memory for it.")
+            extra_proc.append(name)
         elif s["deployment"] == "self_hosted" and not s["choice"].startswith("Existing"):
             # judge B4: a self-hosted tool is never silently free
             if onprem and "existing" in s["choice"].lower():
@@ -1796,10 +1811,16 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
             elif host.get("plans"):
                 # a plan-based host (App Service) runs several apps on the instances already paid for
                 add(name, 0, 0, f"{s['layer']}: {name} runs as another app on the same {short(host['name'])} plan: {{r}} extra; size the plan's memory for it.")
+                extra_proc.append(name)
             else:
                 # ponytail: one extra entry-tier instance of the chosen host per tool; a per-tool memory sizing table would be finer
                 elo, ehi = host["cost"][0]
                 add(name, elo, max(ehi, 5), f"{s['layer']}: {name} as its own small container on {short(host['name'])}: {{r}} (the host's entry tier).")
+                extra_proc.append(name)
+    if extra_proc:  # n1: one stated rule for every extra self-run process (identity server, realtime sync server, ...)
+        lines.append("Extra self-run processes (" + ", ".join(extra_proc) + "): one rule applies to all of them. On a plan-based host (an App Service plan) each "
+                     "runs on the plan already paid for ($0 extra, size the plan's memory); on a host without a plan each is costed as one extra "
+                     "entry-tier instance of the host.")
     gb = ctx["data_gb"]
     db_managed = bool(db_item and db_c and db_c.vkey not in ("self", "existing"))
     if obj or (db_managed and gb > 20):

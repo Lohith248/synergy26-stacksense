@@ -266,7 +266,7 @@
       {
         "layer": "auth",
         "choice": "Microsoft Entra ID (existing tenant) via OpenID Connect",
-        "justification": "enterprise_sso is required and 'Microsoft Entra ID (Azure AD)' already exists: reuse it so employees keep one login; app roles/groups in the token drive approvals and admin rights.",
+        "justification": "enterprise_sso is required and 'Microsoft Entra ID (Azure AD)' already exists: reuse it so employees keep one login; app roles/groups in the token drive approvals and admin rights. Data location of the identity service: Microsoft Entra ID stores identity and access data (the directory, not this application's data) in the geo-location chosen when the tenant was created (Microsoft Learn lists Australia, Asia/Pacific, Europe/Middle East/Africa, Japan, North America and Worldwide; the location cannot be changed afterwards), so check that tenant's geo-location against the India residency requirement and the compliance requirement; the application's own data is a separate matter, covered by the database, hosting and storage choices in this plan.",
         "driven_by": [
           "requirements.auth",
           "infrastructure.existing_systems"
@@ -289,7 +289,8 @@
         "data_bearing": false,
         "data_location": null,
         "sources": [
-          "https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/what-is-single-sign-on"
+          "https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/what-is-single-sign-on",
+          "https://learn.microsoft.com/en-us/entra/fundamentals/data-residency"
         ]
       },
       {

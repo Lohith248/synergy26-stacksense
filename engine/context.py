@@ -1030,6 +1030,8 @@ def build(req):
         c["res_paths"][0] = "compliance"
     if c["res_stated"] and c["res_stated"]["pin"] and not c["country"]:
         c["res_paths"].append("project.description")
+    if c["res_stated"] and c["res_stated"]["pin"] and req["infrastructure.data_residency"] == "none":  # n1: the sentence, not the neutral field, pinned the region
+        c["res_paths"] = [x for x in c["res_paths"] if x != "infrastructure.data_residency"]
     c["self_host_only"] = c["deploy"] in ("on_premise", "air_gapped")
     c["no_internet"] = c["deploy"] == "air_gapped"
     c["prio"] = {k: req[f"priorities.{k}"] for k in ("cost", "time_to_market", "scalability", "performance",

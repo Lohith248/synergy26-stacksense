@@ -652,6 +652,18 @@ def build(ctx, host, backend, db, mobile, warn):
                        + (["Needs a network path from the app to the directory (VPN or private link) for directory sign-in"] if not saas and not ctx["self_host_only"] else []),
                        "saas" if saas else "self_hosted", ip.get("provider", "neutral"), False, Z, ip["src"]))
 
+    # n1: any Microsoft Entra ID auth choice (new or existing tenant) when residency or compliance is set: where Entra stores identity data
+    if ctx["res_named"] or ctx["compliance"]:
+        for e in out:
+            if e["layer"] == "auth" and "Entra" in e["choice"] and cite(["entra-data-residency"])[0] not in e["sources"]:
+                e["justification"] += (" Data location of the identity service: Microsoft Entra ID stores identity and access data (the directory, not this application's data) "
+                                       "in the geo-location chosen when the tenant was created (Microsoft Learn lists Australia, Asia/Pacific, Europe/Middle East/Africa, Japan, North America and Worldwide; "
+                                       "the location cannot be changed afterwards), so check that tenant's geo-location against "
+                                       + (f"the {res_name(ctx)} residency requirement" if ctx["res_named"] else "the compliance requirement")
+                                       + (" and the compliance requirement" if ctx["res_named"] and ctx["compliance"] else "")
+                                       + "; the application's own data is a separate matter, covered by the database, hosting and storage choices in this plan.")
+                e["sources"] = e["sources"] + cite(["entra-data-residency"])
+
     # ---------------- storage
     # a description that has users upload files overrides requirements.file_media_storage=false (UPLOADS_VS_STORAGE_FIELD says so)
     if req["requirements.file_media_storage"] or d["media"] or d["kyc"] or (d["uploads"] and ctx["needs_backend"]) or (
@@ -761,7 +773,7 @@ def build(ctx, host, backend, db, mobile, warn):
                                   "yrs, binary-compatible with Yjs, merges updates inside the Rust API", ["y-crdt"])}.get(bid)
             base = "Several people edit the same shared item at once (description evidence): CRDTs merge concurrent edits without conflicts and broadcast cursors/presence (awareness); "
             trade = ["Stateful socket servers need sticky routing or a Redis pub/sub backplane when scaled out"]
-            rcost, rnote, ralts = Z, "", []
+            rcost, rnote, ralts, out_on_plan = Z, "", [], False
             if port:
                 rname, rhow, rsrc = port
                 rwhy = base + rhow + ", so no second runtime is added."
@@ -774,9 +786,11 @@ def build(ctx, host, backend, db, mobile, warn):
                         + bname + ", so Hocuspocus runs as a separate Node.js service.")
                 trade = ["An extra Node.js runtime beside " + bname + ": its own deploys, dependency updates and monitoring; it must verify the API's auth tokens"] + trade
                 ralts = [("A sync server in the backend's language", "no Yjs-compatible server for it in the knowledge base")]
-                if not selfh:  # its own small always-on instance on the same platform; on a VM it shares the server
-                    e0, e1 = host["cost"][0], host["cost"][1]
-                    rcost = [e0, e0, e1, e1]
+                if host.get("plans"):  # n1: one rule for every extra self-run process (see recommend.py): a plan-based host runs it on the plan already paid for
+                    out_on_plan = True
+                elif not selfh:  # its own small always-on instance on the same platform; on a VM it shares the server
+                    elo, ehi = host["cost"][0]  # n1: the same entry-tier figure recommend.py uses for any other extra self-run container
+                    rcost = [[elo, max(ehi, 5)]] * 4
                     rnote = " Basis: one extra small always-on instance for the Node.js sync server at the host's entry price (estimate)."
             out.append(svc("realtime", rname, rwhy, dp + ["project.type", "project.description"],
                            [("Liveblocks (managed)", "fastest to start but per-room pricing and the shared data held by a third party"),
@@ -785,6 +799,9 @@ def build(ctx, host, backend, db, mobile, warn):
                            ["yjs"] + rsrc + ["liveblocks-pricing"]))
             if rnote:
                 out[-1]["_note"] = rnote
+                out[-1]["_extra_proc"] = True
+            if out_on_plan:
+                out[-1]["_on_plan"] = True
         else:
             bid = backend["id"] if backend else ""
             native = {"dotnet-aspnet": "ASP.NET Core SignalR", "java-spring": "Spring WebSocket (STOMP)",
