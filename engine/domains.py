@@ -224,7 +224,7 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
         if selfh or not hyper:
             vc, vsrc, vdep, vprov = f"{label}: LiveKit (open-source WebRTC server, self-hosted)", ["livekit"], "self_hosted", "neutral"
         else:
-            vc, vsrc, vdep, vprov = f"{label}: managed WebRTC video API (for example Daily); recordings off by default", ["daily-docs"], "managed", "neutral"
+            vc, vsrc, vdep, vprov = f"{label}: Daily (managed WebRTC video API); recordings off by default", ["daily-docs"], "managed", "neutral"
         live_only = bool(d["live_media"] and not d["video_call"])
         out.append(svc("realtime", vc,
                        ("Live video runs through a WebRTC media server (SFU), never through the application server: the API only issues short-lived room tokens."

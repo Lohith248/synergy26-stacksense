@@ -146,3 +146,35 @@ class ClientPlatformFit(unittest.TestCase):
         out = desk("web_app", "Field notes web app that syncs to the server.", ["typescript"], ("web",), offline=True)
         text = " ".join(x["choice"] for x in out["stack"]["supporting"])
         self.assertIn("Service worker", text)
+
+
+def web(ptype, desc, cloud="aws", **req):
+    s = copy.deepcopy(BASE)
+    s["project"].update({"type": ptype, "description": desc, "platforms": ["web"]})
+    s["infrastructure"].update({"cloud_preference": cloud, "data_residency": "us"})
+    s["requirements"].update(req)
+    return run(s)
+
+
+def video(out):
+    return [x for x in out["stack"]["supporting"] if x["choice"].startswith(("Video calls:", "Live audio/video:"))]
+
+
+class VideoDetection(unittest.TestCase):
+    def test_telehealth_wordings_add_video(self):
+        for ptype, desc in (("healthtech", "Video visits between patients and doctors, plus appointment booking."),
+                            ("web_app", "A telemedicine portal for rural clinics."),
+                            ("marketplace", "Tutors offer virtual appointments to students and get paid per session."),
+                            ("saas_b2b", "Recruiters run video interviews with candidates inside the hiring pipeline.")):
+            v = video(web(ptype, desc))
+            self.assertEqual(len(v), 1, desc)
+
+    def test_managed_video_names_a_product(self):
+        v = video(web("healthtech", "Video appointments with therapists."))[0]
+        self.assertTrue(v["choice"].startswith("Video calls: Daily (managed WebRTC video API)"), v["choice"])
+        self.assertNotIn("for example", v["choice"])
+
+    def test_no_video_without_live_video_wording(self):
+        for desc in ("Appointment booking for clinics with reminders.", "Clinic visits are logged by staff after each appointment.",
+                     "A virtual tour of homes for sale with photos."):
+            self.assertEqual(video(web("healthtech", desc)), [], desc)
