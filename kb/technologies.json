@@ -122,6 +122,7 @@
      "src": ["gcp-locations"]},
     {"id": "digitalocean-droplet", "multi_zone": false, "host_os": "customer", "scaling": "fixed", "name": "DigitalOcean Droplet (Docker Compose)", "provider": "digitalocean", "deploy": "self_hosted", "kind": "vm",
      "regions": {"india": "BLR1 (Bangalore)", "eu": "FRA1 (Frankfurt)", "us": "NYC3 (New York)", "australia": "SYD1 (Sydney)", "singapore": "SGP1 (Singapore)", "united_kingdom": "LON1 (London)", "canada": "TOR1 (Toronto)"},
+     "single_site_regions": ["india", "eu", "australia", "singapore", "united_kingdom", "canada"],
      "r": [5, 3, 3, 4, 3, 3], "learning": 2, "ops": 4, "max_tier": 2, "sla": "99.99 (Droplet SLA)", "commercial_ok": true,
      "cost": [[6, 18], [18, 60], [60, 300], [300, 1500]],
      "strengths": ["Cheapest predictable VM pricing with an India region"],

@@ -265,3 +265,70 @@ class TeamWarnings(unittest.TestCase):
     def test_self_run_with_devops_or_managed_is_silent(self):
         self.assertEqual(sev(ops_run("iot", 2, True, "99.9", dep="self_hosted_cloud_vm"), "SELF_RUN_WITHOUT_DEVOPS"), [])
         self.assertEqual(sev(ops_run("iot", 2, False, "99.9"), "SELF_RUN_WITHOUT_DEVOPS"), [])
+
+
+def gap_run(ptype, cloud, dep, **req):
+    s = copy.deepcopy(BASE)
+    s["project"].update({"type": ptype, "description": "Internal system inside our own network.", "platforms": ["web"]})
+    s["infrastructure"].update({"cloud_preference": cloud, "deployment_model": dep, "data_residency": "none"})
+    s["requirements"].update(req)
+    return run(s)
+
+
+class AllAirGapConflicts(unittest.TestCase):
+    def test_infeasible_lists_every_air_gap_conflict(self):
+        out = gap_run("healthtech", "aws", "air_gapped", auth="social", payments=True, ml_features="llm_rag")
+        self.assertEqual(out["status"], "infeasible")
+        c = codes(out)
+        for code in ("CLOUD_PROVIDER_VS_ONPREM", "SOCIAL_LOGIN_NEEDS_NETWORK", "PAYMENTS_NEED_NETWORK", "LLM_API_NEEDS_NETWORK"):
+            self.assertIn(code, c)
+        self.assertIn("social login, card payments, a hosted LLM API", out["summary"])
+
+    def test_other_types_and_clouds(self):
+        out = gap_run("ecommerce", "azure", "air_gapped", payments=True)
+        self.assertIn("PAYMENTS_NEED_NETWORK", codes(out))
+        out = gap_run("social", "gcp", "air_gapped", auth="phone_otp")
+        self.assertIn("PHONE_OTP_NEEDS_NETWORK", codes(out))
+        self.assertEqual(out["status"], "infeasible")
+
+    def test_not_for_on_premise_or_without_such_requirements(self):
+        out = gap_run("ecommerce", "aws", "on_premise", auth="social", payments=True)
+        self.assertEqual(out["status"], "infeasible")
+        self.assertEqual([x for x in codes(out) if x.endswith(("NEEDS_NETWORK", "NEED_NETWORK"))], [])
+        out = gap_run("internal_tool", "aws", "air_gapped")
+        self.assertEqual(codes(out), ["CLOUD_PROVIDER_VS_ONPREM"])
+
+
+def vm_run(ptype, res, avail, desc="Customers sign in and manage their records."):
+    s = copy.deepcopy(BASE)
+    s["project"].update({"type": ptype, "description": desc, "platforms": ["web"]})
+    s["infrastructure"].update({"deployment_model": "self_hosted_cloud_vm", "cloud_preference": "any", "data_residency": res})
+    s["team"].update({"size": 10, "has_devops": True, "experience": "mixed", "languages": ["java", "javascript"]})
+    s["priorities"].update({"cost": 4})
+    s["requirements"]["availability"] = avail
+    if res == "other":
+        s["infrastructure"]["residency_country"] = "singapore"
+    return run(s)
+
+
+def cost_text(out):
+    return " ".join(out["estimated_monthly_cost_usd"]["assumptions"])
+
+
+class SingleSiteAvailability(unittest.TestCase):
+    def test_single_datacenter_region_never_claims_another_zone(self):
+        for ptype, res, desc in (("fintech", "india", "Loan servicing portal for an Indian lender."),
+                                 ("saas_b2b", "eu", "Scheduling tool for European clinics."),
+                                 ("web_app", "other", "Booking app for Singapore gyms; data must stay in Singapore.")):
+            out = vm_run(ptype, res, "99.95", desc)
+            if not out["stack"]["hosting"]["choice"].startswith("DigitalOcean"):
+                self.skipTest("host is not a single-datacenter VM for this input: " + out["stack"]["hosting"]["choice"])
+            self.assertIn("SINGLE_SITE_AVAILABILITY", codes(out), ptype)
+            self.assertNotIn("another zone", cost_text(out), ptype)
+            self.assertIn("same datacenter", cost_text(out), ptype)
+
+    def test_not_for_lower_target_or_multi_datacenter_region(self):
+        out = vm_run("fintech", "india", "99.9")
+        self.assertNotIn("SINGLE_SITE_AVAILABILITY", codes(out))
+        out = vm_run("saas_b2b", "us", "99.95")
+        self.assertNotIn("SINGLE_SITE_AVAILABILITY", codes(out))

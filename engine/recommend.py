@@ -106,6 +106,30 @@ def hard_conflicts(ctx):
 
 PROVIDER_NAME = {"aws": "AWS", "azure": "Azure", "gcp": "Google Cloud"}
 
+NET_NEED_LABEL = {"SOCIAL_LOGIN_NEEDS_NETWORK": "social login", "PHONE_OTP_NEEDS_NETWORK": "phone OTP",
+                  "PAYMENTS_NEED_NETWORK": "card payments", "LLM_API_NEEDS_NETWORK": "a hosted LLM API"}
+
+
+def network_conflicts(ctx):
+    """Requirements an air-gapped network cannot reach, reported next to an infeasible result (no stack, so nothing is relaxed)."""
+    req = ctx["req"]
+    if not ctx["no_internet"]:
+        return []
+    out, dep = [], ["infrastructure.deployment_model"]
+    if req["requirements.auth"] == "social":
+        out.append(("SOCIAL_LOGIN_NEEDS_NETWORK", "critical", "Social login depends on external identity providers (Google, Apple, Microsoft), "
+                    "which an air-gapped network cannot reach; only local accounts are possible there.", ["requirements.auth"] + dep))
+    if req["requirements.auth"] == "phone_otp":
+        out.append(("PHONE_OTP_NEEDS_NETWORK", "critical", "Phone OTP needs a telecom/SMS link, which an air-gapped network does not have; "
+                    "only an on-site SMS gateway or hardware tokens would work.", ["requirements.auth"] + dep))
+    if req["requirements.payments"]:
+        out.append(("PAYMENTS_NEED_NETWORK", "critical", "Taking card payments requires reaching a payment network, which an air-gapped deployment forbids; "
+                    "payments would have to be recorded offline or taken by a separately connected system.", ["requirements.payments"] + dep))
+    if req["requirements.ml_features"] == "llm_rag":
+        out.append(("LLM_API_NEEDS_NETWORK", "warning", "requirements.ml_features 'llm_rag' cannot use a hosted LLM API from an air-gapped network; "
+                    "only an open-weights model run on local GPU hardware, imported into the network by hand, would work.", ["requirements.ml_features"] + dep))
+    return out
+
 
 def short(cid):
     n = cx.COUNTRIES[cid][0]
@@ -558,8 +582,12 @@ def _recommend(req, assumptions, sid):
     if conflicts:
         for code, msg, fields in conflicts:
             W(code, "critical", msg, fields)
+        also = network_conflicts(ctx)  # D24-p2: every requirement the air gap also rules out, not only the first conflict
+        for code, sev_, msg, fields in also:
+            W(code, sev_, msg, fields)
         return {"scenario_id": sid, "engine_version": ENGINE_VERSION, "status": "infeasible",
-                "summary": "No stack can satisfy these hard constraints together: " + " ".join(c[1].split('. ')[0] + "." for c in conflicts),
+                "summary": "No stack can satisfy these hard constraints together: " + " ".join(c[1].split('. ')[0] + "." for c in conflicts)
+                + (f" The air-gapped deployment also rules out: {', '.join(NET_NEED_LABEL[a[0]] for a in also)}." if also else ""),
                 "architecture_style": "other", "stack": None,
                 "estimated_monthly_cost_usd": {"min": None, "max": None, "assumptions": ["Not estimated: hard constraints conflict, so no stack was chosen."]},
                 "warnings": W.items, "assumptions": assumptions, "validation_errors": []}
@@ -1294,7 +1322,7 @@ def relax_note(ctx, pctx, host, db_item, db_c, supporting, cost, assumptions):
         elif db_c and db_c.vkey == "self" and host["kind"] == "onprem" and not sized_ha:
             dropped.append("the standby database server on separate hardware with streaming replication (and its share of the hardware line)")
         if not sized_ha and not ctx["local_first"] and host["kind"] not in ("static", "onprem"):
-            dropped.append("the second app instance in another zone")
+            dropped.append("the second app instance" + ("" if single_site(ctx, host) else " in another zone"))
         assumptions.append(f"Sized for {RELAX['availability']}% availability, not the requested {req['requirements.availability']}% (a solo beginner cannot run "
                            "on-call and failover drills): the stack leaves out " + ("; ".join(dropped) if dropped else "nothing separate: this design added no component for the higher target, so only the stated target changes")
                            + ". Add them when on-call cover exists.")
@@ -1361,9 +1389,24 @@ def desc_quote(ctx, rx):
     return "project.description"
 
 
+def single_site(ctx, host):
+    """D24-p2: the host's region text when the provider lists one datacenter (no zones) for the residency region, else ''."""
+    loc = ctx["res_key"]
+    return host["regions"].get(loc, "") if loc and loc in host.get("single_site_regions", ()) else ""
+
+
 def contradictions(ctx, W, assumptions, host, backend):
     req = ctx["req"]
     avail = req["requirements.availability"]
+    one_site = single_site(ctx, host)
+    if avail in ("99.95", "99.99") and one_site and ctx["needs_backend"] and not ctx["local_first"]:
+        W("SINGLE_SITE_AVAILABILITY", "warning",
+          f"{host['name']} in {one_site}: DigitalOcean's regional availability page lists one datacenter for this region and describes no availability zones, so a second "
+          f"app server there covers a server failure but not an outage of the site, and the {avail}% target is not met on paper. Keep a streaming replica of a "
+          "self-run database on the second server and tested off-site backups, or choose a provider with several zones in the residency region if the target is firm."
+          if host["provider"] == "digitalocean" else
+          f"{host['name']} in {one_site} is a single site: a {avail}% target is not met on paper there.",
+          ["requirements.availability", "infrastructure.data_residency"])
     if avail in ("99.95", "99.99") and ctx["local_first"]:
         W("AVAILABILITY_LOCAL_APP", "info",
           f"A {avail}% availability target has no server to apply to: the app runs on each user's device, so availability is the app's own crash-free "
@@ -1833,9 +1876,12 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         lines.append(("Availability ≥99.95%" if ha_paths(ctx["sreq"])[0] == "requirements.availability" else cap(" and ".join(ha_targets(ctx["sreq"]))))
                      + ": the standby server is hardware, counted in the indicative hardware line below; there is no cloud bill for it.")
     elif ha:
+        one_site = single_site(ctx, host)
         add("Second app instance (availability)", hlo, hhi,
             ("Availability ≥99.95%" if ha_paths(ctx["sreq"])[0] == "requirements.availability" else cap(" and ".join(ha_targets(ctx["sreq"]))))
-            + ": a second app instance in another zone {r} (the hosting line counted again).")
+            + (f": a second app instance on a separate server in the same datacenter, {one_site}, {{r}} (the hosting line counted again; "
+               "one datacenter, so it covers a server failure, not a site outage)." if one_site else
+               ": a second app instance in another zone {r} (the hosting line counted again)."))
     onprem, vm = host["kind"] == "onprem", host["kind"] == "vm"
     obj = any(s["layer"] == "storage" and s["deployment"] != "self_hosted" for s in supporting)
     extra_proc = []
