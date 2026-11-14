@@ -526,6 +526,7 @@ RELAX = {"availability": "99.9",   # availability the stack is sized for when AV
          "pilot_peak": 200,        # <= 200 concurrent), the largest scale a budget under SCALE_BUDGET_USD can plausibly fund
          "latency_ms": 50}         # p95 below this on realtime traffic with unspecified/global users is flagged LATENCY_TARGET_VS_REACH
 AVAIL_TEAM_NO_DEVOPS = 5          # planning heuristic: a team of up to this many people without DevOps gets AVAILABILITY_VS_TEAM at 99.95%/99.99%
+USERS_IMPLAUSIBLE = 10_000_000_000  # planning heuristic: more users than this is more than the number of people on Earth (input typo check)
 SCALE_BUDGET_USD = 100             # planning heuristic: below this monthly budget a 500,000-user / 20,000-concurrent product is a critical conflict
 
 
@@ -601,7 +602,7 @@ def _recommend(req, assumptions, sid):
         for code, sev_, msg, fields in also:
             W(code, sev_, msg, fields)
         return {"scenario_id": sid, "engine_version": ENGINE_VERSION, "status": "infeasible",
-                "summary": "No stack can satisfy these hard constraints together: " + " ".join(c[1].split('. ')[0] + "." for c in conflicts)
+                "summary": "No stack can satisfy these hard constraints together: " + " ".join(c[1].split('. ')[0].rstrip(".") + "." for c in conflicts)
                 + (f" The air-gapped deployment also rules out: {', '.join(NET_NEED_LABEL[a[0]] for a in also)}." if also else ""),
                 "architecture_style": "other", "stack": None,
                 "estimated_monthly_cost_usd": {"min": None, "max": None, "assumptions": ["Not estimated: hard constraints conflict, so no stack was chosen."]},
@@ -1146,9 +1147,9 @@ def _recommend(req, assumptions, sid):
         defer = rs.deferrable(supporting, pctx)  # D13 E3b: explain what could wait; nothing is removed
         defer_txt = (" Deferrable at launch (sized for scale, not required by a hard constraint): "
                      + ", ".join(f"{n} (${v})" for n, v in defer)
-                     + f"; deferring all of them lowers the minimum to ${max(0, cost['min'] - sum(v for _, v in defer))}.") if defer else ""
+                     + f"; deferring all of them lowers the minimum to ${cx.num(max(0, cost['min'] - sum(v for _, v in defer)))}.") if defer else ""
         W("BUDGET_EXCEEDED", sev,
-          f"Estimated minimum ${cost['min']}/month exceeds the ${cx.num(ctx['budget'])}/month budget{top_txt}. The stack keeps the hard constraints; "
+          f"Estimated minimum ${cx.num(cost['min'])}/month exceeds the ${cx.num(ctx['budget'])}/month budget{top_txt}. The stack keeps the hard constraints; "
           "to fit the budget, reduce scope (fewer managed services, lower availability) or raise the budget." + defer_txt + hw_only + far_txt + over_txt,
           ["budget.monthly_infra_usd"])
     elif host["kind"] != "onprem" and ctx["budget"] >= 500 and cost["max"] * 8 < ctx["budget"] and not costreal.training_open_ended(ctx):
@@ -1162,10 +1163,10 @@ def _recommend(req, assumptions, sid):
     elif cost["max"] > ctx["budget"] > 0:
         far = cost["max"] > 2 * ctx["budget"]
         W("BUDGET_AT_RISK", "warning" if far else "info",
-          f"Upper estimate ${cost['max']}/month is "
+          f"Upper estimate ${cx.num(cost['max'])}/month is "
           + (f"{cost['max'] / ctx['budget']:.1f}x the" if far else f"{max(1, round((cost['max'] / ctx['budget'] - 1) * 100))}% above the")
           + f" ${cx.num(ctx['budget'])} budget at peak usage"
-          + top_txt + f". Launch near the ${cost['min']} lower bound and set billing alerts at the budget." + over_txt,
+          + top_txt + f". Launch near the ${cx.num(cost['min'])} lower bound and set billing alerts at the budget." + over_txt,
           ["budget.monthly_infra_usd"])
 
     declined = ov.declined_requests(ctx)  # A1: hype that the description asks for, declined with the numbers and the stack chosen instead
@@ -1485,7 +1486,7 @@ def contradictions(ctx, W, assumptions, host, backend, db_self=False):
         # statement 6 example (short timeline, many platforms): critical at 8 person-weeks or less
         extreme = ctx["size"] * ctx["weeks"] <= 8
         W("TIMELINE_VS_SCOPE", "critical" if extreme else "warning",
-          f"{n_plat} client platforms in {ctx['weeks']} weeks with a team of {ctx['size']} is "
+          f"{n_plat} client platforms in {ctx['weeks']} week{'' if ctx['weeks'] == 1 else 's'} with a team of {ctx['size']} is "
           + (f"not achievable. Relaxed: the MVP ships {'web' if ctx['web'] else 'one platform'} first; the stack covers every platform, but the others follow after the MVP." if extreme
              else "aggressive; ship web first and add other platforms after the MVP."),
           ["project.platforms", "timeline.mvp_weeks", "team.size"])
@@ -1503,6 +1504,10 @@ def contradictions(ctx, W, assumptions, host, backend, db_self=False):
     if req["requirements.seo_critical"] and not ctx["web"]:
         W("SEO_WITHOUT_WEB", "warning", "seo_critical is true but no web platform is listed; search engines cannot index native apps. Add a web landing site.",
           ["requirements.seo_critical", "project.platforms"])
+    big = max(req["scale.users_12_months"], req["scale.users_at_launch"])
+    if big > USERS_IMPLAUSIBLE:  # p3: an impossible user count is reported, not sized silently
+        W("USERS_IMPLAUSIBLE", "warning", f"{big:,} users is more than the number of people on Earth; check scale.users_at_launch and "
+          "scale.users_12_months (the cost and tier figures follow the number as given).", ["scale.users_at_launch", "scale.users_12_months"])
     peak = req["scale.peak_concurrent_users"]
     if peak is not None:
         top = max(req["scale.users_12_months"], req["scale.users_at_launch"])
@@ -1810,7 +1815,7 @@ def _usd_range(lo, hi, commas=True):
     """'$a-b', or '$0' when both bounds are 0 (a bare '$0-0' reads as a typo); thousands separators only from 10,000 (as printed before)."""
     if lo == hi == 0:
         return "$0"
-    return f"${lo:,}-{hi:,}" if commas and hi >= 10000 else f"${lo}-{hi}"
+    return f"${lo:,}-{hi:,}" if (commas and hi >= 10000) or hi >= 1_000_000 else f"${lo}-{hi}"  # p3: millions always separated
 
 
 def cost_band(ctx, host, db_item, db_c, supporting, assumptions):

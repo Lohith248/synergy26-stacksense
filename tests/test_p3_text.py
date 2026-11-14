@@ -1,11 +1,12 @@
 """Track p3 (15 Nov 2026): false or template sentences removed. Each test written before the change."""
 import json
 import os
+import re
 import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from test_round9 import run, sup  # noqa: E402
+from test_round9 import codes, run, sup  # noqa: E402
 
 
 def bi(out):
@@ -123,6 +124,39 @@ class LanguageAndRegionHonesty(unittest.TestCase):
         w = heavy_client_why(ctx("Replace our spreadsheets", offline=True))
         for never in ("drag-and-drop", "canvas", "trading", "collaboration"):
             self.assertNotIn(never, w)
+
+
+class NumbersAndGrammar(unittest.TestCase):
+    """A-D12/A-D20: separators on large dollar amounts, impossible user counts flagged, '1 week', no '..'."""
+
+    def test_impossible_user_count_warned(self):
+        for typ in ("web_app", "ecommerce", "iot"):
+            out = run(**{"project.type": typ, "scale.users_at_launch": 10 ** 12, "scale.users_12_months": 10 ** 18,
+                         "scale.peak_concurrent_users": 1000})
+            self.assertIn("USERS_IMPLAUSIBLE", codes(out), typ)
+        for n in (3000, 2_000_000_000):
+            out = run(**{"scale.users_12_months": n})
+            self.assertNotIn("USERS_IMPLAUSIBLE", codes(out), n)
+
+    def test_large_dollar_amounts_have_separators(self):
+        out = run(**{"scale.users_at_launch": 10 ** 12, "scale.users_12_months": 10 ** 18, "budget.monthly_infra_usd": 10 ** 12})
+        t = dump_text(out)
+        self.assertIsNone(re.search(r"\$\d{7,}", t), re.findall(r".{30}\$\d{7,}", t)[:2])
+        from engine.recommend import _usd_range
+        self.assertEqual(_usd_range(1200, 4500, commas=False), "$1200-4500")
+        self.assertEqual(_usd_range(1200, 2_500_000, commas=False), "$1,200-2,500,000")
+
+    def test_one_week_singular(self):
+        t = dump_text(run(**{"timeline.mvp_weeks": 1, "team.size": 1, "project.platforms": ["web", "android", "ios", "desktop"]}))
+        self.assertIn("platforms in 1 week with", t)
+        self.assertNotIn("1 weeks", t)
+        t = dump_text(run(**{"timeline.mvp_weeks": 4, "team.size": 1, "project.platforms": ["web", "android", "ios", "desktop"]}))
+        self.assertIn("platforms in 4 weeks with", t)
+
+    def test_infeasible_summary_single_period(self):
+        out = run(**{"project.type": "fintech", "compliance": ["rbi_localisation"], "infrastructure.data_residency": "eu",
+                     "requirements.payments": True})
+        self.assertNotIn("..", out.get("summary", "") + dump_text(out).replace("...", ""))
 
 
 if __name__ == "__main__":
