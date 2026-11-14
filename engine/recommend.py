@@ -1430,8 +1430,14 @@ def contradictions(ctx, W, assumptions, host, backend):
         # D24-p2: one rule for every small team without DevOps (sizes 1..AVAIL_TEAM_NO_DEVOPS); a static site on a CDN has no server to staff
         extreme = ctx["avail_relaxed"]
         # a 3..AVAIL_TEAM_NO_DEVOPS-person team can staff a rota for 99.95%: stated as info; 99.99% or one or two people: warning
-        W("AVAILABILITY_VS_TEAM", "critical" if extreme else "warning" if (ctx["size"] <= 2 or avail == "99.99") else "info",
-          f"A {avail}% availability target (≈{ {'99.95': '22', '99.99': '4.4'}[avail]} min downtime/month) needs on-call and redundancy that a {ctx['size']}-person {ctx['exp']} team{'' if ctx['devops'] else ' without DevOps'} rarely sustains. " + ("Plan on-call or relax the target." if extreme else "Managed multi-zone services were preferred; plan on-call or relax the target.")
+        avt_sev = "critical" if extreme else "warning" if (ctx["size"] <= 2 or avail == "99.99") else "info"
+        team = f"a {ctx['size']}-person {ctx['exp']} team{'' if ctx['devops'] else ' without DevOps'}"
+        W("AVAILABILITY_VS_TEAM", avt_sev,
+          f"A {avail}% availability target (≈{ {'99.95': '22', '99.99': '4.4'}[avail]} min downtime/month) needs on-call and redundancy"
+          + (f": {team} can staff an on-call rota for it, but plan the rota and who handles failover. " if avt_sev == "info"
+             else f" that {team} rarely sustains. ")
+          + ("Plan on-call or relax the target." if extreme else "Managed multi-zone services were preferred; plan on-call or relax the target."
+             if avt_sev != "info" else "Managed multi-zone services were preferred.")
           + (f" Relaxed: the stack is sized for {RELAX['availability']}%, not 99.99% (see assumptions for the dropped items), because a solo beginner cannot staff 24/7 on-call or failover drills; treat 99.99% as best effort until on-call cover exists." if extreme else ""),
           ["requirements.availability", "team.size", "team.experience", "team.has_devops"])
     dep = req["infrastructure.deployment_model"]
@@ -1440,7 +1446,7 @@ def contradictions(ctx, W, assumptions, host, backend):
         W("SELF_RUN_WITHOUT_DEVOPS", "info",  # an ownership gap to plan for, not a conflict between inputs
           f"infrastructure.deployment_model is '{dep}' and team.has_devops is false: operating-system patching, TLS certificates, backups and tested restores, "
           f"monitoring and alerting, and capacity changes are the team's own job on these servers. Name an owner for each in the {ctx['size']}-person team, "
-          "automate patching and backups from day one, or reconsider managed_cloud if the stated constraints allow it.",
+          "automate patching and backups from day one" + (", or reconsider managed_cloud if the stated constraints allow it." if dep == "self_hosted_cloud_vm" else "."),
           ["infrastructure.deployment_model", "team.has_devops"])
     if avail == "99.99" and not ctx["local_first"]:
         why = ("A 99.99% target (about 4.4 minutes of downtime a month) is beyond what one region of managed services is designed to deliver, "

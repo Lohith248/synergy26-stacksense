@@ -291,6 +291,29 @@ class TeamWarnings(unittest.TestCase):
             m = next(w["message"] for w in out["warnings"] if w["code"] == "SELF_RUN_WITHOUT_DEVOPS")
             self.assertIn(dep, m)
 
+    def test_info_band_text_is_soft(self):
+        for ptype, size in (("ecommerce", 5), ("marketplace", 4), ("saas_b2b", 3)):
+            out = ops_run(ptype, size, False, "99.95")
+            self.assertEqual(sev(out, "AVAILABILITY_VS_TEAM"), ["info"], ptype)
+            m = next(w["message"] for w in out["warnings"] if w["code"] == "AVAILABILITY_VS_TEAM")
+            self.assertNotIn("rarely sustains", m)
+            self.assertIn("can staff an on-call rota", m)
+
+    def test_warning_band_keeps_strong_text(self):
+        out = ops_run("web_app", 3, False, "99.99")
+        m = next(w["message"] for w in out["warnings"] if w["code"] == "AVAILABILITY_VS_TEAM")
+        self.assertIn("rarely sustains", m)
+        self.assertIn("relax the target", m)
+
+    def test_self_run_managed_cloud_advice_only_for_cloud_vms(self):
+        for ptype, dep in (("internal_tool", "on_premise"), ("healthtech", "air_gapped"), ("iot", "on_premise")):
+            out = ops_run(ptype, 2, False, "99.9", dep=dep)
+            m = next(w["message"] for w in out["warnings"] if w["code"] == "SELF_RUN_WITHOUT_DEVOPS")
+            self.assertNotIn("managed_cloud", m, dep)
+        out = ops_run("iot", 2, False, "99.9", dep="self_hosted_cloud_vm")
+        m = next(w["message"] for w in out["warnings"] if w["code"] == "SELF_RUN_WITHOUT_DEVOPS")
+        self.assertIn("reconsider managed_cloud", m)
+
     def test_self_run_with_devops_or_managed_is_silent(self):
         self.assertEqual(sev(ops_run("iot", 2, True, "99.9", dep="self_hosted_cloud_vm"), "SELF_RUN_WITHOUT_DEVOPS"), [])
         self.assertEqual(sev(ops_run("iot", 2, False, "99.9"), "SELF_RUN_WITHOUT_DEVOPS"), [])
