@@ -1407,6 +1407,12 @@ def contradictions(ctx, W, assumptions, host, backend):
                           "A Business Associate Agreement is still needed with any outside vendor that touches PHI (support, backup, managed-service or SaaS add-ons).",
                           ["compliance", "infrastructure.deployment_model"])
     cn.refine(ctx, notes, managed_cloud_hipaa=not ctx["self_host_only"])  # H2 (A4): minors, HIPAA safeguards, SOC 2 cost, PCI service provider
+    if "soc2" in notes:  # the engineering controls an auditor asks to see (planning heuristic wording; no product claim beyond the provider's own secret store)
+        code, sev, msg, fields = notes["soc2"]
+        vault = {"aws": "AWS Secrets Manager", "azure": "Azure Key Vault", "gcp": "Google Secret Manager"}.get(host["provider"], "a secrets manager (the host's own, or a self-hosted vault)")
+        notes["soc2"] = (code, sev, msg + f" Evidence an auditor usually asks for: secrets kept in {vault} and not in the repository or environment files, infrastructure defined as code "
+                         "(Terraform, Bicep or similar) so changes are reviewed, a required pull-request review and protected main branch before any deploy, "
+                         "and audit logs of access and changes kept for a fixed retention period (often at least a year) in a store the application cannot edit.", fields)
     for c in ctx["compliance"]:
         if c in notes:
             W(*notes[c])
