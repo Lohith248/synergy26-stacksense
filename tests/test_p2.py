@@ -24,7 +24,7 @@ BASE = {
                      "payments": False, "auth": "email_password", "multi_tenant": False, "ml_features": "none",
                      "seo_critical": False, "availability": "99.9", "p95_latency_ms": 500},
     "compliance": [],
-    "priorities": {"cost": 3, "time_to_market": 3, "scalability": 3, "security": 3, "maintainability": 3, "learning_curve": 3},
+    "priorities": {"cost": 3, "time_to_market": 3, "scalability": 3, "security": 3, "maintainability": 3, "performance": 3},
 }
 
 
@@ -178,3 +178,45 @@ class VideoDetection(unittest.TestCase):
         for desc in ("Appointment booking for clinics with reminders.", "Clinic visits are logged by staff after each appointment.",
                      "A virtual tour of homes for sale with photos."):
             self.assertEqual(video(web("healthtech", desc)), [], desc)
+
+
+def team_run(ptype, langs, plats=("web",), exp="senior", size=8, ml="none", desc="Customers manage orders and reports online."):
+    s = copy.deepcopy(BASE)
+    s["project"].update({"type": ptype, "description": desc, "platforms": list(plats)})
+    s["team"].update({"languages": list(langs), "experience": exp, "size": size})
+    s["infrastructure"].update({"data_residency": "none", "cloud_preference": "any"})
+    s["requirements"]["ml_features"] = ml
+    return run(s)
+
+
+def skill(out, prefix=""):
+    return [w["message"] for w in out["warnings"] if w["code"] == "SKILL_MISMATCH" and w["message"].startswith(prefix)]
+
+
+class SkillMismatch(unittest.TestCase):
+    def test_senior_team_without_js_gets_web_ui_gap(self):
+        out = team_run("saas_b2b", ["rust"])
+        m = skill(out, "Web UI")
+        self.assertEqual(len(m), 1)
+        self.assertIn("team.experience=senior", m[0])
+
+    def test_senior_mobile_team_without_its_language(self):
+        out = team_run("social", ["cobol"], plats=("ios", "android"))
+        self.assertEqual(len(skill(out, "Mobile UI")), 1)
+
+    def test_training_without_python(self):
+        for ptype, langs in (("ai_ml_product", ["rust"]), ("data_analytics", ["java"]), ("fintech", ["go", "typescript"])):
+            out = team_run(ptype, langs, ml="training", desc="Train a forecasting model on our history and show predictions.")
+            m = skill(out, "ML training")
+            self.assertEqual(len(m), 1, (ptype, langs))
+            self.assertIn("Python", m[0])
+
+    def test_no_warning_when_team_has_language_or_lists_none(self):
+        out = team_run("ai_ml_product", ["python", "typescript"], ml="training", desc="Train a forecasting model on our history.")
+        self.assertEqual(skill(out), [])
+        out = team_run("ai_ml_product", [], ml="training", desc="Train a forecasting model on our history.")
+        self.assertEqual(skill(out), [])
+        s = copy.deepcopy(BASE)
+        del s["team"]["languages"]
+        s["requirements"]["ml_features"] = "training"
+        self.assertEqual(skill(run(s)), [])

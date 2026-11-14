@@ -382,13 +382,14 @@ def skill_mismatch(W, ctx, layer, picked, ranked):
     langs, team = set(picked.item.get("langs") or ()), set(ctx["langs"])
     if not langs or not team or langs & team or langs & set(ctx["hiring"]):
         return
-    if not ((ctx["size"] or 0) <= SKILL_SMALL_TEAM and ctx["exp"] != "senior" or ctx["exp"] == "beginner"):
-        return
+    small = (ctx["size"] or 0) <= SKILL_SMALL_TEAM and ctx["exp"] != "senior" or ctx["exp"] == "beginner"
     fit = next((c for c in ranked if set(c.item.get("langs") or ()) & team), None)
-    W("SKILL_MISMATCH", "warning",
+    # D24-p2: a larger or senior team is also told about the gap (statement section 6: skill mismatch); the cost is named as shorter
+    who = (f"the team is {'a beginner team' if ctx['exp'] == 'beginner' else 'small'} (team.size={ctx['size']}, team.experience={ctx['exp']})" if small else
+           f"the team (team.size={ctx['size']}, team.experience={ctx['exp']}) still needs someone to learn {'/'.join(sorted(langs))} and its tooling before UI work moves at full speed")
+    W("SKILL_MISMATCH", "warning" if small else "info",  # a senior or larger team ramps up faster: stated, not escalated
       f"{layer}: {picked.item['name']} is written in {'/'.join(sorted(langs))}, not in the team's languages ({', '.join(ctx['langs'])}); "
-      f"it was chosen for the stated platforms and requirements, and the team is {'a beginner team' if ctx['exp'] == 'beginner' else 'small'} "
-      f"(team.size={ctx['size']}, team.experience={ctx['exp']}). "
+      f"it was chosen for the stated platforms and requirements, and {who}. "
       + (f"The best skill-matched option, {fit.item['name']}, ranks lower: {why_not(picked, fit, ctx)} Weigh that against the ramp-up time."
          if fit else "No option for this layer that fits the stated requirements and backend uses the team's languages.")
       + " Budget training time into the timeline.",
@@ -1009,6 +1010,15 @@ def _recommend(req, assumptions, sid):
 
     # ---- supporting services
     supporting = sv.build(ctx, host, backend, db_item, mob.item if mob else None, W)
+    ml_line = next((s_ for s_ in supporting if s_["layer"] == "ml"), None)
+    if (ml_line and req["requirements.ml_features"] == "training" and ctx["langs"]
+            and "python" not in ctx["langs"] and "python" not in ctx["hiring"]):
+        # D24-p2: training code is Python-first; a team without Python is told the gap instead of silently given a Python pipeline
+        W("SKILL_MISMATCH", "warning",
+          f"ML training ({ml_line['choice']}): training code, notebooks and the mainstream libraries (scikit-learn, XGBoost, PyTorch) are used from Python, "
+          f"which is not in the team's languages ({', '.join(ctx['langs'])}). Plan for someone to learn Python and the training workflow, or hire for it, "
+          "and budget that time into the timeline before the first model is ready.",
+          ["requirements.ml_features", "team.languages"])
     supporting += multi_region(ctx, host, db_c if ctx["needs_db"] else None, supporting, W, region)
     second = None if ctx.get("active_active") else second_region(ctx, host, db_c if ctx["needs_db"] else None)
     if second:
