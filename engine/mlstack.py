@@ -18,6 +18,13 @@ SELF_HOST_RX = (r"\bopen[- ]?weights?\b|\bopen[- ]weight\b|\bhugging ?face\b|\bl
 # Data must stay on the team's machines (read with re.search: the phrase carries its own negation, so first_live would skip it).
 NO_LEAVE_RX = (r"\b(?:prompts?|data|queries|questions|documents?|text)\b(?:\W+\w+){0,4}?\W+(?:must|may|can|should|will|shall)\s+(?:not|never)\s+leave\b"
                r"|\bno\s+(?:prompts?|data|queries|questions|documents?|text)\s+(?:may|must|can|should|will|shall)\s+leave\b|\bnever\s+leaves?\b")
+# A no-leave phrase followed by a place ("never leaves the EU", "must not leave India") is data residency, not a self-host signal.
+RESIDENCY_PLACE_RX = (r"\s+(?:the\s+)?(?:eu|eea|european union|europe|india|us|usa|united states|uk|united kingdom|germany|france|canada|australia"
+                      r"|japan|singapore|brazil|country|region|jurisdiction|continent)")
+# A no-leave phrase that names the team's own machines ("our servers", "the premises", "our AWS account") is a self-host signal even
+# when a hosted API is also named; a bare no-leave phrase ("data never leaves") counts only when no hosted API is named.
+OWN_PREMISES_RX = (r"\s+(?:the\s+|our\s+|its\s+|their\s+|your\s+)?(?:own\s+)?(?:\w+\s+)?(?:servers?|premises|network|infrastructure|machines?"
+                   r"|vms?|data ?cent(?:er|re)s?|building|firewall|environment|account|vpc|hardware|walls)")
 # A hosted model API named outright: the hosted route stays unless the description also says data must not leave.
 HOSTED_LLM_RX = (r"\bopenai api\b|\bchatgpt\b|\bgpt-?\d\w*|\bclaude\b|\bgemini\b|\bbedrock\b|\bazure openai\b|\bvertex ai\b|\bhosted (?:llm|model|api)s?\b")
 # Model size in billions of parameters ("Llama 3.1 8B", "a 70b model", "13 billion parameters").
@@ -63,9 +70,14 @@ def self_hosted_llm(ctx, selfh):
         return False, None  # classical model serving: no LLM wording
     if ctx["self_host_only"]:
         return True, "deployment_model " + ctx["deploy"]
-    if nl:
+    after = desc.lower()[nl.end():] if nl else ""
+    if nl and re.match(RESIDENCY_PLACE_RX, after):
+        nl = None  # data residency ("never leaves the EU"): the region rule handles it, the model may still be hosted
+    if nl and (re.match(OWN_PREMISES_RX, after) or not hosted):
         return True, dfl._clause(desc, nl.start(), nl.end())
-    if sh and not hosted:
+    if hosted:
+        return False, None  # an explicitly named hosted model API wins over model-family and bare self-host wording
+    if sh:
         return True, sh[1]
     if ml == "llm_rag" and selfh:
         return True, "a self-run VM host"
