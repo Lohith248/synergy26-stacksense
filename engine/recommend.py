@@ -905,6 +905,17 @@ def _recommend(req, assumptions, sid):
 
     # ---- warnings from contradictions and context
     contradictions(ctx, W, assumptions, host, backend)
+    cnotes, cassume = dfl.component_notes(ctx, supporting, [backend_cmp, db_cmp] if ctx["needs_backend"] else [])  # description-only deliverables: quoted notes, no new layer
+    for note in cnotes:
+        W(*note)
+    if ctx["data_gb_floored"]:
+        W("DATA_VOLUME_ZERO_WITH_FILES", "warning", "scale.data_volume_gb_12_months is 0 but requirements.file_media_storage is true"
+          + (f" and project.description has users attach files ('{ov.quote(ctx, 'uploads')}')" if ctx["desc"].get("uploads") and ov.quote(ctx, "uploads") else "")
+          + ": a file store with no files is contradictory. Sizing and the cost band use a minimum of 1 GB (planning heuristic) so the object store is still listed; "
+          "give the expected file volume (for example files per user x users x average file size) to get a real storage line.",
+          ["scale.data_volume_gb_12_months", "requirements.file_media_storage"])
+        assumptions.append("scale.data_volume_gb_12_months is 0 while file or media storage is requested: a minimum of 1 GB is used for sizing and cost (planning heuristic), not 0.")
+    assumptions += cassume
     if ctx["needs_db"] and db_c.vkey == "self" and host["kind"] in ("onprem", "vm") and not ha_paths(sreq):  # A20
         on = host["kind"] == "onprem"
         one = costreal.ONPREM_SERVER[ctx["tier"]][0] == 1
@@ -1481,9 +1492,11 @@ def contradictions(ctx, W, assumptions, host, backend):
             and not (idp["pattern"].get("reuse") and ctx["idp_customer_login"] and req["requirements.auth"] in ("email_password", "social"))):
         kind = "An Entra tenant" if ctx["ms_idp"] and idp["pattern"]["name"] == "Microsoft Entra ID" else f"An existing {idp['pattern']['name'].replace('On-premises', 'on-premises')}" + ("" if idp["pattern"]["name"].startswith("On-premises") else " tenant")
         said, applies = dfl.staff_signin(ctx), dfl.staff_sso_applies(ctx)
-        if applies:  # H2: the description says staff sign in through it, so it is used for them
-            W("EXISTING_IDP_NOT_USED", "info", f"{kind} exists, requirements.auth is {req['requirements.auth']} and project.description says staff sign in through it "
-              f"('{applies[1]}'): a separate 'Staff sign-in' auth item uses it for staff, and {req['requirements.auth']} stays for the other users. "
+        if applies:  # H2: staff sign in through it (the description says so, or an on-premises directory holds their logins): not an unused provider
+            W("STAFF_SIGNIN_VIA_IDP", "info", f"{kind} exists and requirements.auth is {req['requirements.auth']}: "
+              + (f"project.description says staff sign in through it ('{applies[1]}')" if applies[1] else (f"the people who use this system are the organisation's staff ({applies[0]}) and their logins live there" if not applies[0].startswith("an on-premises")
+                    else f"this is {applies[0]}, so its users are staff whose logins live there"))
+              + f", so a separate 'Staff sign-in' auth item uses it for staff and {req['requirements.auth']} stays for the other users. "
               "Set requirements.auth to enterprise_sso if every user belongs to that directory.",
               ["infrastructure.existing_systems", "requirements.auth", "project.description"])
         elif said:  # the description wants it but it cannot be reached from here
