@@ -474,7 +474,14 @@ def hosted_llm_api(ctx, p, ev, dp, res_path, loc, warn):
 
 
 TRAIN_SERVICE = {"aws": "Amazon SageMaker AI training jobs", "azure": "Azure Machine Learning training jobs", "gcp": "Vertex AI custom training"}
-SERVE_ADAPTER_RX = r"\b(?:deploy\w*|serv(?:e|es|ed|ing)|inference)\b"
+# p1 review: serving a fine-tuned model needs model-serving wording (serve/deploy + a model object, inference, predictions, an API for
+# the model); a bare "serve"/"deploy" ("serves 200 hospitals", "train and serve our staff") is not serving.
+MODEL_OBJ = r"(?:models?|adapters?|llms?|classifiers?|detectors?|predictions?|inference)"
+SERVE_ADAPTER_RX = (rf"\b(?:serv(?:e|es|ed|ing)|deploy\w*)\s+(?:\w+\s+){{0,3}}?{MODEL_OBJ}\b|\b(?:for|at|during)\s+inference\b"
+                    rf"|\binference\s+(?:api|endpoint|server|service)s?\b|\b(?:api|endpoint)s?\s+for\s+(?:the\s+|our\s+|its\s+)?(?:\w+\s+)?{MODEL_OBJ}\b"
+                    r"|\btrain\w*\s+and\s+(?:then\s+)?(?:serve|deploy)\w*\s+(?:it|them)\b")
+# Fine-tuned adapters belong to customers only when the input is multi-tenant or the description says per customer.
+PER_CUSTOMER_RX = r"\bper[- ](?:customer|tenant|client)\b|\beach (?:customer|tenant|client)\b|\b(?:customer|tenant|client)[- ]specific\b"
 
 
 def fine_tune_services(ctx, p, hyper, dp, res_path, loc):
@@ -501,13 +508,14 @@ def fine_tune_services(ctx, p, hyper, dp, res_path, loc):
     if dfl.first_live(SERVE_ADAPTER_RX, desc):  # 1b: a fine-tuned model that is deployed gets a server, LoRA or not
         v = mls.ML["serving"]["vllm"]
         slab, scost, snote, _, _, spick = mls.serving_plan(ctx, p, cloud)
+        tenant = ctx["req"]["requirements.multi_tenant"] or dfl.first_live(PER_CUSTOMER_RX, desc)
         out.append(svc("other", (f"Adapter serving: vLLM (OpenAI-compatible server, multi-LoRA) on " if lora else "Model serving: vLLM (OpenAI-compatible server) on ")
                        + ('a GPU VM: ' + slab if cloud else slab),
-                       (f"The fine-tuned adapters are deployed for inference: vLLM {v['fact']} and {v['lora_fact']}, so each customer's adapter is served "
+                       (f"The fine-tuned adapters are deployed for inference: vLLM {v['fact']} and {v['lora_fact']}, so each " + ("customer's adapter" if tenant else "adapter") + " is served "
                         "from one base model on one GPU instead of one GPU per adapter.") if lora else
                        f"The fine-tuned model is deployed for inference: vLLM {v['fact']}, on a GPU sized from the model.",
                        dp + ["project.description"],
-                       ([("One dedicated model server per adapter", "a GPU per customer; multi-LoRA shares one base model")] if lora else [])
+                       ([("One dedicated model server per adapter", ("a GPU per customer" if tenant else "a GPU per adapter") + "; multi-LoRA shares one base model")] if lora else [])
                        + [("The managed platform's online prediction endpoint", "per-node-hour pricing as well, with less control over adapter loading")],
                        ["A GPU instance bills every hour it runs; measure tokens per second on one GPU before adding a second"],
                        "self_hosted", "neutral", True, scost or Z, mls.src(v["src"], v["lora_src"], spick["row"]["src"] if cloud else []), loc))
@@ -564,7 +572,7 @@ def edge_vision(ctx, edge, dp, res_path, loc):
 
 
 # p1 (1b): wording that the trained model also answers requests (not training only)
-SERVE_MODEL_RX = (r"\btrain\w*\s+and\s+(?:then\s+)?(?:serve|deploy)\w*|\bserv\w*\s+(?:\w+\s+){0,3}(?:models?|predictions?)\b"
+SERVE_MODEL_RX = (r"\btrain\w*\s+and\s+(?:then\s+)?(?:serve|deploy)\w*\s+(?:it|them|(?:an?\s+|the\s+|our\s+)?(?:[\w-]+\s+){0,2}models?)\b|\bserv\w*\s+(?:\w+\s+){0,3}(?:models?|predictions?)\b"
                   r"|\b(?:prediction|inference|scoring)\s+(?:api|endpoint|service)s?\b|\b(?:real[- ]time|online)\s+(?:predictions?|scoring|inference)\b"
                   r"|\bdeploy\w*\s+(?:\w+\s+){0,2}models?\b")
 

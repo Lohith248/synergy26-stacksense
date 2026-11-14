@@ -101,5 +101,39 @@ class TrueT4Alternative(unittest.TestCase):
         self.assertIn("too little memory", why)
 
 
+def serving_rows(out):
+    return [x for x in out["stack"]["supporting"] if "serving" in x["choice"].lower() and x["layer"] in ("other", "ml")]
+
+
+class ServingNeedsModelWording(unittest.TestCase):
+    def test_serves_hospitals_is_not_serving(self):
+        out = run("LoRA fine-tune a Llama 8B model on de-identified notes; the product serves 200 hospitals.", ml="training", typ="saas_b2b")
+        self.assertEqual([x["choice"] for x in others(out) if "vLLM" in x["choice"]], [])
+
+    def test_train_and_serve_our_staff_is_not_serving(self):
+        out = run("Retrain a demand forecasting model weekly; we train and serve our staff with the weekly numbers.", ml="training", typ="saas_b2b")
+        self.assertEqual([x["choice"] for x in out["stack"]["supporting"] if x["choice"].startswith("Model serving")], [])
+
+    def test_serve_the_model_adds_adapter_serving(self):
+        out = run(PD2, ml="training", typ="saas_b2b")
+        self.assertTrue([x for x in others(out) if "vLLM" in x["choice"]])
+
+    def test_predictions_in_dashboard_adds_classical_serving(self):
+        out = run("Train a churn model weekly and serve predictions in the account dashboard.", ml="training", typ="saas_b2b")
+        self.assertTrue([x for x in out["stack"]["supporting"] if x["choice"].startswith("Model serving")])
+
+
+class AdapterOwnerWording(unittest.TestCase):
+    def test_solo_prototype_has_no_customer_wording(self):
+        row = next(x for x in others(run(PD2, ml="training", typ="saas_b2b")) if "vLLM" in x["choice"])
+        self.assertNotIn("customer", row["justification"] + str(row["alternatives"]))
+
+    def test_multi_tenant_keeps_customer_wording(self):
+        out = run("Per-customer LoRA adapters on a Llama 8B base model, deployed for inference behind one API.", ml="training", typ="saas_b2b",
+                  requirements__multi_tenant=True)
+        row = next(x for x in others(out) if "vLLM" in x["choice"])
+        self.assertIn("each customer's adapter", row["justification"])
+
+
 if __name__ == "__main__":
     unittest.main()
