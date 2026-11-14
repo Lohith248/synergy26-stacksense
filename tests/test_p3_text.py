@@ -197,6 +197,26 @@ class JudgeBText(unittest.TestCase):
         self.assertEqual(professional_users("Video visits between patients and doctors.", "medical"), "")
         self.assertEqual(professional_users("Citizens ask about tenancy law.", "legal"), "")
 
+    def test_lay_users_keep_the_lay_notice(self):
+        """MUST 1 (review p3): lay users named in the description (patients, tenants, ...) keep the 'not advice' notice."""
+        from engine.services import professional_users
+        for desc, kind in (("Symptom chatbot for patients and doctors: patients ask health questions.", "medical"),
+                           ("Nurses log visits for patients who ask the chatbot.", "medical"),
+                           ("Advocates of tenant rights built a helpline bot.", "legal"),
+                           ("Lawyers publish answers that the public reads.", "legal"),
+                           ("Doctors and parents use the app to track child vaccinations.", "medical"),
+                           ("A bot for law firms and their customers.", "legal")):
+            self.assertEqual(professional_users(desc, kind), "", desc)
+        self.assertEqual(professional_users("Paralegals search case files for precedent.", "legal"), "paralegals")
+        self.assertEqual(professional_users("Clinicians ask about drug doses.", "medical"), "clinicians")
+
+    def test_patient_chatbot_keeps_not_medical_advice(self):
+        out = run(**{"project.description": "Symptom chatbot for patients and doctors: patients ask health questions and get medical guidance "
+                     "from an LLM before a visit.", "requirements.ml_features": "llm_rag"})
+        m = " ".join(w["message"] for w in out["warnings"] if w["code"] == "LLM_ADVICE_DISCLAIMER")
+        self.assertIn("'not medical advice'", m)
+        self.assertNotIn("the users are", m)
+
     def test_disclaimer_for_lawyers_is_not_see_a_lawyer(self):
         def msg(desc):
             out = run(**{"project.description": desc, "requirements.ml_features": "llm_rag"})

@@ -415,8 +415,15 @@ def security_line(ctx, host, rtxt, loc, svc_, front_door_paid=False):
 PRO_USERS = {"legal": r"lawyers|attorneys|advocates|paralegals|legal teams|law firms", "medical": r"doctors|clinicians|physicians|nurses"}
 
 
+# lay people named anywhere in the description are (also) users: they keep the 'not advice' notice and the route to a professional
+LAY_USERS = r"\b(?:patients|tenants|citizens|consumers|customers|students|parents|(?:the|general) public|members of the public)\b"
+
+
 def professional_users(desc, kind):
-    m = re.search(r"(?:^|[.;]\s+|\bfor (?:[\w-]+ ){0,2})(" + PRO_USERS[kind] + r")\b", desc or "", re.I)
+    """The professionals named as the users, or "" when lay users are named too or the word is not the users ("advocates of ...")."""
+    if re.search(LAY_USERS, desc or "", re.I):
+        return ""
+    m = re.search(r"(?:^|[.;]\s+|\bfor (?:[\w-]+ ){0,2})(" + PRO_USERS[kind] + r")\b(?! of\b)", desc or "", re.I)
     return m.group(1).lower() if m else ""
 
 
