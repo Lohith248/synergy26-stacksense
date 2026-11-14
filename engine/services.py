@@ -429,8 +429,11 @@ def professional_users(desc, kind):
 
 def job_events(desc):
     """p3: name the events the description mentions (bookings, jobs, assignments), not all three."""
-    ws = [w for w, rx in (("bookings", r"\bbook(?:s|ed|ing|ings)?\b|appointment"), ("jobs", r"accept jobs|dispatch"),
-                          ("assignments", r"\bassign")) if re.search(rx, desc or "", re.I)]
+    work = r"(?:jobs?|tasks?|tickets?|orders?|deliver(?:y|ies)|routes?|shifts?|drivers?|technicians?|riders?|couriers?)"
+    ws = [w for w, rx in (("bookings", r"\bbook(?:ed|ing|ings)\b|\bbook (?:an? |the )?(?:appointment|slot|ride|table|session|class)|\bappointment"),
+                          ("jobs", r"accept jobs|dispatch"),
+                          ("assignments", rf"\bassign(?:s|ed|ing)? (?:(?:a|an|the|new) )?{work}\b|\b{work} (?:is |are |gets? )?assigned\b"))
+          if re.search(rx, desc or "", re.I)]
     return "new " + " or ".join(ws or ["jobs"])
 
 

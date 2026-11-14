@@ -45,6 +45,13 @@ class TemplateLeaks(unittest.TestCase):
         self.assertEqual(job_events("Drivers accept jobs near them"), "new jobs")
         self.assertEqual(job_events("Managers assign tasks to field staff"), "new assignments")
         self.assertEqual(job_events("Customers book slots; dispatch sends a technician"), "new bookings or jobs")
+        # review p3 MUST 2 / SHOULD 3: "books" the noun and homework "assignments" are not job events
+        self.assertEqual(job_events("Second-hand books marketplace: local couriers accept jobs to deliver them."), "new jobs")
+        self.assertEqual(job_events("Readers rate books and authors"), "new jobs")
+        self.assertEqual(job_events("Teachers assign homework; students submit assignments"), "new jobs")
+        self.assertEqual(job_events("Patients book an appointment with a doctor"), "new bookings")
+        self.assertEqual(job_events("Riders book a ride; the nearest driver is assigned to the trip"), "new bookings or assignments")
+        self.assertEqual(job_events("Diners make table bookings"), "new bookings")
 
     def test_push_on_booking_app_never_says_jobs(self):
         t = dump_text(run(**{"project.type": "healthtech", "project.platforms": ["web", "android", "ios"],
