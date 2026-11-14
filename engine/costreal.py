@@ -63,7 +63,9 @@ TRAIN_FLOOR_GB = 100                   # below this volume training stays on the
 TRAIN_CPU_MAX_TIER = 1
 TRAIN_CPU_COST = [[0, 10], [5, 25]]    # per tier 0-1, USD/month: a few CPU-hours of a small worker or spare capacity on the existing host
 TRAIN_HEAVY_RX = re.compile(r"\b(?:deep learning|neural|cnn|rnn|lstm|transformers?|gpus?|llms?|fine-?tun\w*|computer vision|image (?:model|classif\w*|recogni\w*)"
-                            r"|speech|diffusion|embedding model|foundation model|large model|reinforcement learning)\b")
+                            r"|speech|diffusion|embedding model|foundation model|large model|reinforcement learning"
+                            r"|images?|photos?|imagery|scans?|x-?rays?|video|vision|object detection|face|ocr|transcri\w*|voice|audio|yolo|bert|gpt|chatbot|nlp"
+                            r"|language model|segmentation)\b")
 
 
 def training_on_cpu(ctx):
@@ -142,9 +144,25 @@ def stored_data_split(ctx, obj, db_managed):
 
 
 # ---------------------------------------------------------------- IoT ingestion
+# i2 (planning heuristic): device nouns the description may count. Pass 1 holds the classic IoT nouns; pass 2 (vehicles and other
+# ambiguous nouns such as cars, vans, cameras) is read only when pass 1 finds nothing, so "50,000 cars a day using 800 sensors" counts 800.
+DEVICE_NOUNS_1 = r"sensors?|devices?|meters?|trackers?|gateways?|machines?|vehicles?|sites?|stations?|inverters?|pumps?|panels?|chargers?|lamps?"
+DEVICE_NOUNS_2 = r"trucks?|vans?|cars?|buses|taxis|cabs|bikes?|scooters?|beacons?|cameras?|rigs?"
+_PER_PERIOD = r"(?!\s+(?:a|per|each)\s+(?:day|hour|week|month))"
+
+
+def device_match(d):
+    """Regex match (group 1 number, group 2 unit) of the device count in a lower-cased description, or None."""
+    for nouns in (DEVICE_NOUNS_1, DEVICE_NOUNS_2):
+        m = re.search(r"(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|lakh|million|m)?\s+(?:\w+\s+){0,2}(?:" + nouns + r")\b" + _PER_PERIOD, d)
+        if m:
+            return m
+    return None
+
+
 def device_count(desc):
     d = (desc or "").lower()
-    m = re.search(r"(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|lakh|million|m)?\s+(?:\w+\s+){0,2}(?:sensors?|devices?|meters?|trackers?|gateways?|machines?|vehicles?|trucks?|vans?|cars?|buses|taxis|cabs|bikes?|scooters?|beacons?|cameras?|rigs?|sites?|stations?|inverters?|pumps?|panels?|chargers?|lamps?)", d)
+    m = device_match(d)
     if not m:
         return None
     unit = {None: 1, "k": 1e3, "thousand": 1e3, "lakh": 1e5, "million": 1e6, "m": 1e6}[m.group(2)]

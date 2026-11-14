@@ -76,6 +76,10 @@ class SmallTrainingOnCpu(unittest.TestCase):
     def test_deep_learning_stays_managed(self):
         self.assertIn("SageMaker", ml(self.train("Train a deep learning image classifier on product photos."))["choice"])
 
+    def test_media_models_stay_managed(self):
+        for d in ("Retrain a face recognition model each week.", "Weekly retraining of an x-ray scan classifier.", "Retrain a voice transcription model."):
+            self.assertIn("SageMaker", ml(self.train(d))["choice"], d)
+
     def test_large_data_stays_managed(self):
         self.assertIn("SageMaker", ml(self.train("Retrain a risk model.", gb=800))["choice"])
 
@@ -103,6 +107,20 @@ class LifecycleRows(unittest.TestCase):
             w = eol(ex(name), "closed to new customers")
             self.assertTrue(w and "Entra External ID" in w[0]["message"], name)
 
+    def test_b2c_auth_line_agrees_with_the_closed_warning(self):
+        out = ex("Azure AD B2C tenant", **{"requirements.auth": "enterprise_sso", "infrastructure.cloud_preference": "azure"})
+        auth = sup(out, "auth")[0]
+        self.assertIn("B2C", auth["choice"])
+        self.assertIn("Entra External ID", auth["justification"])
+        self.assertNotIn("employees keep one login", auth["justification"])
+
+    def test_plain_entra_auth_line_unchanged(self):
+        out = ex("Microsoft Entra ID tenant", **{"requirements.auth": "enterprise_sso", "infrastructure.cloud_preference": "azure"})
+        self.assertIn("Entra ID (existing tenant)", sup(out, "auth")[0]["choice"])
+
+    def test_b2c_word_alone_is_not_azure_b2c(self):
+        self.assertFalse(eol(ex("Our B2C tenant on Shopify"), "closed to new customers"))
+
     def test_plain_entra_is_not_b2c(self):
         self.assertFalse(eol(ex("Microsoft Entra ID tenant"), "closed to new customers"))
 
@@ -122,6 +140,15 @@ class GoTemplates(unittest.TestCase):
         out = self.go("saas_b2b", "Billing dashboards and reports for customers.", **{"team.size": 3})
         self.assertIn("Go html/template", out["stack"]["frontend"]["choice"])
 
+    def test_app_like_screens_keep_a_js_framework(self):
+        for d in ("Whiteboard with drag and drop shapes on a canvas.", "Kanban boards with drag-and-drop cards.", "Live order book and candlestick charts."):
+            out = self.go("saas_b2b", d)
+            self.assertNotIn("Go html/template", out["stack"]["frontend"]["choice"], d)
+
+    def test_offline_editing_keeps_a_js_framework(self):
+        out = self.go("saas_b2b", "Field reports for engineers.", **{"requirements.offline_support": True})
+        self.assertNotIn("Go html/template", out["stack"]["frontend"]["choice"])
+
     def test_typescript_team_unchanged(self):
         out = run(**{"team.languages": ["typescript"], "project.type": "internal_tool", "project.description": "Staff admin screens for orders."})
         self.assertNotIn("Go html/template", out["stack"]["frontend"]["choice"])
@@ -135,7 +162,7 @@ class ResidencyBeKept(unittest.TestCase):
             self.assertFalse(cx._residency_stated(s), s)
 
     def test_kept_with_a_place_is_residency(self):
-        for s in ("All customer data must be kept in India.", "Records must be kept within the EU.", "Patient data must be kept on-premises."):
+        for s in ("Records must be kept for 7 years in the EU.", "All customer data must be kept in India.", "Records must be kept within the EU.", "Patient data must be kept on-premises."):
             self.assertTrue(cx._residency_stated(s), s)
 
 
@@ -175,6 +202,8 @@ class GraphApprovals(unittest.TestCase):
         self.assertTrue(self.graph("Managers approve leave requests and purchase approvals.", **{"project.type": "internal_tool"}))
         self.assertTrue(self.graph("Expense approval flow for staff."))
         self.assertTrue(self.graph("Leave request tool for 200 employees."))
+        self.assertTrue(self.graph("Finance sign-off on every invoice."))
+        self.assertTrue(self.graph("Managers authorise expenses above a limit."))
 
 
 class IotDeviceNouns(unittest.TestCase):
@@ -186,6 +215,20 @@ class IotDeviceNouns(unittest.TestCase):
 
     def test_people_are_not_devices(self):
         self.assertIsNone(domains.ingest_rate("3,000 drivers report every 30 seconds."))
+
+    def test_classic_nouns_win_over_vehicle_nouns(self):
+        self.assertEqual(costreal.device_count("it detects 50,000 cars a day using 800 sensors"), 800)
+        self.assertEqual(costreal.device_count("12 rigs with 4,000 sensors"), 4000)
+        self.assertEqual(domains.ingest_rate("12 rigs with 4,000 sensors, each reports every 60 seconds"), (4000, 60))
+
+    def test_noun_prefix_and_per_period_do_not_count(self):
+        self.assertEqual(costreal.device_count("sensors in 2,000 cartons; 300 gateways report every 60 seconds"), 300)
+        for d in ("2,000 cardholders", "500 vanilla freezers", "300 customers rights", "we see 40,000 cars a day"):
+            self.assertIsNone(costreal.device_count(d), d)
+
+    def test_vehicle_counts_unchanged(self):
+        self.assertEqual(costreal.device_count("GPS trackers on 30,000 trucks ping every 10 seconds"), 30000)
+        self.assertEqual(costreal.device_count("GPS units on 3,000 trucks ping every 30 seconds"), 3000)
 
 
 if __name__ == "__main__":

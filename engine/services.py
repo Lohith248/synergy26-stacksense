@@ -347,11 +347,11 @@ _HYBRID_RANKING_RX = re.compile(r"\b(?:hybrid (?:search|retrieval|ranking)|seman
 
 def approvals_named(ctx):
     """i2: the generic word 'workflow' also sets desc['approvals']; the Microsoft Graph approvals component needs the description to say approval(s) or leave requests."""
-    return bool(re.search(r"\b(?:approv|leave request)", (ctx["req"]["project.description"] or "").lower()))
+    return bool(re.search(r"\b(?:approv|leave request|sign-?off|authori[sz]e (?:expenses|purchases|payments|requests))", (ctx["req"]["project.description"] or "").lower()))
 
 
 def azure_pgvector(ctx, db):
-    return bool(db and db["id"] in ("postgresql", "supabase") and ctx["tier"] <= PGVECTOR_MAX_TIER
+    return bool(db and db["id"] == "postgresql" and ctx["tier"] <= PGVECTOR_MAX_TIER
                 and not _HYBRID_RANKING_RX.search((ctx["req"]["project.description"] or "").lower()))
 
 
@@ -412,14 +412,21 @@ def build(ctx, host, backend, db, mobile, warn):
                     warn("EXISTING_CROSS_CLOUD_SERVICE", "info",
                          f"The existing Microsoft Entra ID tenant (and Microsoft 365 if used) stays in Microsoft's cloud while the application runs on {p.upper()}: this reuses an existing system rather than adding a second cloud. Only sign-in tokens and notifications cross over; application data stays on {p.upper()}.",
                          ["infrastructure.existing_systems", "infrastructure.cloud_preference"])
-                out.append(svc("auth", "Microsoft Entra ID (existing tenant) via OpenID Connect",
-                               f"enterprise_sso is required and '{idp['raw']}' already exists: reuse it so employees keep one login; "
-                               "app roles/groups in the token drive approvals and admin rights.",
+                b2c = bool(idp.get("life") and "B2C" in idp["life"]["name"])  # i2: an Azure AD B2C tenant holds customer accounts and is closed to new customers
+                out.append(svc("auth", "Azure AD B2C (existing tenant, closed to new customers) via OpenID Connect" if b2c else "Microsoft Entra ID (existing tenant) via OpenID Connect",
+                               (f"enterprise_sso is required and '{idp['raw']}' already exists: keep signing the current users in through it (one user store, no migration "
+                                "on day one), but Microsoft has not sold Azure AD B2C to new customers since 1 May 2025 (it supports it to at least May 2030): plan the move "
+                                "to Microsoft Entra External ID and keep the sign-in code to standard OpenID Connect so the move is a configuration change."
+                                if b2c else
+                                f"enterprise_sso is required and '{idp['raw']}' already exists: reuse it so employees keep one login; "
+                                "app roles/groups in the token drive approvals and admin rights."),
                                dp + ["infrastructure.existing_systems"],
                                [("Keycloak (self-hosted)", "duplicates an identity provider the company already operates"),
-                                ("Amazon Cognito federation", "extra hop and a second directory to administer")],
-                               ["Depends on the customer's Entra tenant admins for app registration and consent"],
-                               "saas", "azure", False, Z, ["entra-sso"]))
+                                ("Amazon Cognito federation", "extra hop and a second directory to administer")]
+                               + ([("Microsoft Entra External ID", "the vendor's next-generation product for customer sign-in; a migration, not a day-one change")] if b2c else []),
+                               ["Depends on the customer's Entra tenant admins for app registration and consent"] if not b2c
+                               else ["Closed to new customers: new tenants cannot be bought, so the long-term home is Entra External ID"],
+                               "saas", "azure", False, Z, ["azure-ad-b2c-faq" if b2c else "entra-sso"]))
             elif (req["requirements.multi_tenant"] or ctx["type"] == "saas_b2b") and not selfh:
                 name, prov, src = {"aws": (f"Amazon Cognito user pool{rtxt} with per-customer SAML/OIDC federation", "aws", ["cognito-federation"]),
                                    "gcp": ("Google Cloud Identity Platform multi-tenancy (per-tenant SAML/OIDC providers)", "gcp", ["gcp-identity-multitenancy"])
@@ -1313,13 +1320,13 @@ def build(ctx, host, backend, db, mobile, warn):
                        [("Polling from the app", "drains battery and misses events when the app is closed")],
                        ["Delivery is best-effort; critical updates also appear in-app"], "saas", "google", False, Z,
                        ["firebase-pricing"] + (["gcp-hipaa-products"] if "hipaa" in ctx["compliance"] else [])))
-    if (ctx["existing_m365"] or (d["approvals"] and ms and approvals_named(ctx))) and ctx["no_internet"]:
+    if (ctx["existing_m365"] or (approvals_named(ctx) and ms)) and ctx["no_internet"]:
         out.append(svc("other", "Approval notifications through the on-premises SMTP relay",
                        "Approvals must notify managers, but an air-gapped network cannot reach Microsoft 365; the internal mail relay carries notifications.",
                        ["infrastructure.existing_systems", "infrastructure.deployment_model"],
                        [("Microsoft Graph", "cloud API unreachable from an air-gapped network")], ["Depends on an internal mail server"],
                        "self_hosted", "neutral", False, Z, ["statement"]))
-    elif ctx["existing_m365"] or (d["approvals"] and ms and approvals_named(ctx)):
+    elif ctx["existing_m365"] or (approvals_named(ctx) and ms):
         if ctx["self_host_only"]:
             warn("EXTERNAL_EXISTING_SERVICE", "critical",
                  "Microsoft 365 is an existing cloud service; calling Microsoft Graph for notifications is kept as an integration with an existing system, not a new SaaS dependency.",

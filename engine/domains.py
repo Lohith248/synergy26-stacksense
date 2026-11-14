@@ -23,7 +23,7 @@ def _num(txt, unit):
 def ingest_rate(desc):
     """Device count and reporting interval stated in the description -> (devices, seconds) or None."""
     d = (desc or "").lower()
-    m = re.search(NUM + r"\s+(?:\w+\s+){0,2}(?:sensors?|devices?|meters?|trackers?|gateways?|machines?|vehicles?|trucks?|vans?|cars?|buses|taxis|cabs|bikes?|scooters?|beacons?|cameras?|rigs?|sites?|stations?|inverters?|pumps?|panels?|chargers?|lamps?)", d)
+    m = costreal.device_match(d)
     t = re.search(r"every\s+(\d+(?:\.\d+)?)?\s*(seconds?|secs?|s|minutes?|mins?|hours?|hrs?)\b", d)
     if not (m and t):
         return None

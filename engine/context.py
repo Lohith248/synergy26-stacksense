@@ -521,7 +521,7 @@ def continents_in(text):
 RES_DATA = r"\b(?:data|records?|backups?|pii|databases?|information|files?|documents?)\b"
 RES_VERB = (r"\b(?:must|shall|should|has to|have to|needs? to|required to|is to|are to|to|will|may only|can only)\s+(?:only\s+)?"
             r"(?:stay|remain|reside|be (?:stored|hosted|located|localised|localized|processed)"
-            r"|be (?:kept|held)(?=\s+(?:only\s+)?(?:in|within|inside|outside|locally|on[- ]?prem\w*|on[- ]site))"  # i2: a bare 'be kept' means retain, not a place
+            r"|be (?:kept|held)(?=(?:\s+\w+){0,5}?\s+(?:in|within|inside|outside|locally|on[- ]?prem\w*|on[- ]site)\b)"  # i2: a bare 'be kept' means retain, not a place
             r"|not (?:leave|be (?:stored|hosted|kept) outside))\b"
             r"|\bnever leaves?\b|\b(?:stored|hosted|kept|held|localised|localized|resident)\s+(?:only\s+)?(?:in|within)\b")
 

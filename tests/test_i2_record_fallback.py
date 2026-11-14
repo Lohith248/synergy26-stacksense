@@ -37,6 +37,10 @@ class RecordKeywords(unittest.TestCase):
         out = ex("Zorblax Gizmo")
         self.assertFalse(integ(out, "Zorblax"))
 
+    def test_pos_system_and_posix_cases(self):
+        self.assertTrue(integ(ex("Lightspeed POS"), "Lightspeed"))
+        self.assertFalse(integ(ex("POSIX file server"), "POSIX"))
+
     def test_word_boundary(self):
         self.assertFalse(integ(ex("Spmsx Tool"), "Spmsx"))
 
