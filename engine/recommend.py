@@ -1456,7 +1456,7 @@ def contradictions(ctx, W, assumptions, host, backend, db_self=False):
           "automate patching and backups from day one" + (", or reconsider managed_cloud if the stated constraints allow it." if dep == "self_hosted_cloud_vm" else "."),
           ["infrastructure.deployment_model", "team.has_devops"])
     if avail == "99.99" and not ctx["local_first"]:
-        why = ("A 99.99% target (about 4.4 minutes of downtime a month) is beyond what one region of managed services is designed to deliver, "
+        why = ("A 99.99% target (about 4.4 minutes of downtime a month) is beyond what " + ("one datacenter" if single_site(ctx, host) else "one region of managed services") + " is designed to deliver, "
                "and service SLAs compose to a lower number. ")
         if ctx.get("active_active"):
             W("AVAILABILITY_SINGLE_REGION", "info", why + f"Addressed: the API runs active-active in {len(ctx['active_active'])} regions "

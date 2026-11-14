@@ -159,5 +159,32 @@ class NumbersAndGrammar(unittest.TestCase):
         self.assertNotIn("..", out.get("summary", "") + dump_text(out).replace("...", ""))
 
 
+class SingleSiteWording(unittest.TestCase):
+    """The 99.99% warning on a single-datacenter host says one datacenter, not one region of managed services."""
+
+    def avail_msg(self, out):
+        return " ".join(w["message"] for w in out["warnings"] if w["code"] == "AVAILABILITY_SINGLE_REGION")
+
+    def test_single_site_says_one_datacenter(self):
+        from test_p2 import vm_run
+        seen = 0
+        for ptype, res, desc in (("fintech", "india", "Loan servicing portal for an Indian lender."),
+                                 ("saas_b2b", "eu", "Scheduling tool for European clinics."),
+                                 ("web_app", "other", "Booking app for Singapore gyms; data must stay in Singapore.")):
+            out = vm_run(ptype, res, "99.99", desc)
+            if not out["stack"]["hosting"]["choice"].startswith("DigitalOcean"):
+                continue
+            seen += 1
+            m = self.avail_msg(out)
+            self.assertIn("beyond what one datacenter is designed", m, ptype)
+            self.assertNotIn("one region of managed services", m, ptype)
+        self.assertGreaterEqual(seen, 1)
+
+    def test_multi_zone_host_keeps_region_wording(self):
+        m = self.avail_msg(run(**{"infrastructure.cloud_preference": "aws", "infrastructure.data_residency": "eu",
+                                  "requirements.availability": "99.99", "project.description": "Customers sign in and manage their records."}))
+        self.assertIn("one region of managed services", m)
+
+
 if __name__ == "__main__":
     unittest.main()
