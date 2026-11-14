@@ -100,14 +100,16 @@ class ExistingAzureSql(unittest.TestCase):
 
 
 class DiscontinuedServices(unittest.TestCase):
-    def test_no_replacement_is_invented(self):
+    def test_replacement_is_labelled_a_candidate(self):
+        # h1 (blind9 A1): a discontinued service now names candidate replacements, labelled as the knowledge base's suggestion
+        # (never as a vendor recommendation)
         for typ, raw in (("saas_b2b", "Firebase Dynamic Links"), ("social", "Firebase Dynamic Links"), ("web_app", "Heroku free dynos")):
             with self.subTest(typ=typ, raw=raw):
                 out = run(project__type=typ, infrastructure__existing_systems=[raw])
                 w = [x for x in warns(out, "END_OF_LIFE_SYSTEM") if raw in x["message"]]
                 self.assertEqual(len(w), 1)
-                self.assertIn("no replacement named in the knowledge base", w[0]["message"])
-                self.assertNotIn("Universal Links", w[0]["message"])
+                self.assertIn("not a vendor recommendation", w[0]["message"])
+                self.assertIn("discontinued service", w[0]["message"])
 
     def test_a_version_line_keeps_the_upgrade_wording(self):
         out = run(infrastructure__existing_systems=["Python 2 batch scripts"])
@@ -228,6 +230,8 @@ class ReviewFixes(unittest.TestCase):
 
 class TimeSeriesText(unittest.TestCase):
     def ts(self, **kw):
+        # h1: write_heavy alone no longer adds the item; the description must describe time-ordered data (audit logs here)
+        kw.setdefault("project__description", "Keeps audit logs of every user action.")
         out = run(scale__workload="write_heavy", scale__data_volume_gb_12_months=20000, **kw)
         return sup(out, "Time-series")[0]["justification"]
 

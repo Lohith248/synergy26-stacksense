@@ -143,7 +143,7 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
                             ("Google Cloud IoT Core", "retired on 16 August 2023")],
                            trade, dep, prov, True, cost, src, loc))
             out[-1]["_note"] = note
-    if (iot or (req["scale.workload"] == "write_heavy" and ctx["data_gb"] >= 500)) and db and db.get("family") == "relational":
+    if (iot or (req["scale.workload"] == "write_heavy" and ctx["data_gb"] >= 500 and d["time_series"])) and db and db.get("family") == "relational":
         ts = "TimescaleDB hypertables (extension supported on Azure Database for PostgreSQL)" if (p == "azure" and db["id"] == "postgresql" and not selfh) else \
             "native monthly partitions + BRIN index on the timestamp"
         out.append(svc("other", f"Time-series storage: {ts}",
