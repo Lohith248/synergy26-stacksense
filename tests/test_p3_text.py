@@ -1,4 +1,5 @@
 """Track p3 (15 Nov 2026): false or template sentences removed. Each test written before the change."""
+import json
 import os
 import sys
 import unittest
@@ -28,6 +29,58 @@ class MetabaseSignIn(unittest.TestCase):
             self.assertIn("own accounts, Google Sign-in or LDAP", j)
             self.assertNotIn("identity provider", j)
             self.assertNotIn("Pro or Enterprise", j)
+
+
+def dump_text(out):
+    return json.dumps(out, ensure_ascii=False)
+
+
+class TemplateLeaks(unittest.TestCase):
+    """A-D5: each templated sentence names only what the input says."""
+
+    def test_push_names_the_events_described(self):
+        from engine.services import job_events
+        self.assertEqual(job_events("Video visits and appointment booking for clinics"), "new bookings")
+        self.assertEqual(job_events("Drivers accept jobs near them"), "new jobs")
+        self.assertEqual(job_events("Managers assign tasks to field staff"), "new assignments")
+        self.assertEqual(job_events("Customers book slots; dispatch sends a technician"), "new bookings or jobs")
+
+    def test_push_on_booking_app_never_says_jobs(self):
+        t = dump_text(run(**{"project.type": "healthtech", "project.platforms": ["web", "android", "ios"],
+                             "project.description": "Patients book appointments with doctors."}))
+        self.assertIn("hear about new bookings", t)
+        self.assertNotIn("new jobs", t)
+
+    def test_scheduler_names_the_timed_work(self):
+        for typ, desc, want, never in (("saas_b2b", "Dashboards for agencies; nightly imports from ad platforms.", "Nightly and other scheduled jobs", "Reminders"),
+                                       ("web_app", "Clinic app that sends appointment reminders.", "Reminders and other timed work", "Nightly"),
+                                       ("internal_tool", "Sends a daily digest email to managers.", "Scheduled jobs run", "Reminders")):
+            t = dump_text(run(**{"project.type": typ, "project.description": desc}))
+            self.assertIn(want, t, typ)
+            self.assertNotIn(never + " and other", t, typ)
+
+    def test_waf_reason_matches_money_input(self):
+        paid = dump_text(run(**{"project.type": "ecommerce", "requirements.payments": True, "priorities.security": 5,
+                                "infrastructure.cloud_preference": "aws"}))
+        fin = dump_text(run(**{"project.type": "fintech", "priorities.security": 5, "infrastructure.cloud_preference": "aws"}))
+        self.assertIn("Taking payments with priorities.security=5", paid)
+        self.assertIn("Financial data (project.type=fintech) with priorities.security=5", fin)
+        for t in (paid, fin):
+            self.assertNotIn("Money handling", t)
+
+    def test_india_region_strength_only_for_india_residency(self):
+        from engine.recommend import kb_fact
+        item = {"strengths": ["Cheapest predictable VM pricing with an India region"]}
+        self.assertIsNone(kb_fact(item, {"req": {"infrastructure.data_residency": "other"}}))
+        self.assertIsNone(kb_fact(item, {"req": {"infrastructure.data_residency": "eu"}}))
+        self.assertEqual(kb_fact(item, {"req": {"infrastructure.data_residency": "india"}}), item["strengths"][0])
+        two = {"strengths": ["Regional location asia-south1 (Mumbai) available", "Offline sync in mobile SDKs"]}
+        self.assertEqual(kb_fact(two, {"req": {"infrastructure.data_residency": "us"}}), "Offline sync in mobile SDKs")
+
+    def test_static_site_never_claims_a_single_author(self):
+        t = dump_text(run(**{"project.type": "content_site", "requirements.auth": "none",
+                             "project.description": "Exam results published as a static list once a year."}))
+        self.assertNotIn("single author", t)
 
 
 if __name__ == "__main__":

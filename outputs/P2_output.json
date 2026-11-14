@@ -547,7 +547,7 @@
       {
         "layer": "other",
         "choice": "Firebase Cloud Messaging (push notifications)",
-        "justification": "Android users must hear about new jobs or bookings and messages while the app is closed; FCM is no-cost. Payloads carry only an ID, never personal data.",
+        "justification": "Android users must hear about new bookings or jobs and messages while the app is closed; FCM is no-cost. Payloads carry only an ID, never personal data.",
         "driven_by": [
           "project.platforms",
           "project.description"

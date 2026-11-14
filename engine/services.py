@@ -398,12 +398,19 @@ def security_line(ctx, host, rtxt, loc, svc_, front_door_paid=False):
     if p == "azure" and not front_door_paid:
         cost = [[lo + AZURE_FRONT_DOOR_BASE, hi + AZURE_FRONT_DOOR_BASE] for lo, hi in cost]
     driven = (["requirements.payments"] if req["requirements.payments"] else ["project.type"]) + ["priorities.security"] + (["compliance"] if comp else [])
-    why = (f"Money handling with priorities.security={ctx['prio']['security']}" + (f" and compliance={','.join(comp)}" if comp else "")
+    why = (("Taking payments" if req["requirements.payments"] else f"Financial data (project.type={ctx['type']})") + f" with priorities.security={ctx['prio']['security']}" + (f" and compliance={','.join(comp)}" if comp else "")
            + f" needs protection in front of the app and control of keys, secrets and audit evidence: {what}{rtxt}. "
            "These are the building blocks an assessor asks to see; they do not make the system compliant on their own. "
            "The cost line is a planning estimate (provider list prices for these services were not read), driven mainly by request volume.")
     return svc_("other", name, why, driven, [alt], ["Rule tuning is ongoing work: start WAF rules in count mode, then block", "Key and secret rotation must be scheduled and tested"],
                 "managed", p, True, cost, src, loc)
+
+
+def job_events(desc):
+    """p3: name the events the description mentions (bookings, jobs, assignments), not all three."""
+    ws = [w for w, rx in (("bookings", r"\bbook(?:s|ed|ing|ings)?\b|appointment"), ("jobs", r"accept jobs|dispatch"),
+                          ("assignments", r"\bassign")) if re.search(rx, desc or "", re.I)]
+    return "new " + " or ".join(ws or ["jobs"])
 
 
 def _named(ev):
@@ -1644,7 +1651,7 @@ def build(ctx, host, backend, db, mobile, warn):
         out.append(svc("other", "Firebase Cloud Messaging (push notifications)",
                        # E9: name only what the description mentions and the platforms the project targets
                        f"{join_and(['iOS' if m == 'ios' else m.capitalize() for m in ctx['mobile']])} users must hear about "
-                       + join_and([w for w, on in (("new jobs or bookings", d["jobs_dispatch"]), ("messages", d["chat"]), ("alerts or reminders", d["notifications"])) if on])
+                       + join_and([w for w, on in ((job_events(ctx["req"]["project.description"]), d["jobs_dispatch"]), ("messages", d["chat"]), ("alerts or reminders", d["notifications"])) if on])
                        + " while the app is closed; FCM is no-cost" + (" and also relays to iOS via APNs" if "ios" in ctx["mobile"] else "")
                        + ". Payloads carry only an ID, never personal data.",
                        ["project.platforms", "project.description"],

@@ -263,7 +263,10 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
                                      "azure": (f"Scheduler: Azure Container Apps jobs or Functions timer trigger{rtxt}", "azure", ["azure-container-apps-jobs"], "managed"),
                                      "gcp": (f"Scheduler: Google Cloud Scheduler{rtxt}", "gcp", ["gcp-cloud-scheduler"], "managed")}[p]
         out.append(svc("other", sc,
-                       "Reminders and other timed work run from a scheduler that calls the app on a schedule, so no always-on process or hand-rolled timer loop is needed.",
+                       # p3: name the timed work the description mentions (reminders vs nightly or scheduled jobs)
+                       ("Reminders and other timed work" if re.search(r"remind", req["project.description"] or "", re.I) else
+                        "Nightly and other scheduled jobs" if re.search(r"nightly", req["project.description"] or "", re.I) else "Scheduled jobs")
+                       + " run from a scheduler that calls the app on a schedule, so no always-on process or hand-rolled timer loop is needed.",
                        ["project.description"],
                        [("In-process timers", "lost on every restart or deploy; duplicated across instances")],
                        ["Make scheduled jobs idempotent: a schedule can fire twice"], sdep, sprov, False, [[0, 1], [0, 3], [1, 10], [5, 30]], ssrc))

@@ -147,7 +147,7 @@
         },
         {
           "choice": "Headless CMS database",
-          "why_not": "a single author edits files directly"
+          "why_not": "the content is files in the repository; a CMS database is worth adding only when non-developers must edit it"
         }
       ],
       "tradeoffs": [],

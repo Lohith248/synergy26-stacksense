@@ -179,6 +179,9 @@ def kb_fact(item, ctx):
     off = [w for path, words in FACT_WORDS if not _flag_on(req, path) for w in words if w not in ("static", "html", "python")]
     off += [] if req.get("infrastructure.existing_systems") else ["on-prem", "on-premises", "hybrid"]
     off += [] if req.get("requirements.auth") == "enterprise_sso" else ["entra", "sso"]
+    # p3: a strength that names an Indian region is a reason only when the data must stay in India
+    india_words = [] if req.get("infrastructure.data_residency") == "india" else ["india", "mumbai", "bangalore", "pune"]
+    off += india_words
     # a version or support-window fact (LTS dates, supported majors, EOL) is lifecycle data, not a reason to choose
     usable = [x for x in strengths if not re.search(LIFECYCLE_FACT, x)]
     pick = next((x for x in usable if not any(_word(w, x) for w in off)), None)
@@ -186,7 +189,7 @@ def kb_fact(item, ctx):
         return pick
     # A13: no strength is free of switched-off words. Generic capability words (search, tenant) are harmless as a last resort, but a strength that names
     # an identity provider, SignalR or an on-premises link the inputs do not have would be a wrong fact: none is better than that one
-    wrong = [w for w in off if w in ("entra", "sso", "signalr", "on-prem", "on-premises", "hybrid")]
+    wrong = [w for w in off if w in ("entra", "sso", "signalr", "on-prem", "on-premises", "hybrid")] + india_words
     return next((x for x in usable if not any(_word(w, x) for w in wrong)), None)
 
 
@@ -932,7 +935,7 @@ def _recommend(req, assumptions, sid):
                                 + (["requirements.payments"] if req["requirements.payments"] else []),
                                 rf.database_alts(ctx) if rf.applies(ctx) else
                                 [("SQLite", "no runtime data to persist; add a database when the site starts storing accounts, orders or submissions"),
-                                 ("Headless CMS database", "a single author edits files directly" if ctx["static_rule"] != "hosted_payments"
+                                 ("Headless CMS database", "the content is files in the repository; a CMS database is worth adding only when non-developers must edit it" if ctx["static_rule"] != "hosted_payments"
                                   else "editors update the text in the repository directly, and donations are not stored by the site")])
     if host["kind"] == "serverless" and backend_c:  # a web framework on Lambda needs an adapter and connection limits
         hosting["justification"] += (f" {backend_c.item['name']} runs unchanged behind AWS Lambda Web Adapter, which forwards "
