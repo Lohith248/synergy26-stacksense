@@ -687,6 +687,15 @@
   },
   "warnings": [
     {
+      "code": "SKILL_MISMATCH",
+      "severity": "info",
+      "message": "ML inference (Separate Python inference service (FastAPI + ONNX Runtime) in the same private network): the model service is written and run in Python, which is not in the team's languages (java, kotlin, typescript). Plan for someone to learn Python for that service, or hire for it, or serve the model from the hosted endpoint listed as its alternative.",
+      "fields": [
+        "requirements.ml_features",
+        "team.languages"
+      ]
+    },
+    {
       "code": "PEAK_EQUALS_LAUNCH_USERS",
       "severity": "info",
       "message": "Every launch user (10,000) is assumed online at once at peak; sizing uses this conservative figure.",

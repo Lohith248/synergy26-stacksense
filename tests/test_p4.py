@@ -108,5 +108,80 @@ class KbFacts(unittest.TestCase):
             self.assertNotIn("row-level security policies can use the signed-in user id", a[0]["justification"])
 
 
+def ha_run(typ, cloud, avail="99.95"):
+    return run(**{"project.type": typ, "infrastructure.cloud_preference": cloud, "requirements.availability": avail,
+                  "budget.monthly_infra_usd": 3000, "scale.users_12_months": 50000, "scale.peak_concurrent_users": 2000})
+
+
+class AvailabilityBilledOnce(unittest.TestCase):
+    """Item 3: a host that replicates across zones itself (Cloud Run) does not get the hosting line billed a second time."""
+
+    def test_zone_replicated_host_has_no_second_instance_line(self):
+        for typ in ("web_app", "marketplace", "saas_b2b"):
+            for avail in ("99.95", "99.99"):
+                out = ha_run(typ, "gcp", avail)
+                self.assertEqual(out["stack"]["hosting"]["kb_id"], "gcp-cloud-run", typ)
+                a = out["estimated_monthly_cost_usd"]["assumptions"]
+                self.assertFalse([x for x in a if "the hosting line counted again" in x], typ)
+                self.assertTrue([x for x in a if "replicated across the zones of their region" in x], typ)
+
+    def test_instance_hosts_keep_the_second_instance(self):  # must not fire
+        for cloud in ("aws", "azure"):
+            a = ha_run("web_app", cloud)["estimated_monthly_cost_usd"]["assumptions"]
+            self.assertTrue([x for x in a if "the hosting line counted again" in x], cloud)
+            self.assertFalse([x for x in a if "replicated across the zones of their region" in x], cloud)
+
+
+def vol_run(typ, cloud, gb, files=False, **kw):
+    return run(**{"project.type": typ, "infrastructure.cloud_preference": cloud, "scale.data_volume_gb_12_months": gb,
+                  "requirements.file_media_storage": files, "budget.monthly_infra_usd": 20000, "scale.users_12_months": 500000,
+                  "scale.peak_concurrent_users": 20000, **kw})
+
+
+class StorageLimit(unittest.TestCase):
+    """Item 4: a year-one volume above the managed database's per-instance limit is warned about, with the scale-out route."""
+
+    def test_volume_above_limit_warns(self):
+        for typ, cloud, gb, files, product in (("social", "gcp", 200000, True, "Cloud SQL"), ("web_app", "aws", 100000, False, "Amazon RDS"),
+                                               ("saas_b2b", "azure", 40000, False, "Azure Database for PostgreSQL")):
+            out = vol_run(typ, cloud, gb, files)
+            w = [x for x in out["warnings"] if x["code"] == "DB_STORAGE_LIMIT"]
+            self.assertEqual(len(w), 1, typ)
+            self.assertIn(product, w[0]["message"])
+            self.assertIn("shard", w[0]["message"])
+            self.assertEqual("Media files" in w[0]["message"], files, typ)
+
+    def test_volume_below_limit_or_self_hosted_is_quiet(self):  # must not fire
+        for kw in ({"scale.data_volume_gb_12_months": 20000}, {"infrastructure.deployment_model": "on_premise"}):
+            out = vol_run("web_app", "gcp", 200000, **kw)
+            self.assertNotIn("DB_STORAGE_LIMIT", codes(out), kw)
+
+
+def infer_run(typ, langs, **kw):
+    return run(**{"project.type": typ, "team.languages": langs, "team.size": 10, "requirements.ml_features": "inference_api",
+                  "project.description": "Recommends items to users from their history.", "scale.users_12_months": 200000,
+                  "budget.monthly_infra_usd": 5000, **kw})
+
+
+class InferenceSkillGap(unittest.TestCase):
+    """Item 5: a separate Python inference service for a team without Python gets SKILL_MISMATCH (D24-p2 rule, inference side)."""
+
+    def gap(self, out):
+        return [w for w in out["warnings"] if w["code"] == "SKILL_MISMATCH" and w["message"].startswith("ML inference")]
+
+    def test_python_service_without_python_warns(self):
+        for typ, langs in (("social", ["go", "typescript"]), ("ecommerce", ["java"]), ("fintech", ["csharp"])):
+            out = infer_run(typ, langs)
+            ml = [s for s in sup(out, "ml") if s["choice"].startswith("Separate Python inference service")]
+            self.assertTrue(ml, typ)
+            g = self.gap(out)
+            self.assertEqual(len(g), 1, typ)
+            self.assertIn(langs[0], g[0]["message"])
+
+    def test_python_team_or_no_languages_is_quiet(self):  # must not fire
+        self.assertFalse(self.gap(infer_run("social", ["go", "python"])))
+        self.assertFalse(self.gap(infer_run("social", [])))
+
+
 if __name__ == "__main__":
     unittest.main()
