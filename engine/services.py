@@ -834,7 +834,9 @@ def build(ctx, host, backend, db, mobile, warn):
     # ingest queue at any tier, unless devices already feed it through the IoT intake
     write_bursts = req["scale.workload"] == "write_heavy" and (
         ctx["tier"] >= 2 or (ctx["data_gb"] >= costreal.INGEST_HEAVY_GB and not req["requirements.file_media_storage"] and not (ctx["type"] == "iot" or d["iot"])))
-    need_queue = (req["requirements.payments"] and ctx["tier"] >= 2) or req["requirements.ml_features"] == "training" or write_bursts or (
+    # a small retrain runs as a scheduled CPU job (see the ml layer), which needs no queue: only a training job that would run elsewhere is queued
+    queue_training = req["requirements.ml_features"] == "training" and not (hyper and not ctx["self_host_only"] and costreal.training_on_cpu(ctx))
+    need_queue = (req["requirements.payments"] and ctx["tier"] >= 2) or queue_training or write_bursts or (
         req["requirements.offline_support"] and d["media"]) or d["video_vod"]
     eq = ctx["existing_queue"]
     # an existing broker is reused when the design needs a queue, devices stream into it, or the input says it must stay;
@@ -850,7 +852,7 @@ def build(ctx, host, backend, db, mobile, warn):
         bcloud = next((c for rx, c in BROKER_CLOUD if re.search(rx, low)), None)
         extra = [x for x, on in (("payment webhooks", req["requirements.payments"] and ctx["tier"] >= 2),
                                  ("write bursts", write_bursts),
-                                 ("training jobs", req["requirements.ml_features"] == "training"), ("video jobs", d["video_vod"])) if on]
+                                 ("training jobs", queue_training), ("video jobs", d["video_vod"])) if on]
         out.append(svc("queue", f"Existing {eq['pattern']['name']} ({'managed' if managed else 'self-managed'}, reused)",
                        f"'{eq['raw']}' already exists: {eq['pattern']['how']}" + (f" New background work ({', '.join(extra)}) uses the same broker." if extra else "")
                        + (" The description reaches another existing system through this broker, so requests to it and replies from it travel over its queues." if ctx["queue_transport"] else ""),
@@ -877,7 +879,7 @@ def build(ctx, host, backend, db, mobile, warn):
         if write_bursts:
             why.append("absorbs write bursts" if ctx["tier"] >= 2 else
                        f"ingest buffer for ~{ctx['data_gb']:,.0f} GB of write-heavy data: writers publish and a worker batches the inserts into the database")
-        if req["requirements.ml_features"] == "training":
+        if queue_training:
             why.append("schedules training jobs")
         qalts = [("Synchronous processing in the request",
                   "a slow or failed call would lose or double-apply a payment event" if req["requirements.payments"] and ctx["tier"] >= 2
@@ -1263,7 +1265,8 @@ def build(ctx, host, backend, db, mobile, warn):
                            [("Sentry (SaaS)", "stores data only in the US or EU" if loc == "india" or ctx["country"] else f"an extra vendor account for a team of {ctx['size']}" + ("" if ctx["devops"] else " with no DevOps engineer")
                             + f"; {ob[0].split(' (')[0]} already covers {req['requirements.availability']}% availability alerting, add Sentry later for richer error grouping")],
                            ["Log retention costs grow with traffic"], "managed" if hyper else "self_hosted", ob[1], True,
-                           [[0, 5], [5, 30], [30, 200], [200, 1200]], ["sentry-regions"], loc))
+                           [[0, 0], [0, 0]] + [[30, 200], [200, 1200]] if not hyper and kind == "vm" else [[0, 5], [5, 30], [30, 200], [200, 1200]],  # Prometheus/Grafana share the app VM at tiers 0-1: no extra bill (planning heuristic)
+                           ["sentry-regions"], loc))
 
     # ---------------- other (domain-specific)
     if req["requirements.offline_support"] and ctx["local_first"]:
