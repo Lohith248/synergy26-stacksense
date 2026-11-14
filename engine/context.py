@@ -889,6 +889,10 @@ def _walk_langs(clause, pos, out, need_noun, words=None):
         pos = sep.end()
 
 
+NO_VIDEO_RX = r"\b(?:no|without|not)\s+(?:any\s+)?video\b(?![- ](?:recordings?|recorded|storage|files?|uploads?|archives?))|\bvideo[- ]free\b"
+TEXT_ONLY_RX = r"\btext[- ]only\b"  # rules video out only when the description names no video at all ("reminders are text only")
+
+
 @functools.lru_cache(maxsize=8)
 def desc_signals(desc):
     """Description flags (lower-cased text) and primary languages (original case: 'Go' vs 'go'), computed once per
@@ -897,6 +901,9 @@ def desc_signals(desc):
     breaks = clause_breaks(low)
     flags = {flag: live_hit(rx, low, low, breaks) for flag, rx in DESC_RULES}
     flags["gps"] = flags["gps"] or live_hit(r"\bGPS\b", desc, low, breaks)
+    # a description that rules video out ("no video", "without video", "text only") gets no video-call service from a telehealth word
+    if flags["video_call"] and (re.search(NO_VIDEO_RX, low) or (re.search(TEXT_ONLY_RX, low) and "video" not in low)):
+        flags["video_call"] = False
     firm = re.sub(r"[^.!?;\n]+", lambda m: " " * len(m.group()) if OPTIONAL_STEP_RX.search(m.group()) else m.group(), low)
     fb = clause_breaks(firm)
     flags.update({flag: live_hit(rx, firm, firm, fb) for flag, rx in SERVER_NEED_RULES})

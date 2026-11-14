@@ -191,6 +191,17 @@ class VideoDetection(unittest.TestCase):
                      "A virtual tour of homes for sale with photos."):
             self.assertEqual(video(web("healthtech", desc)), [], desc)
 
+    def test_text_only_or_no_video_gets_no_call_service(self):
+        for ptype, desc in (("healthtech", "Teletherapy chat app: clients message their therapist by text only, no video."),
+                            ("healthtech", "A telehealth triage service over secure messaging, without video."),
+                            ("web_app", "Telemedicine follow-ups by text-only chat between patients and nurses.")):
+            self.assertEqual(video(web(ptype, desc)), [], desc)
+
+    def test_video_call_kept_when_only_recording_or_reminders_ruled_out(self):
+        for desc in ("Video visits with doctors; no video recordings are stored.",
+                     "Telehealth video consultations; appointment reminders are text only."):
+            self.assertEqual(len(video(web("healthtech", desc))), 1, desc)
+
     def test_recorded_sessions_or_interviews_are_not_calls(self):
         for ptype, desc in (("other", "Video editing tool: import recorded video sessions from conferences, trim, caption and export."),
                             ("content_site", "An archive of video interviews with founders, searchable by topic."),
