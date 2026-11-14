@@ -1291,8 +1291,12 @@ def build(ctx, host, backend, db, mobile, warn):
                 kind = "donation" if re.search(r"\bdonat", (req["project.description"] or "").lower()) else "payment"
                 name, prov = f"{named[1]} (hosted {kind} page, linked from the site)", named[0]
                 feats = []
+                low = (req["project.description"] or "").lower()
+                # review: a Donate button is an alternative only for a donation/NGO-like site or one that names PayPal, not for a shop
+                donate_ok = bool(re.search(r"\b(?:donat\w*|charit\w*|ngos?|non-?profits?|paypal)\b", low))
                 alts = [(n, "the description already names " + named[1] + "; a second processor adds an account and a reconciliation step") for k, n in
-                        (("stripe", "Stripe Payment Links"), ("paypal", "PayPal Donate button"), ("razorpay", "Razorpay Payment Links")) if k != named[0]][:2]
+                        (("stripe", "Stripe Payment Links"), ("paypal", "PayPal Donate button"), ("razorpay", "Razorpay Payment Links"))
+                        if k != named[0] and (k != "paypal" or donate_ok)][:2]
                 src = {"paypal": ["paypal-donate"], "stripe": ["stripe-billing-pricing"], "razorpay": ["razorpay-upi"]}[named[0]]
             if hosted and not psp_shape:  # D16: a static site links to the provider's hosted page; there is no server to receive webhooks
                 why = (f"Taking payments{for_noun(ctx)} (requirements.payments) through the provider's hosted checkout page or button, as the description says "

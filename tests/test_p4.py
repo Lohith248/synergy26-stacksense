@@ -40,6 +40,18 @@ class HostedPaymentWithForm(unittest.TestCase):
             self.assertNotIn("BUDGET_EXCEEDED", codes(out), typ)
             self.assertNotIn("SCOPE_VS_TEAM", codes(out), typ)
 
+    def test_donate_button_alternative_only_for_donations(self):  # review SHOULD 2
+        def alts(typ, desc):
+            return [a["choice"] for a in sup(pay_site(typ, desc), "payments")[0]["alternatives"]]
+        for typ, desc in (("content_site", "Charity news site; donations go through a Stripe payment link."),
+                          ("other", "NGO pages with a Razorpay payment link for donations."),
+                          ("web_app", "Marketing site and blog for an animal shelter; donations go through a Stripe payment link.")):
+            self.assertIn("PayPal Donate button", alts(typ, desc), desc)
+        for typ, desc in (("other", "Yoga studio pages with a contact form; class passes are bought through a Stripe payment link."),
+                          ("content_site", "Bakery site; cake orders are paid through a Razorpay payment link.")):  # must not fire: a shop
+            self.assertNotIn("PayPal Donate button", alts(typ, desc), desc)
+            self.assertTrue(alts(typ, desc), desc)
+
     def test_named_provider_without_form_is_kept(self):
         out = pay_site("other", "Open-source project documentation with a PayPal donate button.")
         self.assertTrue(static(out))
