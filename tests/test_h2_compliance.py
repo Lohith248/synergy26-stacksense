@@ -62,7 +62,7 @@ class Soc2Hipaa(unittest.TestCase):
             with self.subTest(typ=typ):
                 m = note(run(desc, typ, ["soc2"]), "SOC2_CONTROLS")["message"]
                 self.assertIn("independent auditor", m)
-                self.assertIn("cost more than the infrastructure", m)
+                self.assertIn("as much as or more than the infrastructure", m)
                 self.assertIn("vendors that publish", m)
 
     def test_hipaa_managed_cloud_names_safeguards(self):
@@ -80,6 +80,15 @@ class Soc2Hipaa(unittest.TestCase):
         self.assertNotIn("A BAA does not configure", m)
 
 
+class WordingChecks(unittest.TestCase):
+    def test_exact_wording_of_the_reviewed_sentences(self):
+        self.assertIn("tracking or behavioural monitoring of children, and targeted advertising directed at them",
+                      note(run("Quiz game for kids aged 8 to 12.", comp=["dpdp"]), "DPDP_OBLIGATIONS")["message"])
+        self.assertIn("where you rely on consent as the lawful basis", note(run("Quiz game for kids aged 8 to 12.", comp=["gdpr"]), "GDPR_OBLIGATIONS")["message"])
+        self.assertIn("can cost as much as or more than the infrastructure for a small product (planning heuristic)",
+                      note(run("Invoice tool.", comp=["soc2"]), "SOC2_CONTROLS")["message"])
+
+
 class PciServiceProvider(unittest.TestCase):
     def test_payment_service_provider_shape_drops_saq_a(self):
         cases = (("api_platform", "Payment orchestration API for merchants: accepts card payments and routes to acquirers."),
@@ -92,6 +101,9 @@ class PciServiceProvider(unittest.TestCase):
                 self.assertIn("service provider", w["message"])
                 self.assertIn("does not apply", w["message"])
                 self.assertIn("segmented", w["message"])
+                self.assertIn("over 300,000 card transactions a year", w["message"])
+                self.assertIn("mastercard-sdp", w["message"])
+                self.assertNotIn("At this scale", w["message"])
 
     def test_ordinary_shop_keeps_saq_a(self):
         for typ, desc in (("ecommerce", "Online shop that accepts card payments through a hosted checkout."),

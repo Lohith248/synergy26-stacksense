@@ -18,7 +18,6 @@ PSP_RX = (r"\bpayment orchestrat\w*|\bacquir(?:er|ers|ing)\b|\bpsp\b|\bpayment s
           r"|\bcard (?:vault|tokeni[sz]ation)\b|\bcardholder data (?:environment|vault)\b|\bmerchant acquiring\b"
           r"|\b(?:accepts?|processes?|routes?|authori[sz]es?|settles?)\b(?:\W+\w+){0,3}?\W+card (?:payments?|transactions?)\b(?:\W+\w+){0,4}?\W+(?:for|on behalf of) (?:\w+ )?merchants?\b"
           r"|\bfor merchants\b(?:\W+\w+){0,6}?\W+(?:accepts?|processes?|routes?|authori[sz]es?)\b(?:\W+\w+){0,3}?\W+card")
-PCI_SP_MIN_TIER = 2  # planning heuristic: from this scale tier up (about 50,000 users or 2,000 concurrent) the volumes are the kind card brands validate most strictly
 # services whose end-user personal data passes through the vendor although the vendor holds no database for the project
 DATA_PATH_LAYERS = ("auth", "realtime", "email")
 # planning heuristic: a provider the engine picks because it is the in-region route for the stated residency (an Indian SMS route under India residency) is not flagged
@@ -45,7 +44,7 @@ def refine(ctx, notes, managed_cloud_hipaa):
     if m and "gdpr" in notes:
         code, sev, msg, fields = notes["gdpr"]
         notes["gdpr"] = (code, sev, msg + f" Children: project.description {'says' if m[2] else 'suggests'} the users include minors ('{m[1]}'). Recital 38 says children merit specific protection; "
-                         "under Art. 8 consent for an online service offered directly to a child is valid only from age 16 (a Member State may lower it, to no less than 13); "
+                         "under Art. 8, where you rely on consent as the lawful basis, consent for an online service offered directly to a child is valid only from age 16 (a Member State may lower it, to no less than 13); "
                          "below that age the holder of parental responsibility must give or authorise it, and you must make reasonable efforts to verify this. "
                          "Write notices in plain language, switch off profiling and marketing aimed at children, and confirm the age threshold for each country with counsel (this is not legal advice).",
                          fields + ["project.description"])
@@ -53,7 +52,7 @@ def refine(ctx, notes, managed_cloud_hipaa):
         code, sev, msg, fields = notes["dpdp"]
         notes["dpdp"] = (code, sev, msg + f" Children: project.description {'says' if m[2] else 'suggests'} the users include minors ('{m[1]}'). Section 9 of the Act requires verifiable consent of a parent or lawful guardian "
                          "before a child's (under 18) personal data is processed, and bars processing that is likely to harm a child's well-being, tracking or behavioural monitoring "
-                         "of children and advertising aimed at them (exemptions can be notified, and the DPDP Rules set how age and parent are verified: confirm what applies on your launch date; "
+                         "of children, and targeted advertising directed at them (exemptions can be notified, and the DPDP Rules set how age and parent are verified: confirm what applies on your launch date; "
                          "this is not legal advice).", fields + ["project.description"])
     if managed_cloud_hipaa and "hipaa" in notes:
         code, sev, msg, fields = notes["hipaa"]
@@ -63,7 +62,7 @@ def refine(ctx, notes, managed_cloud_hipaa):
     if "soc2" in notes:
         code, sev, msg, fields = notes["soc2"]
         notes["soc2"] = (code, sev, msg + " The report comes from an independent auditor: a Type I report looks at one date, a Type II at how controls operated over a review period "
-                         "(usually several months), and the audit fee plus the work to prepare evidence typically cost more than the infrastructure itself. Buy from vendors that publish their own SOC 2 reports "
+                         "(usually several months), and the audit fee plus the work to prepare evidence can cost as much as or more than the infrastructure for a small product (planning heuristic). Buy from vendors that publish their own SOC 2 reports "
                          "where you can, and plan your audit separately.", fields)
     p = psp(ctx) if "pci_dss" in notes else None
     if p:
@@ -73,9 +72,10 @@ def refine(ctx, notes, managed_cloud_hipaa):
                             "cardholder data as a service provider and the hosted-checkout shortcut (SAQ A) does not apply. Scope is what you design: keep raw card numbers inside one small, "
                             "segmented cardholder-data environment, tokenise them there and give everything else tokens only, hold keys in an HSM or a managed key service, "
                             "log and monitor every access to that environment, and keep an audit trail that cannot be edited. "
-                            + ("At this scale the card brands and your acquirers usually require the strictest service-provider validation (an on-site assessment by a Qualified Security Assessor), "
-                               if ctx["tier"] >= PCI_SP_MIN_TIER else "The card brands and your acquirers set the validation level for a service provider, ")
-                            + "so confirm the level with them early: the assessment and its remediation cost more than the infrastructure.", fields + ["project.description"])
+                            "Card brands place service providers handling over 300,000 card transactions a year, and Mastercard any payment gateway or processor, at Level 1 "
+                            "(an annual Report on Compliance by a Qualified Security Assessor), per the Mastercard Site Data Protection page (source mastercard-sdp, official-unverified: "
+                            "not confirmed in the knowledge base), "
+                            "so confirm your level with your acquirer early: the assessment and its remediation can cost more than the infrastructure (planning heuristic).", fields + ["project.description"])
     return notes
 
 

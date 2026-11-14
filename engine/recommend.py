@@ -1459,7 +1459,7 @@ def contradictions(ctx, W, assumptions, host, backend):
     idp = ctx["existing_idp"]
     if (idp and req["requirements.auth"] not in ("enterprise_sso", "none")
             and not (idp["pattern"].get("reuse") and ctx["idp_customer_login"] and req["requirements.auth"] in ("email_password", "social"))):
-        kind = "An Entra tenant" if ctx["ms_idp"] and idp["pattern"]["name"] == "Microsoft Entra ID" else f"An existing {idp['pattern']['name']}" + ("" if idp["pattern"]["name"].startswith("On-premises") else " tenant")
+        kind = "An Entra tenant" if ctx["ms_idp"] and idp["pattern"]["name"] == "Microsoft Entra ID" else f"An existing {idp['pattern']['name'].replace('On-premises', 'on-premises')}" + ("" if idp["pattern"]["name"].startswith("On-premises") else " tenant")
         said, applies = dfl.staff_signin(ctx), dfl.staff_sso_applies(ctx)
         if applies:  # H2: the description says staff sign in through it, so it is used for them
             W("EXISTING_IDP_NOT_USED", "info", f"{kind} exists, requirements.auth is {req['requirements.auth']} and project.description says staff sign in through it "

@@ -57,6 +57,17 @@ _TEXT = {
 QUOTE_MAX = 110  # planning heuristic: longest quote of the description put into a warning
 
 
+# a clause that hands the thing to someone else or rules it out ("decided against any AI features", "handled by the existing LinkedIn integration")
+LOCAL_NEG_RX = r"(?<!\w)(?:decided against|ruled out|instead of|rather than|handled by|taken care of by)(?!\w)"
+
+
+def _sentence(text, start, end):
+    brk = (".", ";", "!", "?", chr(10))
+    a = max(text.rfind(c, 0, start) for c in brk) + 1
+    cuts = [k for k in (text.find(c, end) for c in brk) if k >= 0]
+    return text[a:min(cuts) if cuts else len(text)]
+
+
 def _clause(desc, start, end):
     """The clause of desc around [start, end): between the nearest sentence or comma breaks, cut at a word when long."""
     breaks = (".", ";", "!", "?", ",", chr(10))
@@ -69,7 +80,7 @@ def _clause(desc, start, end):
     return q
 
 
-def first_live(rx, desc):
+def first_live(rx, desc, local_neg=False):
     """(phrase, clause) of the longest match of rx in desc that no negation reaches (the first on a tie), or None. The clause is quoted in warnings."""
     low = desc.lower().replace("’", "'")
     breaks = cx.clause_breaks(low)
@@ -80,6 +91,8 @@ def first_live(rx, desc):
             continue
         if re.search(r"(?<!\w)(?:not|never|no|nor)(?!\w)|n't", m.group(0)):
             continue  # the phrase itself carries the negation ("do not sign in through ...")
+        if local_neg and re.search(LOCAL_NEG_RX, _sentence(low, m.start(), m.end())):
+            continue
         if best is None or len(m.group(0)) > len(best.group(0)):
             best = m
     return (best.group(0), _clause(desc, best.start(), best.end())) if best else None
@@ -99,7 +112,7 @@ def mismatches(ctx):
             continue  # a static site's refreshed figures (A18) and a local app have no server to push from
         if key == "connectivity" and ctx["local_first"]:
             continue  # a local-first desktop app is offline by design
-        hit = first_live(rx, desc)
+        hit = first_live(rx, desc, local_neg=True)
         if hit:
             code, text = _TEXT[key]
             out.append((code, sev, "project.description " + text.format(q=hit[1]), [path, "project.description"]))
@@ -107,7 +120,7 @@ def mismatches(ctx):
 
 
 # ---- reminders with no sender
-REMINDER_RX = r"\bremind(?:er|ers|s)?\b"
+REMINDER_RX = r"\bremind(?:er|ers|s)?\b(?!\s+(?:me|you|them|us)\b)"
 CHANNEL_RX = r"\b(?:e-?mails?|sms|text messages?|texts|whatsapp|push|notifications?)\b"
 
 
@@ -116,7 +129,10 @@ def reminder_without_sender(ctx):
     d, desc = ctx["desc"], ctx["req"]["project.description"] or ""
     if not (d["scheduler"] and ctx["needs_backend"]) or d["email_out"] or d["sms"] or ctx["mobile"]:
         return None
-    return first_live(REMINDER_RX, desc)
+    if first_live(CHANNEL_RX, desc):
+        return None  # the description names a channel ("reminder notifications in the browser"): nothing to assume
+    hit = first_live(REMINDER_RX, desc)
+    return None if hit and "snooz" in hit[1].lower() else hit
 
 
 def reminder_warning(ctx):
@@ -135,12 +151,22 @@ def reminder_warning(ctx):
 # ---- an existing identity provider that staff sign in through
 STAFF_WHO = (r"(?:staff|employees?|workforce|clinicians?|doctors?|nurses?|physicians?|teachers?|faculty|administrators?|admins?|agents?|officers?|analysts?"
              r"|caseworkers?|operators?|technicians?|team members|personnel|back[- ]office users?|internal users?|moderators?|managers?)")
-STAFF_SIGNIN = (r"\b" + STAFF_WHO + r"\b(?:\W+\w+){0,4}?\W+(?:sign(?:s|ed)?[- ]?(?:in|on)|log(?:s|ged)?[- ]?(?:in|on)|log-?ins?|authenticat\w*|use their|use the|use our)\b"
-                r"(?:\W+\w+){0,6}?\W+(?:identity provider|idp|sso|single sign[- ]on|domain|directory|active directory|\bad\b|okta|entra|azure ad|keycloak|google workspace|ad ?fs|ldap|ping(?: identity)?|auth0|onelogin|jumpcloud|authentik|ping(?: identity)?|auth0|onelogin|jumpcloud|authentik"
-                r"|corporate|company|hospital|school|university|existing|work|network|windows)\b"
-                r"|\b(?:sign(?:s|ed)?[- ]?(?:in|on)|log(?:s|ged)?[- ]?(?:in|on))\b(?:\W+\w+){0,4}?\W+(?:through|via|with|using|by|from)\W+(?:\w+\W+){0,4}?"
-                r"(?:identity provider|idp|sso|single sign[- ]on|domain (?:log-?ins?|accounts?|credentials?)|directory|active directory|okta|entra|azure ad|keycloak|google workspace|ad ?fs|ldap|ping(?: identity)?|auth0|onelogin|jumpcloud|authentik)\b"
-                r"|\b(?:domain log-?ins?|domain accounts?|domain credentials?|single sign[- ]on|corporate (?:log-?ins?|credentials?|accounts?|identity)|work (?:accounts?|log-?ins?))\b")
+_IDP_NAMES = (r"(?:identity provider|idp|sso|single sign[- ]on|domain|directory|active directory|okta|entra|azure ad|keycloak|google workspace|ad ?fs|ldap"
+              r"|ping(?: identity)?|auth0|onelogin|jumpcloud|authentik)")
+_LOGIN_NOUN = r"(?:log-?ins?|accounts?|credentials?|identit(?:y|ies)|sso)"
+_SIGN_VERB = r"(?:sign(?:s|ed)?[- ]?(?:in|on)|log(?:s|ged)?[- ]?(?:in|on)|authenticat\w*)"
+STAFF_SIGNIN = (
+    # staff + a sign-in verb + a named login system (or a company/hospital/school login noun)
+    r"\b" + STAFF_WHO + r"\b(?:\W+\w+){0,4}?\W+" + _SIGN_VERB + r"\b(?:\W+\w+){0,6}?\W+(?:" + _IDP_NAMES
+    + r"|(?:corporate|company|hospital|school|university|existing|work|network|windows) " + _LOGIN_NOUN + r")\b"
+    # staff + "use their/the/our" + a login noun ("use their domain logins"); "use the company car booking page" has none
+    r"|\b" + STAFF_WHO + r"\b(?:\W+\w+){0,4}?\W+use (?:their|the|our)\b(?:\W+\w+){0,3}?\W+" + _LOGIN_NOUN + r"\b"
+    # a sign-in verb + through/via/with + a named login system, staff named in the same clause (checked in staff_signin)
+    r"|\b" + _SIGN_VERB + r"\b(?:\W+\w+){0,4}?\W+(?:through|via|with|using|by|from)\W+(?:\w+\W+){0,4}?"
+    r"(?:identity provider|idp|sso|single sign[- ]on|domain (?:log-?ins?|accounts?|credentials?)|directory|active directory|okta|entra|azure ad|keycloak"
+    r"|google workspace|ad ?fs|ldap|ping(?: identity)?|auth0|onelogin|jumpcloud|authentik)\b"
+    # a phrase that names the login itself
+    r"|\b(?:domain log-?ins?|domain accounts?|domain credentials?|single sign[- ]on|corporate (?:log-?ins?|credentials?|accounts?|identity)|work (?:accounts?|log-?ins?))\b")
 
 
 def staff_signin(ctx):

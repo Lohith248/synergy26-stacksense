@@ -132,6 +132,20 @@ class DescriptionVersusFlag(unittest.TestCase):
                 out = run(desc, typ, plats)
                 self.assertNotIn("REMINDER_SENDER_NOT_SELECTED", codes(out))
 
+    def test_a_named_channel_or_a_snooze_is_not_a_missing_sender(self):
+        for desc in ("Clients get reminder notifications in the browser before each session.",
+                     "Tasks can be snoozed: the app will remind me later when I tap snooze.",
+                     "Users press remind me later on a task to move it to tomorrow."):
+            with self.subTest(desc=desc):
+                self.assertNotIn("REMINDER_SENDER_NOT_SELECTED", codes(run(desc)))
+
+    def test_a_clause_that_rules_it_out_or_hands_it_over_does_not_fire(self):
+        for desc, code in (("We considered GPT but decided against any AI features.", "DESC_VS_FLAG_ASSISTANT"),
+                           ("Search for jobs is handled by the existing LinkedIn integration we link to.", "DESC_VS_FLAG_SEARCH"),
+                           ("Updates arrive instantly, rather than polling is something we ruled out.", "DESC_VS_FLAG_REALTIME")):
+            with self.subTest(desc=desc):
+                self.assertNotIn(code, codes(run(desc)))
+
 
 class StaffSso(unittest.TestCase):
     def staff_items(self, out):
@@ -160,6 +174,18 @@ class StaffSso(unittest.TestCase):
                                     ("Staff do not sign in through the identity provider; they use local accounts.", {}, ["Okta workforce identity"])):
             with self.subTest(desc=desc, req=req):
                 self.assertEqual(self.staff_items(run(desc, "healthtech", req=req, infra={"existing_systems": existing})), [])
+
+    def test_ordinary_use_sentences_are_not_staff_sign_in(self):
+        for desc in ("Managers use the company car booking page to reserve vans.",
+                     "Staff use their phones on the work floor to scan parcels.",
+                     "Nurses use the existing paper forms.",
+                     "Employees use the hospital network drive for documents."):
+            with self.subTest(desc=desc):
+                self.assertEqual(self.staff_items(run(desc, "healthtech", infra={"existing_systems": ["Okta workforce identity"]})), [])
+
+    def test_domain_login_wording_still_adds_the_staff_item(self):
+        out = run("Staff use their domain logins.", "internal_tool", infra={"existing_systems": ["Okta workforce identity"]})
+        self.assertEqual(len(self.staff_items(out)), 1)
 
     def test_existing_directory_without_staff_wording_still_gets_the_note(self):
         out = run("Telehealth scheduling for a clinic group.", "healthtech", infra={"existing_systems": ["Active Directory"]})
