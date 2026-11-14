@@ -918,6 +918,11 @@ def num(x):
     return f"{x:,.2f}".rstrip("0").rstrip(".")
 
 
+def usd(x):
+    """Dollar amount for prose: thousands separators from 1,000 so one sentence never mixes '$33,297' and '$5933'."""
+    return num(x) if not float(x).is_integer() else f"{int(x):,}"
+
+
 def lang_norm(langs):
     return sorted({LANG_ALIASES.get(x, x) for x in langs})
 

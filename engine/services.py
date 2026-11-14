@@ -430,7 +430,9 @@ def professional_users(desc, kind):
 def job_events(desc):
     """p3: name the events the description mentions (bookings, jobs, assignments), not all three."""
     work = r"(?:jobs?|tasks?|tickets?|orders?|deliver(?:y|ies)|routes?|shifts?|drivers?|technicians?|riders?|couriers?)"
-    ws = [w for w, rx in (("bookings", r"\bbook(?:ed|ing|ings)\b|\bbook (?:an? |the )?(?:appointment|slot|ride|table|session|class)|\bappointment"),
+    # "book" the verb (after a plural subject or a modal: "Customers book electricians", "can book"), never "books"/"a book" the noun
+    verb = r"(?:\b(?:can|to|will|may|must|then|and|or|they|you|we)|\w\ws) book\b(?! (?:clubs?|stores?|shops?|reviews?|lists?|sellers?|readers?|marketplace))"
+    ws = [w for w, rx in (("bookings", r"\bbook(?:ed|ing|ings)\b|\bbooks? (?:an? |the )?(?:appointment|slot|ride|table|session|class)|" + verb + r"|\bappointment"),
                           ("jobs", r"accept jobs|dispatch"),
                           ("assignments", rf"\bassign(?:s|ed|ing)? (?:(?:a|an|the|new) )?{work}\b|\b{work} (?:is |are |gets? )?assigned\b"))
           if re.search(rx, desc or "", re.I)]
@@ -1388,7 +1390,7 @@ def build(ctx, host, backend, db, mobile, warn):
         if p == "azure" and req["infrastructure.cloud_preference"] != "azure" and ctx["budget"] < 35 / 0.15:
             out.append(svc("cdn", "Cloudflare (free plan) in front of Azure", why + f" Azure Front Door's $35/month base fee would take "
                            + (f"{3500 / ctx['budget']:.0f}% of" if ctx["budget"] >= 35 else "more than all of")
-                           + f" the ${cx.num(ctx['budget'])} budget, so the free plan is used.",
+                           + f" the ${cx.usd(ctx['budget'])} budget, so the free plan is used.",
                            paths + ["budget.monthly_infra_usd"],
                            [("Azure Front Door", "the $35/month Standard base fee is too large a share of this budget; switch when the budget grows"),
                             ("No CDN", f"every asset request from the {ctx['users']:,} expected users would hit the origin"

@@ -2,7 +2,7 @@
   "scenario_id": "P3",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Modular monolith: React (Vite SPA) (web) on Go 1.27 (net/http + chi) with Azure Database for PostgreSQL – Flexible Server 17, hosted on Azure App Service — West Europe (Netherlands), at an estimated $449-2308/month.",
+  "summary": "Modular monolith: React (Vite SPA) (web) on Go 1.27 (net/http + chi) with Azure Database for PostgreSQL – Flexible Server 17, hosted on Azure App Service — West Europe (Netherlands), at an estimated $449-2,308/month.",
   "architecture_style": "modular_monolith",
   "stack": {
     "frontend": {
@@ -638,7 +638,7 @@
     {
       "code": "BUDGET_AT_RISK",
       "severity": "info",
-      "message": "Upper estimate $2308/month is 54% above the $1500 budget at peak usage; the largest upper-bound items are Hosting Azure App Service (Linux, Premium v3, 2+ instances) (up to $800) and Database Azure Database for PostgreSQL – Flexible Server 17 (up to $700). Launch near the $449 lower bound and set billing alerts at the budget.",
+      "message": "Upper estimate $2,308/month is 54% above the $1,500 budget at peak usage; the largest upper-bound items are Hosting Azure App Service (Linux, Premium v3, 2+ instances) (up to $800) and Database Azure Database for PostgreSQL – Flexible Server 17 (up to $700). Launch near the $449 lower bound and set billing alerts at the budget.",
       "fields": [
         "budget.monthly_infra_usd"
       ]

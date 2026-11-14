@@ -505,7 +505,7 @@ class BudgetOvershootWording(unittest.TestCase):
         msg = next(w['message'] for w in out['warnings'] if w['code'] == 'BUDGET_AT_RISK')
         self.assertNotIn('1.0x', msg)
         # round 12: P4's band now adds Cognito MAU charges (judge B5), so the overshoot is 26%; the wording rule is unchanged
-        self.assertIn('% above the $6000 budget', msg)
+        self.assertIn('% above the $6,000 budget', msg)
 
 
 

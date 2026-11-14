@@ -2,7 +2,7 @@
   "scenario_id": "P4",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Small set of services: React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) on Java 25 LTS + Spring Boot with Amazon RDS for PostgreSQL 17, hosted on AWS ECS on Fargate — ap-south-1 (Mumbai), at an estimated $1660-7684/month.",
+  "summary": "Small set of services: React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) on Java 25 LTS + Spring Boot with Amazon RDS for PostgreSQL 17, hosted on AWS ECS on Fargate — ap-south-1 (Mumbai), at an estimated $1,660-7,684/month.",
   "architecture_style": "service_oriented",
   "stack": {
     "frontend": {
@@ -731,7 +731,7 @@
     {
       "code": "BUDGET_AT_RISK",
       "severity": "info",
-      "message": "Upper estimate $7684/month is 28% above the $6000 budget at peak usage; the largest upper-bound items are Phone OTP SMS fees (up to $1,800) and Amazon Cognito monthly-active-user charges (up to $1,595). Launch near the $1660 lower bound and set billing alerts at the budget.",
+      "message": "Upper estimate $7,684/month is 28% above the $6,000 budget at peak usage; the largest upper-bound items are Phone OTP SMS fees (up to $1,800) and Amazon Cognito monthly-active-user charges (up to $1,595). Launch near the $1,660 lower bound and set billing alerts at the budget.",
       "fields": [
         "budget.monthly_infra_usd"
       ]

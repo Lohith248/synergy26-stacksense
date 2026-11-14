@@ -1146,27 +1146,27 @@ def _recommend(req, assumptions, sid):
                        "that can run this stack, the new spend is lower and the cloud/SaaS lines alone fit the budget.")
         defer = rs.deferrable(supporting, pctx)  # D13 E3b: explain what could wait; nothing is removed
         defer_txt = (" Deferrable at launch (sized for scale, not required by a hard constraint): "
-                     + ", ".join(f"{n} (${v})" for n, v in defer)
-                     + f"; deferring all of them lowers the minimum to ${cx.num(max(0, cost['min'] - sum(v for _, v in defer)))}.") if defer else ""
+                     + ", ".join(f"{n} (${cx.usd(v)})" for n, v in defer)
+                     + f"; deferring all of them lowers the minimum to ${cx.usd(max(0, cost['min'] - sum(v for _, v in defer)))}.") if defer else ""
         W("BUDGET_EXCEEDED", sev,
-          f"Estimated minimum ${cx.num(cost['min'])}/month exceeds the ${cx.num(ctx['budget'])}/month budget{top_txt}. The stack keeps the hard constraints; "
+          f"Estimated minimum ${cx.usd(cost['min'])}/month exceeds the ${cx.usd(ctx['budget'])}/month budget{top_txt}. The stack keeps the hard constraints; "
           "to fit the budget, reduce scope (fewer managed services, lower availability) or raise the budget." + defer_txt + hw_only + far_txt + over_txt,
           ["budget.monthly_infra_usd"])
     elif host["kind"] != "onprem" and ctx["budget"] >= 500 and cost["max"] * 8 < ctx["budget"] and not costreal.training_open_ended(ctx):
-        W("BUDGET_FAR_ABOVE_NEED", "info", f"The ${cx.num(ctx['budget'])}/month budget is far above the estimated {_usd_range(cost['min'], cost['max'], commas=False)}/month need. The stack was not inflated to use it; spare budget could buy redundancy, support plans or monitoring.",
+        W("BUDGET_FAR_ABOVE_NEED", "info", f"The ${cx.usd(ctx['budget'])}/month budget is far above the estimated {_usd_range(cost['min'], cost['max'], prose=True)}/month need. The stack was not inflated to use it; spare budget could buy redundancy, support plans or monitoring.",
           ["budget.monthly_infra_usd"])
     elif ctx["budget"] == 0 and cost["max"] > 0:  # statement's own example code: $0 lower bound rests on free plans
         W("FREE_TIER_LIMITS", "info",
-          f"The $0 budget is met only on free tiers (estimate {_usd_range(cost['min'], cost['max'], commas=False)}/month): free plans cap requests, bandwidth, build "
+          f"The $0 budget is met only on free tiers (estimate {_usd_range(cost['min'], cost['max'], prose=True)}/month): free plans cap requests, bandwidth, build "
           "minutes or storage, and the upper bound applies once a cap is passed. Set usage alerts or spend caps and check the plan limits before launch.",
           ["budget.monthly_infra_usd"])
     elif cost["max"] > ctx["budget"] > 0:
         far = cost["max"] > 2 * ctx["budget"]
         W("BUDGET_AT_RISK", "warning" if far else "info",
-          f"Upper estimate ${cx.num(cost['max'])}/month is "
+          f"Upper estimate ${cx.usd(cost['max'])}/month is "
           + (f"{cost['max'] / ctx['budget']:.1f}x the" if far else f"{max(1, round((cost['max'] / ctx['budget'] - 1) * 100))}% above the")
-          + f" ${cx.num(ctx['budget'])} budget at peak usage"
-          + top_txt + f". Launch near the ${cx.num(cost['min'])} lower bound and set billing alerts at the budget." + over_txt,
+          + f" ${cx.usd(ctx['budget'])} budget at peak usage"
+          + top_txt + f". Launch near the ${cx.usd(cost['min'])} lower bound and set billing alerts at the budget." + over_txt,
           ["budget.monthly_infra_usd"])
 
     declined = ov.declined_requests(ctx)  # A1: hype that the description asks for, declined with the numbers and the stack chosen instead
@@ -1185,7 +1185,7 @@ def _recommend(req, assumptions, sid):
     if full_cost:  # A10: the summary states the relaxed figure and the figure for what was asked
         asked = " and ".join(x for x, on in ((f"{ctx['users']:,} users", ctx["scale_relaxed"]), (f"{req['requirements.availability']}%", ctx["avail_relaxed"])) if on)
         what = (f" for a pilot of up to {pctx['users']:,} users" if ctx["scale_relaxed"] else f", sized for {RELAX['availability']}%")
-        figure = f"{_usd_range(cost['min'], cost['max'], commas=False)}/month"
+        figure = f"{_usd_range(cost['min'], cost['max'], prose=True)}/month"
         assert figure in summary
         summary = summary.replace(figure, f"{figure}{what} (about ${full_cost['min']:,}-{full_cost['max']:,}/month at the requested {asked})", 1)
     crit = [w for w in W.items if w["severity"] == "critical"]
@@ -1523,7 +1523,7 @@ def contradictions(ctx, W, assumptions, host, backend, db_self=False):
     if req["scale.users_12_months"] < req["scale.users_at_launch"]:
         W("USERS_SHRINK", "info", "users_12_months is lower than users_at_launch; sizing uses the larger number.", ["scale.users_12_months"])
     if ctx["scale_relaxed"]:
-        W("SCALE_VS_BUDGET", "critical", f"{ctx['users']:,} users with a ${cx.num(ctx['budget'])}/month budget cannot run a dynamic application reliably."
+        W("SCALE_VS_BUDGET", "critical", f"{ctx['users']:,} users with a ${cx.usd(ctx['budget'])}/month budget cannot run a dynamic application reliably."
           f" Relaxed: the cost band is sized for a pilot of up to {RELAX['pilot_users']:,} users and {RELAX['pilot_peak']} concurrent (planning heuristic); "
           "the full-scale figure is a separate note in the cost assumptions.",
           ["scale.users_12_months", "budget.monthly_infra_usd"])
@@ -1812,11 +1812,12 @@ def kept_database(ctx, e, d_ok, loc):
     return c, cmp
 
 
-def _usd_range(lo, hi, commas=True):
-    """'$a-b', or '$0' when both bounds are 0 (a bare '$0-0' reads as a typo); thousands separators only from 10,000 (as printed before)."""
+def _usd_range(lo, hi, prose=False):
+    """'$a-b', or '$0' when both bounds are 0 (a bare '$0-0' reads as a typo). Cost lines: thousands separators from 10,000 (as printed
+    before); prose (prose=True): from 1,000, like every other dollar amount in a sentence (cx.usd)."""
     if lo == hi == 0:
         return "$0"
-    return f"${lo:,}-{hi:,}" if (commas and hi >= 10000) or hi >= 1_000_000 else f"${lo}-{hi}"  # p3: millions always separated
+    return f"${lo:,}-{hi:,}" if prose or hi >= 10000 else f"${lo}-{hi}"
 
 
 def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
@@ -2087,7 +2088,7 @@ def make_summary(ctx, style, fe, be, db, host_name, cost, status, onprem=False):
     host, _, region = host_name.rpartition(" — ") if " — " in host_name else (host_name, "", "")
     if db["choice"] != "None":
         parts.append(f"with {_no_paren(db['choice'].replace(' — ' + region, '') if region else db['choice'])}")
-    price = f"an estimated {_usd_range(cost['min'], cost['max'], commas=False)}/month"
+    price = f"an estimated {_usd_range(cost['min'], cost['max'], prose=True)}/month"
     if onprem:  # judge B6: "$0-0" alone reads as free; the band covers only cloud/SaaS fees
         price = ("an estimated cloud bill $0; hardware/licences excluded" if cost["max"] == 0
                  else f"{price} including indicative amortised hardware (not a quote); licences and staff excluded")

@@ -172,13 +172,13 @@ def hosting_candidates(ctx):
         if lo > ctx["budget"]:
             over = (lo - ctx["budget"]) / max(ctx["budget"], 10)
             c.add("budget", -(4 + min(8, over * 4)), "budget.monthly_infra_usd",
-                  f"entry cost about ${lo}/month exceeds the ${cx.num(ctx['budget'])} budget")
+                  f"entry cost about ${cx.usd(lo)}/month exceeds the ${cx.usd(ctx['budget'])} budget")
         elif ctx["budget"] == 0 and lo == 0:
             c.add("budget", 3, "budget.monthly_infra_usd", "fits a zero budget: no hosting fee on the team's own servers"
                   if h["kind"] in ("onprem", "vm") else "fits a zero budget on its free plan")
         elif lo > 0:  # inside budget, a cheaper entry point still matters in proportion to the cost priority
             c.add("budget_share", -min(3, 3 * lo / max(ctx["budget"], 20)) * ctx["prio"]["cost"] / 3, "budget.monthly_infra_usd",
-                  f"entry cost about ${lo}/month uses {round(100 * lo / max(ctx['budget'], 1))}% of the budget")
+                  f"entry cost about ${cx.usd(lo)}/month uses {round(100 * lo / max(ctx['budget'], 1))}% of the budget")
         if ctx["weeks"] <= 6 and h["r"][1] >= 4:
             c.add("timeline", 1.5, "timeline.mvp_weeks", f"quick to set up for a {ctx['weeks']}-week MVP")
         avail = req["requirements.availability"]
@@ -377,10 +377,10 @@ def database_candidates(ctx, host, backend):
             if lo > left:
                 over = (lo - left) / max(left, 10)
                 c.add("budget", -(3 + min(6, over * 3)), "budget.monthly_infra_usd",
-                      f"entry cost about ${lo}/month leaves no room in the ${cx.num(ctx['budget'])} budget after hosting")
+                      f"entry cost about ${cx.usd(lo)}/month leaves no room in the ${cx.usd(ctx['budget'])} budget after hosting")
             elif lo == 0 and ctx["budget"] < 25:
-                c.add("budget", 2, "budget.monthly_infra_usd", f"no licence or subscription fee, so it fits the ${cx.num(ctx['budget'])} budget"
-                      if vkey == "self" else f"has a free plan that fits the ${cx.num(ctx['budget'])} budget")
+                c.add("budget", 2, "budget.monthly_infra_usd", f"no licence or subscription fee, so it fits the ${cx.usd(ctx['budget'])} budget"
+                      if vkey == "self" else f"has a free plan that fits the ${cx.usd(ctx['budget'])} budget")
         prio_terms(c, ctx, d["r"])
         learn_term(c, ctx, d["learning"])
         tier_term(c, ctx, d["max_tier"], d["name"])

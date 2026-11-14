@@ -52,6 +52,9 @@ class TemplateLeaks(unittest.TestCase):
         self.assertEqual(job_events("Patients book an appointment with a doctor"), "new bookings")
         self.assertEqual(job_events("Riders book a ride; the nearest driver is assigned to the trip"), "new bookings or assignments")
         self.assertEqual(job_events("Diners make table bookings"), "new bookings")
+        self.assertEqual(job_events("Customers book electricians and plumbers. Providers accept jobs."), "new bookings or jobs")
+        self.assertEqual(job_events("Guests can book a room near the venue"), "new bookings")
+        self.assertEqual(job_events("Students list a book for sale and couriers accept jobs"), "new jobs")
 
     def test_push_on_booking_app_never_says_jobs(self):
         t = dump_text(run(**{"project.type": "healthtech", "project.platforms": ["web", "android", "ios"],
@@ -150,8 +153,21 @@ class NumbersAndGrammar(unittest.TestCase):
         t = dump_text(out)
         self.assertIsNone(re.search(r"\$\d{7,}", t), re.findall(r".{30}\$\d{7,}", t)[:2])
         from engine.recommend import _usd_range
-        self.assertEqual(_usd_range(1200, 4500, commas=False), "$1200-4500")
-        self.assertEqual(_usd_range(1200, 2_500_000, commas=False), "$1,200-2,500,000")
+        self.assertEqual(_usd_range(1200, 4500, prose=True), "$1,200-4,500")
+        self.assertEqual(_usd_range(1200, 2_500_000, prose=True), "$1,200-2,500,000")
+        self.assertEqual(_usd_range(1200, 4500), "$1200-4500")  # cost lines unchanged: separators from 10,000
+
+    def test_prose_dollars_separated_from_1000(self):
+        """Review p3 SHOULD 1: a sentence never mixes '$33,297' and '$5933': prose dollars get separators from $1,000."""
+        from engine.context import usd
+        self.assertEqual((usd(999), usd(1000), usd(5933), usd(12.5)), ("999", "1,000", "5,933", "12.5"))
+        for kw in ({"budget.monthly_infra_usd": 2500, "scale.users_12_months": 2_000_000, "scale.peak_concurrent_users": 40000},
+                   {"budget.monthly_infra_usd": 6000, "project.type": "fintech", "requirements.payments": True},
+                   {"budget.monthly_infra_usd": 1500, "project.type": "marketplace", "scale.users_12_months": 500_000},
+                   {"budget.monthly_infra_usd": 50000, "project.type": "content_site"}):
+            out = run(**kw)
+            for w in out["warnings"]:
+                self.assertIsNone(re.search(r"\$\d{4}(?![\d,])", w["message"]), (kw, w["code"], w["message"][:300]))
 
     def test_one_week_singular(self):
         t = dump_text(run(**{"timeline.mvp_weeks": 1, "team.size": 1, "project.platforms": ["web", "android", "ios", "desktop"]}))
