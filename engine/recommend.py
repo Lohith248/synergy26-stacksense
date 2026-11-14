@@ -427,7 +427,7 @@ def skill_mismatch(W, ctx, layer, picked, ranked):
       f"{layer}: {picked.item['name']} is written in {'/'.join(sorted(langs))}, not in the team's languages ({', '.join(ctx['langs'])}); "
       f"it was chosen for the stated platforms and requirements, and {who}. "
       + (f"The best skill-matched option, {fit.item['name']}, ranks lower: {why_not(picked, fit, ctx)} Weigh that against the ramp-up time."
-         if fit else "No option for this layer that fits the stated requirements and backend uses the team's languages.")
+         if fit else "No option for this layer is written in the team's languages and also fits the stated requirements and the chosen backend.")
       + " Budget training time into the timeline.",
       ["team.languages", "team.experience", "team.size"])
 

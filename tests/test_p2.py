@@ -223,6 +223,18 @@ def skill(out, prefix=""):
 
 
 class SkillMismatch(unittest.TestCase):
+    def test_no_skill_matched_option_sentence(self):
+        seen = 0
+        for ptype, langs in (("saas_b2b", ["cobol", "fortran"]), ("ecommerce", ["rust"]), ("fintech", ["c"])):
+            for m in skill(team_run(ptype, langs, size=4), "Web UI"):
+                self.assertNotIn("backend uses the team's languages", m)
+                if "ranks lower" not in m:
+                    self.assertIn("No option for this layer is written in the team's languages and also fits the stated "
+                                  "requirements and the chosen backend.", m)
+                    seen += 1
+        self.assertGreater(seen, 0)
+        self.assertEqual(skill(team_run("saas_b2b", ["typescript", "python"], size=4)), [])
+
     def test_senior_team_without_js_gets_web_ui_gap(self):
         out = team_run("saas_b2b", ["rust"])
         m = skill(out, "Web UI")
