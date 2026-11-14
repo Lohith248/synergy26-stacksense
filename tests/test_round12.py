@@ -147,11 +147,17 @@ class B6OnPremSummary(unittest.TestCase):
 
 class F16RagSearchFloor(unittest.TestCase):
     def test_c10_ai_search_basic(self):
+        # D20-i2: at tier <= 1 on PostgreSQL the vectors live in pgvector (no second paid service); the $74
+        # Azure AI Search floor applies only when AI Search is the vector store.
         out = ev(blind("C10"))
         ml = line(out, "ml:")
-        self.assertGreaterEqual(rng(ml)[0], 74)
         s = next(s for s in out["stack"]["supporting"] if s["layer"] == "ml")
-        self.assertNotIn("embeddings stored next to the data", s["justification"])
+        if "AI Search" in s["choice"]:
+            self.assertGreaterEqual(rng(ml)[0], 74)
+            self.assertNotIn("embeddings stored next to the data", s["justification"])
+        else:
+            self.assertIn("pgvector", s["choice"])
+            self.assertIn("pgvector", ml)
 
 
 def _edge(sid):
