@@ -220,3 +220,48 @@ class SkillMismatch(unittest.TestCase):
         del s["team"]["languages"]
         s["requirements"]["ml_features"] = "training"
         self.assertEqual(skill(run(s)), [])
+
+
+def ops_run(ptype, size, devops, avail, plats=("web",), dep="managed_cloud", exp="intermediate", desc="Customers sign in and manage their records."):
+    s = copy.deepcopy(BASE)
+    s["project"].update({"type": ptype, "description": desc, "platforms": list(plats)})
+    s["team"].update({"size": size, "has_devops": devops, "experience": exp, "languages": ["typescript", "python"]})
+    s["infrastructure"].update({"deployment_model": dep, "data_residency": "none", "cloud_preference": "any"})
+    s["requirements"]["availability"] = avail
+    return run(s)
+
+
+def sev(out, code):
+    return [w["severity"] for w in out["warnings"] if w["code"] == code]
+
+
+class TeamWarnings(unittest.TestCase):
+    def test_availability_vs_team_consistent_for_small_no_devops(self):
+        self.assertEqual(sev(ops_run("web_app", 3, False, "99.99"), "AVAILABILITY_VS_TEAM"), ["warning"])
+        self.assertEqual(sev(ops_run("saas_b2b", 2, False, "99.95"), "AVAILABILITY_VS_TEAM"), ["warning"])
+        self.assertEqual(sev(ops_run("marketplace", 5, False, "99.95"), "AVAILABILITY_VS_TEAM"), ["info"])
+        self.assertEqual(sev(ops_run("fintech", 4, False, "99.99"), "AVAILABILITY_VS_TEAM"), ["warning"])
+
+    def test_availability_vs_team_not_for_static_or_staffed(self):
+        s = copy.deepcopy(BASE)
+        s["project"].update({"type": "content_site", "description": "A marketing site with pre-built pages.", "platforms": ["web"]})
+        s["team"].update({"size": 2, "has_devops": False})
+        s["requirements"].update({"auth": "none", "availability": "99.95"})
+        s["infrastructure"].update({"data_residency": "none", "cloud_preference": "any"})
+        out = run(s)
+        self.assertNotIn("backend", [k for k, v in out["stack"].items() if isinstance(v, dict) and v.get("deployment") not in (None, "none")])
+        self.assertEqual(sev(out, "AVAILABILITY_VS_TEAM"), [])
+        self.assertEqual(sev(ops_run("web_app", 3, True, "99.99"), "AVAILABILITY_VS_TEAM"), [])
+        self.assertEqual(sev(ops_run("web_app", 8, False, "99.95"), "AVAILABILITY_VS_TEAM"), [])
+        self.assertEqual(sev(ops_run("web_app", 2, False, "99.9"), "AVAILABILITY_VS_TEAM"), [])
+
+    def test_self_run_without_devops(self):
+        for ptype, dep in (("iot", "self_hosted_cloud_vm"), ("internal_tool", "on_premise"), ("healthtech", "self_hosted_cloud_vm")):
+            out = ops_run(ptype, 2, False, "99.9", dep=dep)
+            self.assertEqual(sev(out, "SELF_RUN_WITHOUT_DEVOPS"), ["info"], (ptype, dep))
+            m = next(w["message"] for w in out["warnings"] if w["code"] == "SELF_RUN_WITHOUT_DEVOPS")
+            self.assertIn(dep, m)
+
+    def test_self_run_with_devops_or_managed_is_silent(self):
+        self.assertEqual(sev(ops_run("iot", 2, True, "99.9", dep="self_hosted_cloud_vm"), "SELF_RUN_WITHOUT_DEVOPS"), [])
+        self.assertEqual(sev(ops_run("iot", 2, False, "99.9"), "SELF_RUN_WITHOUT_DEVOPS"), [])

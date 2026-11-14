@@ -486,6 +486,7 @@ RELAX = {"availability": "99.9",   # availability the stack is sized for when AV
          "pilot_users": 5000,      # scale the stack is priced for when SCALE_VS_BUDGET is critical: the 'small' entry tier (<= 5,000 users,
          "pilot_peak": 200,        # <= 200 concurrent), the largest scale a budget under SCALE_BUDGET_USD can plausibly fund
          "latency_ms": 50}         # p95 below this on realtime traffic with unspecified/global users is flagged LATENCY_TARGET_VS_REACH
+AVAIL_TEAM_NO_DEVOPS = 5          # planning heuristic: a team of up to this many people without DevOps gets AVAILABILITY_VS_TEAM at 99.95%/99.99%
 SCALE_BUDGET_USD = 100             # planning heuristic: below this monthly budget a 500,000-user / 20,000-concurrent product is a critical conflict
 
 
@@ -1368,13 +1369,24 @@ def contradictions(ctx, W, assumptions, host, backend):
           f"A {avail}% availability target has no server to apply to: the app runs on each user's device, so availability is the app's own crash-free "
           "operation and the health of the device; only the optional upload endpoint, if built, would carry an uptime target.",
           ["requirements.availability", "project.platforms"])
-    elif avail in ("99.95", "99.99") and (ctx["size"] <= 2 and (ctx["exp"] == "beginner" or not ctx["devops"])):
+    elif avail in ("99.95", "99.99") and ctx["needs_backend"] and (
+            (ctx["size"] <= AVAIL_TEAM_NO_DEVOPS and not ctx["devops"]) or (ctx["size"] <= 2 and ctx["exp"] == "beginner")):
         # statement 6 example (enterprise availability, solo beginner): critical when servers must be run; static sites need no on-call
+        # D24-p2: one rule for every small team without DevOps (sizes 1..AVAIL_TEAM_NO_DEVOPS); a static site on a CDN has no server to staff
         extreme = ctx["avail_relaxed"]
-        W("AVAILABILITY_VS_TEAM", "critical" if extreme else "warning",
-          f"A {avail}% availability target (≈{ {'99.95': '22', '99.99': '4.4'}[avail]} min downtime/month) needs on-call and redundancy that a {ctx['size']}-person {ctx['exp']} team without DevOps rarely sustains. " + ("Plan on-call or relax the target." if extreme else "Managed multi-zone services were preferred; plan on-call or relax the target.")
+        # a 3..AVAIL_TEAM_NO_DEVOPS-person team can staff a rota for 99.95%: stated as info; 99.99% or one or two people: warning
+        W("AVAILABILITY_VS_TEAM", "critical" if extreme else "warning" if (ctx["size"] <= 2 or avail == "99.99") else "info",
+          f"A {avail}% availability target (≈{ {'99.95': '22', '99.99': '4.4'}[avail]} min downtime/month) needs on-call and redundancy that a {ctx['size']}-person {ctx['exp']} team{'' if ctx['devops'] else ' without DevOps'} rarely sustains. " + ("Plan on-call or relax the target." if extreme else "Managed multi-zone services were preferred; plan on-call or relax the target.")
           + (f" Relaxed: the stack is sized for {RELAX['availability']}%, not 99.99% (see assumptions for the dropped items), because a solo beginner cannot staff 24/7 on-call or failover drills; treat 99.99% as best effort until on-call cover exists." if extreme else ""),
           ["requirements.availability", "team.size", "team.experience", "team.has_devops"])
+    dep = req["infrastructure.deployment_model"]
+    if dep in ("self_hosted_cloud_vm", "on_premise", "air_gapped") and not ctx["devops"] and ctx["needs_backend"] and not ctx["local_first"]:
+        # D24-p2: servers the team runs itself, with no one whose job is operations
+        W("SELF_RUN_WITHOUT_DEVOPS", "info",  # an ownership gap to plan for, not a conflict between inputs
+          f"infrastructure.deployment_model is '{dep}' and team.has_devops is false: operating-system patching, TLS certificates, backups and tested restores, "
+          f"monitoring and alerting, and capacity changes are the team's own job on these servers. Name an owner for each in the {ctx['size']}-person team, "
+          "automate patching and backups from day one, or reconsider managed_cloud if the stated constraints allow it.",
+          ["infrastructure.deployment_model", "team.has_devops"])
     if avail == "99.99" and not ctx["local_first"]:
         why = ("A 99.99% target (about 4.4 minutes of downtime a month) is beyond what one region of managed services is designed to deliver, "
                "and service SLAs compose to a lower number. ")
