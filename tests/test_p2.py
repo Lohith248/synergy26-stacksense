@@ -402,6 +402,23 @@ class SingleSiteAvailability(unittest.TestCase):
             self.assertIn("one datacenter", m, ptype)
             self.assertNotIn("multi-zone", m, ptype)
 
+    def test_replica_advice_only_for_self_run_database(self):
+        def msg(out):
+            return " ".join(w["message"] for w in out["warnings"] if w["code"] == "SINGLE_SITE_AVAILABILITY")
+        for ptype, res in (("fintech", "india"), ("saas_b2b", "eu"), ("web_app", "other")):
+            out = vm_run(ptype, res, "99.95")
+            if out["stack"]["database"]["deployment"] != "self_hosted" or not msg(out):
+                self.skipTest("not a self-run database on a single-datacenter VM: " + out["stack"]["database"]["choice"])
+            self.assertIn("streaming replica of the self-run database", msg(out), ptype)
+        # a database the team does not run itself (forced here: no current single-site input picks one) gets no replica advice
+        import engine.recommend as rec
+        from unittest import mock
+        orig = rec.contradictions
+        with mock.patch.object(rec, "contradictions", lambda *a, **k: orig(*a, **dict(k, db_self=False))):
+            out = vm_run("fintech", "india", "99.95")
+        self.assertNotIn("streaming replica", msg(out))
+        self.assertIn("Keep tested off-site backups", msg(out))
+
     def test_multi_zone_region_keeps_multi_zone_wording(self):
         s = copy.deepcopy(BASE)
         s["project"].update({"type": "web_app", "description": "Customers sign in and manage their records.", "platforms": ["web"]})

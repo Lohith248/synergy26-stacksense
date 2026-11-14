@@ -1073,7 +1073,8 @@ def _recommend(req, assumptions, sid):
         assumptions.append(ctx["payment_location_assumption"])
 
     # ---- warnings from contradictions and context
-    contradictions(ctx, W, assumptions, host, backend)
+    contradictions(ctx, W, assumptions, host, backend,
+                   db_self=bool(db_item and ctx["needs_db"] and not ctx.get("kept_db") and db_c.vkey == "self"))
     cnotes, cassume = dfl.component_notes(ctx, supporting, [backend_cmp, db_cmp] if ctx["needs_backend"] else [])  # description-only deliverables: quoted notes, no new layer
     for note in cnotes:
         W(*note)
@@ -1407,15 +1408,17 @@ def single_site(ctx, host):
     return host["regions"].get(loc, "") if loc and loc in host.get("single_site_regions", ()) else ""
 
 
-def contradictions(ctx, W, assumptions, host, backend):
+def contradictions(ctx, W, assumptions, host, backend, db_self=False):
     req = ctx["req"]
     avail = req["requirements.availability"]
     one_site = single_site(ctx, host)
     if avail in ("99.95", "99.99") and one_site and ctx["needs_backend"] and not ctx["local_first"]:
         W("SINGLE_SITE_AVAILABILITY", "warning",
           f"{host['name']} in {one_site}: DigitalOcean's regional availability page lists one datacenter for this region and describes no availability zones, so a second "
-          f"app server there covers a server failure but not an outage of the site, and the {avail}% target is not met on paper. Keep a streaming replica of a "
-          "self-run database on the second server and tested off-site backups, or choose a provider with several zones in the residency region if the target is firm."
+          f"app server there covers a server failure but not an outage of the site, and the {avail}% target is not met on paper. "
+          + ("Keep a streaming replica of the self-run database on the second server and tested off-site backups, or "
+             if db_self else "Keep tested off-site backups, or ")
+          + "choose a provider with several zones in the residency region if the target is firm."
           if host["provider"] == "digitalocean" else
           f"{host['name']} in {one_site} is a single site: a {avail}% target is not met on paper there.",
           ["requirements.availability", "infrastructure.data_residency"])
