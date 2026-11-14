@@ -260,7 +260,7 @@ class Item12SelfHostedToolCost(unittest.TestCase):
         out = P("P3")
         line = next(l for l in out["estimated_monthly_cost_usd"]["assumptions"] if l.startswith("auth: Keycloak"))
         self.assertNotIn("smallest size", line)
-        self.assertIn("$0-0", line)
+        self.assertIn("$0/month", line)
 
 
 class Item13NumberFormat(unittest.TestCase):

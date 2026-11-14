@@ -2,7 +2,7 @@
   "scenario_id": "P4",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Small set of services: React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) on Java 21/25 LTS + Spring Boot with Amazon RDS for PostgreSQL 17, hosted on AWS ECS on Fargate — ap-south-1 (Mumbai), at an estimated $1630-7564/month.",
+  "summary": "Small set of services: React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) on Java 25 LTS + Spring Boot with Amazon RDS for PostgreSQL 17, hosted on AWS ECS on Fargate — ap-south-1 (Mumbai), at an estimated $1660-7684/month.",
   "architecture_style": "service_oriented",
   "stack": {
     "frontend": {
@@ -23,7 +23,7 @@
       "alternatives": [
         {
           "choice": "Angular",
-          "why_not": "React fits better: Angular's learning curve is 4/5 for a senior team (team.experience=senior) (close call). Known limit of Angular: support lasts 24 months per major from Angular 22 (12 active + 12 LTS); v20 and v21 get 18 months."
+          "why_not": "React fits better: Angular's learning curve is 4/5 for a senior team (team.experience=senior), against 2/5 for React: priorities.time_to_market=3 (neutral) gives no reason to accept the extra ramp-up (close call). Known limit of Angular: upgrades are mandatory: each major is supported for a fixed window (24 months from Angular 22, made of 12 active + 12 LTS; v20 and v21 get 18 months), so the app must move to a new major at least every 18-24 months."
         },
         {
           "choice": "Vue 3 (Vite SPA)",
@@ -76,7 +76,7 @@
         "label": "low",
         "basis": "stability 0.50 (sensitive) over 54 priority vectors."
       },
-      "contrast": "React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) rather than Angular. React fits better: Angular's learning curve is 4/5 for a senior team (team.experience=senior) (close call). Trade-off accepted: The first load waits for the JavaScript bundle, so page weight matters on slow devices.",
+      "contrast": "React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) rather than Angular. React fits better: Angular's learning curve is 4/5 for a senior team (team.experience=senior), against 2/5 for React: priorities.time_to_market=3 (neutral) gives no reason to accept the extra ramp-up (close call). Trade-off accepted: The first load waits for the JavaScript bundle, so page weight matters on slow devices.",
       "what_would_change": [
         {
           "edit": "priorities.time_to_market: 3 -> 2",
@@ -108,7 +108,7 @@
       ]
     },
     "backend": {
-      "choice": "Java 21/25 LTS + Spring Boot",
+      "choice": "Java 25 LTS + Spring Boot",
       "justification": "Team already writes java, kotlin for the API; mature security/audit tooling; strong transactional frameworks for money movement; good security (priority 5/5); good maintainability (priority 4/5).",
       "driven_by": [
         "project.type",
@@ -122,7 +122,7 @@
       "alternatives": [
         {
           "choice": "Node.js 24 LTS + NestJS (TypeScript)",
-          "why_not": "With priorities.security=5, Java 21/25 LTS + Spring Boot is stronger on security; it fits better: mature security/audit tooling (compliance=dpdp,iso27001,pci_dss,rbi_localisation). Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
+          "why_not": "With priorities.security=5, Java 25 LTS + Spring Boot is stronger on security; it fits better: mature security/audit tooling (compliance=dpdp,iso27001,pci_dss,rbi_localisation)."
         },
         {
           "choice": ".NET 10 LTS + ASP.NET Core",
@@ -164,7 +164,7 @@
         "label": "high",
         "basis": "stability 0.96 (robust) over 54 priority vectors; score margin 4.0 over the runner-up."
       },
-      "contrast": "Java 21/25 LTS + Spring Boot rather than Node.js 24 LTS + NestJS (TypeScript). With priorities.security=5, Java 21/25 LTS + Spring Boot is stronger on security; it fits better: mature security/audit tooling (compliance=dpdp,iso27001,pci_dss,rbi_localisation). Trade-off accepted: Heavier runtime and slower iteration than Node/Python.",
+      "contrast": "Java 25 LTS + Spring Boot rather than Node.js 24 LTS + NestJS (TypeScript). With priorities.security=5, Java 25 LTS + Spring Boot is stronger on security; it fits better: mature security/audit tooling (compliance=dpdp,iso27001,pci_dss,rbi_localisation). Trade-off accepted: Heavier runtime and slower iteration than Node/Python.",
       "what_would_change": []
     },
     "database": {
@@ -182,7 +182,7 @@
       "alternatives": [
         {
           "choice": "Amazon RDS for MySQL 8.4",
-          "why_not": "With priorities.security=5 and priorities.maintainability=4, Amazon RDS for PostgreSQL 17 is stronger on security and easier to maintain. Known limit of Amazon RDS for MySQL 8.4: 8.0 moved to Sustaining Support (Apr 2026); no row-level security."
+          "why_not": "With priorities.security=5 and priorities.maintainability=4, Amazon RDS for PostgreSQL 17 is stronger on security and easier to maintain."
         },
         {
           "choice": "Amazon DynamoDB (on-demand)",
@@ -504,7 +504,7 @@
       {
         "layer": "ml",
         "choice": "Separate Python inference service (FastAPI + ONNX Runtime) in the same private network",
-        "justification": "The core API is Java 21/25 LTS + Spring Boot; a small Python service serves the model behind an internal endpoint, so model code stays in Python's ML tooling without changing the API's language. Credit-scoring outputs and their inputs are logged for audit and explainability.",
+        "justification": "The core API is Java 25 LTS + Spring Boot; a small Python service serves the model behind an internal endpoint, so model code stays in Python's ML tooling without changing the API's language. Credit-scoring outputs and their inputs are logged for audit and explainability.",
         "driven_by": [
           "requirements.ml_features",
           "project.description",
@@ -530,7 +530,7 @@
       {
         "layer": "ci_cd",
         "choice": "GitHub Actions",
-        "justification": "Java 21/25 LTS + Spring Boot tests run on every push and a passing build deploys to AWS ECS on Fargate; the cost band reserves $0-20/month for a team of 8 (planning estimate).",
+        "justification": "Java 25 LTS + Spring Boot tests run on every push and a passing build deploys to AWS ECS on Fargate; the cost band reserves $0-20/month for a team of 8 (planning estimate).",
         "driven_by": [
           "team.size",
           "team.has_devops"
@@ -628,27 +628,58 @@
         "sources": [
           "https://www.rbi.org.in/scripts/NotificationUser.aspx?Id=12848"
         ]
+      },
+      {
+        "layer": "other",
+        "choice": "AWS WAF + AWS KMS + AWS Secrets Manager + AWS CloudTrail",
+        "justification": "Money handling with priorities.security=5 and compliance=iso27001,pci_dss needs protection in front of the app and control of keys, secrets and audit evidence: AWS WAF in front of the load balancer or CloudFront (managed rule sets plus rate limits on login and payment routes), AWS KMS customer-managed keys for the database, bucket and backup encryption, AWS Secrets Manager for database and gateway credentials, and AWS CloudTrail for an audit trail of API and console actions kept in a write-protected bucket in ap-south-1 (Mumbai). These are the building blocks an assessor asks to see; they do not make the system compliant on their own. The cost line is a planning estimate (provider list prices for these services were not read), driven mainly by request volume.",
+        "driven_by": [
+          "requirements.payments",
+          "priorities.security",
+          "compliance"
+        ],
+        "alternatives": [
+          {
+            "choice": "Cloudflare WAF",
+            "why_not": "a second vendor in front of the AWS footprint; AWS WAF keeps rules, keys and logs in one account"
+          }
+        ],
+        "tradeoffs": [
+          "Rule tuning is ongoing work: start WAF rules in count mode, then block",
+          "Key and secret rotation must be scheduled and tested"
+        ],
+        "deployment": "managed",
+        "provider": "aws",
+        "data_bearing": true,
+        "data_location": "india",
+        "sources": [
+          "https://aws.amazon.com/waf/pricing/",
+          "https://aws.amazon.com/kms/pricing/",
+          "https://aws.amazon.com/secrets-manager/pricing/",
+          "https://aws.amazon.com/cloudtrail/pricing/"
+        ]
       }
     ]
   },
   "estimated_monthly_cost_usd": {
-    "min": 1630,
-    "max": 7564,
+    "min": 1660,
+    "max": 7684,
     "currency": "USD",
     "assumptions": [
       "Hosting AWS ECS on Fargate (+ Application Load Balancer): $200-900/month at the 'medium' tier.",
       "Database Amazon RDS for PostgreSQL 17: $270-1400/month (HA doubles instances).",
       "Availability ≥99.95%: a second app instance in another zone $200-900/month (the hosting line counted again).",
-      "auth: Amazon Cognito user pool + Amazon SNS SMS OTP in ap-south-1 (Mumbai) $440-1595/month. Cognito Lite: 10,000 MAU free, then $0.0055 per MAU (Amazon Cognito pricing); SMS is counted once, in the Phone OTP line.",
-      "storage: Amazon S3 (ap-south-1 (Mumbai)) $10-80/month.",
+      "auth: Amazon Cognito user pool + Amazon SNS SMS OTP in ap-south-1 (Mumbai) $440-1595/month. Cognito Lite: 10,000 MAU free, then a flat $0.0055 per MAU at every volume (Amazon Cognito pricing; the knowledge base holds no volume-tier table, so a tier discount, if any, is not modelled). MAU is taken as 30%-100% of ~300,000 users = 90,000-300,000 MAU (planning heuristic), so the lower bound is max(0, 90,000 - 10,000) x $0.0055 and the upper bound max(0, 300,000 - 10,000) x $0.0055; SMS is counted once, in the Phone OTP line.",
+      "storage: Amazon S3 (ap-south-1 (Mumbai)) $0/month here: the files it holds are priced by volume in the 'Stored data' line, not charged twice.",
       "cache: Amazon ElastiCache for Valkey in ap-south-1 (Mumbai) $50-300/month.",
       "queue: Amazon SQS in ap-south-1 (Mumbai) $5-30/month.",
       "cdn: Amazon CloudFront $15-120/month.",
       "ml: Separate Python inference service (FastAPI + ONNX Runtime) in the same private network $40-200/month.",
       "ci_cd: GitHub Actions $0-20/month.",
       "observability: Amazon CloudWatch in ap-south-1 (Mumbai) (logs, metrics, alarms) $30-200/month.",
-      "Stored data ~500 GB after 12 months at ~$0.02-0.035/GB-month: $10-19/month (year-end volume used as an upper bound, not an average); bulk files and media are assumed to sit in object storage, while database rows stay small.",
-      "Phone OTP: 300,000 users x 0.3-1.0 OTP logins/month at Amazon SNS India local SMS $0.004 (AWS SMS price list, 11 Nov 2026) plus DLT and retry overhead per SMS = $360-1,800/month (long-lived sessions keep OTPs rare).",
+      "other: AWS WAF + AWS KMS + AWS Secrets Manager + AWS CloudTrail $40-200/month.",
+      "Stored data (object storage: files and media) ~500 GB after 12 months at ~$0.02-0.035/GB-month: $10-19/month (year-end volume used as an upper bound, not an average); this is the only charge for these files (the storage service's own line adds nothing on top), and database rows are assumed small.",
+      "Phone OTP: 300,000 users x 0.3-1.0 OTP logins/month at Amazon SNS SMS at $0.004 (AWS SMS price list, 11 Nov 2026), x1 at the lower bound and x1.5 at the upper bound (retries and DLT rejections, planning heuristic): $360-1800/month (long-lived sessions keep OTPs rare).",
       "Spiky traffic: the upper bound is a peak month; with autoscaling, quiet months run near the lower bound.",
       "Excluded: payment gateway fees (~2% per transaction) are a share of revenue, not infrastructure.",
       "Excluded: taxes, domain names, paid support plans and data-egress spikes. Order-of-magnitude band, not a quote."
@@ -700,7 +731,7 @@
     {
       "code": "BUDGET_AT_RISK",
       "severity": "info",
-      "message": "Upper estimate $7564/month is 26% above the $6000 budget at peak usage; the largest upper-bound items are Phone OTP SMS fees (up to $1,800) and Amazon Cognito monthly-active-user charges (up to $1,595). Launch near the $1630 lower bound and set billing alerts at the budget.",
+      "message": "Upper estimate $7684/month is 28% above the $6000 budget at peak usage; the largest upper-bound items are Phone OTP SMS fees (up to $1,800) and Amazon Cognito monthly-active-user charges (up to $1,595). Launch near the $1660 lower bound and set billing alerts at the budget.",
       "fields": [
         "budget.monthly_infra_usd"
       ]

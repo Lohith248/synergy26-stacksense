@@ -17,6 +17,20 @@ MONTHLY_AUDIENCE_RX = re.compile(r"\bmonthly\s+(?:active\s+)?(?:readers?|visitor
 TS_ROWS_SHARE = 0.5  # planning heuristic: the rest is files or exports in object storage
 DB_SSD_RATE = (0.10, 0.25)   # $/GB-month managed database SSD (Cloud SQL SSD $0.17 Iowa / $0.20 Mumbai, rendered 11 Nov 2026)
 OBJ_RATE = (0.02, 0.035)     # $/GB-month object storage
+# M1 phone OTP and Cognito, planning heuristics (every figure is printed in the cost line so it can be recomputed)
+OTP_LOGINS_PER_USER = (0.3, 1.0)       # OTP logins per user per month: long-lived sessions keep them rare
+INR_PER_USD = 90                       # planning exchange rate, not a quote
+SMS_GST = 0.18                         # GST charged on top of Indian SMS prices (planning heuristic)
+INDIA_SMS_RS = (0.20, 0.25)            # MSG91 OTP: Rs 0.20 per SMS at the 27k block + GST (msg91-otp); 0.25 is the upper planning figure
+SMS_RETRY_FACTOR = (1.0, 1.5)          # lower bound: every code arrives first time; upper: 1.5 sends per code (retries, DLT rejections)
+COGNITO_FREE_MAU, COGNITO_RATE = 10000, 0.0055   # aws-cognito-pricing (verified); the KB holds no volume-tier table, so the rate is flat
+MAU_SHARE = (0.3, 1.0)                 # monthly active users as a share of all users
+
+
+def india_sms_usd():
+    return tuple(rs * (1 + SMS_GST) / INR_PER_USD for rs in INDIA_SMS_RS)
+
+
 BLOCK_RATE = (0.08, 0.12)    # planning estimate: block disk under a database the team runs itself on a cloud VM
 BROKER_NODE_MSGS_PER_S = 2000  # planning heuristic: one small self-run MQTT broker node
 # A14: write-heavy or device-fed data at or above this volume is sized for ingest and for a database that holds it (planning heuristic)

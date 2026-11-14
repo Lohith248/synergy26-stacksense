@@ -1,6 +1,6 @@
-# Rating audit against `RATING-RUBRIC.md`
+# Known limitations log: ratings that contradict the rubric
 
-Audit date 13 Nov 2026 (IST), KB as_of 2026-11-11, repository state main 552d36e. **Nothing was changed.** This file lists ratings that contradict a rubric rule. It does not say which side is right: either the rating or the record field the rule reads (`max_tier`, `learning`, `ops`, `host_os`, price band) may be the one to correct. Every change is the participant's decision (see rubric section 6) and moves outputs, so P1-P6 must be re-run after any edit.
+This is a maintained known-limitations log, not a list of fixes. It records the ratings in `technologies.json` that contradict a rule of `RATING-RUBRIC.md` (audit of 13 Nov 2026 IST, KB as_of 2026-11-11, repository state main 552d36e). **No rating was changed by the audit, and none was changed before the engine freeze (14 Nov 2026 20:00 IST).** Why: each entry may be a wrong rating or a wrong record field (`max_tier`, `learning`, `ops`, `host_os`, price band), the rubric (section 6) reserves the decision to the participant, and any rating edit can move core choices and every output, so it needs a full re-run of P1-P6 and the census that the freeze left no time for. How it is handled: the entries are listed below with the evidence so a reader can judge each one; the engine uses the ratings as they stand, and reasons that rest on a listed rating are ordinary score terms, not guarantees. Corrections after the freeze are made here first, then in the KB, with P1-P6 re-run.
 
 ## Method and coverage
 

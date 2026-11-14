@@ -117,7 +117,7 @@ class LearningCurveLeadsWithTheWinner(unittest.TestCase):
         ang = next(a for a in out["stack"]["frontend"]["alternatives"] if a["choice"] == "Angular")["why_not"]
         self.assertTrue(ang.startswith("React fits better: Angular's learning curve is 4/5 for a senior team (team.experience=senior)"), ang)
         self.assertEqual(ang.lower().count("learning curve"), 1, ang)
-        self.assertIn("Known limit of Angular: support lasts 24 months", ang)
+        self.assertIn("Known limit of Angular: upgrades are mandatory: each major is supported for a fixed window (24 months", ang)  # M1: reworded as a limit
 
     def test_no_bare_learning_fragment_anywhere(self):
         for sc in PUBLIC:
@@ -292,7 +292,7 @@ class ExistingDatabaseHint(unittest.TestCase):
         out = evaluate(PUBLIC[4], counterfactuals=False)  # P5
         j = next(s["justification"] for s in out["stack"]["supporting"] if "ntegration with existing" in s["choice"])
         self.assertNotIn("write 'keep'", j)
-        self.assertIn("say so in infrastructure.existing_systems", j)
+        self.assertIn("if it will be retired, say so there", j)
 
 
 if __name__ == "__main__":

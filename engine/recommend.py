@@ -270,7 +270,8 @@ def _limit_words(ctx):
     if ctx["prio"]["cost"] >= 4 or ctx["budget"] < 50:
         words += ["cost", "licence", "fee", "free", "pay", "price"]
     if ctx["prio"]["maintainability"] >= 4 or ctx["prio"]["time_to_market"] >= 4:
-        words += ["boilerplate", "structure", "setup", "learning", "templating", "support"]
+        words += ["structure", "discipline", "upgrades", "support"] * (ctx["prio"]["maintainability"] >= 4)
+        words += ["boilerplate", "setup", "learning", "templating"] * (ctx["prio"]["time_to_market"] >= 4)  # M1: boilerplate costs delivery time
     if ctx["exp"] in ("beginner", "mixed") or req.get("team.hiring_languages"):
         words += ["learning", "hiring", "talent", "pool", "unfamiliar"]
     if not ctx["devops"]:
@@ -298,6 +299,8 @@ def limit_applies(lim, ctx):
         return False
     if re.search(r"\bseo\b", low) and not seo_matters(ctx):
         return False
+    if re.search(r"data[- ]science|\bai\b|\bml\b", low) and not _flag_on(ctx["req"], "requirements.ml_features"):
+        return False  # M1: a limit about data-science libraries is shown only when ML features are requested
     return True
 
 
@@ -314,6 +317,34 @@ def known_limit(alt, ctx, always=False, skip=""):
     return f" Known limit of {alt.item['name'].split(' (')[0]}: {_lower1(lim)}."
 
 
+def _ramp_up(win, alt, ctx):
+    """M1: say why a steeper learning curve matters: the winner's own curve and the delivery priority that does not repay the ramp-up."""
+    lw, la = win.item.get("learning"), alt.item.get("learning")
+    if not ctx or not isinstance(lw, int) or not isinstance(la, int) or lw >= la:
+        return ""
+    ttm = ctx["prio"]["time_to_market"]
+    why = (f"the team's fast-delivery priority (priorities.time_to_market={ttm}) does not repay the extra ramp-up" if ttm >= 4
+           else f"priorities.time_to_market={ttm} is below the 4 that would repay the extra ramp-up")
+    return f", against {lw}/5 for {_short(win.item)}: {why}"
+
+
+def _acid_difference(win, alt, text):
+    """M1: both engines are ACID, so the reason cannot be 'strict ACID transactions'; state what the KB records the winner has
+    that the alternative lacks (row-level security, built-in full-text search), else the KB rating gap."""
+    what = text.split(" for ", 1)[1] if " for " in text else "this workload"
+    a, w = _short(alt).split(" – ")[0], _short(win).split(" – ")[0]
+    diffs = []
+    if win.get("rls") and not alt.get("rls"):
+        diffs.append(f"row-level security (the KB records none for {a})")
+    if win.get("fts") and not alt.get("fts"):
+        diffs.append("built-in full-text search")
+    if "JSONB" in " ".join(win.get("strengths") or ()) and win["family"] == "relational":
+        diffs.append("JSONB documents next to relational tables")
+    if diffs:
+        return f"both are ACID databases, but {w} also has {' and '.join(diffs)}, which matter for {what}"
+    return f"{w} is rated {win.get('acid')}/5 for ACID transactions against {alt.get('acid')}/5 in the KB, for {what}"
+
+
 def _gap_reason(win, alt, k, ctx, also=(), lead=True):
     """One decisive score term in plain words, tied to the input value behind it; also: further priority keys
     folded into the same clause ('with priorities.a=4 and priorities.b=5, X is ... and ...')."""
@@ -325,10 +356,12 @@ def _gap_reason(win, alt, k, ctx, also=(), lead=True):
     neg = next((t for t in alt.terms if t[0] == k and t[1] < 0), None)
     if neg and k == "learning":  # J1: a bare fragment has no subject; name the winner and whose learning curve it is
         text = re.sub(r"^learning curve (\d/5)", r"learning curve is \1", _lower1(neg[3]))
-        return f"{_short(win.item)} fits better: " * lead + f"{_short(alt.item)}'s {text} ({ground(neg[2], ctx)})"
+        return f"{_short(win.item)} fits better: " * lead + f"{_short(alt.item)}'s {text} ({ground(neg[2], ctx)})" + _ramp_up(win, alt, ctx)
     if neg:
         return f"{_lower1(neg[3])} ({ground(neg[2], ctx)})"
     pos = next((t for t in win.terms if t[0] == k and t[1] > 0), None)
+    if pos and k == "acid" and alt.item.get("acid", 0) >= 4:  # M1: an ACID engine (InnoDB, SQLite) loses on ACID only by rating, so name a real difference
+        return f"{_short(win.item)} fits better: {_acid_difference(win.item, alt.item, pos[3])} ({ground(pos[2], ctx)})"
     if pos:
         return f"{_short(win.item)} fits better: {_lower1(pos[3])} ({ground(pos[2], ctx)})"
     return None
@@ -704,6 +737,8 @@ def _recommend(req, assumptions, sid):
     elif "gdpr" in ctx["compliance"] and "eu" in host["regions"]:
         region = host["regions"]["eu"]
         loc = "eu"
+        if ctx["res_paths"][:1] == ["infrastructure.data_residency"]:
+            ctx["res_paths"] = ["compliance"] + ctx["res_paths"][1:]  # M1: the EU region comes from compliance=gdpr, not from data_residency (none)
         assumptions.append(f"gdpr with no data_residency: EU region ({region}) chosen to avoid international transfers.")
     else:
         region = next(iter(host["regions"].values())) if "global" in host["regions"] or "any" in host["regions"] else None
@@ -1023,11 +1058,11 @@ def _recommend(req, assumptions, sid):
           "to fit the budget, reduce scope (fewer managed services, lower availability) or raise the budget." + defer_txt + hw_only + far_txt + over_txt,
           ["budget.monthly_infra_usd"])
     elif host["kind"] != "onprem" and ctx["budget"] >= 500 and cost["max"] * 8 < ctx["budget"] and not costreal.training_open_ended(ctx):
-        W("BUDGET_FAR_ABOVE_NEED", "info", f"The ${cx.num(ctx['budget'])}/month budget is far above the estimated ${cost['min']}-{cost['max']}/month need. The stack was not inflated to use it; spare budget could buy redundancy, support plans or monitoring.",
+        W("BUDGET_FAR_ABOVE_NEED", "info", f"The ${cx.num(ctx['budget'])}/month budget is far above the estimated {_usd_range(cost['min'], cost['max'], commas=False)}/month need. The stack was not inflated to use it; spare budget could buy redundancy, support plans or monitoring.",
           ["budget.monthly_infra_usd"])
     elif ctx["budget"] == 0 and cost["max"] > 0:  # statement's own example code: $0 lower bound rests on free plans
         W("FREE_TIER_LIMITS", "info",
-          f"The $0 budget is met only on free tiers (estimate ${cost['min']}-{cost['max']}/month): free plans cap requests, bandwidth, build "
+          f"The $0 budget is met only on free tiers (estimate {_usd_range(cost['min'], cost['max'], commas=False)}/month): free plans cap requests, bandwidth, build "
           "minutes or storage, and the upper bound applies once a cap is passed. Set usage alerts or spend caps and check the plan limits before launch.",
           ["budget.monthly_infra_usd"])
     elif cost["max"] > ctx["budget"] > 0:
@@ -1055,7 +1090,7 @@ def _recommend(req, assumptions, sid):
     if full_cost:  # A10: the summary states the relaxed figure and the figure for what was asked
         asked = " and ".join(x for x, on in ((f"{ctx['users']:,} users", ctx["scale_relaxed"]), (f"{req['requirements.availability']}%", ctx["avail_relaxed"])) if on)
         what = (f" for a pilot of up to {pctx['users']:,} users" if ctx["scale_relaxed"] else f", sized for {RELAX['availability']}%")
-        figure = f"${cost['min']}-{cost['max']}/month"
+        figure = f"{_usd_range(cost['min'], cost['max'], commas=False)}/month"
         assert figure in summary
         summary = summary.replace(figure, f"{figure}{what} (about ${full_cost['min']:,}-{full_cost['max']:,}/month at the requested {asked})", 1)
     crit = [w for w in W.items if w["severity"] == "critical"]
@@ -1642,6 +1677,13 @@ def kept_database(ctx, e, d_ok, loc):
     return c, cmp
 
 
+def _usd_range(lo, hi, commas=True):
+    """'$a-b', or '$0' when both bounds are 0 (a bare '$0-0' reads as a typo); thousands separators only from 10,000 (as printed before)."""
+    if lo == hi == 0:
+        return "$0"
+    return f"${lo:,}-{hi:,}" if commas and hi >= 10000 else f"${lo}-{hi}"
+
+
 def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
     """Monthly band = the sum of its own "$a-b/month" lines (judge B1): every amount added to min/max is printed as a line.
     Returns the cost dict plus a private "_items" list of (upper, lower, label) for the budget warnings."""
@@ -1651,7 +1693,7 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
     def add(label, lo, hi, text):
         lo, hi = int(lo), int(-(-hi // 1))  # whole dollars: floor the low end, ceil the high end
         items.append((hi, lo, label))
-        lines.append(text.replace("{r}", f"${lo:,}-{hi:,}/month" if hi >= 10000 else f"${lo}-{hi}/month"))
+        lines.append(text.replace("{r}", f"{_usd_range(lo, hi)}/month"))
 
     def short(name):
         return name.split(" — ")[0]
@@ -1734,10 +1776,14 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
             ("Availability ≥99.95%" if ha_paths(ctx["sreq"])[0] == "requirements.availability" else cap(" and ".join(ha_targets(ctx["sreq"]))))
             + ": a second app instance in another zone {r} (the hosting line counted again).")
     onprem, vm = host["kind"] == "onprem", host["kind"] == "vm"
+    obj = any(s["layer"] == "storage" and s["deployment"] != "self_hosted" for s in supporting)
     for s in supporting:
         clo, chi = s["_cost"][t]
         name = short(s["choice"])
-        if chi:
+        if chi and s["layer"] == "storage" and obj:
+            # M1: the volume is priced once, in the "Stored data" line; the tier range of this line would charge the same files twice
+            add(name, 0, 0, f"{s['layer']}: {name} {{r}} here: the files it holds are priced by volume in the 'Stored data' line, not charged twice.")
+        elif chi:
             add(s.get("_label", name), clo, chi, f"{s['layer']}: {name} {{r}}." + s.get("_note", ""))
         elif s["deployment"] == "self_hosted" and not s["choice"].startswith("Existing"):
             # judge B4: a self-hosted tool is never silently free
@@ -1755,7 +1801,6 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
                 elo, ehi = host["cost"][0]
                 add(name, elo, max(ehi, 5), f"{s['layer']}: {name} as its own small container on {short(host['name'])}: {{r}} (the host's entry tier).")
     gb = ctx["data_gb"]
-    obj = any(s["layer"] == "storage" and s["deployment"] != "self_hosted" for s in supporting)
     db_managed = bool(db_item and db_c and db_c.vkey not in ("self", "existing"))
     if obj or (db_managed and gb > 20):
         # object storage ~$0.02-0.035/GB-month; managed database SSD ~$0.10-0.25 (Cloud SQL SSD $0.17 Iowa / $0.20 Mumbai, rendered 11 Nov 2026)
@@ -1765,15 +1810,16 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         if split:  # E8a: write-heavy time-series rows are database rows, not files
             (rg, rr, _), (fg, fr, _) = parts
             add("Stored data", lo_sum, hi_sum,
-                f"Stored data ~{cx.num(gb)} GB after 12 months: {{r}} (year-end volume used as an upper bound, not an average). Write-heavy "
+                f"Stored data (database rows plus object-storage files) ~{cx.num(gb)} GB after 12 months: {{r}} (year-end volume used as an upper bound, not an average). Write-heavy "
                 f"IoT volume: {costreal.TS_ROWS_SHARE:.0%} (~{cx.num(rg)} GB, planning heuristic) is append-only rows in the managed database at "
                 f"~${rr[0]:.2f}-{rr[1]:g}/GB-month, the other ~{cx.num(fg)} GB is files in object storage at ~${fr[0]:.2f}-{fr[1]:g}/GB-month.")
         else:
             r_lo, r_hi = parts[0][1]
             add("Stored data", lo_sum, hi_sum,
-                f"Stored data ~{cx.num(gb)} GB after 12 months at ~${r_lo:.2f}-{r_hi:g}/GB-month: {{r}} (year-end volume used as an upper bound, not an average); "
-                + ("bulk files and media are assumed to sit in object storage, while database rows stay small." if obj
-                   else "it lives in the managed database's SSD storage, which costs several times object storage."))
+                f"Stored data ({'object storage: files and media' if obj else 'database storage: rows and indexes'}) ~{cx.num(gb)} GB after 12 months "
+                f"at ~${r_lo:.2f}-{r_hi:g}/GB-month: {{r}} (year-end volume used as an upper bound, not an average); "
+                + ("this is the only charge for these files (the storage service's own line adds nothing on top), and database rows are assumed small."
+                   if obj else "it lives in the managed database's SSD storage, which costs several times object storage."))
     elif gb > 20 and db_c and db_c.vkey == "self" and not onprem:
         # E8a: a database the team runs itself still sits on a disk that is billed (cloud block storage, planning estimate)
         add("Stored data (disk)", gb * costreal.BLOCK_RATE[0], gb * costreal.BLOCK_RATE[1] + 1,
@@ -1798,36 +1844,41 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
     if ctx["req"]["requirements.auth"] == "phone_otp" and not ctx["no_internet"]:
         logins = ctx["users"]
         auth_choice = next((s["choice"] for s in supporting if s["layer"] == "auth"), "")
+        rl, rh = costreal.SMS_RETRY_FACTOR
+        india_rate = "Rs %s-%s + %d%% GST, converted at Rs %d/USD (planning rate), i.e. $%.4f-%.4f per SMS" % (
+            *costreal.INDIA_SMS_RS, round(costreal.SMS_GST * 100), costreal.INR_PER_USD, *costreal.india_sms_usd())
         if any("MSG91" in s["choice"] for s in supporting):
-            plo, phi = 0.0024, 0.0045
-            txt = "MSG91 India SMS ~Rs 0.20-0.25 + GST"
-        elif any("SNS" in s["choice"] for s in supporting) and not (ctx["india_users"] or ctx["residency"] == "india"):
-            plo, phi = 0.004, 0.006  # ponytail: only one AWS SMS rate is in the KB; per-country rates would need a price table
-            txt = "Amazon SNS SMS ~$0.004-0.006 (AWS SMS price list, 11 Nov 2026; rates vary by destination country, check the target country)"
+            plo, phi = costreal.india_sms_usd()
+            txt = f"MSG91 India SMS at {india_rate}"
         elif any("SNS" in s["choice"] for s in supporting):
-            plo, phi = 0.004, 0.006  # AWS End User Messaging SMS price CSV: India local $0.004 (11 Nov 2026)
-            txt = "Amazon SNS India local SMS $0.004 (AWS SMS price list, 11 Nov 2026) plus DLT and retry overhead"
+            # AWS End User Messaging SMS price CSV: India local $0.004 (11 Nov 2026); only one AWS SMS rate is in the KB (ponytail: per-country rates need a price table)
+            plo, phi = 0.004 * rl, 0.004 * rh
+            txt = (f"Amazon SNS SMS at $0.004 (AWS SMS price list, 11 Nov 2026), x{rl:g} at the lower bound and x{rh:g} at the upper bound "
+                   f"(retries{' and DLT rejections' if ctx['india_users'] or ctx['residency'] == 'india' else ''}, planning heuristic)"
+                   + ("" if ctx["india_users"] or ctx["residency"] == "india" else "; rates vary by destination country, check the target country"))
         elif any("SMPP" in s["choice"] for s in supporting):
             # A20: the route chosen is an SMS aggregator over SMPP; its rate comes from your contract, so a reference rate is named as such
             if ctx["india_users"] or ctx["residency"] == "india":
-                plo, phi = 0.0024, 0.0045
-                txt = ("the SMPP aggregator route: its price is not in the knowledge base, so the India reference rate of ~Rs 0.20-0.25 + GST per SMS "
+                plo, phi = costreal.india_sms_usd()
+                txt = (f"the SMPP aggregator route: its price is not in the knowledge base, so the India reference rate of {india_rate} per SMS "
                        "is used as a planning heuristic (your contract sets the real rate)")
             else:
                 plo, phi = 0.05, 0.06
-                txt = ("the SMPP aggregator route: its price is not in the knowledge base, so a reference rate of ~$0.05 per verification plus the "
-                       "SMS fee is used as a planning heuristic (your contract sets the real rate)")
+                txt = ("the SMPP aggregator route: its price is not in the knowledge base, so a reference rate of $0.05 per verification, "
+                       "$0.06 at the upper bound with the SMS fee, is used as a planning heuristic (your contract sets the real rate)")
         elif "Twilio" in auth_choice:
             plo, phi = 0.05, 0.06
-            txt = "Twilio Verify ~$0.05 + SMS"
+            txt = "Twilio Verify at $0.05 per verification, $0.06 at the upper bound with the SMS fee (planning heuristic)"
         else:
             # G1 (D19-g1): the chosen auth provider is not an SMS-priced service in the knowledge base (e.g. Keycloak with an SMPP aggregator):
             # the Twilio Verify rate stays as a reference figure and the line says so, instead of naming a provider the stack does not use
             plo, phi = 0.05, 0.06
-            txt = "the Twilio Verify reference rate of ~$0.05 per verification plus the SMS fee (the chosen SMS aggregator's price is not in the knowledge base)"
-        olo, ohi = round(logins * 0.3 * plo), round(logins * 1.0 * phi)
+            txt = ("the Twilio Verify reference rate of $0.05 per verification, $0.06 at the upper bound with the SMS fee "
+                   "(the chosen SMS aggregator's price is not in the knowledge base)")
+        ll, lh = costreal.OTP_LOGINS_PER_USER
+        olo, ohi = round(logins * ll * plo), round(logins * lh * phi)
         items.append((ohi, olo, "Phone OTP SMS fees"))
-        lines.append(f"Phone OTP: {logins:,} users x 0.3-1.0 OTP logins/month at {txt}{'' if 'reference rate' in txt else ' per SMS'} = ${olo:,}-{ohi:,}/month (long-lived sessions keep OTPs rare).")
+        lines.append(f"Phone OTP: {logins:,} users x {ll:.1f}-{lh:.1f} OTP logins/month at {txt}: {_usd_range(olo, ohi)}/month (long-lived sessions keep OTPs rare).")
     tp = ctx["req"]["scale.traffic_pattern"]
     if tp in ("spiky", "seasonal") and host.get("scaling") in ("request", "instances"):
         lines.append(f"{'Seasonal' if tp == 'seasonal' else 'Spiky'} traffic: the upper bound is a peak month; with autoscaling, "
@@ -1880,7 +1931,7 @@ def make_summary(ctx, style, fe, be, db, host_name, cost, status, onprem=False):
     host, _, region = host_name.rpartition(" — ") if " — " in host_name else (host_name, "", "")
     if db["choice"] != "None":
         parts.append(f"with {_no_paren(db['choice'].replace(' — ' + region, '') if region else db['choice'])}")
-    price = f"an estimated ${cost['min']}-{cost['max']}/month"
+    price = f"an estimated {_usd_range(cost['min'], cost['max'], commas=False)}/month"
     if onprem:  # judge B6: "$0-0" alone reads as free; the band covers only cloud/SaaS fees
         price = ("an estimated cloud bill $0; hardware/licences excluded" if cost["max"] == 0
                  else f"{price} including indicative amortised hardware (not a quote); licences and staff excluded")

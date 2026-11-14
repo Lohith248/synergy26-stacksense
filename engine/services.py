@@ -192,11 +192,11 @@ def second_db_reason(ctx, e, pat, db):
     same = pat.get("engine") and pat["engine"] == db.get("id")
     engine = ENGINE_NAMES.get(pat.get("engine"), pat.get("product"))
     others = sum(1 for x in ctx["existing"] if x is not e and x["pattern"] and x["pattern"]["kind"] == "database" and not x["keep"] and not x["retire"])
-    return (("Another database exists" if others else "A second database exists") + " only because infrastructure.existing_systems lists it without saying it must stay or be retired, "
-            + (f"so it is left untouched ({engine} is also the engine of the new database; the new tables are a separate database)"
-               if same else
-               f"so it is left untouched and the new tables go to {db['_variant']}, which scored best for this input")
-            + "; if the existing database must stay as the only database, say so in infrastructure.existing_systems, and to migrate off it, say it will be retired.")
+    detail = (f"{engine} is also the engine of the new database, but the new tables are a separate database" if same
+              else f"{db['_variant']}, which scored best for this input")
+    return (f"{'Another existing' if others else 'The existing'} {engine + ' database' if engine and 'database' not in engine.lower() else engine or 'database'} stays as it is and is read through this integration, "
+            f"while the new application's data lives in the new database ({detail}). "
+            "infrastructure.existing_systems does not say whether it stays or goes: if it will be retired, say so there.")
 
 
 def payment_location(gateway, prov, ctx):
@@ -353,6 +353,56 @@ def approvals_named(ctx):
 def azure_pgvector(ctx, db):
     return bool(db and db["id"] == "postgresql" and ctx["tier"] <= PGVECTOR_MAX_TIER
                 and not _HYBRID_RANKING_RX.search((ctx["req"]["project.description"] or "").lower()))
+
+
+# M1 (planning heuristic): a money-handling system (fintech, or one that takes online payments) whose security priority is at least this,
+# or whose compliance list names one of SECURITY_COMPLIANCE, gets a security supporting line on a hyperscaler
+SECURITY_PRIORITY = 4
+SECURITY_COMPLIANCE = ("pci_dss", "iso27001")
+# Azure: the Front Door profile's $35 base fee is already in the CDN line when one exists; otherwise AZURE_FRONT_DOOR_BASE is added here
+AZURE_FRONT_DOOR_BASE = 35
+# per provider: (choice, what each part does, alternative, cost per scale tier [lo, hi] USD/month (planning estimate), source ids)
+SECURITY_SET = {
+    "aws": ("AWS WAF + AWS KMS + AWS Secrets Manager + AWS CloudTrail",
+            "AWS WAF in front of the load balancer or CloudFront (managed rule sets plus rate limits on login and payment routes), AWS KMS customer-managed "
+            "keys for the database, bucket and backup encryption, AWS Secrets Manager for database and gateway credentials, and AWS CloudTrail for an "
+            "audit trail of API and console actions kept in a write-protected bucket",
+            ("Cloudflare WAF", "a second vendor in front of the AWS footprint; AWS WAF keeps rules, keys and logs in one account"),
+            [[8, 25], [15, 60], [40, 200], [150, 800]], ["aws-waf-pricing", "aws-kms-pricing", "aws-secrets-pricing", "aws-cloudtrail-pricing"]),
+    "azure": ("Azure Front Door WAF + Azure Key Vault + Azure Activity Log / Microsoft Defender for Cloud",
+              "Azure Front Door with its web application firewall (managed rule sets plus rate limits on login and payment routes), Azure Key Vault for "
+              "encryption keys and credentials, and the Azure Activity Log with Microsoft Defender for Cloud for an audit trail and security alerts",
+              ("Cloudflare WAF", "a second vendor in front of the Azure footprint; Front Door WAF keeps rules, keys and logs in one tenant"),
+              [[10, 40], [15, 90], [40, 250], [120, 900]], ["azure-frontdoor-pricing", "azure-keyvault-pricing", "azure-defender-pricing", "azure-activity-log"]),
+    "gcp": ("Google Cloud Armor + Cloud KMS + Secret Manager + Cloud Audit Logs",
+            "Google Cloud Armor in front of the load balancer (preconfigured WAF rules plus rate limits on login and payment routes), Cloud KMS keys for "
+            "database, bucket and backup encryption, Secret Manager for database and gateway credentials, and Cloud Audit Logs for an audit trail of "
+            "administrative and data access",
+            ("Cloudflare WAF", "a second vendor in front of the Google Cloud footprint; Cloud Armor keeps rules, keys and logs in one project"),
+            [[10, 30], [15, 70], [40, 220], [150, 800]], ["gcp-armor-pricing", "gcp-kms-pricing", "gcp-secret-manager-pricing", "gcp-audit-logs"]),
+}
+
+
+def security_line(ctx, host, rtxt, loc, svc_, front_door_paid=False):
+    """M1: WAF, key management, a secrets store and an audit trail for a money-handling system with a high security priority or a PCI DSS /
+    ISO 27001 entry, on AWS, Azure or Google Cloud. None when the inputs do not ask for it. Costs are planning estimates; the prices were not read."""
+    req, p = ctx["req"], host["provider"]
+    if p not in SECURITY_SET or not ctx["needs_backend"] or ctx["local_first"] or host["kind"] in ("vm", "onprem"):
+        return None
+    money = bool(req["requirements.payments"]) or ctx["type"] == "fintech"
+    comp = [c for c in ctx["compliance"] if c in SECURITY_COMPLIANCE]
+    if not money or not (ctx["prio"]["security"] >= SECURITY_PRIORITY or comp):
+        return None
+    name, what, alt, cost, src = SECURITY_SET[p]
+    if p == "azure" and not front_door_paid:
+        cost = [[lo + AZURE_FRONT_DOOR_BASE, hi + AZURE_FRONT_DOOR_BASE] for lo, hi in cost]
+    driven = (["requirements.payments"] if req["requirements.payments"] else ["project.type"]) + ["priorities.security"] + (["compliance"] if comp else [])
+    why = (f"Money handling with priorities.security={ctx['prio']['security']}" + (f" and compliance={','.join(comp)}" if comp else "")
+           + f" needs protection in front of the app and control of keys, secrets and audit evidence: {what}{rtxt}. "
+           "These are the building blocks an assessor asks to see; they do not make the system compliant on their own. "
+           "The cost line is a planning estimate (provider list prices for these services were not read), driven mainly by request volume.")
+    return svc_("other", name, why, driven, [alt], ["Rule tuning is ongoing work: start WAF rules in count mode, then block", "Key and secret rotation must be scheduled and tested"],
+                "managed", p, True, cost, src, loc)
 
 
 def build(ctx, host, backend, db, mobile, warn):
@@ -516,11 +566,16 @@ def build(ctx, host, backend, db, mobile, warn):
                                "managed", "aws", True,
                                # judge B5: SMS is billed once, in the band's Phone OTP line; this line is Cognito MAUs only
                                # (R5 verified: Lite 10,000 MAU free, then $0.0055/MAU; MAU = 30-100% of users, as for OTP logins)
-                               [[round(max(0, ctx["users"] * 0.3 - 10000) * 0.0055), round(max(0, ctx["users"] - 10000) * 0.0055)]] * 4,
+                               [[round(max(0, ctx["users"] * costreal.MAU_SHARE[0] - costreal.COGNITO_FREE_MAU) * costreal.COGNITO_RATE),
+                                 round(max(0, ctx["users"] * costreal.MAU_SHARE[1] - costreal.COGNITO_FREE_MAU) * costreal.COGNITO_RATE)]] * 4,
                                ["aws-cognito-pricing", "aws-sns-sms"] + (["trai-dlt"] if india else []), loc))
                 out[-1]["_label"] = "Amazon Cognito monthly-active-user charges"  # J1: the budget warning names it apart from the SMS fees line
-                out[-1]["_note"] = (" Cognito Lite: 10,000 MAU free, then $0.0055 per MAU (Amazon Cognito pricing); "
-                                    "SMS is counted once, in the Phone OTP line.")
+                mlo, mhi = (round(ctx["users"] * x) for x in costreal.MAU_SHARE)
+                out[-1]["_note"] = (f" Cognito Lite: {costreal.COGNITO_FREE_MAU:,} MAU free, then a flat ${costreal.COGNITO_RATE} per MAU at every volume (Amazon Cognito pricing; "
+                                    "the knowledge base holds no volume-tier table, so a tier discount, if any, is not modelled). "
+                                    f"MAU is taken as {costreal.MAU_SHARE[0]:.0%}-{costreal.MAU_SHARE[1]:.0%} of ~{ctx['users']:,} users = {mlo:,}-{mhi:,} MAU (planning heuristic), "
+                                    f"so the lower bound is max(0, {mlo:,} - {costreal.COGNITO_FREE_MAU:,}) x ${costreal.COGNITO_RATE} and the upper bound "
+                                    f"max(0, {mhi:,} - {costreal.COGNITO_FREE_MAU:,}) x ${costreal.COGNITO_RATE}; SMS is counted once, in the Phone OTP line.")
             elif india:
                 in_res = loc == "india" or ctx["residency"] == "india"
                 out.append(svc("auth", "Backend-issued sessions + MSG91 OTP API (India)",
@@ -1454,5 +1509,8 @@ def build(ctx, host, backend, db, mobile, warn):
                            [("Treating it as outside the design", f"{ig.cite(ad)} mentions it in connection with the project, so any hand-off with it needs an owner and a test")],
                            ["The interface details are assumed from the description and must be confirmed with the system's owners",
                             "Adds code and tests to maintain, but no new paid service"], "library", "neutral", False, Z, ["statement"]))
+    sec = security_line(ctx, host, rtxt, loc, svc, any(s['layer'] == 'cdn' and 'Front Door' in s['choice'] for s in out))
+    if sec:
+        out.append(sec)
     domains.build(ctx, host, backend, db, svc, warn, Z, out)
     return out

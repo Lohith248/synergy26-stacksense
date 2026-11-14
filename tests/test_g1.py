@@ -83,12 +83,12 @@ class ExistingAzureSql(unittest.TestCase):
                 self.assertIn("Azure SQL", out["stack"]["database"]["choice"])
                 comp = sup(out, "Integration with existing Azure SQL")
                 self.assertTrue(comp)
-                self.assertIn("A second database exists only because", comp[0]["justification"])
+                self.assertIn("does not say whether it stays or goes", comp[0]["justification"])
 
     def test_different_engine_names_the_new_database(self):
         out = run(project__type="saas_b2b", infrastructure__existing_systems=["Oracle Database 19c"])
         comp = sup(out, "Integration with existing Oracle")
-        self.assertIn("A second database exists only because", comp[0]["justification"])
+        self.assertIn("does not say whether it stays or goes", comp[0]["justification"])
         self.assertIn("scored best for this input", comp[0]["justification"])
 
     def test_kept_or_retired_database_has_no_second_database_text(self):
@@ -96,7 +96,7 @@ class ExistingAzureSql(unittest.TestCase):
             with self.subTest(raw=raw):
                 out = run(infrastructure__cloud_preference="azure", infrastructure__existing_systems=[raw])
                 for s in sup(out, "Azure SQL"):
-                    self.assertNotIn("A second database exists", s["justification"])
+                    self.assertNotIn("does not say whether it stays or goes", s["justification"])
 
 
 class DiscontinuedServices(unittest.TestCase):
@@ -188,7 +188,7 @@ class ReviewFixes(unittest.TestCase):
     def test_two_existing_databases_say_another(self):
         out = run(project__type="saas_b2b", infrastructure__existing_systems=["Oracle Database 19c", "MySQL 8"])
         texts = [s["justification"] for s in out["stack"]["supporting"] if "Integration with existing" in s["choice"]]
-        self.assertTrue(any("Another database exists" in t for t in texts))
+        self.assertTrue(any("Another existing" in t for t in texts))
 
     def test_azure_sql_edge_is_not_azure_sql(self):
         out = run(infrastructure__cloud_preference="azure", infrastructure__existing_systems=["Azure SQL Edge on the gateways"])

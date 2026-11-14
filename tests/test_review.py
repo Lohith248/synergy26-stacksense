@@ -227,7 +227,7 @@ class IotBroker(unittest.TestCase):
         self.assertEqual(broker['deployment'], 'self_hosted')
         self.assertIn('same servers', broker['justification'])
         # round 12 (judge B4): the broker is named, at $0-0 cloud cost on the on-prem servers
-        self.assertTrue(all('$0-0/month' in a for a in out['estimated_monthly_cost_usd']['assumptions'] if 'Mosquitto' in a))
+        self.assertTrue(all('$0/month' in a for a in out['estimated_monthly_cost_usd']['assumptions'] if 'Mosquitto' in a))
 
 
 
@@ -370,7 +370,7 @@ class OnPremTraining(unittest.TestCase):
                 ml = next(x for x in out['stack']['supporting'] if x['layer'] == 'ml')
                 self.assertEqual(ml['deployment'], 'self_hosted')
                 # round 12 (judge B4): self-hosted parts are named, at $0-0 cloud cost on the on-prem servers
-                self.assertTrue(all('$0-0/month' in a for a in out['estimated_monthly_cost_usd']['assumptions'] if a.startswith('ml:')))
+                self.assertTrue(all('$0/month' in a for a in out['estimated_monthly_cost_usd']['assumptions'] if a.startswith('ml:')))
                 self.assertIn('GPU', ' '.join(ml['tradeoffs']))
 
     def test_managed_training_keeps_its_band(self):
@@ -486,7 +486,7 @@ class BudgetAtRisk(unittest.TestCase):
         w = next(x for x in out['warnings'] if x['code'] == 'BUDGET_AT_RISK')
         self.assertEqual(w['severity'], 'warning')
         self.assertIn('Hosting', w['message'])
-        self.assertIn('Phone OTP', w['message'])
+        self.assertIn('Database', w['message'])  # M1: the OTP line is now recomputed from its stated rate and no longer a top-two item
         self.assertEqual(out['status'], 'ok_with_warnings')
 
     def test_mild_overshoot_stays_info(self):

@@ -1026,6 +1026,8 @@ def build(req):
     # a named jurisdiction (india/eu/us or a resolved 'other'); rbi-derived India stays separate as before
     c["res_named"] = res in ("india", "eu", "us") or bool(c["country"])
     c["res_paths"] = ["infrastructure.data_residency"] + ([c["country_path"]] if c["country"] else [])
+    if c["residency_from_rbi"]:  # M1: data_residency is "none"; the region is pinned by the compliance entry, so that is the input to cite
+        c["res_paths"][0] = "compliance"
     if c["res_stated"] and c["res_stated"]["pin"] and not c["country"]:
         c["res_paths"].append("project.description")
     c["self_host_only"] = c["deploy"] in ("on_premise", "air_gapped")

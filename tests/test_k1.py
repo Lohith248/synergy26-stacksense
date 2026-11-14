@@ -129,7 +129,7 @@ class PrometheusOnTheAppVm(unittest.TestCase):
             with self.subTest(typ=typ):
                 o = self.obs(run(desc, typ, infra=self.VM, scale={"users_at_launch": 30, "users_12_months": 100, "peak_concurrent_users": 10}))
                 self.assertIn("Prometheus/Grafana on the VM", o[0])
-                self.assertIn("$0-0/month extra", o[1])
+                self.assertIn("$0/month extra", o[1])
 
     def test_managed_cloud_monitoring_keeps_its_band(self):
         o = self.obs(run("Booking site for a clinic.", infra={"cloud_preference": "aws"}, scale={"users_at_launch": 30, "users_12_months": 100, "peak_concurrent_users": 10}))

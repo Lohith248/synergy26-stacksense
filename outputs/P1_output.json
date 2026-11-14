@@ -337,7 +337,7 @@
     "max": 4,
     "currency": "USD",
     "assumptions": [
-      "Hosting Cloudflare Pages: $0-0/month at the 'tiny' tier.",
+      "Hosting Cloudflare Pages: $0/month at the 'tiny' tier.",
       "ci_cd: GitHub Actions $0-4/month.",
       "Excluded: taxes, domain names, paid support plans and data-egress spikes. Order-of-magnitude band, not a quote."
     ]

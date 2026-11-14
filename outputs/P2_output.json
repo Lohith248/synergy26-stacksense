@@ -2,7 +2,7 @@
   "scenario_id": "P2",
   "engine_version": "1.0.0",
   "status": "ok_with_warnings",
-  "summary": "Modular monolith: Next.js (web) + React Native (Expo) (Android) on Node.js 24 LTS + NestJS (TypeScript) with Azure Database for PostgreSQL – Flexible Server 17, hosted on Azure App Service — Central India (Pune), at an estimated $84-457/month. Review the warnings.",
+  "summary": "Modular monolith: Next.js (web) + React Native (Expo) (Android) on Node.js 24 LTS + NestJS (TypeScript) with Azure Database for PostgreSQL – Flexible Server 17, hosted on Azure App Service — Central India (Pune), at an estimated $85-410/month. Review the warnings.",
   "architecture_style": "modular_monolith",
   "stack": {
     "frontend": {
@@ -175,7 +175,7 @@
         },
         {
           "choice": "Azure Database for MySQL – Flexible Server 8.4",
-          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 fits better: strict ACID transactions for marketplace transactions and payments (requirements.payments=true). Known limit of Azure Database for MySQL – Flexible Server 8.4: 8.0 moved to Sustaining Support (Apr 2026); no row-level security."
+          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 fits better: both are ACID databases, but Azure Database for PostgreSQL also has row-level security (the KB records none for Azure Database for MySQL) and JSONB documents next to relational tables, which matter for marketplace transactions and payments (requirements.payments=true)."
         }
       ],
       "tradeoffs": [
@@ -572,18 +572,18 @@
     ]
   },
   "estimated_monthly_cost_usd": {
-    "min": 84,
-    "max": 457,
+    "min": 85,
+    "max": 410,
     "currency": "USD",
     "assumptions": [
       "Hosting Azure App Service (Linux, Basic B2 / Standard S1): $25-150/month at the 'small' tier.",
       "Database Azure Database for PostgreSQL – Flexible Server 17: $30-120/month. Sized for Burstable B1ms (about $18 compute) to B2s (about $72 compute) plus storage; a General Purpose D2ds_v5 alone is about $183.",
-      "storage: Azure Blob Storage (Central India (Pune)) $1-10/month.",
+      "storage: Azure Blob Storage (Central India (Pune)) $0/month here: the files it holds are priced by volume in the 'Stored data' line, not charged twice.",
       "cdn: Cloudflare (free plan) in front of Azure $0-5/month.",
       "ci_cd: GitHub Actions $0-4/month.",
       "observability: Azure Monitor + Application Insights in Central India (Pune) $5-30/month.",
-      "Stored data ~50 GB after 12 months at ~$0.02-0.035/GB-month: $1-3/month (year-end volume used as an upper bound, not an average); bulk files and media are assumed to sit in object storage, while database rows stay small.",
-      "Phone OTP: 30,000 users x 0.3-1.0 OTP logins/month at MSG91 India SMS ~Rs 0.20-0.25 + GST per SMS = $22-135/month (long-lived sessions keep OTPs rare).",
+      "Stored data (object storage: files and media) ~50 GB after 12 months at ~$0.02-0.035/GB-month: $1-3/month (year-end volume used as an upper bound, not an average); this is the only charge for these files (the storage service's own line adds nothing on top), and database rows are assumed small.",
+      "Phone OTP: 30,000 users x 0.3-1.0 OTP logins/month at MSG91 India SMS at Rs 0.2-0.25 + 18% GST, converted at Rs 90/USD (planning rate), i.e. $0.0026-0.0033 per SMS: $24-98/month (long-lived sessions keep OTPs rare).",
       "Excluded: payment gateway fees (~2% per transaction) are a share of revenue, not infrastructure.",
       "Excluded: taxes, domain names, paid support plans and data-egress spikes. Order-of-magnitude band, not a quote."
     ]
@@ -600,7 +600,7 @@
     {
       "code": "BUDGET_AT_RISK",
       "severity": "warning",
-      "message": "Upper estimate $457/month is 3.0x the $150 budget at peak usage; the largest upper-bound items are Hosting Azure App Service (Linux, Basic B2 / Standard S1) (up to $150) and Phone OTP SMS fees (up to $135). Launch near the $84 lower bound and set billing alerts at the budget.",
+      "message": "Upper estimate $410/month is 2.7x the $150 budget at peak usage; the largest upper-bound items are Hosting Azure App Service (Linux, Basic B2 / Standard S1) (up to $150) and Database Azure Database for PostgreSQL – Flexible Server 17 (up to $120). Launch near the $85 lower bound and set billing alerts at the budget.",
       "fields": [
         "budget.monthly_infra_usd"
       ]

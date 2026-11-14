@@ -264,7 +264,7 @@ class Pareto(unittest.TestCase):
         p = c["pareto"]
         self.assertFalse(p["optimal"])
         self.assertIn(".NET 10 LTS + ASP.NET Core", p["dominated_by"])
-        mine, other = self.r["Java 21/25 LTS + Spring Boot"], self.r[".NET 10 LTS + ASP.NET Core"]
+        mine, other = self.r["Java 25 LTS + Spring Boot"], self.r[".NET 10 LTS + ASP.NET Core"]
         self.assertTrue(all(o >= m for o, m in zip(other, mine)) and other != mine)
         self.assertIn("java", p["note"])
 

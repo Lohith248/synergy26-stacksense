@@ -2,7 +2,7 @@
   "scenario_id": "P6",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Single deployable monolith: React Native (Expo) (Android) on Python 3.13 + Django 5.2 LTS with Cloud SQL for PostgreSQL 17, hosted on Google Cloud Run — asia-south1 (Mumbai), at an estimated $13-66/month.",
+  "summary": "Single deployable monolith: React Native (Expo) (Android) on Python 3.13 + Django 5.2 LTS with Cloud SQL for PostgreSQL 17, hosted on Google Cloud Run — asia-south1 (Mumbai), at an estimated $14-62/month.",
   "architecture_style": "monolith",
   "stack": {
     "frontend": {
@@ -71,7 +71,7 @@
       "alternatives": [
         {
           "choice": "Node.js 24 LTS + NestJS (TypeScript)",
-          "why_not": "With priorities.time_to_market=4, Python 3.13 + Django 5.2 LTS is faster to deliver with; Node.js 24 LTS + NestJS's learning curve is 3/5 for a mixed team (team.experience=mixed). Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
+          "why_not": "With priorities.time_to_market=4, Python 3.13 + Django 5.2 LTS is faster to deliver with; Node.js 24 LTS + NestJS's learning curve is 3/5 for a mixed team (team.experience=mixed), against 2/5 for Python 3.13 + Django 5.2 LTS: the team's fast-delivery priority (priorities.time_to_market=4) does not repay the extra ramp-up. Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
         },
         {
           "choice": "Python 3.13 + FastAPI",
@@ -117,7 +117,7 @@
         "label": "medium",
         "basis": "stability 0.87 (moderate) over 54 priority vectors; score margin 1.8 over the runner-up."
       },
-      "contrast": "Python 3.13 + Django 5.2 LTS rather than Node.js 24 LTS + NestJS (TypeScript). With priorities.time_to_market=4, Python 3.13 + Django 5.2 LTS is faster to deliver with; Node.js 24 LTS + NestJS's learning curve is 3/5 for a mixed team (team.experience=mixed). Trade-off accepted: Convention-heavy framework: less flexible than micro-frameworks for unusual architectures.",
+      "contrast": "Python 3.13 + Django 5.2 LTS rather than Node.js 24 LTS + NestJS (TypeScript). With priorities.time_to_market=4, Python 3.13 + Django 5.2 LTS is faster to deliver with; Node.js 24 LTS + NestJS's learning curve is 3/5 for a mixed team (team.experience=mixed), against 2/5 for Python 3.13 + Django 5.2 LTS: the team's fast-delivery priority (priorities.time_to_market=4) does not repay the extra ramp-up. Trade-off accepted: Convention-heavy framework: less flexible than micro-frameworks for unusual architectures.",
       "what_would_change": [
         {
           "edit": "requirements.realtime: false -> true",
@@ -142,7 +142,7 @@
       "alternatives": [
         {
           "choice": "Cloud SQL for MySQL 8.4",
-          "why_not": "With priorities.maintainability=4, Cloud SQL for PostgreSQL 17 is easier to maintain. Known limit of Cloud SQL for MySQL 8.4: 8.0 moved to Sustaining Support (Apr 2026); no row-level security."
+          "why_not": "With priorities.maintainability=4, Cloud SQL for PostgreSQL 17 is easier to maintain."
         },
         {
           "choice": "Supabase Postgres",
@@ -450,18 +450,18 @@
     ]
   },
   "estimated_monthly_cost_usd": {
-    "min": 13,
-    "max": 66,
+    "min": 14,
+    "max": 62,
     "currency": "USD",
     "assumptions": [
       "Hosting Google Cloud Run: $0-10/month at the 'tiny' tier.",
       "Database Cloud SQL for PostgreSQL 17: $10-30/month. Assumes a shared-core instance (db-f1-micro to db-g1-small: $0.0126-0.042/hour in Mumbai, $0.0105-0.035 in Iowa, about $8-31/month, Google pricing page 11 Nov 2026). Google excludes shared-core instances from the Cloud SQL SLA and advises against production use; a dedicated-core instance costs more.",
-      "storage: Google Cloud Storage (asia-south1 (Mumbai)) $0-2/month.",
+      "storage: Google Cloud Storage (asia-south1 (Mumbai)) $0/month here: the files it holds are priced by volume in the 'Stored data' line, not charged twice.",
       "queue: Google Cloud Pub/Sub / Cloud Tasks in asia-south1 (Mumbai) $0-1/month.",
       "ci_cd: GitHub Actions $0-4/month.",
       "observability: Cloud Logging + Cloud Monitoring in asia-south1 (Mumbai) $0-5/month.",
-      "Stored data ~100 GB after 12 months at ~$0.02-0.035/GB-month: $2-5/month (year-end volume used as an upper bound, not an average); bulk files and media are assumed to sit in object storage, while database rows stay small.",
-      "Phone OTP: 2,000 users x 0.3-1.0 OTP logins/month at MSG91 India SMS ~Rs 0.20-0.25 + GST per SMS = $1-9/month (long-lived sessions keep OTPs rare).",
+      "Stored data (object storage: files and media) ~100 GB after 12 months at ~$0.02-0.035/GB-month: $2-5/month (year-end volume used as an upper bound, not an average); this is the only charge for these files (the storage service's own line adds nothing on top), and database rows are assumed small.",
+      "Phone OTP: 2,000 users x 0.3-1.0 OTP logins/month at MSG91 India SMS at Rs 0.2-0.25 + 18% GST, converted at Rs 90/USD (planning rate), i.e. $0.0026-0.0033 per SMS: $2-7/month (long-lived sessions keep OTPs rare).",
       "Spiky traffic: the upper bound is a peak month; with autoscaling, quiet months run near the lower bound.",
       "Excluded: taxes, domain names, paid support plans and data-egress spikes. Order-of-magnitude band, not a quote."
     ]

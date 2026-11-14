@@ -2,7 +2,7 @@
   "scenario_id": "P5",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Hybrid cloud + on-premises integration: React (Vite SPA) (web) on .NET 10 LTS + ASP.NET Core with Azure SQL Database, hosted on Azure App Service — Central India (Pune), at an estimated $46-276/month.",
+  "summary": "Hybrid cloud + on-premises integration: React (Vite SPA) (web) on .NET 10 LTS + ASP.NET Core with Azure SQL Database, hosted on Azure App Service — Central India (Pune), at an estimated $45-266/month.",
   "architecture_style": "hybrid",
   "stack": {
     "frontend": {
@@ -95,7 +95,7 @@
         }
       ],
       "tradeoffs": [
-        "Smaller data-science and AI library ecosystem than Python"
+        "Each LTS is supported for a fixed window (.NET 10 LTS to 14 Nov 2028), so framework upgrades have to be planned"
       ],
       "kb_id": "dotnet-aspnet",
       "score_margin": 9.2,
@@ -122,7 +122,7 @@
         "label": "high",
         "basis": "stability 1.00 (robust) over 52 priority vectors; score margin 9.2 over the runner-up."
       },
-      "contrast": ".NET 10 LTS + ASP.NET Core rather than Node.js 24 LTS + NestJS (TypeScript). .NET 10 LTS + ASP.NET Core fits better: first-class SQL Server driver/ORM (infrastructure.existing_systems); with priorities.security=4, it is stronger on security. Trade-off accepted: Smaller data-science and AI library ecosystem than Python.",
+      "contrast": ".NET 10 LTS + ASP.NET Core rather than Node.js 24 LTS + NestJS (TypeScript). .NET 10 LTS + ASP.NET Core fits better: first-class SQL Server driver/ORM (infrastructure.existing_systems); with priorities.security=4, it is stronger on security. Trade-off accepted: Each LTS is supported for a fixed window (.NET 10 LTS to 14 Nov 2028), so framework upgrades have to be planned.",
       "what_would_change": []
     },
     "database": {
@@ -142,7 +142,7 @@
         },
         {
           "choice": "Azure Database for MySQL – Flexible Server 8.4",
-          "why_not": "Azure SQL Database fits better: matches the existing On-prem SQL Server 2019 the team already runs (infrastructure.existing_systems); with priorities.maintainability=5, it is easier to maintain. Known limit of Azure Database for MySQL – Flexible Server 8.4: 8.0 moved to Sustaining Support (Apr 2026); no row-level security."
+          "why_not": "Azure SQL Database fits better: matches the existing On-prem SQL Server 2019 the team already runs (infrastructure.existing_systems); with priorities.maintainability=5, it is easier to maintain."
         }
       ],
       "tradeoffs": [
@@ -402,7 +402,7 @@
       {
         "layer": "other",
         "choice": "Integration with existing On-prem SQL Server 2019 via App Service Hybrid Connection (outbound 443 relay, no inbound ports)",
-        "justification": "Leave it running as it is and read the data the new application needs through a narrow data-access layer or read API; new tables go in the new database, not in the existing server. The new application keeps its own tables in Azure SQL Database (serverless/General Purpose) and reads the existing data through App Service Hybrid Connection (outbound 443 relay, no inbound ports). A second database exists only because infrastructure.existing_systems lists it without saying it must stay or be retired, so it is left untouched (SQL Server is also the engine of the new database; the new tables are a separate database); if the existing database must stay as the only database, say so in infrastructure.existing_systems, and to migrate off it, say it will be retired.",
+        "justification": "Leave it running as it is and read the data the new application needs through a narrow data-access layer or read API; new tables go in the new database, not in the existing server. The new application keeps its own tables in Azure SQL Database (serverless/General Purpose) and reads the existing data through App Service Hybrid Connection (outbound 443 relay, no inbound ports). The existing SQL Server database stays as it is and is read through this integration, while the new application's data lives in the new database (SQL Server is also the engine of the new database, but the new tables are a separate database). infrastructure.existing_systems does not say whether it stays or goes: if it will be retired, say so there.",
         "driven_by": [
           "infrastructure.existing_systems"
         ],
@@ -432,16 +432,16 @@
     ]
   },
   "estimated_monthly_cost_usd": {
-    "min": 46,
-    "max": 276,
+    "min": 45,
+    "max": 266,
     "currency": "USD",
     "assumptions": [
       "Hosting Azure App Service (Linux, Basic B2 / Standard S1): $25-150/month at the 'small' tier.",
       "Database Azure SQL Database (serverless/General Purpose): $15-80/month. Assumes serverless auto-pause outside working hours: about 26-139 active vCore-hours a month at ~$0.57/vCore-hour (Central India rate, 11 Nov 2026); a 0.5-vCore minimum that never pauses is about $210/month compute, and DTU Standard S0 (~$17/month) is the fixed-price alternative.",
-      "storage: Azure Blob Storage (Central India (Pune)) $1-10/month.",
+      "storage: Azure Blob Storage (Central India (Pune)) $0/month here: the files it holds are priced by volume in the 'Stored data' line, not charged twice.",
       "ci_cd: GitHub Actions $0-4/month.",
       "observability: Azure Monitor + Application Insights in Central India (Pune) $5-30/month.",
-      "Stored data ~20 GB after 12 months at ~$0.02-0.035/GB-month: $0-2/month (year-end volume used as an upper bound, not an average); bulk files and media are assumed to sit in object storage, while database rows stay small.",
+      "Stored data (object storage: files and media) ~20 GB after 12 months at ~$0.02-0.035/GB-month: $0-2/month (year-end volume used as an upper bound, not an average); this is the only charge for these files (the storage service's own line adds nothing on top), and database rows are assumed small.",
       "Excluded: taxes, domain names, paid support plans and data-egress spikes. Order-of-magnitude band, not a quote."
     ]
   },
