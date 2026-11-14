@@ -1305,7 +1305,9 @@ def contradictions(ctx, W, assumptions, host, backend):
           ["scale.users_12_months", "budget.monthly_infra_usd"])
     if ctx["exp"] == "beginner" and ctx["size"] == 1 and ((req["requirements.payments"] and ctx["static_rule"] != "hosted_payments")  # D16: a hosted button is not built
                                                           or req["requirements.multi_tenant"] or req["requirements.realtime"]) and ctx["weeks"] <= 4:
-        W("SCOPE_VS_TEAM", "warning", "A solo beginner building payments/realtime/multi-tenancy in a few weeks is high risk; managed services were preferred, but consider cutting scope.",
+        scope_fields = [n for n, on in (("payments", req["requirements.payments"] and ctx["static_rule"] != "hosted_payments"),
+                                        ("realtime", req["requirements.realtime"]), ("multi-tenancy", req["requirements.multi_tenant"])) if on]
+        W("SCOPE_VS_TEAM", "warning", f"A solo beginner building {'/'.join(scope_fields)} in a few weeks is high risk; managed services were preferred, but consider cutting scope.",
           ["team.experience", "team.size", "timeline.mvp_weeks"])
     if req["requirements.offline_support"] and not ctx["mobile"] and ctx["web"]:
         assumptions.append("offline_support on web: implemented as a PWA with service worker + IndexedDB; capability is narrower than native apps.")

@@ -297,6 +297,23 @@ def llm_description_constraints(ctx, ml, selfh, model, req, warn):
         ml["driven_by"] = sorted(set(ml["driven_by"] + paths), key=lambda x: (x not in ml["driven_by"], x))
 
 
+# i2 (planning heuristic): at tier 0-1 the vectors of a RAG feature live in the PostgreSQL database already chosen (pgvector, documented for
+# Azure Database for PostgreSQL flexible server) instead of an always-on Azure AI Search unit; the search service stays for a larger tier, a
+# description that asks for hybrid / semantic ranking or facets, or a database that is not PostgreSQL.
+PGVECTOR_MAX_TIER = 1
+_HYBRID_RANKING_RX = re.compile(r"\b(?:hybrid (?:search|retrieval|ranking)|semantic (?:rank\w*|reranker)|re-?rank\w*|facet\w*)\b")
+
+
+def approvals_named(ctx):
+    """i2: the generic word 'workflow' also sets desc['approvals']; the Microsoft Graph approvals component needs the description to say approval(s) or leave requests."""
+    return bool(re.search(r"\b(?:approv|leave request)", (ctx["req"]["project.description"] or "").lower()))
+
+
+def azure_pgvector(ctx, db):
+    return bool(db and db["id"] in ("postgresql", "supabase") and ctx["tier"] <= PGVECTOR_MAX_TIER
+                and not _HYBRID_RANKING_RX.search((ctx["req"]["project.description"] or "").lower()))
+
+
 def build(ctx, host, backend, db, mobile, warn):
     """host/backend/db/mobile: chosen KB items (db may be None). warn(code, sev, msg, fields)."""
     req = ctx["req"]
@@ -1040,7 +1057,8 @@ def build(ctx, host, backend, db, mobile, warn):
                      ["requirements.ml_features", "infrastructure.deployment_model"])
             else:
                 c, prov, src = {"aws": (f"Amazon Bedrock{rtxt} + pgvector", "aws", ["aws-bedrock"]),
-                                "azure": ("Azure OpenAI (Foundry) + Azure AI Search vectors", "azure", ["azure-ai-search"]),
+                                "azure": (("Azure OpenAI (Foundry) + pgvector (Azure Database for PostgreSQL)", "azure", ["azure-pgvector"]) if azure_pgvector(ctx, db)
+                                          else ("Azure OpenAI (Foundry) + Azure AI Search vectors", "azure", ["azure-ai-search"])),
                                 "gcp": ("Vertex AI Gemini + pgvector", "gcp", ["gcp-locations"])}.get(p, ("Hosted LLM API + pgvector", "neutral", ["postgres-versioning"]))
                 llm_region = LLM_REGIONS.get((p, loc)) if loc else None
                 if llm_region:
@@ -1060,9 +1078,11 @@ def build(ctx, host, backend, db, mobile, warn):
             search_idx = "Azure AI Search" in c
             out.append(svc("ml", c, "Retrieval-augmented generation: "
                            + ("embeddings indexed in an Azure AI Search index (a separate service from the database), " if search_idx
-                              else "embeddings stored next to the data, ")
+                              else "embeddings stored next to the data" + (" in the PostgreSQL database already chosen (pgvector extension, no second paid service), " if "pgvector (Azure" in c else ", "))
                            + ("a local model" if selfh else "a managed model") + " generates answers from retrieved passages.",
-                           dp, [("Fine-tuning a model", "costlier and slower to update than retrieval")],
+                           dp, [("Fine-tuning a model", "costlier and slower to update than retrieval")]
+                           + ([("Azure AI Search vectors", "a separate always-on service (one Basic unit is about $74/month); worth it for hybrid or semantic ranking or a much larger corpus")]
+                              if "pgvector (Azure" in c else []),
                            ["GPU hardware, power and operations must be sized separately; evaluate answer quality"] if selfh else ["Per-token cost; evaluate answer quality"],
                            "managed" if prov != "neutral" else "self_hosted", prov, True,
                            Z if selfh else [[max(lo, ulo) + 74 * search_idx, max(hi, uhi) + 74 * search_idx]
@@ -1075,20 +1095,32 @@ def build(ctx, host, backend, db, mobile, warn):
             llm_description_constraints(ctx, out[-1], selfh, c, req, warn)
         else:
             managed = hyper and not ctx["self_host_only"]  # on_premise/air_gapped: own GPU hardware, outside the cloud bill
-            c = {"aws": "Amazon SageMaker AI training jobs", "azure": "Azure Machine Learning training jobs", "gcp": "Vertex AI custom training"}.get(p) if managed                 else "Scheduled training job on a GPU/CPU worker (PyTorch / scikit-learn)"
+            cpu = managed and costreal.training_on_cpu(ctx)  # i2: small scheduled retrain -> CPU job, not a managed GPU service
+            c = ("Scheduled CPU training job (cron or a scheduler container on the app host or one small worker; scikit-learn / R)" if cpu else
+                 {"aws": "Amazon SageMaker AI training jobs", "azure": "Azure Machine Learning training jobs", "gcp": "Vertex AI custom training"}.get(p) if managed
+                 else "Scheduled training job on a GPU/CPU worker (PyTorch / scikit-learn)")
             # E8b: managed training never costs less than a floor tied to the stored data volume (planning heuristic)
             tcost, tfloor = costreal.training_cost(ctx, [[10, 50], [50, 200], [200, 1500], [1500, 8000]])
-            out.append(svc("ml", c, "Model training runs as scheduled batch jobs separate from the serving path.", dp,
-                           [("Training inside the web API", "starves user requests of CPU/memory")],
-                           ["Training data governance and cost control"] + (["GPU hardware, power and operations must be sized separately"] if ctx["self_host_only"] else []),
-                           "managed" if managed else "self_hosted", p if managed else "neutral", True,
+            if cpu:
+                tcost, tfloor = [list(x) for x in costreal.TRAIN_CPU_COST] + tcost[len(costreal.TRAIN_CPU_COST):], None
+            out.append(svc("ml", c, "Model training runs as scheduled batch jobs separate from the serving path."
+                           + (f" The retrain is small ({ctx['data_gb']:,.0f} GB stored, tier {ctx['tier']}, no deep-learning or large-model wording), so it runs as a CPU job on a "
+                              "schedule instead of a managed GPU training service (planning heuristic)." if cpu else ""),
+                           dp + (["scale.data_volume_gb_12_months"] if cpu else []),
+                           [("Training inside the web API", "starves user requests of CPU/memory")]
+                           + ([(f"{ {'aws': 'Amazon SageMaker AI', 'azure': 'Azure Machine Learning', 'gcp': 'Vertex AI'}.get(p, 'A managed training service') } training jobs",
+                                "managed GPU training pays off for large models or large data; move to it when the retrain stops fitting a CPU job")] if cpu else []),
+                           ["Training data governance and cost control"] + (["GPU hardware, power and operations must be sized separately"] if ctx["self_host_only"] else [])
+                           + (["Pin library versions and log each retrain's metrics; a slow retrain on a shared host should run off-peak"] if cpu else []),
+                           "managed" if managed and not cpu else "self_hosted", p if managed and not cpu else "neutral", True,
                            Z if ctx["self_host_only"] else tcost,
-                           ["aws-sagemaker"], loc))
+                           [] if cpu else ["aws-sagemaker"], loc))
             lo, hi = out[-1]["_cost"][ctx["tier"]]  # ml.g4dn.xlarge Training $0.736/h us-east-1, AWS price data 11 Nov 2026
             basis = (f" Basis: about {lo / 0.736:,.0f}-{hi / 0.736:,.0f} GPU-hours a month on one T4-class GPU at $0.736/hour ("
                      + ("ml.g4dn.xlarge on-demand training, us-east-1, AWS price data 11 Nov 2026" if p == "aws"
                         else "AWS ml.g4dn.xlarge reference rate; this provider's T4 rate was not checked")
-                     + "). Larger models or more frequent retraining scale this linearly.") if managed else ""
+                     + "). Larger models or more frequent retraining scale this linearly.") if managed and not cpu else (
+                " Basis: a few CPU-hours a month of spare capacity on the host or one small worker (planning estimate, not a vendor quote)." if cpu else "")
             floor = (f" Floor from the stored data: {ctx['data_gb']:,.0f} GB x {costreal.TRAIN_GPU_HOURS_PER_GB[0]}-{costreal.TRAIN_GPU_HOURS_PER_GB[1]} "
                      f"GPU-hours per GB a month (planning heuristic) = ${tfloor[0]:,}-{tfloor[1]:,} at the same GPU rate; the line is the larger of this and the tier table."
                      if tfloor and not ctx["self_host_only"] else "")
@@ -1215,13 +1247,13 @@ def build(ctx, host, backend, db, mobile, warn):
                        [("Polling from the app", "drains battery and misses events when the app is closed")],
                        ["Delivery is best-effort; critical updates also appear in-app"], "saas", "google", False, Z,
                        ["firebase-pricing"] + (["gcp-hipaa-products"] if "hipaa" in ctx["compliance"] else [])))
-    if (ctx["existing_m365"] or (d["approvals"] and ms)) and ctx["no_internet"]:
+    if (ctx["existing_m365"] or (d["approvals"] and ms and approvals_named(ctx))) and ctx["no_internet"]:
         out.append(svc("other", "Approval notifications through the on-premises SMTP relay",
                        "Approvals must notify managers, but an air-gapped network cannot reach Microsoft 365; the internal mail relay carries notifications.",
                        ["infrastructure.existing_systems", "infrastructure.deployment_model"],
                        [("Microsoft Graph", "cloud API unreachable from an air-gapped network")], ["Depends on an internal mail server"],
                        "self_hosted", "neutral", False, Z, ["statement"]))
-    elif ctx["existing_m365"] or (d["approvals"] and ms):
+    elif ctx["existing_m365"] or (d["approvals"] and ms and approvals_named(ctx)):
         if ctx["self_host_only"]:
             warn("EXTERNAL_EXISTING_SERVICE", "critical",
                  "Microsoft 365 is an existing cloud service; calling Microsoft Graph for notifications is kept as an integration with an existing system, not a new SaaS dependency.",

@@ -58,6 +58,18 @@ IOT_HUB_TIERS = (("S1", 25, 400_000), ("S2", 250, 6_000_000), ("S3", 2500, 300_0
 TRAIN_GPU_HOURS_PER_GB = (0.02, 0.08)  # planning heuristic: 20-80 GPU-hours per TB of stored data per month
 TRAIN_GPU_RATE = 0.736                 # $/h ml.g4dn.xlarge on-demand training, us-east-1 (kb source aws-sagemaker)
 TRAIN_FLOOR_GB = 100                   # below this volume training stays on the tier table
+# i2 (planning heuristic): a small, scheduled retrain of a classical model (tier 0-1, stored data under TRAIN_FLOOR_GB, no deep-learning or
+# large-model words in the description) runs as a CPU job on the host or one small worker, not on a managed GPU training service.
+TRAIN_CPU_MAX_TIER = 1
+TRAIN_CPU_COST = [[0, 10], [5, 25]]    # per tier 0-1, USD/month: a few CPU-hours of a small worker or spare capacity on the existing host
+TRAIN_HEAVY_RX = re.compile(r"\b(?:deep learning|neural|cnn|rnn|lstm|transformers?|gpus?|llms?|fine-?tun\w*|computer vision|image (?:model|classif\w*|recogni\w*)"
+                            r"|speech|diffusion|embedding model|foundation model|large model|reinforcement learning)\b")
+
+
+def training_on_cpu(ctx):
+    """True when the training described is small and scheduled enough for a CPU job (see TRAIN_CPU_MAX_TIER)."""
+    desc = (ctx["req"]["project.description"] or "").lower()
+    return ctx["tier"] <= TRAIN_CPU_MAX_TIER and ctx["data_gb"] < TRAIN_FLOOR_GB and not TRAIN_HEAVY_RX.search(desc)
 
 # ---- (c) on-premises hardware, one purchase amortised over 36 months. (servers, USD per server low, high); planning heuristic
 ONPREM_AMORTISE_MONTHS = 36
@@ -132,7 +144,7 @@ def stored_data_split(ctx, obj, db_managed):
 # ---------------------------------------------------------------- IoT ingestion
 def device_count(desc):
     d = (desc or "").lower()
-    m = re.search(r"(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|lakh|million|m)?\s+(?:\w+\s+){0,2}(?:sensors?|devices?|meters?|trackers?|gateways?|machines?|vehicles?|sites?|stations?|inverters?|pumps?|panels?|chargers?|lamps?)", d)
+    m = re.search(r"(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|lakh|million|m)?\s+(?:\w+\s+){0,2}(?:sensors?|devices?|meters?|trackers?|gateways?|machines?|vehicles?|trucks?|vans?|cars?|buses|taxis|cabs|bikes?|scooters?|beacons?|cameras?|rigs?|sites?|stations?|inverters?|pumps?|panels?|chargers?|lamps?)", d)
     if not m:
         return None
     unit = {None: 1, "k": 1e3, "thousand": 1e3, "lakh": 1e5, "million": 1e6, "m": 1e6}[m.group(2)]
