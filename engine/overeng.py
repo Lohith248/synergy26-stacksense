@@ -33,6 +33,11 @@ DYNAMIC_COMPLIANCE = ("hipaa", "rbi_localisation")  # regulated data is stored s
 # service takes the entries (planning heuristic: a form with no sign-in, no member area and no stored history needs no backend of its own)
 FORM_RX = (r"\b(?:(?:volunteer|newsletter|mailing[- ]list)\s+)?(?:sign[- ]?up|contact|volunteer|enquiry|inquiry|registration|feedback|rsvp|newsletter)"
            r"\s+forms?\b")
+# p4 review: per-person stored data (their history, hours, orders, a profile or dashboard) means the form feeds an account system, not a form
+# service (planning heuristic)
+PER_PERSON_RX = (r"\b(?:their|my|your)\s+(?:own\s+)?(?:past|previous|history|hours|shifts|orders|bookings|purchases|attendance|progress|records?"
+                 r"|accounts?|profiles?|dashboards?)\b|\b(?:log|see|view|check|track|edit|update)\s+their\b"
+                 r"|\b(?:personal|member|volunteer|user|donor)\s+(?:accounts?|profiles?|dashboards?|area|portal)\b")
 # p4: the payment providers whose hosted page or link a static site can open (the payments line keeps the one the description names)
 HOSTED_PROVIDERS = (("paypal", "PayPal"), ("stripe", "Stripe"), ("razorpay", "Razorpay"))
 
@@ -59,7 +64,8 @@ def form_only(c):
     if not (c["desc"]["user_data"] and web_form(c)):
         return False
     low = (c["req"]["project.description"] or "").lower().replace("’", "'")
-    return not re.search(DESC_RX["user_data"], re.sub(FORM_RX, " ", low))
+    rest = re.sub(FORM_RX, " ", low)
+    return not (re.search(DESC_RX["user_data"], rest) or re.search(PER_PERSON_RX, rest))
 
 
 def desc_dynamic(c):

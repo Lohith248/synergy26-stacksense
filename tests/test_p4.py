@@ -58,6 +58,23 @@ class HostedPaymentWithForm(unittest.TestCase):
             self.assertTrue(dynamic(out), desc)
             self.assertFalse([s for s in sup(out, "other") if s["choice"].startswith("Web form:")], desc)
 
+    def test_form_plus_per_person_history_keeps_the_backend(self):  # review MUST 1 (probe Q1): stored per-person data is not form-only
+        for typ, desc in (
+            ("content_site", "Small NGO website with a volunteer sign-up form; volunteers then log their hours and see their past shifts on the site. "
+                             "A Donate button opens a hosted PayPal donation page."),
+            ("other", "Yoga studio pages with a sign-up form; members see their past bookings online. Class passes are bought through a Stripe payment link."),
+            ("web_app", "Choir site with a registration form where singers view their profile and attendance history. PayPal donate button."),
+            ("content_site", "Temple trust site with a newsletter sign-up form; devotees check their orders on a personal dashboard. Offerings go through a Razorpay payment link."),
+        ):
+            out = pay_site(typ, desc)
+            self.assertTrue(dynamic(out), desc)
+            self.assertFalse([s for s in sup(out, "other") if s["choice"].startswith("Web form:")], desc)
+
+    def test_form_with_no_per_person_data_stays_static(self):  # must not fire: the cue is about stored data, not the form itself
+        out = pay_site("content_site", "Small NGO website with stories from our schools, a volunteer sign-up form and a Donate button that opens "
+                                       "a hosted PayPal donation page. One volunteer updates it a few times a month.")
+        self.assertTrue(static(out))
+
     def test_form_without_payments_is_unchanged(self):
         # content site without payments was static before p4 and gets no form item (rule scoped to hosted payments)
         out = run(**{**NONE_AUTH, "project.type": "content_site", "requirements.payments": False,
