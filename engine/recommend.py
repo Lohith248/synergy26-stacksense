@@ -1402,6 +1402,14 @@ def contradictions(ctx, W, assumptions, host, backend):
     if req["requirements.offline_support"] and req["requirements.auth"] == "phone_otp":
         W("OFFLINE_LOGIN", "info", "Phone OTP needs signal at first login; sessions are long-lived refresh tokens so the app keeps working offline afterwards.",
           ["requirements.offline_support", "requirements.auth"])
+    if req["requirements.offline_support"] and req["requirements.realtime"]:  # L1: input-driven, no description matching
+        W("OFFLINE_REALTIME_MERGE", "warning",
+          "offline_support and realtime are both on: edits made while a device is disconnected have to be merged with the live updates other users made in the meantime "
+          "when it reconnects. Choose one conflict policy before building: last-write-wins per field (simple; a concurrent edit to the same field is lost), "
+          "server-authoritative (the server decides and the client re-applies its queued edits on top), or a CRDT for collaboratively edited text (no edit is lost, at the cost of "
+          "more storage and a harder model). The sync service must keep the shared state, and the merge must be tested: reconnect after hours or days offline, "
+          "two devices editing the same item, and a long queue of offline edits replayed at once.",
+          ["requirements.offline_support", "requirements.realtime"])
     if ctx["no_internet"] and req["requirements.auth"] == "social":
         W("SOCIAL_LOGIN_NEEDS_NETWORK", "critical", "Social login depends on external identity providers, impossible in an air-gapped network. Relaxed: local accounts in Keycloak.",
           ["requirements.auth", "infrastructure.deployment_model"])
