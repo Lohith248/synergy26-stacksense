@@ -120,14 +120,14 @@ def network_conflicts(ctx):
         out.append(("SOCIAL_LOGIN_NEEDS_NETWORK", "critical", "Social login depends on external identity providers (Google, Apple, Microsoft), "
                     "which an air-gapped network cannot reach; only local accounts are possible there.", ["requirements.auth"] + dep))
     if req["requirements.auth"] == "phone_otp":
-        out.append(("PHONE_OTP_NEEDS_NETWORK", "critical", "Phone OTP needs a telecom/SMS link, which an air-gapped network does not have; "
-                    "only an on-site SMS gateway or hardware tokens would work.", ["requirements.auth"] + dep))
+        out.append(("PHONE_OTP_NEEDS_NETWORK", "critical", "Phone OTP sends codes over the telecom/SMS network, which an air-gapped network cannot reach; "
+                    "use an authenticator app (TOTP) or hardware tokens, which work without a network link.", ["requirements.auth"] + dep))
     if req["requirements.payments"]:
         out.append(("PAYMENTS_NEED_NETWORK", "critical", "Taking card payments requires reaching a payment network, which an air-gapped deployment forbids; "
                     "payments would have to be recorded offline or taken by a separately connected system.", ["requirements.payments"] + dep))
     if req["requirements.ml_features"] == "llm_rag":
         out.append(("LLM_API_NEEDS_NETWORK", "warning", "requirements.ml_features 'llm_rag' cannot use a hosted LLM API from an air-gapped network; "
-                    "only an open-weights model run on local GPU hardware, imported into the network by hand, would work.", ["requirements.ml_features"] + dep))
+                    "an open-weights model run on local hardware (usually a GPU server), imported into the network by hand, is the option.", ["requirements.ml_features"] + dep))
     return out
 
 
