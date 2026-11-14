@@ -426,6 +426,17 @@ def database_candidates(ctx, host, backend):
 
 
 # ---------------------------------------------------------------- frontend
+# i2 (planning heuristic): server-rendered pages (the backend's own templates + htmx) lose about 8 points when the input describes
+# app-like screens: offline editing, collaboration, or drag-and-drop / canvas / board / live-market views with heavy client state.
+HEAVY_CLIENT_PENALTY = -8
+HEAVY_CLIENT_RX = re.compile(r"drag[- ]and[- ]drop|\bcanvas\b|whiteboard|kanban|live cursors?|order book|candlestick|gantt|heavy client state")
+
+
+def heavy_client(ctx):
+    return bool(ctx["req"]["requirements.offline_support"] or ctx["desc"]["collab"]
+                or HEAVY_CLIENT_RX.search((ctx["req"]["project.description"] or "").lower()))
+
+
 def web_candidates(ctx, backend):
     req = ctx["req"]
     cands = []
@@ -439,6 +450,9 @@ def web_candidates(ctx, backend):
             c.exclude("the backend runs inside the Next.js app, so the UI is that same app", "stack.backend")
         if f["kind"] == "templates" and ctx["mobile"]:
             c.add("api_anyway", -3, "project.platforms", "the mobile app needs a JSON API anyway, so server-rendered pages add a second presentation layer")
+        if f["kind"] == "templates" and heavy_client(ctx):
+            c.add("heavy_client", HEAVY_CLIENT_PENALTY, "project.description",
+                  "the screens are app-like (offline editing, collaboration, drag-and-drop, canvas or live trading views), which server-rendered pages serve poorly")
         prio_terms(c, ctx, f["r"])
         lang_term(c, ctx, f["langs"], 5, "the UI")
         framework_term(c, ctx, 5, "the UI")
