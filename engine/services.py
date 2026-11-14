@@ -1492,7 +1492,10 @@ def build(ctx, host, backend, db, mobile, warn):
                  {"aws": "Amazon SageMaker AI training jobs", "azure": "Azure Machine Learning training jobs", "gcp": "Vertex AI custom training"}.get(p) if managed
                  else "Scheduled training job on a GPU/CPU worker (PyTorch / scikit-learn)")
             # E8b: managed training never costs less than a floor tied to the stored data volume (planning heuristic)
-            tcost, tfloor = costreal.training_cost(ctx, [[10, 50], [50, 200], [200, 1500], [1500, 8000]])
+            t4 = mls.t4_row(p) if p != "aws" else None  # p1 review: the provider's own T4 row when the knowledge base holds one
+            t4_key = ctx["res_key"] if t4 and ctx["res_key"] in t4["usd_per_hour"] else "us"
+            t4_rate = t4["usd_per_hour"][t4_key] if t4 else 0.736
+            tcost, tfloor = costreal.training_cost(ctx, [[10, 50], [50, 200], [200, 1500], [1500, 8000]], t4_rate)
             if cpu:
                 tcost, tfloor = [list(x) for x in costreal.TRAIN_CPU_COST] + tcost[len(costreal.TRAIN_CPU_COST):], None
             out.append(svc("ml", c, "Model training runs as scheduled batch jobs separate from the serving path."
@@ -1508,8 +1511,10 @@ def build(ctx, host, backend, db, mobile, warn):
                            Z if ctx["self_host_only"] else tcost,
                            [] if cpu else ["aws-sagemaker"], loc))
             lo, hi = out[-1]["_cost"][ctx["tier"]]  # ml.g4dn.xlarge Training $0.736/h us-east-1, AWS price data 11 Nov 2026
-            basis = (f" Basis: about {lo / 0.736:,.0f}-{hi / 0.736:,.0f} GPU-hours a month on one T4-class GPU at $0.736/hour ("
+            basis = (f" Basis: about {lo / t4_rate:,.0f}-{hi / t4_rate:,.0f} GPU-hours a month on one T4-class GPU at ${t4_rate:g}/hour ("
                      + ("ml.g4dn.xlarge on-demand training, us-east-1, AWS price data 11 Nov 2026" if p == "aws"
+                        else f"{t4['id']} VM rate, {t4['region'][t4_key]}, Azure Retail Prices API read {t4.get('read', '14 Nov 2026')}; a managed training "
+                             "service may add its own fee, which the knowledge base does not hold" if t4
                         else "AWS ml.g4dn.xlarge reference rate; this provider's T4 rate was not checked")
                      + "). Larger models or more frequent retraining scale this linearly.") if managed and not cpu else (
                 " Basis: a few CPU-hours a month of spare capacity on the host or one small worker (planning estimate, not a vendor quote)." if cpu else "")

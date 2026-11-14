@@ -200,14 +200,15 @@ def broker_nodes(per_sec):
 
 
 # ---------------------------------------------------------------- (b) ML training
-def training_cost(ctx, table_cost):
+def training_cost(ctx, table_cost, rate=None):
     """Per-tier [lo, hi] for managed training: the tier table, raised to a floor from the stored data volume when the volume is large.
     Returns (cost, floor or None)."""
     gb = ctx["data_gb"]
     if gb < TRAIN_FLOOR_GB:
         return table_cost, None
-    flo = round(gb * TRAIN_GPU_HOURS_PER_GB[0] * TRAIN_GPU_RATE)
-    fhi = round(gb * TRAIN_GPU_HOURS_PER_GB[1] * TRAIN_GPU_RATE)
+    rate = rate or TRAIN_GPU_RATE
+    flo = round(gb * TRAIN_GPU_HOURS_PER_GB[0] * rate)
+    fhi = round(gb * TRAIN_GPU_HOURS_PER_GB[1] * rate)
     return [[max(lo, flo), max(hi, fhi)] for lo, hi in table_cost], (flo, fhi)
 
 

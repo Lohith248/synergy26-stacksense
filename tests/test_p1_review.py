@@ -161,5 +161,19 @@ class TritonOnSmallPlan(unittest.TestCase):
         self.assertIn("container next to the API", t["choice"])
 
 
+class AzureTrainingRate(unittest.TestCase):
+    DESC = "Retrain an image classifier with deep learning on a few thousand photos each week."
+
+    def test_azure_training_uses_azure_t4_row(self):
+        line = ml_cost_line(run(self.DESC, ml="training", cloud="azure", typ="saas_b2b", scale__data_volume_gb_12_months=500))
+        self.assertIn("Standard_NC4as_T4_v3", line)
+        self.assertNotIn("AWS ml.g4dn.xlarge reference", line)
+
+    def test_aws_training_keeps_aws_rate(self):
+        line = ml_cost_line(run(self.DESC, ml="training", cloud="aws", typ="saas_b2b", scale__data_volume_gb_12_months=500))
+        self.assertIn("ml.g4dn.xlarge", line)
+        self.assertNotIn("Standard_NC4as", line)
+
+
 if __name__ == "__main__":
     unittest.main()

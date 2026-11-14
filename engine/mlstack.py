@@ -131,6 +131,11 @@ def small_gpu_alt(need_gb, pick):
             f"for this provider, so the smallest priced row ({pick['row']['id']}) is used; check a T4 rate if runs are rare")
 
 
+def t4_row(provider):
+    """The provider's T4-class KB row (at most T4_VRAM_GB of GPU memory), or None."""
+    return next((r for r in ML["gpu_instances"].get(provider, []) if r["vram_gb"] <= T4_VRAM_GB), None)
+
+
 def gpu_label(pick):
     r = pick["row"]
     return f"{r['id']} ({r['gpus']}, {r['vram_gb']} GB GPU memory)"
