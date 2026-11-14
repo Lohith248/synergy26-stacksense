@@ -1,0 +1,60 @@
+{
+  "_about": "p1 (14 Nov 2026): ML / LLM knowledge read by engine/mlstack.py. Every row names its source ids (kb/sources.json). Prices are on-demand Linux USD per hour from the official page or price API opened on 14 Nov 2026; sizing thresholds are planning heuristics in engine/mlstack.py, not here.",
+  "serving": {
+    "vllm": {"name": "vLLM", "use": "llm", "gpu": true, "openai_api": true, "multi_lora": true, "self_hostable": true,
+             "fact": "serves open-weight models behind an OpenAI-compatible HTTP server", "lora_fact": "loads LoRA adapters on top of one base model per request",
+             "src": ["vllm-openai-server"], "lora_src": ["vllm-lora"]},
+    "triton": {"name": "NVIDIA Triton Inference Server", "use": "general", "gpu": true, "openai_api": true, "multi_lora": false, "self_hostable": true,
+               "fact": "serves TensorRT, ONNX, PyTorch and vLLM back ends from one server", "src": ["nvidia-triton"]},
+    "deepstream": {"name": "NVIDIA DeepStream (GStreamer pipeline with TensorRT)", "use": "vision_edge", "gpu": true, "openai_api": false, "multi_lora": false, "self_hostable": true,
+                   "fact": "builds real-time multi-camera video analytics pipelines with TensorRT models on Jetson edge devices and on servers", "src": ["nvidia-deepstream"]},
+    "onnxruntime-tensorrt": {"name": "ONNX Runtime with the TensorRT execution provider", "use": "vision_edge", "gpu": true, "openai_api": false, "multi_lora": false, "self_hostable": true,
+                             "fact": "runs an exported ONNX model on NVIDIA GPUs through TensorRT; JetPack packages exist for Jetson", "src": ["onnxruntime-tensorrt"]},
+    "onnxruntime-cpu": {"name": "ONNX Runtime (in-process)", "use": "classical", "gpu": false, "openai_api": false, "multi_lora": false, "self_hostable": true,
+                        "fact": "loads an exported scikit-learn/XGBoost model inside the API", "src": ["onnxruntime-languages"]}
+  },
+  "vector_stores": {
+    "pgvector": {"name": "pgvector (PostgreSQL extension)", "self_hostable": true, "saas_only": false,
+                 "fact": "open-source vector similarity search inside PostgreSQL with HNSW and IVFFlat indexes; HNSW uses more memory than IVFFlat", "src": ["pgvector"]},
+    "qdrant": {"name": "Qdrant (self-hosted container)", "self_hostable": true, "saas_only": false,
+               "fact": "runs as a container or binary on your own servers, with a Helm chart for Kubernetes and a private-cloud option without any cloud connection", "src": ["qdrant-install"]},
+    "pinecone": {"name": "Pinecone", "self_hostable": false, "saas_only": true,
+                 "fact": "a hosted vector database (serverless indexes); no self-hosted edition is confirmed in the knowledge base", "src": ["pinecone-docs"]}
+  },
+  "tracking": {
+    "mlflow": {"name": "MLflow (tracking server + Model Registry)", "self_hostable": true,
+               "fact": "logs experiment runs (parameters, metrics, artifacts) and versions models in a registry", "src": ["mlflow-tracking", "mlflow-registry"]},
+    "dvc": {"name": "DVC (data version control)", "self_hostable": true, "fact": "versions datasets next to the code in Git", "src": ["dvc-docs"]},
+    "gcp": {"name": "Vertex AI Experiments + Vertex AI Model Registry", "self_hostable": false,
+            "fact": "provide managed experiment tracking and a model registry (Google now documents them under Gemini Enterprise Agent Platform)", "src": ["vertex-experiments", "vertex-model-registry"]},
+    "aws": {"name": "Amazon SageMaker Model Registry (+ experiment metrics on each model version)", "self_hostable": false,
+            "fact": "catalogs models, manages versions and attaches training metrics and lineage", "src": ["sagemaker-model-registry"]},
+    "azure": {"name": "Azure Machine Learning workspace (MLflow tracking + model registry)", "self_hostable": false,
+              "fact": "acts as an MLflow-compatible tracking server and registers model versions", "src": ["azureml-mlflow", "azureml-models"]}
+  },
+  "gpu_instances": {
+    "_note": "rows per provider in rising GPU memory; usd_per_hour keyed by residency (us/eu/india); 'region' names the region the rate is for.",
+    "aws": [
+      {"id": "g6.xlarge", "gpus": "1x NVIDIA L4", "vram_gb": 24, "usd_per_hour": {"us": 0.8048, "eu": 1.0064, "india": 0.9664},
+       "region": {"us": "us-east-1", "eu": "eu-central-1", "india": "ap-south-1"}, "src": ["aws-ec2-ondemand-gpu", "aws-g6-specs"]},
+      {"id": "g6e.xlarge", "gpus": "1x NVIDIA L40S", "vram_gb": 48, "usd_per_hour": {"us": 1.861, "eu": 2.327, "india": 2.235},
+       "region": {"us": "us-east-1", "eu": "eu-central-1", "india": "ap-south-1"}, "src": ["aws-ec2-ondemand-gpu", "aws-g6e-specs"]},
+      {"id": "g6e.12xlarge", "gpus": "4x NVIDIA L40S", "vram_gb": 192, "usd_per_hour": {"us": 10.49264, "eu": 13.12002, "india": 12.60131},
+       "region": {"us": "us-east-1", "eu": "eu-central-1", "india": "ap-south-1"}, "src": ["aws-ec2-ondemand-gpu", "aws-g6e-specs"]}
+    ],
+    "azure": [
+      {"id": "Standard_NC24ads_A100_v4", "gpus": "1x NVIDIA A100 80 GB", "vram_gb": 80, "usd_per_hour": {"us": 3.673, "eu": 4.775, "india": 5.142},
+       "region": {"us": "East US", "eu": "West Europe", "india": "Central India"}, "src": ["azure-gpu-prices", "azure-nca100v4"]},
+      {"id": "Standard_NC96ads_A100_v4", "gpus": "4x NVIDIA A100 80 GB", "vram_gb": 320, "usd_per_hour": {"us": 14.692, "eu": 19.1, "india": 20.569},
+       "region": {"us": "East US", "eu": "West Europe", "india": "Central India"}, "src": ["azure-gpu-prices", "azure-nca100v4"]}
+    ],
+    "gcp": [
+      {"id": "g2-standard-8", "gpus": "1x NVIDIA L4", "vram_gb": 24, "usd_per_hour": {"us": 0.98181}, "region": {"us": "us-central1"},
+       "rate_basis": "the Vertex AI prediction rate for this machine type; the Compute Engine VM rate was not opened", "src": ["gcp-vertex-prices", "gcp-g2-a2-specs"]},
+      {"id": "a2-ultragpu-1g", "gpus": "1x NVIDIA A100 80GB", "vram_gb": 80, "usd_per_hour": {"us": 5.7818474}, "region": {"us": "us-central1"},
+       "rate_basis": "the Vertex AI prediction rate for this machine type; the Compute Engine VM rate was not opened", "src": ["gcp-vertex-prices", "gcp-g2-a2-specs"]},
+      {"id": "a2-ultragpu-4g", "gpus": "4x NVIDIA A100 80GB", "vram_gb": 320, "usd_per_hour": {"us": 23.1273896}, "region": {"us": "us-central1"},
+       "rate_basis": "the Vertex AI prediction rate for this machine type; the Compute Engine VM rate was not opened", "src": ["gcp-vertex-prices", "gcp-g2-a2-specs"]}
+    ]
+  }
+}

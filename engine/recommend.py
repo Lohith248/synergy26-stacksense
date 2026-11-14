@@ -1800,6 +1800,8 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
             # n1: same rule as the self-hosted branch below, for an extra process whose deployment label is "library" on a hyperscaler host
             add(name, 0, 0, f"{s['layer']}: {name} runs as another app on the same {short(host['name'])} plan: {{r}} extra; size the plan's memory for it.")
             extra_proc.append(name)
+        elif s.get("_hw_note"):  # p1: runs on devices outside the servers (edge inference): no cloud bill, hardware not in this band
+            add(name, 0, 0, f"{s['layer']}: {name} " + s["_hw_note"])
         elif s["deployment"] == "self_hosted" and not s["choice"].startswith("Existing"):
             # judge B4: a self-hosted tool is never silently free
             if onprem and "existing" in s["choice"].lower():

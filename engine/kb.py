@@ -21,6 +21,7 @@ def _load(name):
 
 TECH = _load("technologies.json")
 SOURCES = _load("sources.json")
+ML = _load("ml.json")  # p1: ML/LLM serving, vector stores, tracking, GPU instance rows
 AS_OF = TECH["as_of"]
 
 

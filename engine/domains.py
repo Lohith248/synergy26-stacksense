@@ -7,6 +7,7 @@ Facts are cited from kb/sources.json (research R6/R7).
 import re
 
 from . import costreal
+from . import mlstack as mls
 from . import rightsize as rs
 
 SECONDS_PER_MONTH = 30 * 24 * 3600
@@ -101,6 +102,11 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
             trade = trade + ["Open-source Mosquitto is a single node: patch and monitor the VM; a clustered broker is needed for failover"]
         # E8a: a device count in the description sizes the ingestion cost even when no reporting interval is stated
         devices = None if rate else costreal.device_count(req["project.description"])
+        cv_edge = None if rate else mls.vision_edge(ctx)
+        if cv_edge:  # p1: cameras feed the edge devices' video pipelines; only detection events reach the broker, so no per-camera message rate
+            devices = None
+            why += (". Cameras stream video only to the edge devices on the local network; the devices publish detection events and references to "
+                    "flagged images over MQTT, not video frames, so the broker load follows the detection rate, not the camera count")
         size = rate or ((devices, costreal.ASSUMED_REPORT_SECONDS) if devices else None)
         if size:
             n, sec = size

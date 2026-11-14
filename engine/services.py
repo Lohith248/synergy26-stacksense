@@ -15,6 +15,7 @@ from . import compnotes as cn
 from . import refresh as rf
 from . import descflags as dfl
 from . import rightsize as rs
+from . import mlstack as mls
 from .kb import cite, AS_OF
 from .select import for_noun, type_noun
 
@@ -403,6 +404,173 @@ def security_line(ctx, host, rtxt, loc, svc_, front_door_paid=False):
            "The cost line is a planning estimate (provider list prices for these services were not read), driven mainly by request volume.")
     return svc_("other", name, why, driven, [alt], ["Rule tuning is ongoing work: start WAF rules in count mode, then block", "Key and secret rotation must be scheduled and tested"],
                 "managed", p, True, cost, src, loc)
+
+
+def _named(ev):
+    """True when the self-host evidence is a quote of the description, not the deployment model."""
+    return bool(ev) and not ev.startswith(("deployment_model", "a self-run"))
+
+
+def llm_serving(ctx, p, ev, dp, res_path, loc, warn):
+    """p1: requirements.ml_features=inference_api for a self-hosted LLM: vLLM on a GPU sized from the model (planning heuristic),
+    priced at 730 hours a month on a cloud bill; on-premises hardware is counted in the indicative hardware line."""
+    cloud = not ctx["self_host_only"]
+    lab, cost, note, params, need, pick = mls.serving_plan(ctx, p, cloud)
+    v = mls.ML["serving"]["vllm"]
+    named = _named(ev)
+    c = f"vLLM (OpenAI-compatible server) serving the open-weight LLM on {'a GPU VM: ' + lab if cloud else lab}"
+    why = (f"The API serves a large language model, not a tabular model: vLLM {v['fact']}, so client apps keep standard OpenAI client libraries. "
+           + (f"The model runs on your own machines because the description says {ev!r}. " if named else f"The model runs on your own machines ({ev}). ")
+           + "Continuous batching lets one GPU serve many concurrent token streams; scikit-learn/ONNX Runtime cannot serve a model of this size."
+           + ("" if cloud else f" GPU size: {mls.size_basis(params, need)}."))
+    alts = [("NVIDIA Triton Inference Server (vLLM or TensorRT-LLM back end)",
+             "more to configure for a single LLM; worth it when one server must also host vision or tabular models"),
+            ("A hosted LLM API", "prompts would leave your own machines" if named or not cloud else "prompts are processed by the provider, billed per token")]
+    trade = [("A GPU instance bills every hour it runs; measure tokens per second on one GPU before adding a second" if cloud
+              else "GPU hardware, power and operations must be sized separately"),
+             "Model weights, licence terms and upgrades are your responsibility; evaluate answer quality before launch"]
+    warn("LLM_SELF_HOSTED_CAPACITY", "warning", "Self-hosted LLM needs GPU hardware; quality and latency depend on the model you can run locally.",
+         ["requirements.ml_features", "project.description" if named else "infrastructure.deployment_model"])
+    s = svc("ml", c, why, dp + (["project.description"] if named else ["infrastructure.deployment_model"]) + res_path, alts, trade,
+            "self_hosted", "neutral", True, cost if cloud else Z, mls.src(v["src"], pick["row"]["src"] if cloud else []), loc)
+    if cloud:
+        s["_note"] = note
+    return s
+
+
+TRAIN_SERVICE = {"aws": "Amazon SageMaker AI training jobs", "azure": "Azure Machine Learning training jobs", "gcp": "Vertex AI custom training"}
+SERVE_ADAPTER_RX = r"\b(?:deploy\w*|serv(?:e|es|ed|ing)|inference)\b"
+
+
+def fine_tune_services(ctx, p, hyper, dp, res_path, loc):
+    """p1: LLM fine-tuning (requirements.ml_features=training with LLM and fine-tuning wording): GPU-hour priced training jobs on a GPU
+    sized from the model, adapter serving when the description deploys the result, tracking + registry when it asks for experiments."""
+    managed = hyper and not ctx["self_host_only"]
+    cloud = not ctx["self_host_only"]
+    ft = mls.llm_fine_tune(ctx)
+    lab, cost, note, pick = mls.fine_tune_plan(ctx, p, cloud)
+    lora = bool(mls._live(mls.LORA_RX, ctx))
+    name = TRAIN_SERVICE[p] if managed else "Scheduled fine-tuning jobs on a GPU worker (PyTorch)"
+    c = f"{name} on {lab}" + (" (LoRA fine-tuning)" if lora else " (full fine-tuning)")
+    why = (f"The description asks for LLM fine-tuning (\"{ft}\"): fine-tuning runs as batch jobs on one GPU sized from the model, separate from the "
+           "serving path" + ("; LoRA trains small adapters on top of a frozen base model, so one base model can serve many adapters." if lora else "."))
+    out = [svc("ml", c, why, dp + ["project.description"] + res_path,
+               [("A T4-class GPU (16 GB)", f"too little memory for the ≈{mls.vram_need_gb(mls.model_params_b(ctx) or mls.DEFAULT_PARAMS_B, not lora):,.0f} GB this model needs (planning heuristic)"),
+                ("Training inside the web API", "starves user requests of CPU/memory")],
+               ["Training data governance and cost control", "GPU-hours scale with the number of runs and the dataset size: set a monthly cap"]
+               + ([] if cloud else ["GPU hardware, power and operations must be sized separately"]),
+               "managed" if managed else "self_hosted", p if managed else "neutral", True, cost or Z,
+               mls.src(["aws-sagemaker"] if p == "aws" and managed else [], pick["row"]["src"] if cloud else []), loc)]
+    out[-1]["_note"] = note if cloud else ""
+    desc = (ctx["req"]["project.description"] or "").lower()
+    if dfl.first_live(SERVE_ADAPTER_RX, desc):  # 1b: a fine-tuned model that is deployed gets a server, LoRA or not
+        v = mls.ML["serving"]["vllm"]
+        slab, scost, snote, _, _, spick = mls.serving_plan(ctx, p, cloud)
+        out.append(svc("other", (f"Adapter serving: vLLM (OpenAI-compatible server, multi-LoRA) on " if lora else "Model serving: vLLM (OpenAI-compatible server) on ")
+                       + ('a GPU VM: ' + slab if cloud else slab),
+                       (f"The fine-tuned adapters are deployed for inference: vLLM {v['fact']} and {v['lora_fact']}, so each customer's adapter is served "
+                        "from one base model on one GPU instead of one GPU per adapter.") if lora else
+                       f"The fine-tuned model is deployed for inference: vLLM {v['fact']}, on a GPU sized from the model.",
+                       dp + ["project.description"],
+                       ([("One dedicated model server per adapter", "a GPU per customer; multi-LoRA shares one base model")] if lora else [])
+                       + [("The managed platform's online prediction endpoint", "per-node-hour pricing as well, with less control over adapter loading")],
+                       ["A GPU instance bills every hour it runs; measure tokens per second on one GPU before adding a second"],
+                       "self_hosted", "neutral", True, scost or Z, mls.src(v["src"], v["lora_src"], spick["row"]["src"] if cloud else []), loc))
+        out[-1]["_note"] = snote if cloud else ""
+    asked = mls.wants_tracking(ctx)
+    if asked:
+        row = mls.tracking_row(p, managed)
+        data_v = re.search(r"\bversion\w*\s+(?:\w+\s+){0,2}(?:datasets?|data)\b|\b(?:dataset|data) versioning\b", desc)
+        dvc = mls.ML["tracking"]["dvc"]
+        out.append(svc("other", f"ML experiment tracking + model registry: {row['name']}" + (f" + {dvc['name']}" if data_v else ""),
+                       f"The description asks for it (\"{asked}\"): {row['name']} {row['fact']}" + (f"; {dvc['name']} {dvc['fact']}" if data_v else "")
+                       + ". Each fine-tuning run records its dataset version, parameters and evaluation metrics, and only a registered adapter is deployed.",
+                       dp + ["project.description"],
+                       [(mls.ML["tracking"]["mlflow"]["name"] if row is not mls.ML["tracking"]["mlflow"] else "The cloud's managed tracking service",
+                         "a second tool to run" if row is not mls.ML["tracking"]["mlflow"] else "ties the run history to one cloud"),
+                        ("Spreadsheets and folder names", "no lineage from a deployed adapter back to its data and run")],
+                       ["Metadata and artifact storage are usage-priced and not estimated in this band" if managed else
+                        "You run and back up the tracking server and its artifact store"],
+                       "managed" if managed else "self_hosted", p if managed else "neutral", False, Z,
+                       mls.src(row["src"], dvc["src"] if data_v else []), loc))
+    return out
+
+
+CAMERA_COUNT_RX =r"(\d[\d,]*)\s+(?:[\w-]+\s+){0,2}cameras?\b"
+
+
+def edge_vision(ctx, edge, dp, res_path, loc):
+    """p1: computer vision on edge devices: a GPU video-inference runtime on each device, not an in-process tabular model."""
+    vis, edg = edge
+    desc = (ctx["req"]["project.description"] or "")
+    nvidia = re.search(r"\bjetson\b|\bnvidia\b", desc.lower())
+    row = mls.ML["serving"]["deepstream" if nvidia else "onnxruntime-tensorrt"]
+    other = mls.ML["serving"]["onnxruntime-tensorrt" if nvidia else "deepstream"]
+    m = re.search(CAMERA_COUNT_RX, desc.lower())
+    cams = int(m.group(1).replace(",", "")) if m else None
+    devs = mls.edge_devices(cams)
+    lat = ctx["req"]["requirements.p95_latency_ms"]
+    c = f"Edge inference: {row['name']} on each edge device" + (" (exported vision model)" if nvidia else " (vision model exported to ONNX)")
+    why = (f"Computer vision runs at the edge (\"{vis}\", \"{edg}\"): {row['name']} {row['fact']}. Each device decodes its cameras' video and runs the "
+           "detector locally, so video frames never cross the network" + (f" and the {lat} ms target does not depend on a round trip" if lat else "")
+           + "; only detections and flagged images go to the server."
+           + (f" ~{cams:,} cameras at {mls.CAMERAS_PER_EDGE_DEVICE[0]}-{mls.CAMERAS_PER_EDGE_DEVICE[1]} cameras per device ≈ {devs[0]}-{devs[1]} edge devices "
+              "(planning heuristic; check with a pilot on real streams)." if devs else ""))
+    alts = [(other["name"], "the other NVIDIA route; " + ("simpler for one model per device, but no multi-camera video pipeline" if nvidia
+                                                         else "a full multi-camera video pipeline, tied to NVIDIA hardware")),
+            ("In-process scikit-learn/XGBoost model (ONNX Runtime on CPU)", "a tabular model; it cannot run a vision detector on live video"),
+            ("Streaming every camera to one central GPU server", "moves all video over the network and adds latency; keep central GPUs for retraining")]
+    trade = ["Edge devices are hardware bought separately and are not priced in this band",
+             "Each model version must be rolled out to every device and recorded (which model runs where)"]
+    s = svc("ml", c, why, dp + ["project.description"] + res_path, alts, trade, "self_hosted", "neutral", True, Z,
+            mls.src(row["src"], other["src"]), loc)
+    s["_hw_note"] = ("runs on the edge devices next to the cameras: {r} cloud bill; the devices are hardware bought separately and are not priced in this band.")
+    return s
+
+
+# p1 (1b): wording that the trained model also answers requests (not training only)
+SERVE_MODEL_RX = (r"\btrain\w*\s+and\s+(?:then\s+)?(?:serve|deploy)\w*|\bserv\w*\s+(?:\w+\s+){0,3}(?:models?|predictions?)\b"
+                  r"|\b(?:prediction|inference|scoring)\s+(?:api|endpoint|service)s?\b|\b(?:real[- ]time|online)\s+(?:predictions?|scoring|inference)\b"
+                  r"|\bdeploy\w*\s+(?:\w+\s+){0,2}models?\b")
+
+
+def train_serving(ctx, p, backend, selfh, dp, loc):
+    """p1 (1b): requirements.ml_features=training and the description also serves the model: a serving component next to training."""
+    ev = mls._live(SERVE_MODEL_RX, ctx)
+    if not ev:
+        return None
+    vis = mls._live(mls.VISION_RX, ctx)
+    py = backend and "python" in backend["langs"]
+    alt = {"aws": ("Amazon SageMaker AI real-time endpoint", "managed MLOps, but an always-on endpoint billed per instance-hour"),
+           "azure": ("Azure Machine Learning managed online endpoint", "managed MLOps, but an always-on endpoint billed per instance-hour"),
+           "gcp": ("Vertex AI online prediction", "managed MLOps, but an always-on endpoint billed per node-hour")}.get(p, ("A hosted inference API (third party)", "sends your data to another vendor"))
+    if vis:
+        row = mls.ML["serving"]["triton"]
+        c = "Model serving: NVIDIA Triton Inference Server (the trained vision model exported to ONNX) as a container next to the API"
+        why = (f"The description serves the trained model (\"{ev[1]}\"), so training alone is not enough: {row['name']} {row['fact']}. The API sends "
+               "images to Triton over the private network and stores the detections; each retrain publishes a new model version that Triton loads "
+               "without redeploying the API. Start on CPU and add a GPU node only if measured images per second fall short.")
+        srcs = row["src"]
+        alts = [("In-process scikit-learn/XGBoost model", "a tabular model; it cannot run an image detector"), alt]
+    else:
+        binding = ONNX_BINDING.get(backend["id"]) if backend else None
+        if py:
+            c = "Model serving: in-process inference (the trained model exported to ONNX Runtime, loaded inside the API)"
+        elif binding:
+            c = f"Model serving: in-process inference (the trained model exported to ONNX, loaded by the ONNX Runtime {binding} binding)"
+        else:
+            c = "Model serving: separate Python inference service (FastAPI + ONNX Runtime) in the same private network"
+        why = (f"The description serves the trained model (\"{ev[1]}\"), so training alone is not enough: each retrain exports a versioned model "
+               "file that the serving path loads, so predictions never wait for a training job.")
+        srcs = ["onnxruntime-languages"]
+        alts = [alt]
+    s = svc("ml", c, why, dp + ["project.description"], alts,
+            ["Each retrain must be evaluated before the serving path loads it; keep the previous model version for rollback"],
+            "self_hosted" if selfh else "library", "neutral", True,
+            Z if ctx["self_host_only"] else [[0, 10], [10, 40], [40, 200], [200, 1000]], srcs, loc)
+    s["_note"] = (" Basis: the serving container runs on the compute already chosen or one small extra instance (planning heuristic, the same "
+                  "range as an in-API model); a GPU node for serving is not included.") if not ctx["self_host_only"] else ""
+    return s
 
 
 def build(ctx, host, backend, db, mobile, warn):
@@ -1171,7 +1339,13 @@ def build(ctx, host, backend, db, mobile, warn):
     if ml != "none":
         dp = ["requirements.ml_features"]
         py = backend and "python" in backend["langs"]
-        if ml == "inference_api":
+        shllm, sh_ev = mls.self_hosted_llm(ctx, selfh)  # p1: a self-hosted LLM is never served as a classical model
+        edge = mls.vision_edge(ctx) if ml == "inference_api" and not shllm else None
+        if ml == "inference_api" and shllm:
+            out.append(llm_serving(ctx, p, sh_ev, dp, res_path, loc, warn))
+        elif ml == "inference_api" and edge:
+            out.append(edge_vision(ctx, edge, dp, res_path, loc))
+        elif ml == "inference_api":
             binding = ONNX_BINDING.get(backend["id"]) if backend else None
             if py:
                 c, why = "In-process model inference (scikit-learn/XGBoost exported to ONNX Runtime)", "The backend is Python, so the trained model loads inside the API: no extra network hop, versioned model files."
@@ -1198,11 +1372,15 @@ def build(ctx, host, backend, db, mobile, warn):
                            ["Model versioning, drift monitoring and fairness review are your responsibility"]
                            + (["Pre- and post-processing must be reproduced in the API's language or baked into the exported model"] if inproc else []),
                            "self_hosted" if selfh else "library", "neutral", True,
-                           [[0, 10], [10, 40], [40, 200], [200, 1000]], ["aws-sagemaker"] + (["onnxruntime-languages"] if inproc else []), loc))
+                           Z if ctx["self_host_only"] else [[0, 10], [10, 40], [40, 200], [200, 1000]], ["aws-sagemaker"] + (["onnxruntime-languages"] if inproc else []), loc))
         elif ml == "llm_rag":
-            ulo, uhi = (0, 0) if selfh else [round(x) for x in costreal.llm_usage(ctx)]
-            if selfh:
-                c, prov, src = "Self-hosted open-weight LLM (vLLM/Ollama on a GPU node) + pgvector", "neutral", ["postgres-versioning"]
+            ulo, uhi = (0, 0) if shllm else [round(x) for x in costreal.llm_usage(ctx)]
+            gpu_cost = gpu_note = gpu_basis = None
+            if shllm:
+                lab, gpu_cost, gpu_note, params, need, pick = mls.serving_plan(ctx, p, not ctx["self_host_only"])
+                gpu_basis = mls.size_basis(params, need)
+                c, prov = f"Self-hosted open-weight LLM (vLLM, OpenAI-compatible server) on {lab if ctx['self_host_only'] else 'a GPU VM: ' + lab} + pgvector", "neutral"
+                src = mls.src(mls.ML["serving"]["vllm"]["src"], mls.ML["vector_stores"]["pgvector"]["src"], [] if ctx["self_host_only"] else pick["row"]["src"])
                 warn("LLM_SELF_HOSTED_CAPACITY", "warning", "Self-hosted LLM needs GPU hardware; quality and latency depend on the model you can run locally.",
                      ["requirements.ml_features", "infrastructure.deployment_model"])
             else:
@@ -1229,20 +1407,28 @@ def build(ctx, host, backend, db, mobile, warn):
             out.append(svc("ml", c, "Retrieval-augmented generation: "
                            + ("embeddings indexed in an Azure AI Search index (a separate service from the database), " if search_idx
                               else "embeddings stored next to the data" + (" in the PostgreSQL database already chosen (pgvector extension, no second paid service), " if "pgvector (Azure" in c else ", "))
-                           + ("a local model" if selfh else "a managed model") + " generates answers from retrieved passages.",
-                           dp, [("Fine-tuning a model", "costlier and slower to update than retrieval")]
+                           + ("a local open-weight model" if shllm else "a managed model") + " generates answers from retrieved passages."
+                           + (f" The model is self-hosted because the description says {sh_ev!r}." if shllm and _named(sh_ev) else "")
+                           + (f" GPU size: {gpu_basis}." if shllm and ctx["self_host_only"] else ""),
+                           dp + (["project.description"] if shllm and _named(sh_ev) else []), [("Fine-tuning a model", "costlier and slower to update than retrieval")]
                            + ([("Azure AI Search vectors", "a separate always-on service (one Basic unit is about $74/month); worth it for hybrid or semantic ranking or a much larger corpus")]
                               if "pgvector (Azure" in c else []),
-                           ["GPU hardware, power and operations must be sized separately; evaluate answer quality"] if selfh else ["Per-token cost; evaluate answer quality"],
+                           (["GPU hardware, power and operations must be sized separately; evaluate answer quality"] if ctx["self_host_only"] else
+                            ["A GPU instance bills every hour it runs; evaluate answer quality and measure throughput before adding a second one"]) if shllm
+                           else ["Per-token cost; evaluate answer quality"],
                            "managed" if prov != "neutral" else "self_hosted", prov, True,
-                           Z if selfh else [[max(lo, ulo) + 74 * search_idx, max(hi, uhi) + 74 * search_idx]
+                           (Z if ctx["self_host_only"] else gpu_cost) if shllm else [[max(lo, ulo) + 74 * search_idx, max(hi, uhi) + 74 * search_idx]
                                             for lo, hi in [[5, 30], [30, 200], [200, 1500], [1500, 8000]]],
                            src + (["azure-ai-search-basic-price"] if search_idx else []), loc))
             if search_idx:  # judge F16: an always-on Basic search unit is the floor (Azure Retail Prices API, East US, 12 Nov 2026)
                 out[-1]["_note"] = " Includes one Azure AI Search Basic unit (about $74/month at $0.101/hour, East US) plus per-token model usage."
-            if not selfh:  # E8d: tokens scale with users x questions (planning estimate, stated in the line)
+            if not shllm:  # E8d: tokens scale with users x questions (planning estimate, stated in the line)
                 out[-1]["_note"] = out[-1].get("_note", "") + costreal.llm_basis(ctx)
-            llm_description_constraints(ctx, out[-1], selfh, c, req, warn)
+            elif gpu_cost:
+                out[-1]["_note"] = gpu_note
+            llm_description_constraints(ctx, out[-1], shllm, c, req, warn)
+        elif mls.llm_fine_tune(ctx):
+            out.extend(fine_tune_services(ctx, p, hyper, dp, res_path, loc))
         else:
             managed = hyper and not ctx["self_host_only"]  # on_premise/air_gapped: own GPU hardware, outside the cloud bill
             cpu = managed and costreal.training_on_cpu(ctx)  # i2: small scheduled retrain -> CPU job, not a managed GPU service
@@ -1275,6 +1461,9 @@ def build(ctx, host, backend, db, mobile, warn):
                      f"GPU-hours per GB a month (planning heuristic) = ${tfloor[0]:,}-{tfloor[1]:,} at the same GPU rate; the line is the larger of this and the tier table."
                      if tfloor and not ctx["self_host_only"] else "")
             out[-1]["_note"] = basis + floor
+            served = train_serving(ctx, p, backend, selfh, dp, loc)  # p1 (1b): train AND serve
+            if served:
+                out.append(served)
 
     # ---------------- ci/cd + observability
     # an existing CI system (Jenkins, TeamCity, ...) is named in the CI/CD component: it keeps its current pipelines, new ones go to the choice below
