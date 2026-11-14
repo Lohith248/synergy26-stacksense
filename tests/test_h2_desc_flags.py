@@ -163,7 +163,7 @@ class StaffSso(unittest.TestCase):
                 self.assertEqual(len(items), 1)
                 self.assertIn(name, items[0]["choice"])
                 self.assertIn("staff", items[0]["justification"].lower())
-                w = warn(out, "EXISTING_IDP_NOT_USED")
+                w = warn(out, "STAFF_SIGNIN_VIA_IDP")
                 self.assertIn("staff sign in", w["message"])
 
     def test_must_not_fire(self):

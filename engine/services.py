@@ -11,6 +11,7 @@ from . import overeng as ov
 from . import integrations as ig
 from . import localfirst as lf
 from . import consistency as cons
+from . import compnotes as cn
 from . import refresh as rf
 from . import descflags as dfl
 from . import rightsize as rs
@@ -255,6 +256,42 @@ def email_product(provider):
     return name, prov, f"{name} is {why}.", alts
 
 
+# planning heuristics for hybrid retrieval: wording that asks for exact terms next to meaning, or a corpus big enough that vectors alone miss exact identifiers
+HYBRID_RX = (r"\bkeyword\b(?:\W+\w+){0,6}?\W+(?:semantic|meaning|vector|natural[- ]language)\b|\b(?:semantic|vector|meaning)\b(?:\W+\w+){0,6}?\W+keyword\b"
+             r"|\bexact (?:terms?|match\w*|phrases?|names?|numbers?|identifiers?|codes?|ids?|part numbers?|case numbers?|clauses?|wording)\b|\bboth keyword\b")
+CORPUS_RX = (r"(\d[\d,]*(?:\.\d+)?)\s*(million|m|thousand|k|lakh|crore)?\+?\s+(?:[a-z-]+\s+){0,3}?"
+             r"(?:documents?|docs|pdfs?|papers|articles|reports|manuals|contracts|filings|records|case files|files)\b")
+HYBRID_CORPUS_MIN = 100_000  # planning heuristic: at this many documents or more, name hybrid retrieval
+
+
+def corpus_size(text):
+    """The largest document count the description states ('2 million documents'), or None."""
+    best = None
+    for m in re.finditer(CORPUS_RX, (text or "").lower()):
+        try:
+            n = float(m.group(1).replace(",", ""))
+        except ValueError:
+            continue
+        n *= {"million": 1e6, "m": 1e6, "thousand": 1e3, "k": 1e3, "lakh": 1e5, "crore": 1e7}.get(m.group(2) or "", 1)
+        best = n if best is None else max(best, n)
+    return best
+
+
+def hybrid_retrieval(ctx):
+    """Sentence naming hybrid (keyword + vector) retrieval when the description asks for exact terms with meaning or counts a large corpus, else None."""
+    text = ctx["req"]["project.description"] or ""
+    hit = dfl.first_live(HYBRID_RX, text)
+    n = corpus_size(text)
+    big = n is not None and n >= HYBRID_CORPUS_MIN
+    if not (hit or big):
+        return None
+    why = (f"the description asks for exact terms next to meaning (\"{hit[1]}\")" if hit else f"the description counts ~{int(n):,} documents")
+    return ("Hybrid retrieval (planning heuristic): " + why + ", and vector similarity alone can miss exact identifiers, names and rare terms. "
+            "Run keyword ranking (BM25-style, from the database's full-text index or a search engine) and vector similarity on the same chunks, "
+            "merge the two ranked lists (for example reciprocal rank fusion), then pass the top passages to the model."
+            + (" Index by document and chunk, not by user count: the corpus, not the ~" + f"{ctx['users']:,} users, sets the index size." if big else ""))
+
+
 def llm_description_constraints(ctx, ml, selfh, model, req, warn):
     """A15: say how the RAG component meets what the description states (no training on documents, citations, tenant-scoped
     retrieval, a disclaimer for legal or medical guidance). Text on the 'ml' component plus warnings; no component is added."""
@@ -278,6 +315,10 @@ def llm_description_constraints(ctx, ml, selfh, model, req, warn):
     if "citations" in found:
         extra.append(f"Citations (\"{found['citations']}\"): the answer is returned with a citations field listing the retrieved passages it rests on "
                      "(document, section, link); an answer with no supporting passage says so instead of guessing.")
+        paths.append("project.description")
+    hy = hybrid_retrieval(ctx)
+    if hy:
+        extra.append(hy)
         paths.append("project.description")
     if tenant:
         extra.append("Retrieval is tenant-scoped (requirements.multi_tenant): every indexed chunk carries a tenant id and the retrieval query applies it as a "
@@ -392,11 +433,24 @@ def build(ctx, host, backend, db, mobile, warn):
                                ["Each customer connection needs metadata exchange and claim mapping", "Just-in-time provisioning or SCIM must be decided"],
                                "managed" if prov in ("aws", "gcp") else "self_hosted", prov, True,
                                [[0, 0], [0, 20], [20, 150], [150, 800]], src, loc))
+            elif (p == "azure" and ms and idp and idp["pattern"]["name"].startswith("On-premises") and not ctx["self_host_only"]
+                  and re.search(r"active directory|\bad\b", idp["raw"].lower())):  # plain LDAP / OpenLDAP falls through
+                # an existing on-premises Active Directory and an Azure host that is a cloud VM: Entra ID synchronised from it (Entra Connect, named in the knowledge base)
+                out.append(svc("auth", "Microsoft Entra ID (OIDC), synchronised from the existing on-premises Active Directory through Microsoft Entra Connect",
+                               f"enterprise_sso is required, '{idp['raw']}' exists and the app runs on Azure: synchronise accounts through Microsoft Entra Connect so staff keep their domain "
+                               "logins, and the app is an OpenID Connect client of Entra ID, with groups and app roles in the token driving approvals and admin rights. "
+                               "Entra ID is a cloud service in the same cloud as the app (Azure), so it fits this deployment model; "
+                               "the input lists no Entra tenant yet, so one has to be set up (or an existing one connected).",
+                               dp + ["infrastructure.existing_systems", "infrastructure.cloud_preference"],
+                               [("Keycloak 26 (self-hosted) with LDAP federation to the directory", "keeps sign-in on servers you run, but one more service to operate and patch")],
+                               ["Needs Microsoft Entra Connect installed next to the directory and an Entra tenant with admin rights for the app registration"],
+                               "saas", "azure", False, Z, ["entra-sso", "entra-connect", "keycloak"]))
             elif selfh:
                 out.append(svc("auth", "Keycloak 26 (self-hosted, OIDC/SAML)",
                                "enterprise_sso on self-hosted infrastructure: Keycloak federates with the corporate directory (LDAP/AD or SAML) and runs on the same servers.",
                                dp + ["infrastructure.deployment_model"],
-                               [("Microsoft Entra ID", "a cloud service, not allowed under this deployment model")],
+                               [("Microsoft Entra ID", "a cloud service, not allowed under this deployment model" if ctx["self_host_only"]
+                                 else "a managed cloud service; Keycloak keeps sign-in on the servers you run")],
                                ["You operate and upgrade Keycloak"], "self_hosted", "neutral", True, Z, ["keycloak"], loc))
             else:
                 name = {"aws": "Amazon Cognito (SAML/OIDC federation to the corporate IdP)",
@@ -523,14 +577,16 @@ def build(ctx, host, backend, db, mobile, warn):
         ldap = ip["name"].startswith("On-premises")
         out.append(svc("auth", f"Staff sign-in: {ip['name']} (existing {'tenant' if saas else 'directory' if ldap else 'deployment'}) "
                        + ("through Keycloak LDAP federation or AD FS" if ldap else "via OpenID Connect/SAML"),
-                       f"The description says staff sign in through it ('{staff[1]}') and '{idp['raw']}' exists: staff accounts are not created in the app, "
-                       f"they sign in with their existing login while {auth} stays for the other users. "
+                       (f"The description says staff sign in through it ('{staff[1]}') and '{idp['raw']}' exists" if staff[1] else
+                        (f"'{idp['raw']}' exists and the people who use this system are the organisation's staff ({staff[0]}), who already have logins in it"
+                         if not staff[0].startswith("an on-premises") else f"'{idp['raw']}' exists and this is {staff[0]}, so its users are staff who already have logins in it"))
+                       + f": staff accounts are not created in the app, they sign in with their existing login while {auth} stays for the other users. "
                        + ip["how"],
                        ["infrastructure.existing_systems", "project.description"],
                        [("Separate staff accounts in the app", "a second user store for people who already have a login, and leavers would keep access"),
                         ("Switching every user to the existing provider", f"requirements.auth says {auth}: customers are not part of that directory")],
                        [f"Depends on the {ip['name']} administrators for the app registration, claims and group mapping"]
-                       + (["Needs a network path from the app to the directory (VPN or private link) for directory sign-in"] if not saas else []),
+                       + (["Needs a network path from the app to the directory (VPN or private link) for directory sign-in"] if not saas and not ctx["self_host_only"] else []),
                        "saas" if saas else "self_hosted", ip.get("provider", "neutral"), False, Z, ip["src"]))
 
     # ---------------- storage
@@ -910,11 +966,17 @@ def build(ctx, host, backend, db, mobile, warn):
             why = (f"Taking payments{for_noun(ctx)} (requirements.payments) through hosted checkout keeps card data off your servers, which can qualify for PCI DSS SAQ A "
                    "(your acquirer confirms; protect the checkout page from script attacks). "
                    "Payment confirmation is trusted only from signed server-side webhooks.")
+            psp_shape = pci and bool(cn.psp(ctx))  # the system itself routes card payments as a service provider: follow the PCI_SCOPE branch, no hosted-checkout shortcut
+            if psp_shape:
+                why = (f"Taking payments{for_noun(ctx)} (requirements.payments): the description says this system itself accepts or routes card payments for merchants, "
+                       "so the hosted-checkout shortcut (SAQ A) does not apply and card data is in scope. The connection to the card processor or acquirer belongs inside one segmented "
+                       "cardholder-data environment (see the PCI_SCOPE warning: tokenise there, keys in an HSM or a managed key service, keep an audit trail). "
+                       "Payment confirmation is trusted only from signed server-side webhooks or acquirer callbacks.")
             if mixed:
                 why = ("Orders for physical goods or services are paid here, not through the app stores (their billing rule covers digital goods and "
                        "subscriptions only; the digital item is billed by the stores, see above). ") + why
             hosted = ctx["static_rule"] == "hosted_payments" and not store
-            if hosted:  # D16: a static site links to the provider's hosted page; there is no server to receive webhooks
+            if hosted and not psp_shape:  # D16: a static site links to the provider's hosted page; there is no server to receive webhooks
                 why = (f"Taking payments{for_noun(ctx)} (requirements.payments) through the provider's hosted checkout page or button, as the description says "
                        f"(\"{ov.quote(ctx, 'hosted_pay')}\"), keeps card data off the site entirely: the page only links to it, which can qualify for PCI DSS SAQ A "
                        "(your acquirer confirms; protect the page from script attacks). Receipts and payment records come from the provider's dashboard and e-mails, "
@@ -926,8 +988,12 @@ def build(ctx, host, backend, db, mobile, warn):
                         "lender's (regulated entity's) account — no pooled pass-through accounts (RBI Digital Lending Directions 2025).")
                 src += ["rbi-digital-lending"]
             if pci:
-                why += " pci_dss: the gateway is PCI DSS Level 1; your scope still covers the pages that embed checkout."
-                src += ["pci-saq-a", "pci-v4"]
+                if psp_shape:
+                    why += " pci_dss: confirm your PCI DSS level and assessor with your acquirer."
+                    src += ["pci-v4"]
+                else:
+                    why += " pci_dss: the gateway is PCI DSS Level 1; your scope still covers the pages that embed checkout."
+                    src += ["pci-saq-a", "pci-v4"]
             if ctx["self_host_only"]:
                 warn("EXTERNAL_PAYMENT_GATEWAY", "critical",
                      f"Payments cannot be self-hosted: {name.split(' (')[0]} is the single external SaaS dependency kept on {ctx['deploy']} "
@@ -1259,7 +1325,10 @@ def build(ctx, host, backend, db, mobile, warn):
                  "Microsoft 365 is an existing cloud service; calling Microsoft Graph for notifications is kept as an integration with an existing system, not a new SaaS dependency.",
                  ["infrastructure.existing_systems", "infrastructure.deployment_model"])
         out.append(svc("other", "Microsoft Graph notifications (Outlook mail / Teams) for approvals",
-                       "Approval requests and decisions reach managers in the Microsoft 365 tools they already use, authorised through the existing Entra tenant.",
+                       ("Approval requests and decisions reach managers in the Microsoft 365 tools they already use, authorised through the existing Entra tenant."
+                        if ctx["existing_m365"] or (idp and idp["pattern"]["name"] == "Microsoft Entra ID") else
+                        "Approval requests and decisions reach managers by Outlook mail or Teams through Microsoft Graph. existing_systems lists no Microsoft 365 or Entra tenant, "
+                        "so this assumes the company has one; if it has not, send the notifications by e-mail through an API or an SMTP relay instead."),
                        ["infrastructure.existing_systems", "project.description"],
                        [("Separate e-mail service (SES/SendGrid)", "duplicates mail infrastructure the company already has")],
                        ["Needs admin consent for Graph application permissions"], "saas", "azure", False, Z, ["ms-graph"]))

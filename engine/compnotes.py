@@ -14,7 +14,7 @@ MINORS_RX = (r"\bunder[- ]?(?:18|17|16|15|14|13|eighteen|sixteen|thirteen)\b|\bm
 # weaker evidence: a school level that is usually minors, with no age stated
 MINORS_WEAK_RX = r"\bpupils?\b|\bprimary schools?\b|\bsecondary schools?\b"
 # a payment service provider shape: the project itself routes, authorises or vaults card payments for merchants
-PSP_RX = (r"\bpayment orchestrat\w*|\bacquir(?:er|ers|ing)\b|\bpsp\b|\bpayment service providers?\b|\bpayment facilitators?\b|\bpayment aggregators?\b"
+PSP_RX = (r"\bpayment orchestrat\w*|\broutes? to acquirers?\b|\b(?:we are|we.re|become|becoming|building) an? (?:\w+ )?(?:payment service provider|psp|acquirer)\b|\bvault(?:s|ing)? cards?\b|\bpayment facilitators?\b|\bpayment aggregators?\b"
           r"|\bcard (?:vault|tokeni[sz]ation)\b|\bcardholder data (?:environment|vault)\b|\bmerchant acquiring\b"
           r"|\b(?:accepts?|processes?|routes?|authori[sz]es?|settles?)\b(?:\W+\w+){0,3}?\W+card (?:payments?|transactions?)\b(?:\W+\w+){0,4}?\W+(?:for|on behalf of) (?:\w+ )?merchants?\b"
           r"|\bfor merchants\b(?:\W+\w+){0,6}?\W+(?:accepts?|processes?|routes?|authori[sz]es?)\b(?:\W+\w+){0,3}?\W+card")
