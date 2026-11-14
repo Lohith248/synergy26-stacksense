@@ -202,6 +202,7 @@
   "redshift-serverless": {"url": "https://docs.aws.amazon.com/general/latest/gr/redshift-service.html", "title": "Amazon Redshift Serverless endpoint in ap-south-1; priced per RPU-hour", "status": "verified", "claims": ["R7:2"]},
   "fabric-overview": {"url": "https://learn.microsoft.com/en-us/fabric/fundamentals/microsoft-fabric-overview", "title": "Microsoft Fabric overview (Synapse guide points new warehouses to Fabric)", "status": "verified", "claims": ["R7:3", "rendered 12 Nov 2026"]},
   "metabase-license": {"url": "https://www.metabase.com/license", "title": "Metabase open-source edition, AGPL", "status": "verified", "claims": ["R7:4"]},
+  "metabase-auth": {"url": "https://www.metabase.com/docs/latest/people-and-groups/start", "title": "Metabase people and groups: Open Source and Starter plans sign in with Google Sign-in and LDAP; JWT, OIDC and SAML SSO are Pro and Enterprise plans (read 15 Nov 2026)", "status": "verified", "claims": ["p3:metabase-sso"]},
   "superset": {"url": "https://superset.apache.org/", "title": "Apache Superset (ASF project, Apache License)", "status": "verified", "claims": ["R7:5"]},
   "looker-studio": {"url": "https://docs.cloud.google.com/data-studio", "title": "Data Studio (renamed from Looker Studio) no-cost reporting tool", "status": "verified", "claims": ["R7:6"]},
   "clickhouse": {"url": "https://github.com/ClickHouse/ClickHouse", "title": "ClickHouse open source (Apache-2.0)", "status": "verified", "claims": ["R7:7"]},

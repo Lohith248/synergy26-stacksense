@@ -192,7 +192,13 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
                                     "pausing it outside working hours lowers this.")
         else:
             warn("SERVICE_NOT_ADDED", "info", rs.note("Analytics warehouse", wh_fact, wh_when), wh_paths)
-        bi_why = "Analysts build dashboards and scheduled reports with SQL or a query builder, signed in through the same identity provider."
+        bi_why = "Analysts build dashboards and scheduled reports with SQL or a query builder."
+        # Metabase editions (metabase-auth): open source signs in with its own accounts, Google Sign-in or LDAP; SAML/OIDC/JWT SSO is Pro/Enterprise only
+        if req["requirements.auth"] == "enterprise_sso" or ctx["existing_idp"]:
+            bi_why += (" Sign-in through the company identity provider by SAML, OIDC or JWT needs a paid Metabase Pro or Enterprise plan; "
+                       "the open-source edition offers its own accounts, Google Sign-in and LDAP.")
+        else:
+            bi_why += " The open-source edition signs analysts in with its own accounts, Google Sign-in or LDAP."
         bi_alts = [("Data Studio (formerly Looker Studio)", "no-cost and simple, but Google-account based and weaker on governed internal access") if p == "gcp" else
                    ("Apache Superset", "comparable open-source tool; heavier to operate"),
                    ("Custom React dashboards", "every new report becomes a development task")]
@@ -205,7 +211,7 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
         out.append(svc("other", "BI dashboards: Metabase (open-source edition, self-hosted container)",
                        bi_why, bi_drv, bi_alts,
                        ["The open-source edition is AGPL: keep it unmodified or comply with the licence"], "self_hosted", "neutral", False, Z,
-                       ["metabase-license", "superset"] + (["looker-studio"] if p == "gcp" else [])))
+                       ["metabase-license", "metabase-auth", "superset"] + (["looker-studio"] if p == "gcp" else [])))
 
     # ---------------- video: transcoding pipeline for uploaded video, managed WebRTC for live calls
     if d["video_vod"] and ctx["needs_backend"]:
