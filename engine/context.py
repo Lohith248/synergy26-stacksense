@@ -104,7 +104,9 @@ DESC_RULES = [
                   r"|\bupload\w*\s+(?:\w+\s+){0,2}videos?\b|\bvideos?\s+(?:is|are|get|gets)\s+uploaded\b"),
     ("video_call", r"video (?:consult|calls?|chat|class|meeting)|live class|teleconsult|tele-consult|telehealth|live stream"
                  # D24-p2: telemedicine and visit/appointment wording for a live video consultation
-                 r"|\btele-?(?:medicine|health|therapy|psychiatry)\b|\bvideo[- ](?:visits?|appointments?|sessions?|interviews?|consultations?)\b"
+                 r"|\btele-?(?:medicine|health|therapy|psychiatry)\b|\bvideo[- ](?:visits?|appointments?|consultations?)\b"
+                 # recorded "video sessions/interviews" (an editing or import tool) are not a call: only live ones count
+                 r"|\blive video (?:sessions?|interviews?)\b"
                  r"|\bvirtual (?:visits?|appointments?|consultations?)\b"),
     # A6 (blind8): live media that is not a call (live streaming, karaoke, duets, a named WebRTC need) still needs a media server, not the API;
     # large_downloads = single downloads of gigabytes (signed URLs, range requests and egress cost matter)

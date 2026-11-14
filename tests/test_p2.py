@@ -177,7 +177,7 @@ class VideoDetection(unittest.TestCase):
         for ptype, desc in (("healthtech", "Video visits between patients and doctors, plus appointment booking."),
                             ("web_app", "A telemedicine portal for rural clinics."),
                             ("marketplace", "Tutors offer virtual appointments to students and get paid per session."),
-                            ("saas_b2b", "Recruiters run video interviews with candidates inside the hiring pipeline.")):
+                            ("saas_b2b", "Recruiters run live video interviews with candidates inside the hiring pipeline.")):
             v = video(web(ptype, desc))
             self.assertEqual(len(v), 1, desc)
 
@@ -190,6 +190,12 @@ class VideoDetection(unittest.TestCase):
         for desc in ("Appointment booking for clinics with reminders.", "Clinic visits are logged by staff after each appointment.",
                      "A virtual tour of homes for sale with photos."):
             self.assertEqual(video(web("healthtech", desc)), [], desc)
+
+    def test_recorded_sessions_or_interviews_are_not_calls(self):
+        for ptype, desc in (("other", "Video editing tool: import recorded video sessions from conferences, trim, caption and export."),
+                            ("content_site", "An archive of video interviews with founders, searchable by topic."),
+                            ("saas_b2b", "Teachers upload video sessions for students to replay later.")):
+            self.assertEqual(video(web(ptype, desc)), [], desc)
 
 
 def team_run(ptype, langs, plats=("web",), exp="senior", size=8, ml="none", desc="Customers manage orders and reports online."):
