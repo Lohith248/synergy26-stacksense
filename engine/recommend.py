@@ -16,6 +16,23 @@ from . import select as sl
 from . import services as sv
 from .kb import AS_OF, TECH, cite
 
+# D24-p2: description words that name a non-Windows desktop OS (WPF is Windows-only)
+NON_WINDOWS_DESKTOP_RX = re.compile(r"\bmac ?os\b|\bos ?x\b|\bmacs?\b(?! address)|\blinux\b|\bubuntu\b|cross[- ]platform desktop", re.I)
+# a mention ruled out in the words just before it ("Windows-only ...", "never runs on Mac", "not Linux") does not ask for a non-Windows desktop
+NON_WINDOWS_NEGATED_RX = re.compile(r"\b(?:windows[- ]only|never|not|no|without)\b|n't\b", re.I)
+NON_WINDOWS_NEG_WINDOW = 40  # characters before the mention searched for a negation
+
+
+def names_non_windows_desktop(desc):
+    """True when the description names macOS/Linux (or a cross-platform desktop) outside a negated phrase."""
+    desc = desc or ""
+    return any(not NON_WINDOWS_NEGATED_RX.search(re.split(r"[.;!?\n]", desc[max(0, m.start() - NON_WINDOWS_NEG_WINDOW):m.start()])[-1])
+               for m in NON_WINDOWS_DESKTOP_RX.finditer(desc))
+
+
+# official pages listing each game engine's desktop export targets
+GAME_DESKTOP_SRC = {"unity": "unity-platforms", "godot": "godot-export"}
+
 FIELD_ORDER = [f[0] for f in __import__("engine.validate", fromlist=["FIELDS"]).FIELDS]
 SKILL_BAND = 5  # a mismatched backend must beat the best skill-matched one by more than this to be chosen
 SKILL_SMALL_TEAM = 5  # planning heuristic: a team of up to this many people that is not senior, or any beginner team, pays a schedule cost for a new language
@@ -100,6 +117,30 @@ def hard_conflicts(ctx):
 
 
 PROVIDER_NAME = {"aws": "AWS", "azure": "Azure", "gcp": "Google Cloud"}
+
+NET_NEED_LABEL = {"SOCIAL_LOGIN_NEEDS_NETWORK": "social login", "PHONE_OTP_NEEDS_NETWORK": "phone OTP",
+                  "PAYMENTS_NEED_NETWORK": "card payments", "LLM_API_NEEDS_NETWORK": "a hosted LLM API"}
+
+
+def network_conflicts(ctx):
+    """Requirements an air-gapped network cannot reach, reported next to an infeasible result (no stack, so nothing is relaxed)."""
+    req = ctx["req"]
+    if not ctx["no_internet"]:
+        return []
+    out, dep = [], ["infrastructure.deployment_model"]
+    if req["requirements.auth"] == "social":
+        out.append(("SOCIAL_LOGIN_NEEDS_NETWORK", "critical", "Social login depends on external identity providers (Google, Apple, Microsoft), "
+                    "which an air-gapped network cannot reach; only local accounts are possible there.", ["requirements.auth"] + dep))
+    if req["requirements.auth"] == "phone_otp":
+        out.append(("PHONE_OTP_NEEDS_NETWORK", "critical", "Phone OTP sends codes over the telecom/SMS network, which an air-gapped network cannot reach; "
+                    "use an authenticator app (TOTP) or hardware tokens, which work without a network link.", ["requirements.auth"] + dep))
+    if req["requirements.payments"]:
+        out.append(("PAYMENTS_NEED_NETWORK", "critical", "Taking card payments requires reaching a payment network, which an air-gapped deployment forbids; "
+                    "payments would have to be recorded offline or taken by a separately connected system.", ["requirements.payments"] + dep))
+    if req["requirements.ml_features"] == "llm_rag":
+        out.append(("LLM_API_NEEDS_NETWORK", "warning", "requirements.ml_features 'llm_rag' cannot use a hosted LLM API from an air-gapped network; "
+                    "an open-weights model run on local hardware (usually a GPU server), imported into the network by hand, is the option.", ["requirements.ml_features"] + dep))
+    return out
 
 
 def short(cid):
@@ -377,15 +418,16 @@ def skill_mismatch(W, ctx, layer, picked, ranked):
     langs, team = set(picked.item.get("langs") or ()), set(ctx["langs"])
     if not langs or not team or langs & team or langs & set(ctx["hiring"]):
         return
-    if not ((ctx["size"] or 0) <= SKILL_SMALL_TEAM and ctx["exp"] != "senior" or ctx["exp"] == "beginner"):
-        return
+    small = (ctx["size"] or 0) <= SKILL_SMALL_TEAM and ctx["exp"] != "senior" or ctx["exp"] == "beginner"
     fit = next((c for c in ranked if set(c.item.get("langs") or ()) & team), None)
-    W("SKILL_MISMATCH", "warning",
+    # D24-p2: a larger or senior team is also told about the gap (statement section 6: skill mismatch); the cost is named as shorter
+    who = (f"the team is {'a beginner team' if ctx['exp'] == 'beginner' else 'small'} (team.size={ctx['size']}, team.experience={ctx['exp']})" if small else
+           f"the team (team.size={ctx['size']}, team.experience={ctx['exp']}) still needs someone to learn {'/'.join(sorted(langs))} and its tooling before UI work moves at full speed")
+    W("SKILL_MISMATCH", "warning" if small else "info",  # a senior or larger team ramps up faster: stated, not escalated
       f"{layer}: {picked.item['name']} is written in {'/'.join(sorted(langs))}, not in the team's languages ({', '.join(ctx['langs'])}); "
-      f"it was chosen for the stated platforms and requirements, and the team is {'a beginner team' if ctx['exp'] == 'beginner' else 'small'} "
-      f"(team.size={ctx['size']}, team.experience={ctx['exp']}). "
+      f"it was chosen for the stated platforms and requirements, and {who}. "
       + (f"The best skill-matched option, {fit.item['name']}, ranks lower: {why_not(picked, fit, ctx)} Weigh that against the ramp-up time."
-         if fit else "No option for this layer that fits the stated requirements and backend uses the team's languages.")
+         if fit else "No option for this layer is written in the team's languages and also fits the stated requirements and the chosen backend.")
       + " Budget training time into the timeline.",
       ["team.languages", "team.experience", "team.size"])
 
@@ -480,6 +522,7 @@ RELAX = {"availability": "99.9",   # availability the stack is sized for when AV
          "pilot_users": 5000,      # scale the stack is priced for when SCALE_VS_BUDGET is critical: the 'small' entry tier (<= 5,000 users,
          "pilot_peak": 200,        # <= 200 concurrent), the largest scale a budget under SCALE_BUDGET_USD can plausibly fund
          "latency_ms": 50}         # p95 below this on realtime traffic with unspecified/global users is flagged LATENCY_TARGET_VS_REACH
+AVAIL_TEAM_NO_DEVOPS = 5          # planning heuristic: a team of up to this many people without DevOps gets AVAILABILITY_VS_TEAM at 99.95%/99.99%
 SCALE_BUDGET_USD = 100             # planning heuristic: below this monthly budget a 500,000-user / 20,000-concurrent product is a critical conflict
 
 
@@ -551,8 +594,12 @@ def _recommend(req, assumptions, sid):
     if conflicts:
         for code, msg, fields in conflicts:
             W(code, "critical", msg, fields)
+        also = network_conflicts(ctx)  # D24-p2: every requirement the air gap also rules out, not only the first conflict
+        for code, sev_, msg, fields in also:
+            W(code, sev_, msg, fields)
         return {"scenario_id": sid, "engine_version": ENGINE_VERSION, "status": "infeasible",
-                "summary": "No stack can satisfy these hard constraints together: " + " ".join(c[1].split('. ')[0] + "." for c in conflicts),
+                "summary": "No stack can satisfy these hard constraints together: " + " ".join(c[1].split('. ')[0] + "." for c in conflicts)
+                + (f" The air-gapped deployment also rules out: {', '.join(NET_NEED_LABEL[a[0]] for a in also)}." if also else ""),
                 "architecture_style": "other", "stack": None,
                 "estimated_monthly_cost_usd": {"min": None, "max": None, "assumptions": ["Not estimated: hard constraints conflict, so no stack was chosen."]},
                 "warnings": W.items, "assumptions": assumptions, "validation_errors": []}
@@ -929,14 +976,40 @@ def _recommend(req, assumptions, sid):
                           "lazy-load screens and profile memory on a 2 GB phone"
                           + (f"; {light.item['name']} is the fallback if memory is tight, though it ranks lower here: {_lower1(why_not(mob, light, ctx))}" if light else "."))
             fe_src.append(cite(["rn-hermes"])[0])
-    if ctx["desktop"]:
+    game_eng = mob if (mob and mob.item.get("kind") == "game") else None
+    if ctx["desktop"] and game_eng:
+        # D24-p2: a game engine already chosen for the phones also builds the PC client; no separate desktop UI toolkit
+        parts[-1] = parts[-1][:-1] + " + desktop)"
+        fe_why.append(f"Desktop: the same {game_eng.item['name']} project also builds for Windows, macOS and Linux, so the PC client "
+                      "shares the game code, assets and netcode instead of a separate desktop UI toolkit.")
+        fe_src += cite([GAME_DESKTOP_SRC[game_eng.item["id"]]])
+    elif ctx["desktop"] and not web and ctx["type"] == "gaming":
+        eid = "unity" if "csharp" in ctx["langs"] else "godot"
+        eng = next(m for m in TECH["frontend_mobile"] if m["id"] == eid)
+        other = next(m for m in TECH["frontend_mobile"] if m["id"] == ("godot" if eid == "unity" else "unity"))
+        parts.append(f"{eng['name']} (desktop)")
+        fe_why.append(f"Desktop game: {eng['name']} builds for Windows, macOS and Linux with rendering, physics, input and audio built in; "
+                      + ("its C# matches team.languages." if eid == "unity" else "it is MIT-licensed with no royalties."))
+        fe_paths += ["project.type", "team.languages"]
+        fe_src += cite([GAME_DESKTOP_SRC[eid]] + eng["src"])
+        fe_alts.append({"choice": other["name"], "why_not": ("C# is the team's language, and Unity's tooling and asset store are larger"
+                                                             if eid == "unity" else "its C# scripting would add a language the team does not use")})
+        fe_alts.append({"choice": "WPF or another desktop UI toolkit", "why_not": "an app UI toolkit, not a game engine"})
+    elif ctx["desktop"]:
         if web:
             parts.append("installable PWA (desktop)")
             fe_why.append("Desktop: the web app is installable as a PWA, avoiding a separate desktop codebase.")
             fe_alts.append({"choice": "Tauri desktop app", "why_not": "a second codebase before desktop-specific features are needed"})
         else:
             langs = set(ctx["langs"])
-            if "csharp" in langs:
+            if "csharp" in langs and names_non_windows_desktop(req["project.description"]):
+                # D24-p2: WPF is Windows-only; a description naming macOS or Linux needs a cross-platform .NET UI
+                dname, dwhy, dalts, dsrc = ("Avalonia UI (C#/.NET)", "Desktop for a C# team on more than Windows: project.description names macOS or Linux, "
+                                            "and Avalonia UI is an MIT-licensed .NET UI framework that runs on Windows, macOS and Linux from one C# codebase.",
+                                            [("WPF on .NET 10", "Windows-only, and the description names a non-Windows desktop"),
+                                             (".NET MAUI", "also targets mobile, which this project does not need")], ["avalonia", "wpf", "dotnet-maui"])
+                fe_paths.append("project.description")
+            elif "csharp" in langs:
                 dname, dwhy, dalts, dsrc = ("WPF on .NET 10", "Desktop for a C# team: WPF is the mature Windows desktop framework on supported .NET 10, with direct access to Windows authentication and devices.",
                                             [("Avalonia UI", "MIT-licensed and cross-platform (Windows/macOS/Linux); choose it if non-Windows desktops matter"),
                                              (".NET MAUI", "also targets mobile, which this project does not need")], ["wpf", "avalonia", "dotnet-maui"])
@@ -978,6 +1051,15 @@ def _recommend(req, assumptions, sid):
 
     # ---- supporting services
     supporting = sv.build(ctx, host, backend, db_item, mob.item if mob else None, W)
+    ml_line = next((s_ for s_ in supporting if s_["layer"] == "ml"), None)
+    if (ml_line and req["requirements.ml_features"] == "training" and ctx["langs"]
+            and "python" not in ctx["langs"] and "python" not in ctx["hiring"]):
+        # D24-p2: training code is Python-first; a team without Python is told the gap instead of silently given a Python pipeline
+        W("SKILL_MISMATCH", "warning",
+          f"ML training ({ml_line['choice']}): training code, notebooks and the mainstream libraries (scikit-learn, XGBoost, PyTorch) are used from Python, "
+          f"which is not in the team's languages ({', '.join(ctx['langs'])}). Plan for someone to learn Python and the training workflow, or hire for it, "
+          "and budget that time into the timeline before the first model is ready.",
+          ["requirements.ml_features", "team.languages"])
     supporting += multi_region(ctx, host, db_c if ctx["needs_db"] else None, supporting, W, region)
     second = None if ctx.get("active_active") else second_region(ctx, host, db_c if ctx["needs_db"] else None)
     if second:
@@ -991,7 +1073,8 @@ def _recommend(req, assumptions, sid):
         assumptions.append(ctx["payment_location_assumption"])
 
     # ---- warnings from contradictions and context
-    contradictions(ctx, W, assumptions, host, backend)
+    contradictions(ctx, W, assumptions, host, backend,
+                   db_self=bool(db_item and ctx["needs_db"] and not ctx.get("kept_db") and db_c.vkey == "self"))
     cnotes, cassume = dfl.component_notes(ctx, supporting, [backend_cmp, db_cmp] if ctx["needs_backend"] else [])  # description-only deliverables: quoted notes, no new layer
     for note in cnotes:
         W(*note)
@@ -1252,7 +1335,7 @@ def relax_note(ctx, pctx, host, db_item, db_c, supporting, cost, assumptions):
         elif db_c and db_c.vkey == "self" and host["kind"] == "onprem" and not sized_ha:
             dropped.append("the standby database server on separate hardware with streaming replication (and its share of the hardware line)")
         if not sized_ha and not ctx["local_first"] and host["kind"] not in ("static", "onprem"):
-            dropped.append("the second app instance in another zone")
+            dropped.append("the second app instance" + ("" if single_site(ctx, host) else " in another zone"))
         assumptions.append(f"Sized for {RELAX['availability']}% availability, not the requested {req['requirements.availability']}% (a solo beginner cannot run "
                            "on-call and failover drills): the stack leaves out " + ("; ".join(dropped) if dropped else "nothing separate: this design added no component for the higher target, so only the stated target changes")
                            + ". Add them when on-call cover exists.")
@@ -1319,21 +1402,55 @@ def desc_quote(ctx, rx):
     return "project.description"
 
 
-def contradictions(ctx, W, assumptions, host, backend):
+def single_site(ctx, host):
+    """D24-p2: the host's region text when the provider lists one datacenter (no zones) for the residency region, else ''."""
+    loc = ctx["res_key"]
+    return host["regions"].get(loc, "") if loc and loc in host.get("single_site_regions", ()) else ""
+
+
+def contradictions(ctx, W, assumptions, host, backend, db_self=False):
     req = ctx["req"]
     avail = req["requirements.availability"]
+    one_site = single_site(ctx, host)
+    if avail in ("99.95", "99.99") and one_site and ctx["needs_backend"] and not ctx["local_first"]:
+        W("SINGLE_SITE_AVAILABILITY", "warning",
+          f"{host['name']} in {one_site}: DigitalOcean's regional availability page lists one datacenter for this region and describes no availability zones, so a second "
+          f"app server there covers a server failure but not an outage of the site, and the {avail}% target is not met on paper. "
+          + ("Keep a streaming replica of the self-run database on the second server and tested off-site backups, or "
+             if db_self else "Keep tested off-site backups, or ")
+          + "choose a provider with several zones in the residency region if the target is firm."
+          if host["provider"] == "digitalocean" else
+          f"{host['name']} in {one_site} is a single site: a {avail}% target is not met on paper there.",
+          ["requirements.availability", "infrastructure.data_residency"])
     if avail in ("99.95", "99.99") and ctx["local_first"]:
         W("AVAILABILITY_LOCAL_APP", "info",
           f"A {avail}% availability target has no server to apply to: the app runs on each user's device, so availability is the app's own crash-free "
           "operation and the health of the device; only the optional upload endpoint, if built, would carry an uptime target.",
           ["requirements.availability", "project.platforms"])
-    elif avail in ("99.95", "99.99") and (ctx["size"] <= 2 and (ctx["exp"] == "beginner" or not ctx["devops"])):
+    elif avail in ("99.95", "99.99") and ctx["needs_backend"] and (
+            (ctx["size"] <= AVAIL_TEAM_NO_DEVOPS and not ctx["devops"]) or (ctx["size"] <= 2 and ctx["exp"] == "beginner")):
         # statement 6 example (enterprise availability, solo beginner): critical when servers must be run; static sites need no on-call
+        # D24-p2: one rule for every small team without DevOps (sizes 1..AVAIL_TEAM_NO_DEVOPS); a static site on a CDN has no server to staff
         extreme = ctx["avail_relaxed"]
-        W("AVAILABILITY_VS_TEAM", "critical" if extreme else "warning",
-          f"A {avail}% availability target (≈{ {'99.95': '22', '99.99': '4.4'}[avail]} min downtime/month) needs on-call and redundancy that a {ctx['size']}-person {ctx['exp']} team without DevOps rarely sustains. " + ("Plan on-call or relax the target." if extreme else "Managed multi-zone services were preferred; plan on-call or relax the target.")
+        # a 3..AVAIL_TEAM_NO_DEVOPS-person team can staff a rota for 99.95%: stated as info; 99.99% or one or two people: warning
+        avt_sev = "critical" if extreme else "warning" if (ctx["size"] <= 2 or avail == "99.99") else "info"
+        team = f"a {ctx['size']}-person {ctx['exp']} team{'' if ctx['devops'] else ' without DevOps'}"
+        W("AVAILABILITY_VS_TEAM", avt_sev,
+          f"A {avail}% availability target (≈{ {'99.95': '22', '99.99': '4.4'}[avail]} min downtime/month) needs on-call and redundancy"
+          + (f": {team} can staff an on-call rota for it, but plan the rota and who handles failover. " if avt_sev == "info"
+             else f" that {team} rarely sustains. ")
+          + ("Plan on-call or relax the target." if extreme else "Managed multi-zone services were preferred; plan on-call or relax the target."
+             if avt_sev != "info" else "Managed multi-zone services were preferred.")
           + (f" Relaxed: the stack is sized for {RELAX['availability']}%, not 99.99% (see assumptions for the dropped items), because a solo beginner cannot staff 24/7 on-call or failover drills; treat 99.99% as best effort until on-call cover exists." if extreme else ""),
           ["requirements.availability", "team.size", "team.experience", "team.has_devops"])
+    dep = req["infrastructure.deployment_model"]
+    if dep in ("self_hosted_cloud_vm", "on_premise", "air_gapped") and not ctx["devops"] and ctx["needs_backend"] and not ctx["local_first"]:
+        # D24-p2: servers the team runs itself, with no one whose job is operations
+        W("SELF_RUN_WITHOUT_DEVOPS", "info",  # an ownership gap to plan for, not a conflict between inputs
+          f"infrastructure.deployment_model is '{dep}' and team.has_devops is false: operating-system patching, TLS certificates, backups and tested restores, "
+          f"monitoring and alerting, and capacity changes are the team's own job on these servers. Name an owner for each in the {ctx['size']}-person team, "
+          "automate patching and backups from day one" + (", or reconsider managed_cloud if the stated constraints allow it." if dep == "self_hosted_cloud_vm" else "."),
+          ["infrastructure.deployment_model", "team.has_devops"])
     if avail == "99.99" and not ctx["local_first"]:
         why = ("A 99.99% target (about 4.4 minutes of downtime a month) is beyond what one region of managed services is designed to deliver, "
                "and service SLAs compose to a lower number. ")
@@ -1356,7 +1473,8 @@ def contradictions(ctx, W, assumptions, host, backend):
               "publish to a second static host behind DNS failover).", ["requirements.availability"])
         else:
             W("AVAILABILITY_SINGLE_REGION", "warning", why +
-              "This stack runs multi-zone in one region; add a second region with tested failover, or plan on 99.95%."
+              ("This stack runs in one datacenter (see SINGLE_SITE_AVAILABILITY); add a second region with tested failover, or plan on 99.95%."
+               if one_site and ctx["needs_backend"] else "This stack runs multi-zone in one region; add a second region with tested failover, or plan on 99.95%.")
               + ctx.get("no_second_region", ""),
               ["requirements.availability"] + (ctx["res_paths"] if ctx.get("no_second_region") else []))
     n_plat = len([p for p in ctx["platforms"] if p != "api_only"])
@@ -1780,9 +1898,12 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         lines.append(("Availability ≥99.95%" if ha_paths(ctx["sreq"])[0] == "requirements.availability" else cap(" and ".join(ha_targets(ctx["sreq"]))))
                      + ": the standby server is hardware, counted in the indicative hardware line below; there is no cloud bill for it.")
     elif ha:
+        one_site = single_site(ctx, host)
         add("Second app instance (availability)", hlo, hhi,
             ("Availability ≥99.95%" if ha_paths(ctx["sreq"])[0] == "requirements.availability" else cap(" and ".join(ha_targets(ctx["sreq"]))))
-            + ": a second app instance in another zone {r} (the hosting line counted again).")
+            + (f": a second app instance on a separate server in the same datacenter, {one_site}, {{r}} (the hosting line counted again; "
+               "one datacenter, so it covers a server failure, not a site outage)." if one_site else
+               ": a second app instance in another zone {r} (the hosting line counted again)."))
     onprem, vm = host["kind"] == "onprem", host["kind"] == "vm"
     obj = any(s["layer"] == "storage" and s["deployment"] != "self_hosted" for s in supporting)
     extra_proc = []

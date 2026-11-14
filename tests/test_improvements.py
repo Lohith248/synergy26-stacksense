@@ -61,7 +61,8 @@ class LanguageFit(unittest.TestCase):  # item 1
     def test_go_team_fintech(self):
         out = run(P(4, team__languages=["go"]))
         self.assertIn("Go", core(out, "backend"))
-        self.assertNotIn("SKILL_MISMATCH", {w["code"] for w in out["warnings"]})
+        # D24-p2 (A-D2): a UI-layer gap (Kotlin mobile UI for a Go-only team) is now stated as info; the backend itself fits
+        self.assertEqual([w for w in out["warnings"] if w["code"] == "SKILL_MISMATCH" and (w["severity"] != "info" or w["message"].startswith("Backend"))], [])
 
 
 class ServerlessFit(unittest.TestCase):  # item 2

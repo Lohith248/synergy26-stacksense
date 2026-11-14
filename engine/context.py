@@ -102,7 +102,12 @@ DESC_RULES = [
     ("video_vod", r"recorded video|video lectures?|short[- ]video|video (?:upload|sharing|library)|video-sharing|reels?\b|video[- ]on[- ]demand"
                   r"|\btranscod\w*[^.;!?\n]{0,80}\b(?:video|hls|adaptive)\b|\b(?:video|hls|adaptive)\b[^.;!?\n]{0,80}\btranscod\w*|adaptive[- ](?:bitrate )?streaming|\bhls\b|video (?:platform|hosting|streaming service)"
                   r"|\bupload\w*\s+(?:\w+\s+){0,2}videos?\b|\bvideos?\s+(?:is|are|get|gets)\s+uploaded\b"),
-    ("video_call", r"video (?:consult|calls?|chat|class|meeting)|live class|teleconsult|tele-consult|telehealth|live stream"),
+    ("video_call", r"video (?:consult|calls?|chat|class|meeting)|live class|teleconsult|tele-consult|telehealth|live stream"
+                 # D24-p2: telemedicine and visit/appointment wording for a live video consultation
+                 r"|\btele-?(?:medicine|health|therapy|psychiatry)\b|\bvideo[- ](?:visits?|appointments?|consultations?)\b"
+                 # recorded "video sessions/interviews" (an editing or import tool) are not a call: only live ones count
+                 r"|\blive video (?:sessions?|interviews?)\b"
+                 r"|\bvirtual (?:visits?|appointments?|consultations?)\b"),
     # A6 (blind8): live media that is not a call (live streaming, karaoke, duets, a named WebRTC need) still needs a media server, not the API;
     # large_downloads = single downloads of gigabytes (signed URLs, range requests and egress cost matter)
     ("live_media", r"\blive[- ]?stream\w*|\bkaraoke\b|\b(?:real-?time|live|online|remote) duets?\b|\bwebrtc\b|\blive (?:audio|video|performances?)\b"
@@ -884,6 +889,10 @@ def _walk_langs(clause, pos, out, need_noun, words=None):
         pos = sep.end()
 
 
+NO_VIDEO_RX = r"\b(?:no|without|not)\s+(?:any\s+)?video\b(?![- ](?:recordings?|recorded|storage|files?|uploads?|archives?))|\bvideo[- ]free\b"
+TEXT_ONLY_RX = r"\btext[- ]only\b"  # rules video out only when the description names no video at all ("reminders are text only")
+
+
 @functools.lru_cache(maxsize=8)
 def desc_signals(desc):
     """Description flags (lower-cased text) and primary languages (original case: 'Go' vs 'go'), computed once per
@@ -892,6 +901,9 @@ def desc_signals(desc):
     breaks = clause_breaks(low)
     flags = {flag: live_hit(rx, low, low, breaks) for flag, rx in DESC_RULES}
     flags["gps"] = flags["gps"] or live_hit(r"\bGPS\b", desc, low, breaks)
+    # a description that rules video out ("no video", "without video", "text only") gets no video-call service from a telehealth word
+    if flags["video_call"] and (re.search(NO_VIDEO_RX, low) or (re.search(TEXT_ONLY_RX, low) and "video" not in low)):
+        flags["video_call"] = False
     firm = re.sub(r"[^.!?;\n]+", lambda m: " " * len(m.group()) if OPTIONAL_STEP_RX.search(m.group()) else m.group(), low)
     fb = clause_breaks(firm)
     flags.update({flag: live_hit(rx, firm, firm, fb) for flag, rx in SERVER_NEED_RULES})

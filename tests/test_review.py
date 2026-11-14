@@ -294,7 +294,8 @@ class Section6Contradictions(unittest.TestCase):
 
     def test_milder_availability_conflicts_stay_warnings(self):
         self.assertEqual(severity(self.solo(2, '99.95'), 'AVAILABILITY_VS_TEAM'), 'warning')
-        self.assertEqual(severity(self.solo(0, '99.99'), 'AVAILABILITY_VS_TEAM'), 'warning')  # static site, no servers to run
+        # D24-p2 (A-D10): a static CDN site has no servers to run, so the team-availability warning no longer fires there
+        self.assertNotIn('AVAILABILITY_VS_TEAM', [w['code'] for w in self.solo(0, '99.99')['warnings']])
 
     def scope(self, weeks, size):
         s = copy.deepcopy(PUBLIC[1])

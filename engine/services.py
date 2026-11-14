@@ -1612,7 +1612,10 @@ def build(ctx, host, backend, db, mobile, warn):
                        "flutter": ("drift (SQLite) + workmanager plugin", ["flutter"]),
                        "capacitor": ("SQLite plugin + background runner", ["capacitor"]),
                        "swiftui": ("SwiftData (on-device store) + BGTaskScheduler background sync", ["swiftdata", "bgtaskscheduler"])}.get(
-            mid, ("on-device SQLite store + background sync", []) if mobile else ("Service worker + IndexedDB (Workbox)", ["workbox"]))
+            mid, ("on-device SQLite store + background sync", []) if mobile else
+            # D24-p2: an installed desktop client keeps its own database; a service worker is a browser mechanism
+            ("embedded SQLite database in the desktop app + background sync", ["sqlite"]) if ctx["desktop"] and not ctx["web"] else
+            ("Service worker + IndexedDB (Workbox)", ["workbox"]))
         if mobile and ctx["web"]:  # the web client needs its own offline mechanism next to the mobile store
             local, lsrc = local + "; web: service worker + IndexedDB (Workbox)", lsrc + ["workbox"]
         crdt = req["requirements.realtime"] and collab and ctx["type"] != "gaming"
