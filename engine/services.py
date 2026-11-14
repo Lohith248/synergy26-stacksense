@@ -490,8 +490,8 @@ def fine_tune_services(ctx, p, hyper, dp, res_path, loc):
     why = (f"The description asks for LLM fine-tuning (\"{ft}\"): fine-tuning runs as batch jobs on one GPU sized from the model, separate from the "
            "serving path" + ("; LoRA trains small adapters on top of a frozen base model, so one base model can serve many adapters." if lora else "."))
     out = [svc("ml", c, why, dp + ["project.description"] + res_path,
-               [("A T4-class GPU (16 GB)", f"too little memory for the ≈{mls.vram_need_gb(mls.model_params_b(ctx) or mls.DEFAULT_PARAMS_B, not lora):,.0f} GB this model needs (planning heuristic)"),
-                ("Training inside the web API", "starves user requests of CPU/memory")],
+               [a for a in [mls.small_gpu_alt(mls.vram_need_gb(mls.model_params_b(ctx) or mls.DEFAULT_PARAMS_B, not lora), pick)] if a]
+               + [("Training inside the web API", "starves user requests of CPU/memory")],
                ["Training data governance and cost control", "GPU-hours scale with the number of runs and the dataset size: set a monthly cap"]
                + ([] if cloud else ["GPU hardware, power and operations must be sized separately"]),
                "managed" if managed else "self_hosted", p if managed else "neutral", True, cost or Z,

@@ -34,6 +34,7 @@ VRAM_OVERHEAD = 1.2         # KV cache and runtime memory on top of the weights
 DEFAULT_PARAMS_B = 8        # assumed model size when the description names none (a 7-8B instruct model)
 SERVING_REPLICAS = (1, 2)   # GPU instances serving all month: one, up to two for peak throughput or a standby
 HOURS_PER_MONTH = 730
+T4_VRAM_GB = 16             # memory of a T4-class GPU: the smaller GPU alternative is "too little memory" only above this
 FINE_TUNE_GPU_HOURS = (40, 200)  # GPU-hours a month of LoRA fine-tuning runs on one GPU of the sized class
 FULL_FINE_TUNE_VRAM_FACTOR = 4   # full fine-tuning (weights + gradients + optimizer state) needs about 4x the serving memory
 FINE_TUNE_RX = r"\bfine[- ]?tun\w*|\blora\b|\bqlora\b|\badapters?\b"
@@ -118,6 +119,16 @@ def gpu_pick(provider, need_gb, res_key):
     key = res_key if res_key in row["usd_per_hour"] else "us"
     return {"row": row, "rate": row["usd_per_hour"][key], "region": row["region"][key], "ref_provider": ref_provider,
             "ref_region": bool(res_key) and key != res_key, "too_big": need_gb > rows[-1]["vram_gb"], "provider": "aws" if ref_provider else provider}
+
+
+def small_gpu_alt(need_gb, pick):
+    """The T4-class alternative with a true reason, or None when the pick already is a T4-class GPU."""
+    if pick["row"]["vram_gb"] <= T4_VRAM_GB:
+        return None
+    if need_gb > T4_VRAM_GB:
+        return ("A T4-class GPU (16 GB)", f"too little memory for the ≈{need_gb:,.0f} GB this model needs (planning heuristic)")
+    return ("A T4-class GPU (16 GB)", f"enough memory for the ≈{need_gb:,.0f} GB this model needs, but the knowledge base holds no verified T4 rate "
+            f"for this provider, so the smallest priced row ({pick['row']['id']}) is used; check a T4 rate if runs are rare")
 
 
 def gpu_label(pick):

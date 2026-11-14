@@ -83,5 +83,23 @@ class AzureGpuSizing(unittest.TestCase):
         self.assertIn("Standard_NC24ads_A100_v4", r["choice"])
 
 
+def t4_alt(row):
+    return next((a["why_not"] for a in row["alternatives"] if a["choice"].startswith("A T4-class")), None)
+
+
+class TrueT4Alternative(unittest.TestCase):
+    def test_pd2_small_lora_never_says_too_little_memory(self):
+        why = t4_alt(ml_row(run(PD2, ml="training", typ="saas_b2b")))
+        self.assertNotIn("too little memory", why)
+        self.assertIn("enough memory", why)
+
+    def test_small_lora_on_azure_has_no_t4_alt(self):
+        self.assertIsNone(t4_alt(ml_row(run(PD2, ml="training", cloud="azure", typ="saas_b2b"))))
+
+    def test_large_full_fine_tune_keeps_too_little_memory(self):
+        why = t4_alt(ml_row(run("Full fine-tuning of a Llama 13B model on our support transcripts.", ml="training", typ="saas_b2b")))
+        self.assertIn("too little memory", why)
+
+
 if __name__ == "__main__":
     unittest.main()
