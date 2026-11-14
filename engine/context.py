@@ -922,6 +922,8 @@ def build(req):
     c["peak_derived"], c["peak_fraction"], c["peak_why"] = peak is None, None, ""
     if peak is None:  # E8e: users x a documented fraction, never above users
         peak, c["peak_fraction"], c["peak_why"] = costreal.derived_peak(users, req, req["project.type"])
+        if users != req["scale.users_12_months"]:
+            c["peak_why"] = c["peak_why"].replace("of users_12_months", f"of the {users:,} users used for sizing")
     # h1 (blind9 A6): an explicit peak above the total user count is capped at the users for sizing (planning heuristic). An API-shaped
     # project (api_platform, or api_only among the platforms) counts its customers' end users or requests, not its own accounts, so it
     # is never capped; if its description gives the peak as a rate ("5,000 transactions per second") the warning is dropped too.
@@ -931,6 +933,8 @@ def build(req):
     if peak > users and not api_shaped:  # sized like an absent peak: users x the documented fraction, never all users at once
         c["peak_capped_from"] = peak
         peak, c["peak_cap_fraction"], c["peak_cap_why"] = costreal.derived_peak(users, req, req["project.type"])
+        if users != req["scale.users_12_months"]:  # the basis is the larger of launch and 12-month users: say so instead of naming users_12_months
+            c["peak_cap_why"] = c["peak_cap_why"].replace("of users_12_months", f"of the {users:,} users used for sizing")
     c["users"], c["peak"] = users, peak
     if users <= 5000 and peak <= 200:
         tier = 0
@@ -947,6 +951,10 @@ def build(req):
         tier = max(tier, c["rps_tier"])
     c["tier"] = tier
     c["data_gb"] = req["scale.data_volume_gb_12_months"] if req["scale.data_volume_gb_12_months"] is not None else 5
+    # planning heuristic: file or media storage is requested but the stated volume is 0 GB (contradictory): size and price for at least 1 GB and say so
+    c["data_gb_floored"] = bool(req["requirements.file_media_storage"] and req["scale.data_volume_gb_12_months"] == 0)
+    if c["data_gb_floored"]:
+        c["data_gb"] = 1
     c["langs"] = lang_norm(req["team.languages"])
     c["hiring"] = [x for x in lang_norm(req["team.hiring_languages"]) if x not in c["langs"]]
     c["geo"] = req["scale.geo_spread"]

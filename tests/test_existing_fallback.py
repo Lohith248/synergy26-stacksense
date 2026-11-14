@@ -65,7 +65,7 @@ class UnrecognisedBrokerIdentityApi(unittest.TestCase):
     def test_active_directory_stays_a_recognised_identity_system(self):
         out = ex("Active Directory", **{"requirements.auth": "enterprise_sso"})
         self.assertFalse(warn(out, "EXISTING_SYSTEM_UNRECOGNISED"))
-        self.assertEqual(sup(out, "auth")[0]["choice"], "Microsoft Entra ID (OIDC)")
+        self.assertTrue(sup(out, "auth")[0]["choice"].startswith("Microsoft Entra ID (OIDC)"))
 
     def test_saml_sso_gateway_is_reused_for_enterprise_sso(self):
         out = ex("Corporate SAML SSO gateway (must stay)", **{"requirements.auth": "enterprise_sso"})

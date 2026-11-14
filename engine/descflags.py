@@ -181,6 +181,20 @@ def staff_signin(ctx):
     return hit
 
 
+def inferred_staff_directory(ctx):
+    """(phrase, None) when an on-premises directory (Active Directory, LDAP) is an existing system and the people who work with the system
+    are staff of the organisation that runs it: the description names a staff role, or the stack is on-premises / air-gapped (planning
+    heuristic). The directory is where those staff already have logins, so they sign in through it even if the description does not say so."""
+    idp = ctx.get("existing_idp")
+    if not idp or not idp["pattern"]["name"].startswith("On-premises"):
+        return None
+    desc = ctx["req"]["project.description"] or ""
+    role = first_live(r"\b" + STAFF_WHO + r"\b", desc)
+    if role or ctx["self_host_only"]:
+        return (role[0] if role else "on-premises deployment", None)
+    return None
+
+
 def staff_sso_applies(ctx):
     """An existing IdP the description says staff sign in through, while the customer-facing auth does not already use it."""
     idp, auth = ctx.get("existing_idp"), ctx["req"]["requirements.auth"]
@@ -188,9 +202,78 @@ def staff_sso_applies(ctx):
         return None
     if idp["pattern"].get("reuse") and ctx["idp_customer_login"] and auth in ("email_password", "social"):
         return None  # the provider is already the sign-in for everyone
-    hit = staff_signin(ctx)
+    hit = staff_signin(ctx) or inferred_staff_directory(ctx)
     if not hit:
         return None
     if ctx["no_internet"] and idp["pattern"].get("deployment") == "saas":
         return None  # an air gap cannot reach a SaaS identity provider
     return hit
+
+
+# ---- deliverables the description names that no hard flag or layer covers (CMS, image-heavy pages, offline video, a site that survives a WAN outage)
+# Planning heuristics: wording lists. Each deliverable becomes a quoted note (info warning, or an assumption for the site-survives-WAN-outage case);
+# no product is added to the stack, so the layer choices never move.
+CMS_RX = (r"\bcms\b|\bcontent management(?: system)?s?\b"
+          r"|\b(?:editors?|journalists?|writers?|authors?|reporters?|content team)\b(?:\W+\w+){0,3}?\W+(?:publish|post|write|edit|update)\w*\b(?:\W+\w+){0,3}?\W+(?:through|via|in|with|using|from)\b(?:\W+\w+){0,2}?\W+(?:cms|admin|dashboard|panel|backend)")
+EXISTING_CMS_RX = r"cms|wordpress|drupal|contentful|strapi|sanity|ghost|wagtail|joomla|sitecore|aem"
+IMAGE_HEAVY_RX = (r"\b(?:photo|image|picture|pictures|photos|images)[- ]?(?:galler(?:y|ies)|librar(?:y|ies)|heavy|grids?|catalogu?es?|portfolios?)\b"
+                  r"|\bgalleries\b|\bimage[- ]heavy\b|\bphoto[- ]heavy\b|\bhigh[- ]res(?:olution)? (?:photos?|images?)\b"
+                  r"|\b(?:product|property|listing|vehicle|recipe|artwork|portfolio) (?:photos|images|pictures)\b")
+OFFLINE_VIDEO_RX = (r"\b(?:video|videos|lessons?|lectures?|films?|episodes?|movies?|courses?|recordings?)\b[^.;!?]{0,60}?\bdownload\w*\b[^.;!?]{0,50}?\boffline\b"
+                    r"|\bdownload\w*\b[^.;!?]{0,50}?\b(?:video|videos|lessons?|lectures?|films?|episodes?|movies?)\b[^.;!?]{0,50}?\boffline\b")
+WAN_DOWN_RX = (r"\b(?:wan|uplink|internet|head[- ]office|site|leased)\b(?:\W+\w+){0,4}?\W+(?:link|connection|connectivity|line)?\W*(?:is|goes|gets|are|drops?|fails?)\W+(?:down|offline|lost|unavailable|cut)\b"
+               r"|\b(?:wan|uplink|internet) (?:link |connection )?(?:outages?|failures?|drops?)\b"
+               r"|\b(?:keep|continue|carry on|still)\s+work\w*\s+(?:\w+\s+){0,3}(?:if|when|while|without)\s+(?:the |a |our )?(?:\w+\s+){0,3}?(?:wan|uplink|internet|head[- ]office)\b")
+ONSITE_NAMES_MAX = 8  # planning heuristic: components named in the WAN-outage assumption
+
+
+def _short(choice):
+    n = choice.split(": ", 1)[-1]
+    for cut in (" (", " —", " via ", " + ", ",", ";"):
+        n = n.split(cut)[0]
+    return " ".join(n.split()[:5])
+
+
+def component_notes(ctx, supporting, core):
+    """([(code, severity, message, fields)], [assumption text]) for deliverables the description names and the layers do not carry."""
+    req = ctx["req"]
+    desc = req["project.description"] or ""
+    notes, assumptions = [], []
+    if not desc:
+        return notes, assumptions
+    existing = " ".join(str(e) for e in (req["infrastructure.existing_systems"] or [])).lower()
+    hit = first_live(CMS_RX, desc)
+    if hit and not re.search(EXISTING_CMS_RX, existing):
+        notes.append(("DESC_CMS_NOT_SELECTED", "info",
+                      f"project.description says content is published through a CMS ('{hit[1]}'). No CMS product is selected by the engine (none is in the knowledge base). "
+                      "Plan one of two shapes: a headless CMS (editors work in its admin interface and the site reads the content from its API, so public pages can still be "
+                      "cached at the edge and rebuilt or purged on publish), or an editor admin section inside the backend. Either way give editors roles, a draft and publish "
+                      "step and image upload, and keep them out of the public request path.", ["project.description"]))
+    hit = first_live(IMAGE_HEAVY_RX, desc)
+    if hit and ctx["web"] and not ctx["local_first"]:
+        notes.append(("DESC_IMAGE_OPTIMISATION", "info",
+                      f"project.description describes image-heavy pages ('{hit[1]}'). Serving each original photo is the main bandwidth cost and slows pages: keep originals in object "
+                      "storage, generate resized and compressed copies (WebP or AVIF at several widths, chosen with srcset), lazy-load images below the fold, and serve them "
+                      "through a CDN or an image-resizing service with long cache lifetimes (planning heuristic).", ["project.description"]))
+    hit = first_live(OFFLINE_VIDEO_RX, desc)
+    if hit and (ctx["web"] or ctx["mobile"] or ctx["desktop"]) and not ctx["local_first"]:
+        gb = req["scale.data_volume_gb_12_months"]
+        notes.append(("DESC_OFFLINE_DOWNLOADS", "info",
+                      f"project.description has users download media for offline use ('{hit[1]}')"
+                      + (f" and ~{cx.num(gb)} GB of files are expected in 12 months" if gb else "")
+                      + ". Keep the files in object storage and put a CDN in front of the download path: egress per downloaded copy, not storage, becomes the bill, and "
+                      "a CDN cuts it and the latency. The client needs a download manager (resumable, chunked downloads in the background, for example WorkManager on Android), "
+                      "an integrity check, a storage-space check and a way to delete or expire downloaded packs; paid content should be encrypted on the device or served by "
+                      "short-lived signed URLs (planning heuristic; no CDN product is priced into the band unless a CDN layer is listed).", ["project.description"]))
+    hit = first_live(WAN_DOWN_RX, desc)
+    if hit and ctx["self_host_only"]:
+        names = []
+        for n in [_short(c["choice"]) for c in core if c.get("choice")] + [_short(s["choice"]) for s in supporting if s["deployment"] == "self_hosted"]:
+            if n and n not in names:
+                names.append(n)
+        assumptions.append(
+            f"Local-first operation: project.description says the site must keep working when the WAN link is down ('{hit[1]}'). Everything on the critical path runs on the "
+            f"site's own servers ({', '.join(names[:ONSITE_NAMES_MAX])}), so a WAN outage does not stop it. Data is buffered locally and sent to the remote side "
+            "(head office or cloud) when the link returns (store-and-forward with idempotent, retried transfers); anything hosted outside the site would stop working during an outage "
+            "(planning heuristic).")
+    return notes, assumptions
