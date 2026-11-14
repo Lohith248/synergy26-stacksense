@@ -25,7 +25,7 @@
         },
         {
           "choice": "Next.js",
-          "why_not": "React fits better: Next.js's learning curve is 3/5 for a senior team (team.experience=senior), against 2/5 for React: priorities.time_to_market=3 (neutral) gives no reason to accept the extra ramp-up. Known limit of Next.js: server runtime needed for SSR; more moving parts than a static site."
+          "why_not": "React fits better: Next.js's learning curve is 3/5 for a senior team (team.experience=senior), against 2/5 for React: priorities.time_to_market=3 is below the 4 that would repay the extra ramp-up. Known limit of Next.js: server runtime needed for SSR; more moving parts than a static site."
         }
       ],
       "tradeoffs": [

@@ -23,7 +23,7 @@
       "alternatives": [
         {
           "choice": "Angular",
-          "why_not": "React fits better: Angular's learning curve is 4/5 for a senior team (team.experience=senior), against 2/5 for React: priorities.time_to_market=3 (neutral) gives no reason to accept the extra ramp-up (close call). Known limit of Angular: upgrades are mandatory: each major is supported for a fixed window (24 months from Angular 22, made of 12 active + 12 LTS; v20 and v21 get 18 months), so the app must move to a new major at least every 18-24 months."
+          "why_not": "React fits better: Angular's learning curve is 4/5 for a senior team (team.experience=senior), against 2/5 for React: priorities.time_to_market=3 is below the 4 that would repay the extra ramp-up (close call). Known limit of Angular: upgrades are mandatory: each major is supported for a fixed window (24 months from Angular 22, made of 12 active + 12 LTS; v20 and v21 get 18 months), so the app must move to a new major at least every 18-24 months."
         },
         {
           "choice": "Vue 3 (Vite SPA)",
@@ -76,7 +76,7 @@
         "label": "low",
         "basis": "stability 0.50 (sensitive) over 54 priority vectors."
       },
-      "contrast": "React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) rather than Angular. React fits better: Angular's learning curve is 4/5 for a senior team (team.experience=senior), against 2/5 for React: priorities.time_to_market=3 (neutral) gives no reason to accept the extra ramp-up (close call). Trade-off accepted: The first load waits for the JavaScript bundle, so page weight matters on slow devices.",
+      "contrast": "React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) rather than Angular. React fits better: Angular's learning curve is 4/5 for a senior team (team.experience=senior), against 2/5 for React: priorities.time_to_market=3 is below the 4 that would repay the extra ramp-up (close call). Trade-off accepted: The first load waits for the JavaScript bundle, so page weight matters on slow devices.",
       "what_would_change": [
         {
           "edit": "priorities.time_to_market: 3 -> 2",
