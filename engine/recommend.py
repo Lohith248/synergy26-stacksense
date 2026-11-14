@@ -8,6 +8,8 @@ from . import integrations as ig
 from . import localfirst as lf
 from . import consistency as cons
 from . import refresh as rf
+from . import descflags as dfl
+from . import compnotes as cn
 from . import costreal
 from . import rightsize as rs
 from . import select as sl
@@ -932,6 +934,9 @@ def _recommend(req, assumptions, sid):
                   f"{s['choice']} stores data but its location could not be pinned to {ctx['res_label']}"
                   + ("." if critical else " in the knowledge base: not a proven conflict. Confirm its region or data-processing terms before relying on it."), fields)
 
+    for warn in cn.data_path_warnings(ctx, supporting, host):  # H2 (A4): a vendor in the data path with no data location in the knowledge base
+        W(*warn)
+
     # ---- cost band
     pctx = pilot_ctx(ctx) if ctx["scale_relaxed"] else ctx  # A10: priced at the pilot tier when SCALE_VS_BUDGET is critical
     dbq = db_c if ctx["needs_db"] else None
@@ -1313,6 +1318,11 @@ def contradictions(ctx, W, assumptions, host, backend):
              if ctx["needs_backend"] else
              "No object storage was added because this stack has no application server to issue upload URLs; set file_media_storage to true to add one."),
           ["requirements.file_media_storage", "project.description"])
+    for warn in dfl.mismatches(ctx):  # H2: a behaviour the description needs and a hard flag denies: warn, quote, never override
+        W(*warn)
+    rem = dfl.reminder_warning(ctx)
+    if rem:
+        W(*rem)
     if d["sms"] or (d["otp"] and req["requirements.auth"] != "phone_otp"):
         what = "SMS" if d["sms"] else "one-time codes (OTP)"
         q = desc_quote(ctx, cx.DESC_RX["sms"] if d["sms"] else cx.DESC_RX["otp"])
@@ -1383,6 +1393,7 @@ def contradictions(ctx, W, assumptions, host, backend):
                           "keep audit logs of PHI access, test backups and restores, and control physical access to the data centre. "
                           "A Business Associate Agreement is still needed with any outside vendor that touches PHI (support, backup, managed-service or SaaS add-ons).",
                           ["compliance", "infrastructure.deployment_model"])
+    cn.refine(ctx, notes, managed_cloud_hipaa=not ctx["self_host_only"])  # H2 (A4): minors, HIPAA safeguards, SOC 2 cost, PCI service provider
     for c in ctx["compliance"]:
         if c in notes:
             W(*notes[c])
@@ -1466,11 +1477,22 @@ def contradictions(ctx, W, assumptions, host, backend):
               + ", ".join(f"'{o['raw']}'" for o in rest) + " is not used by the application. Integrate it separately if it must take part.",
               ["infrastructure.existing_systems"])
     idp = ctx["existing_idp"]
-    if (idp and idp["pattern"].get("reuse") and req["requirements.auth"] not in ("enterprise_sso", "none")
-            and not (ctx["idp_customer_login"] and req["requirements.auth"] in ("email_password", "social"))):
-        W("EXISTING_IDP_NOT_USED", "info", ("An Entra tenant" if ctx["ms_idp"] else f"An existing {idp['pattern']['name']} tenant")
-          + " exists but auth is not enterprise_sso; consider SSO for staff users.",
-          ["infrastructure.existing_systems", "requirements.auth"])
+    if (idp and req["requirements.auth"] not in ("enterprise_sso", "none")
+            and not (idp["pattern"].get("reuse") and ctx["idp_customer_login"] and req["requirements.auth"] in ("email_password", "social"))):
+        kind = "An Entra tenant" if ctx["ms_idp"] and idp["pattern"]["name"] == "Microsoft Entra ID" else f"An existing {idp['pattern']['name'].replace('On-premises', 'on-premises')}" + ("" if idp["pattern"]["name"].startswith("On-premises") else " tenant")
+        said, applies = dfl.staff_signin(ctx), dfl.staff_sso_applies(ctx)
+        if applies:  # H2: the description says staff sign in through it, so it is used for them
+            W("EXISTING_IDP_NOT_USED", "info", f"{kind} exists, requirements.auth is {req['requirements.auth']} and project.description says staff sign in through it "
+              f"('{applies[1]}'): a separate 'Staff sign-in' auth item uses it for staff, and {req['requirements.auth']} stays for the other users. "
+              "Set requirements.auth to enterprise_sso if every user belongs to that directory.",
+              ["infrastructure.existing_systems", "requirements.auth", "project.description"])
+        elif said:  # the description wants it but it cannot be reached from here
+            W("EXISTING_IDP_NOT_USED", "warning", f"project.description says staff sign in through {idp['raw']} ('{said[1]}'), but it is a cloud service and "
+              "deployment_model is air_gapped, so the network cannot reach it. Use a local directory (Keycloak with LDAP) or a federated copy inside the network.",
+              ["infrastructure.existing_systems", "requirements.auth", "project.description"])
+        else:
+            W("EXISTING_IDP_NOT_USED", "info", f"{kind} exists but auth is not enterprise_sso; consider SSO for staff users.",
+              ["infrastructure.existing_systems", "requirements.auth"])
     if ctx["local_first"] and ctx["res_key"]:
         assumptions.append("Local-first desktop app: application data stays on the user's device, so data_residency is not engaged by the app itself; "
                            "any optional upload endpoint would have to be placed in the stated jurisdiction when it is added.")

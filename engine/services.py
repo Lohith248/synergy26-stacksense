@@ -12,6 +12,7 @@ from . import integrations as ig
 from . import localfirst as lf
 from . import consistency as cons
 from . import refresh as rf
+from . import descflags as dfl
 from . import rightsize as rs
 from .kb import cite, AS_OF
 from .select import for_noun, type_noun
@@ -453,7 +454,9 @@ def build(ctx, host, backend, db, mobile, warn):
                                "saas", "msg91", False, Z, ["msg91-otp", "trai-dlt", "firebase-pricing", "twilio-verify"]))
             else:
                 out.append(svc("auth", "Twilio Verify (SMS OTP) + backend-issued sessions",
-                               "phone_otp without a residency constraint: a managed verification API handles carrier routing and fraud checks.",
+                               ("phone_otp without a residency constraint: " if not ctx["res_named"] else f"phone_otp with data_residency {req['infrastructure.data_residency']}: ")
+                               + "a managed verification API handles carrier routing and fraud checks."
+                               + (f" The knowledge base does not state where Twilio Verify processes data, so it is not confirmed to stay in {res_name(ctx)} (see DATA_PATH_RESIDENCY)." if ctx["res_named"] else ""),
                                dp, [("Firebase Authentication (phone)", "ties identity to Firebase; fine alternative if the team prefers Google")],
                                ["Per-verification fee (~$0.05) plus SMS"], "saas", "twilio", False, Z, ["twilio-verify", "firebase-pricing"]))
         else:  # email_password / social
@@ -494,6 +497,24 @@ def build(ctx, host, backend, db, mobile, warn):
                                 ("Keycloak", f"a separate service to run, patch and upgrade for a team of {ctx['size']}" + ("" if ctx["devops"] else " with no DevOps engineer"))],
                                ["You run and upgrade Keycloak"] if kc else ["You own password hashing, reset e-mails and MFA setup"],
                                "self_hosted" if kc else "library", "neutral", kc, Z, ["keycloak"], loc))
+
+    # H2: an existing identity provider that the description says staff sign in through, next to a customer-facing login that is not SSO
+    staff = dfl.staff_sso_applies(ctx)
+    if staff:
+        ip = idp["pattern"]
+        saas = ip.get("deployment") == "saas"
+        ldap = ip["name"].startswith("On-premises")
+        out.append(svc("auth", f"Staff sign-in: {ip['name']} (existing {'tenant' if saas else 'directory' if ldap else 'deployment'}) "
+                       + ("through Keycloak LDAP federation or AD FS" if ldap else "via OpenID Connect/SAML"),
+                       f"The description says staff sign in through it ('{staff[1]}') and '{idp['raw']}' exists: staff accounts are not created in the app, "
+                       f"they sign in with their existing login while {auth} stays for the other users. "
+                       + ip["how"],
+                       ["infrastructure.existing_systems", "project.description"],
+                       [("Separate staff accounts in the app", "a second user store for people who already have a login, and leavers would keep access"),
+                        ("Switching every user to the existing provider", f"requirements.auth says {auth}: customers are not part of that directory")],
+                       [f"Depends on the {ip['name']} administrators for the app registration, claims and group mapping"]
+                       + (["Needs a network path from the app to the directory (VPN or private link) for directory sign-in"] if not saas else []),
+                       "saas" if saas else "self_hosted", ip.get("provider", "neutral"), False, Z, ip["src"]))
 
     # ---------------- storage
     # a description that has users upload files overrides requirements.file_media_storage=false (UPLOADS_VS_STORAGE_FIELD says so)
@@ -1210,11 +1231,14 @@ def build(ctx, host, backend, db, mobile, warn):
                        ["infrastructure.existing_systems", "project.description"],
                        [("Separate e-mail service (SES/SendGrid)", "duplicates mail infrastructure the company already has")],
                        ["Needs admin consent for Graph application permissions"], "saas", "azure", False, Z, ["ms-graph"]))
-    if d["email_out"] and not ctx["self_host_only"] and not (ctx["existing_m365"] and d["approvals"]):
+    remind = dfl.reminder_without_sender(ctx)  # H2: reminders with no channel named: e-mail is assumed (the info warning says so)
+    if (d["email_out"] or remind) and not ctx["self_host_only"] and not (ctx["existing_m365"] and d["approvals"]):
         said = re.search(cx.DESC_RX["email_out"], (req["project.description"] or "").lower())
         mail_name, mail_prov, mail_why, mail_alts = email_product(p)
         out.append(svc("other", f"Email delivery: {mail_name} (managed email API, authenticated sending domain: SPF, DKIM, DMARC)",
-                       f"The description sends email to users ('{said.group(0) if said else 'email'}'). Mail sent straight from an application server is often rejected "
+                       (f"The description sends email to users ('{said.group(0) if said else 'email'}'). " if d["email_out"] else
+                        f"The description schedules reminders ('{remind[1]}') and names no channel; e-mail is the assumed one (change it if reminders go by SMS or push). ")
+                       + "Mail sent straight from an application server is often rejected "
                        "or filed as spam, so a managed email API with an authenticated sending domain, bounce and complaint handling and an unsubscribe link carries it. "
                        + mail_why + " The application only hands messages over; the cost band carries a labelled planning estimate for the sends.",
                        ["project.description"] + (["infrastructure.data_residency"] if ctx["res_named"] else []),
