@@ -16,7 +16,7 @@ Hard constraints (cloud preference, deployment model, data residency, compliance
 
 | Check | Result |
 |---|---|
-| Unit and acceptance tests (`python -I -m unittest discover -s tests`) | 481 tests OK (17 skip cleanly when the optional `research/` folder is absent) |
+| Unit and acceptance tests (`python -I -m unittest discover -s tests`) | 857 tests OK (17 skip cleanly when the optional `research/` folder is absent) |
 | Public scenarios P1-P6 | outputs in `outputs/` reproduce byte-for-byte |
 | Output contract (`tools/check_contract.py`) | PASS 6/6 |
 | One-field perturbation sweep (`tools/perturb.py`) | 1,087 edits, 0 crashes, 0 violations |
@@ -70,7 +70,7 @@ These are development checks, not a measure of accuracy on unseen scenarios.
 | `engine/web.py`, `web/index.html` | Optional local web UI (`serve`): standard-library HTTP server on 127.0.0.1 and one self-contained page |
 | `engine/kb.py` | Loads the knowledge base; an unknown source id fails loudly |
 | `tools/check_contract.py` | Independent checker of the Section 4 output contract |
-| `tools/perturb.py` | Robustness sweep: 997 one-field edits across P1-P6; reports crashes, contract/hard-constraint violations and which layers move |
+| `tools/perturb.py` | Robustness sweep: 1,087 one-field edits across P1-P6; reports crashes, contract/hard-constraint violations and which layers move |
 | `tests/` | stdlib `unittest` tests: boundary set B01-B34, KB lint, deprecated-product guard, 96 hard-constraint mutations, interactive mode, improvement acceptance tests (language fit, serverless fit, static hosts, native mobile, low budget, relaxed labelling, explanations, KB breadth, counterfactuals, web UI, traffic shape, domain rules for games/IoT/analytics/API/B2B SSO, extra inputs) |
 
 ## Technology used
