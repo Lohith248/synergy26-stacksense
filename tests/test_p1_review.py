@@ -63,5 +63,25 @@ class HostedLlmApi(unittest.TestCase):
         self.assertIn("ONNX", r["choice"])
 
 
+class AzureGpuSizing(unittest.TestCase):
+    def test_pd_3b_on_azure_picks_t4(self):
+        out = run(PD, cloud="azure", deploy="self_hosted_cloud_vm", typ="saas_b2b", budget__monthly_infra_usd=50)
+        r = ml_row(out)
+        self.assertIn("Standard_NC4as_T4_v3", r["choice"])
+        self.assertIn("0.526", ml_cost_line(out))
+
+    def test_default_8b_on_azure_picks_a10(self):
+        r = ml_row(run("Self-hosted Llama model behind an OpenAI-compatible API for internal tools.", cloud="azure", typ="saas_b2b"))
+        self.assertIn("Standard_NV36ads_A10_v5", r["choice"])
+
+    def test_70b_on_azure_picks_four_a100(self):
+        r = ml_row(run("Serve Llama 3.1 70B with vLLM for our analysts.", cloud="azure", typ="saas_b2b"))
+        self.assertIn("Standard_NC96ads_A100_v4", r["choice"])
+
+    def test_30b_does_not_fit_t4_or_a10(self):
+        r = ml_row(run("Serve a Qwen 30B model with vLLM for our analysts.", cloud="azure", typ="saas_b2b"))
+        self.assertIn("Standard_NC24ads_A100_v4", r["choice"])
+
+
 if __name__ == "__main__":
     unittest.main()

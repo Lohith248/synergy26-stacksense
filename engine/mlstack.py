@@ -128,7 +128,7 @@ def gpu_label(pick):
 def rate_text(pick):
     r = pick["row"]
     where = {"aws": "AWS EC2 on-demand", "azure": "Azure Retail Prices API, Linux pay-as-you-go", "gcp": "Google pricing page"}[pick["provider"]]
-    txt = f"${pick['rate']:g}/hour for {r['id']} in {pick['region']} ({where}, read 14 Nov 2026" + (f"; {r['rate_basis']})" if r.get("rate_basis") else ")")
+    txt = f"${pick['rate']:g}/hour for {r['id']} in {pick['region']} ({where}, read {r.get('read', '14 Nov 2026')}" + (f"; {r['rate_basis']})" if r.get("rate_basis") else ")")
     if pick["ref_provider"]:
         txt += "; this hosting provider's GPU price is not in the knowledge base, so the AWS rate is a reference only"
     elif pick["ref_region"]:

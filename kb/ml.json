@@ -43,6 +43,10 @@
        "region": {"us": "us-east-1", "eu": "eu-central-1", "india": "ap-south-1"}, "src": ["aws-ec2-ondemand-gpu", "aws-g6e-specs"]}
     ],
     "azure": [
+      {"id": "Standard_NC4as_T4_v3", "gpus": "1x NVIDIA T4 16 GB", "vram_gb": 16, "usd_per_hour": {"us": 0.526, "eu": 0.658, "india": 0.579},
+       "region": {"us": "East US", "eu": "West Europe", "india": "Central India"}, "read": "15 Nov 2026", "src": ["azure-gpu-prices-t4-a10", "azure-ncast4v3"]},
+      {"id": "Standard_NV36ads_A10_v5", "gpus": "1x NVIDIA A10 24 GB", "vram_gb": 24, "usd_per_hour": {"us": 3.2, "eu": 4.16, "india": 4.48},
+       "region": {"us": "East US", "eu": "West Europe", "india": "Central India"}, "read": "15 Nov 2026", "src": ["azure-gpu-prices-t4-a10", "azure-nvadsa10v5"]},
       {"id": "Standard_NC24ads_A100_v4", "gpus": "1x NVIDIA A100 80 GB", "vram_gb": 80, "usd_per_hour": {"us": 3.673, "eu": 4.775, "india": 5.142},
        "region": {"us": "East US", "eu": "West Europe", "india": "Central India"}, "src": ["azure-gpu-prices", "azure-nca100v4"]},
       {"id": "Standard_NC96ads_A100_v4", "gpus": "4x NVIDIA A100 80 GB", "vram_gb": 320, "usd_per_hour": {"us": 14.692, "eu": 19.1, "india": 20.569},

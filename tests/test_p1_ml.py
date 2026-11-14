@@ -93,7 +93,7 @@ class Sizing(unittest.TestCase):
         self.assertEqual(mls.gpu_pick("aws", mls.vram_need_gb(8), "us")["row"]["id"], "g6.xlarge")
         self.assertEqual(mls.gpu_pick("aws", mls.vram_need_gb(13), "eu")["row"]["id"], "g6e.xlarge")
         self.assertEqual(mls.gpu_pick("aws", mls.vram_need_gb(70), "india")["row"]["id"], "g6e.12xlarge")
-        self.assertEqual(mls.gpu_pick("azure", mls.vram_need_gb(8), "eu")["rate"], 4.775)
+        self.assertEqual(mls.gpu_pick("azure", mls.vram_need_gb(8), "eu")["rate"], 4.16)  # 8B ≈ 19 GB fits the 24 GB A10 row (p1 review MUST 2)
         ref = mls.gpu_pick("hetzner", 10, None)
         self.assertTrue(ref["ref_provider"])
 
@@ -129,7 +129,7 @@ class SelfHostedLlmServing(unittest.TestCase):
                   ml="llm_rag", cloud="azure", typ="healthtech")
         m = ml_row(out)
         self.assertTrue(m["choice"].startswith("Self-hosted open-weight LLM (vLLM"), m["choice"])
-        self.assertIn("Standard_NC24ads_A100_v4", m["choice"])
+        self.assertIn("Standard_NV36ads_A10_v5", m["choice"])
         self.assertIn("730 hours", ml_cost_line(out))
 
     # must-not-fire
