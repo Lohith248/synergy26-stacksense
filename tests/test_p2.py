@@ -85,3 +85,64 @@ class ServiceRegion(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def desk(ptype, desc, langs, plats=("desktop",), offline=False, realtime=False):
+    s = copy.deepcopy(BASE)
+    s["project"].update({"type": ptype, "description": desc, "platforms": list(plats)})
+    s["team"]["languages"] = list(langs)
+    s["infrastructure"].update({"data_residency": "none", "cloud_preference": "any"})
+    s["requirements"].update({"offline_support": offline, "realtime": realtime})
+    return run(s)
+
+
+def fe(out):
+    return out["stack"]["frontend"]["choice"]
+
+
+class ClientPlatformFit(unittest.TestCase):
+    def test_game_engine_covers_desktop_with_ios(self):
+        out = desk("gaming", "Co-op action game with matchmaking on PC and iOS.", ["csharp", "go"], ("desktop", "ios"), realtime=True)
+        self.assertIn("Unity", fe(out))
+        self.assertIn("desktop", fe(out))
+        self.assertNotIn("WPF", fe(out))
+
+    def test_game_engine_covers_desktop_with_android(self):
+        out = desk("gaming", "Puzzle game for Android phones and PCs.", ["csharp"], ("desktop", "android"))
+        self.assertNotIn("WPF", fe(out))
+        self.assertIn("Android + desktop", fe(out))
+
+    def test_desktop_only_game_gets_engine(self):
+        out = desk("gaming", "Single-player strategy game for PC.", ["typescript", "python"])
+        self.assertIn("Godot", fe(out))
+        self.assertNotIn("Tauri", fe(out))
+        out = desk("gaming", "Racing game for PC.", ["csharp"])
+        self.assertIn("Unity", fe(out))
+
+    def test_non_windows_desktop_csharp_gets_avalonia(self):
+        for ptype, desc in (("other", "Windows/macOS desktop tool for surveyors that syncs to the office server."),
+                            ("internal_tool", "Desktop app for staff on Windows and Linux workstations, data on the company server."),
+                            ("healthtech", "Clinic desktop app used on Macs and PCs; records are shared through our server.")):
+            out = desk(ptype, desc, ["csharp"])
+            self.assertIn("Avalonia", fe(out), desc)
+            self.assertNotIn("WPF", fe(out), desc)
+
+    def test_windows_only_desktop_keeps_wpf(self):
+        out = desk("internal_tool", "Windows desktop app for warehouse staff; data on the company server.", ["csharp"])
+        self.assertIn("WPF", fe(out))
+        out = desk("gaming", "Browser and PC game.", ["typescript"], ("web", "desktop"))
+        self.assertIn("PWA", fe(out))
+
+    def test_native_desktop_offline_not_browser_storage(self):
+        for ptype, desc in (("other", "Desktop tool for field surveyors; syncs to the office server when back online."),
+                            ("internal_tool", "Desktop app for inspectors; uploads to the company server when online."),
+                            ("iot", "Desktop console for technicians that syncs readings to our cloud server later.")):
+            out = desk(ptype, desc, ["csharp"], offline=True)
+            text = " ".join(x["choice"] for x in out["stack"]["supporting"])
+            self.assertNotIn("Service worker", text, desc)
+            self.assertNotIn("IndexedDB", text, desc)
+
+    def test_web_offline_keeps_service_worker(self):
+        out = desk("web_app", "Field notes web app that syncs to the server.", ["typescript"], ("web",), offline=True)
+        text = " ".join(x["choice"] for x in out["stack"]["supporting"])
+        self.assertIn("Service worker", text)

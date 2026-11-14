@@ -16,6 +16,11 @@ from . import select as sl
 from . import services as sv
 from .kb import AS_OF, TECH, cite
 
+# D24-p2: description words that name a non-Windows desktop OS (WPF is Windows-only)
+NON_WINDOWS_DESKTOP_RX = re.compile(r"\bmac ?os\b|\bos ?x\b|\bmacs?\b(?! address)|\blinux\b|\bubuntu\b|cross[- ]platform desktop", re.I)
+# official pages listing each game engine's desktop export targets
+GAME_DESKTOP_SRC = {"unity": "unity-platforms", "godot": "godot-export"}
+
 FIELD_ORDER = [f[0] for f in __import__("engine.validate", fromlist=["FIELDS"]).FIELDS]
 SKILL_BAND = 5  # a mismatched backend must beat the best skill-matched one by more than this to be chosen
 SKILL_SMALL_TEAM = 5  # planning heuristic: a team of up to this many people that is not senior, or any beginner team, pays a schedule cost for a new language
@@ -929,14 +934,40 @@ def _recommend(req, assumptions, sid):
                           "lazy-load screens and profile memory on a 2 GB phone"
                           + (f"; {light.item['name']} is the fallback if memory is tight, though it ranks lower here: {_lower1(why_not(mob, light, ctx))}" if light else "."))
             fe_src.append(cite(["rn-hermes"])[0])
-    if ctx["desktop"]:
+    game_eng = mob if (mob and mob.item.get("kind") == "game") else None
+    if ctx["desktop"] and game_eng:
+        # D24-p2: a game engine already chosen for the phones also builds the PC client; no separate desktop UI toolkit
+        parts[-1] = parts[-1][:-1] + " + desktop)"
+        fe_why.append(f"Desktop: the same {game_eng.item['name']} project also builds for Windows, macOS and Linux, so the PC client "
+                      "shares the game code, assets and netcode instead of a separate desktop UI toolkit.")
+        fe_src += cite([GAME_DESKTOP_SRC[game_eng.item["id"]]])
+    elif ctx["desktop"] and not web and ctx["type"] == "gaming":
+        eid = "unity" if "csharp" in ctx["langs"] else "godot"
+        eng = next(m for m in TECH["frontend_mobile"] if m["id"] == eid)
+        other = next(m for m in TECH["frontend_mobile"] if m["id"] == ("godot" if eid == "unity" else "unity"))
+        parts.append(f"{eng['name']} (desktop)")
+        fe_why.append(f"Desktop game: {eng['name']} builds for Windows, macOS and Linux with rendering, physics, input and audio built in; "
+                      + ("its C# matches team.languages." if eid == "unity" else "it is MIT-licensed with no royalties."))
+        fe_paths += ["project.type", "team.languages"]
+        fe_src += cite([GAME_DESKTOP_SRC[eid]] + eng["src"])
+        fe_alts.append({"choice": other["name"], "why_not": ("C# is the team's language, and Unity's tooling and asset store are larger"
+                                                             if eid == "unity" else "its C# scripting would add a language the team does not use")})
+        fe_alts.append({"choice": "WPF or another desktop UI toolkit", "why_not": "an app UI toolkit, not a game engine"})
+    elif ctx["desktop"]:
         if web:
             parts.append("installable PWA (desktop)")
             fe_why.append("Desktop: the web app is installable as a PWA, avoiding a separate desktop codebase.")
             fe_alts.append({"choice": "Tauri desktop app", "why_not": "a second codebase before desktop-specific features are needed"})
         else:
             langs = set(ctx["langs"])
-            if "csharp" in langs:
+            if "csharp" in langs and NON_WINDOWS_DESKTOP_RX.search(req["project.description"] or ""):
+                # D24-p2: WPF is Windows-only; a description naming macOS or Linux needs a cross-platform .NET UI
+                dname, dwhy, dalts, dsrc = ("Avalonia UI (C#/.NET)", "Desktop for a C# team on more than Windows: project.description names macOS or Linux, "
+                                            "and Avalonia UI is an MIT-licensed .NET UI framework that runs on Windows, macOS and Linux from one C# codebase.",
+                                            [("WPF on .NET 10", "Windows-only, and the description names a non-Windows desktop"),
+                                             (".NET MAUI", "also targets mobile, which this project does not need")], ["avalonia", "wpf", "dotnet-maui"])
+                fe_paths.append("project.description")
+            elif "csharp" in langs:
                 dname, dwhy, dalts, dsrc = ("WPF on .NET 10", "Desktop for a C# team: WPF is the mature Windows desktop framework on supported .NET 10, with direct access to Windows authentication and devices.",
                                             [("Avalonia UI", "MIT-licensed and cross-platform (Windows/macOS/Linux); choose it if non-Windows desktops matter"),
                                              (".NET MAUI", "also targets mobile, which this project does not need")], ["wpf", "avalonia", "dotnet-maui"])
