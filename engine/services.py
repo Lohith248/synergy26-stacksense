@@ -416,17 +416,18 @@ def build(ctx, host, backend, db, mobile, warn):
                                ["Each customer connection needs metadata exchange and claim mapping", "Just-in-time provisioning or SCIM must be decided"],
                                "managed" if prov in ("aws", "gcp") else "self_hosted", prov, True,
                                [[0, 0], [0, 20], [20, 150], [150, 800]], src, loc))
-            elif p == "azure" and ms and idp and idp["pattern"]["name"].startswith("On-premises") and not ctx["self_host_only"]:
+            elif (p == "azure" and ms and idp and idp["pattern"]["name"].startswith("On-premises") and not ctx["self_host_only"]
+                  and re.search(r"active directory|\bad\b", idp["raw"].lower())):  # plain LDAP / OpenLDAP falls through
                 # an existing on-premises Active Directory and an Azure host that is a cloud VM: Entra ID synchronised from it (Entra Connect, named in the knowledge base)
                 out.append(svc("auth", "Microsoft Entra ID (OIDC), synchronised from the existing on-premises Active Directory through Microsoft Entra Connect",
-                               f"enterprise_sso is required, '{idp['raw']}' exists and the app runs on Azure: federate through Microsoft Entra Connect so staff keep their domain "
-                               "logins and the app is an OpenID Connect client of Entra ID, with groups and app roles in the token driving approvals and admin rights; "
-                               "never copy password hashes. Entra ID is a cloud service in the same cloud as the VM, so it fits this deployment model; "
+                               f"enterprise_sso is required, '{idp['raw']}' exists and the app runs on Azure: synchronise accounts through Microsoft Entra Connect so staff keep their domain "
+                               "logins, and the app is an OpenID Connect client of Entra ID, with groups and app roles in the token driving approvals and admin rights. "
+                               "Entra ID is a cloud service in the same cloud as the app (Azure), so it fits this deployment model; "
                                "the input lists no Entra tenant yet, so one has to be set up (or an existing one connected).",
                                dp + ["infrastructure.existing_systems", "infrastructure.cloud_preference"],
                                [("Keycloak 26 (self-hosted) with LDAP federation to the directory", "keeps sign-in on servers you run, but one more service to operate and patch")],
                                ["Needs Microsoft Entra Connect installed next to the directory and an Entra tenant with admin rights for the app registration"],
-                               "saas", "azure", False, Z, ["entra-sso", "keycloak"]))
+                               "saas", "azure", False, Z, ["entra-sso", "entra-connect", "keycloak"]))
             elif selfh:
                 out.append(svc("auth", "Keycloak 26 (self-hosted, OIDC/SAML)",
                                "enterprise_sso on self-hosted infrastructure: Keycloak federates with the corporate directory (LDAP/AD or SAML) and runs on the same servers.",
@@ -560,7 +561,8 @@ def build(ctx, host, backend, db, mobile, warn):
         out.append(svc("auth", f"Staff sign-in: {ip['name']} (existing {'tenant' if saas else 'directory' if ldap else 'deployment'}) "
                        + ("through Keycloak LDAP federation or AD FS" if ldap else "via OpenID Connect/SAML"),
                        (f"The description says staff sign in through it ('{staff[1]}') and '{idp['raw']}' exists" if staff[1] else
-                        f"'{idp['raw']}' exists and the people who run this system are the organisation's staff ({staff[0]}), who already have logins in it")
+                        (f"'{idp['raw']}' exists and the people who use this system are the organisation's staff ({staff[0]}), who already have logins in it"
+                         if not staff[0].startswith("an on-premises") else f"'{idp['raw']}' exists and this is {staff[0]}, so its users are staff who already have logins in it"))
                        + f": staff accounts are not created in the app, they sign in with their existing login while {auth} stays for the other users. "
                        + ip["how"],
                        ["infrastructure.existing_systems", "project.description"],

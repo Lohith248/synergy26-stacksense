@@ -52,6 +52,10 @@ class PaymentsFollowPciScope(unittest.TestCase):
                 self.assertNotIn("can qualify for PCI DSS SAQ A", pay)
                 self.assertIn("does not apply", pay)
 
+    def test_a_shop_that_names_its_psp_keeps_saq_a(self):
+        out = run("An online shop; customers pay at checkout through our PSP, an acquirer we already use.", "ecommerce", req={"payments": True}, comp=["pci_dss"])
+        self.assertIn("can qualify for PCI DSS SAQ A", sup(out, "payments")[0]["justification"])
+
     def test_ordinary_shop_keeps_the_hosted_checkout_sentence(self):
         for typ, desc in (("ecommerce", "Online shop where customers pay by card."), ("web_app", "Course site with paid subscriptions."),
                           ("marketplace", "Marketplace where buyers pay sellers by card.")):
@@ -74,7 +78,7 @@ class PeakBasisText(unittest.TestCase):
 
 class ExistingDirectory(unittest.TestCase):
     def test_on_premises_directory_gets_a_staff_item_and_no_unused_code(self):
-        cases = (("healthtech", "Telehealth for a clinic group."), ("internal_tool", "Parts ordering for a factory."),
+        cases = (("healthtech", "Telehealth for a clinic group where clinicians record notes."), ("internal_tool", "Parts ordering for a factory."),
                  ("web_app", "Student portal where teachers publish grades."))
         for typ, desc in cases:
             with self.subTest(typ=typ):
@@ -84,6 +88,19 @@ class ExistingDirectory(unittest.TestCase):
                 self.assertIn("Active Directory", items[0]["choice"])
                 self.assertIsNone(warn(out, "EXISTING_IDP_NOT_USED"))
                 self.assertIsNotNone(warn(out, "STAFF_SIGNIN_VIA_IDP"))
+
+    def test_customer_roles_and_consumer_shops_must_not_get_inferred_staff(self):
+        on = {"deployment_model": "on_premise", "cloud_preference": "none", "existing_systems": ["Active Directory"]}
+        for typ, desc in (("marketplace", "Estate agents list properties and buyers browse them."), ("saas_b2b", "Support agents of our customers answer tickets."),
+                          ("ecommerce", "Online shop for consumers; restaurant managers order supplies."), ("web_app", "Customer admins manage their own team.")):
+            with self.subTest(desc=desc):
+                out = run(desc, typ, infra=on)
+                self.assertEqual([s for s in sup(out, "auth") if s["choice"].startswith("Staff sign-in")], [])
+
+    def test_plain_ldap_on_azure_does_not_take_the_entra_connect_branch(self):
+        out = run("Staff portal.", "internal_tool", req={"auth": "enterprise_sso"},
+                  infra={"cloud_preference": "azure", "deployment_model": "self_hosted_cloud_vm", "existing_systems": ["OpenLDAP"]})
+        self.assertTrue(sup(out, "auth")[0]["choice"].startswith("Keycloak"))
 
     def test_cloud_directory_without_staff_wording_must_not_get_a_staff_item(self):
         out = run("Public booking site for a salon.", "web_app", infra={"existing_systems": ["Active Directory"]})
@@ -98,6 +115,13 @@ class ExistingDirectory(unittest.TestCase):
         text = " ".join(s["justification"] + " ".join(x["why_not"] for x in s["alternatives"]) for s in out["stack"]["supporting"])
         self.assertNotIn("not allowed under this deployment model", text)
         self.assertNotIn("existing Entra tenant", text)
+
+    def test_app_service_with_directory_does_not_say_vm(self):
+        out = run("Purchase approval portal.", "internal_tool", req={"auth": "enterprise_sso"},
+                  infra={"cloud_preference": "azure", "deployment_model": "managed_cloud", "existing_systems": ["Active Directory"]})
+        text = sup(out, "auth")[0]["justification"]
+        self.assertNotIn("the VM", text)
+        self.assertNotIn("password hashes", text)
 
     def test_on_premises_still_says_entra_is_not_allowed(self):
         out = run("Staff portal.", "internal_tool", req={"auth": "enterprise_sso"},
@@ -134,7 +158,13 @@ class DescriptionDeliverables(unittest.TestCase):
             with self.subTest(typ=typ):
                 self.assertIsNotNone(warn(run(desc, typ), "DESC_IMAGE_OPTIMISATION"))
 
+    def test_cms_colour_profiles_and_admin_dashboard_must_not_fire(self):
+        for desc in ("Print shop that converts files with CMS colour profiles.", "Staff edit orders in the admin dashboard."):
+            with self.subTest(desc=desc):
+                self.assertIsNone(warn(run(desc, "content_site"), "DESC_CMS_NOT_SELECTED"))
+
     def test_image_must_not_fire(self):
+        self.assertIsNone(warn(run("Staff view photo galleries of site inspections.", "internal_tool"), "DESC_IMAGE_OPTIMISATION"))
         self.assertIsNone(warn(run("Users upload a profile photo.", "web_app"), "DESC_IMAGE_OPTIMISATION"))
         self.assertIsNone(warn(run("Photo galleries of events.", "web_app", plats=("android",)), "DESC_IMAGE_OPTIMISATION"))
 
@@ -162,6 +192,10 @@ class DescriptionDeliverables(unittest.TestCase):
                 a = [x for x in out["assumptions"] if x.startswith("Local-first operation")]
                 self.assertEqual(len(a), 1)
                 self.assertIn("PostgreSQL", a[0])
+
+    def test_site_down_paging_is_not_a_wan_outage(self):
+        out = run("If the site goes down, the on-call engineer is paged.", "internal_tool", infra={"deployment_model": "on_premise", "cloud_preference": "none"})
+        self.assertEqual([x for x in out["assumptions"] if x.startswith("Local-first operation")], [])
 
     def test_wan_outage_must_not_fire_in_the_cloud(self):
         out = run("The tool must keep working if the WAN link is down.", "internal_tool")

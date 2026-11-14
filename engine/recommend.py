@@ -912,7 +912,7 @@ def _recommend(req, assumptions, sid):
         W("DATA_VOLUME_ZERO_WITH_FILES", "warning", "scale.data_volume_gb_12_months is 0 but requirements.file_media_storage is true"
           + (f" and project.description has users attach files ('{ov.quote(ctx, 'uploads')}')" if ctx["desc"].get("uploads") and ov.quote(ctx, "uploads") else "")
           + ": a file store with no files is contradictory. Sizing and the cost band use a minimum of 1 GB (planning heuristic) so the object store is still listed; "
-          "give the expected file volume (for example scans per ticket x tickets x size) to get a real storage line.",
+          "give the expected file volume (for example files per user x users x average file size) to get a real storage line.",
           ["scale.data_volume_gb_12_months", "requirements.file_media_storage"])
         assumptions.append("scale.data_volume_gb_12_months is 0 while file or media storage is requested: a minimum of 1 GB is used for sizing and cost (planning heuristic), not 0.")
     assumptions += cassume
@@ -1494,7 +1494,8 @@ def contradictions(ctx, W, assumptions, host, backend):
         said, applies = dfl.staff_signin(ctx), dfl.staff_sso_applies(ctx)
         if applies:  # H2: staff sign in through it (the description says so, or an on-premises directory holds their logins): not an unused provider
             W("STAFF_SIGNIN_VIA_IDP", "info", f"{kind} exists and requirements.auth is {req['requirements.auth']}: "
-              + (f"project.description says staff sign in through it ('{applies[1]}')" if applies[1] else f"the people who run this system are the organisation's staff ({applies[0]}) and their logins live there")
+              + (f"project.description says staff sign in through it ('{applies[1]}')" if applies[1] else (f"the people who use this system are the organisation's staff ({applies[0]}) and their logins live there" if not applies[0].startswith("an on-premises")
+                    else f"this is {applies[0]}, so its users are staff whose logins live there"))
               + f", so a separate 'Staff sign-in' auth item uses it for staff and {req['requirements.auth']} stays for the other users. "
               "Set requirements.auth to enterprise_sso if every user belongs to that directory.",
               ["infrastructure.existing_systems", "requirements.auth", "project.description"])
