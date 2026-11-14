@@ -345,6 +345,27 @@ class SingleSiteAvailability(unittest.TestCase):
             self.assertNotIn("another zone", cost_text(out), ptype)
             self.assertIn("same datacenter", cost_text(out), ptype)
 
+    def test_single_region_warning_says_one_datacenter(self):
+        for ptype, res, desc in (("fintech", "eu", "Customer portal for an EU insurer, high availability required."),
+                                 ("saas_b2b", "india", "Payroll tool for Indian firms."),
+                                 ("web_app", "other", "Booking app for Singapore gyms; data must stay in Singapore.")):
+            out = vm_run(ptype, res, "99.99", desc)
+            if "SINGLE_SITE_AVAILABILITY" not in codes(out):
+                self.skipTest("host is not a single-datacenter VM for this input: " + out["stack"]["hosting"]["choice"])
+            m = " ".join(w["message"] for w in out["warnings"] if w["code"] == "AVAILABILITY_SINGLE_REGION")
+            self.assertIn("one datacenter", m, ptype)
+            self.assertNotIn("multi-zone", m, ptype)
+
+    def test_multi_zone_region_keeps_multi_zone_wording(self):
+        s = copy.deepcopy(BASE)
+        s["project"].update({"type": "web_app", "description": "Customers sign in and manage their records.", "platforms": ["web"]})
+        s["infrastructure"].update({"cloud_preference": "aws", "data_residency": "eu"})
+        s["requirements"]["availability"] = "99.99"
+        out = run(s)
+        self.assertNotIn("SINGLE_SITE_AVAILABILITY", codes(out))
+        m = " ".join(w["message"] for w in out["warnings"] if w["code"] == "AVAILABILITY_SINGLE_REGION")
+        self.assertNotIn("one datacenter", m)
+
     def test_not_for_lower_target_or_multi_datacenter_region(self):
         out = vm_run("fintech", "india", "99.9")
         self.assertNotIn("SINGLE_SITE_AVAILABILITY", codes(out))

@@ -1464,7 +1464,8 @@ def contradictions(ctx, W, assumptions, host, backend):
               "publish to a second static host behind DNS failover).", ["requirements.availability"])
         else:
             W("AVAILABILITY_SINGLE_REGION", "warning", why +
-              "This stack runs multi-zone in one region; add a second region with tested failover, or plan on 99.95%."
+              ("This stack runs in one datacenter (see SINGLE_SITE_AVAILABILITY); add a second region with tested failover, or plan on 99.95%."
+               if one_site and ctx["needs_backend"] else "This stack runs multi-zone in one region; add a second region with tested failover, or plan on 99.95%.")
               + ctx.get("no_second_region", ""),
               ["requirements.availability"] + (ctx["res_paths"] if ctx.get("no_second_region") else []))
     n_plat = len([p for p in ctx["platforms"] if p != "api_only"])
