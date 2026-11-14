@@ -133,6 +133,18 @@ class ClientPlatformFit(unittest.TestCase):
         out = desk("gaming", "Browser and PC game.", ["typescript"], ("web", "desktop"))
         self.assertIn("PWA", fe(out))
 
+    def test_negated_mac_or_linux_keeps_wpf(self):
+        for ptype, desc in (("internal_tool", "Windows-only internal desktop tool for the finance team to reconcile invoices; it will never run on Mac or Linux."),
+                            ("other", "Desktop kiosk app for our Windows PCs; no Linux or macOS support is planned."),
+                            ("healthtech", "Clinic desktop app; staff do not use Macs, only Windows workstations.")):
+            out = desk(ptype, desc, ["csharp"])
+            self.assertIn("WPF", fe(out), desc)
+            self.assertNotIn("Avalonia", fe(out), desc)
+
+    def test_mac_named_after_an_unrelated_negation_still_avalonia(self):
+        out = desk("other", "No installer needed. Runs on Windows and macOS laptops for field surveyors.", ["csharp"])
+        self.assertIn("Avalonia", fe(out))
+
     def test_native_desktop_offline_not_browser_storage(self):
         for ptype, desc in (("other", "Desktop tool for field surveyors; syncs to the office server when back online."),
                             ("internal_tool", "Desktop app for inspectors; uploads to the company server when online."),

@@ -18,6 +18,18 @@ from .kb import AS_OF, TECH, cite
 
 # D24-p2: description words that name a non-Windows desktop OS (WPF is Windows-only)
 NON_WINDOWS_DESKTOP_RX = re.compile(r"\bmac ?os\b|\bos ?x\b|\bmacs?\b(?! address)|\blinux\b|\bubuntu\b|cross[- ]platform desktop", re.I)
+# a mention ruled out in the words just before it ("Windows-only ...", "never runs on Mac", "not Linux") does not ask for a non-Windows desktop
+NON_WINDOWS_NEGATED_RX = re.compile(r"\b(?:windows[- ]only|never|not|no|without)\b|n't\b", re.I)
+NON_WINDOWS_NEG_WINDOW = 40  # characters before the mention searched for a negation
+
+
+def names_non_windows_desktop(desc):
+    """True when the description names macOS/Linux (or a cross-platform desktop) outside a negated phrase."""
+    desc = desc or ""
+    return any(not NON_WINDOWS_NEGATED_RX.search(re.split(r"[.;!?\n]", desc[max(0, m.start() - NON_WINDOWS_NEG_WINDOW):m.start()])[-1])
+               for m in NON_WINDOWS_DESKTOP_RX.finditer(desc))
+
+
 # official pages listing each game engine's desktop export targets
 GAME_DESKTOP_SRC = {"unity": "unity-platforms", "godot": "godot-export"}
 
@@ -990,7 +1002,7 @@ def _recommend(req, assumptions, sid):
             fe_alts.append({"choice": "Tauri desktop app", "why_not": "a second codebase before desktop-specific features are needed"})
         else:
             langs = set(ctx["langs"])
-            if "csharp" in langs and NON_WINDOWS_DESKTOP_RX.search(req["project.description"] or ""):
+            if "csharp" in langs and names_non_windows_desktop(req["project.description"]):
                 # D24-p2: WPF is Windows-only; a description naming macOS or Linux needs a cross-platform .NET UI
                 dname, dwhy, dalts, dsrc = ("Avalonia UI (C#/.NET)", "Desktop for a C# team on more than Windows: project.description names macOS or Linux, "
                                             "and Avalonia UI is an MIT-licensed .NET UI framework that runs on Windows, macOS and Linux from one C# codebase.",
