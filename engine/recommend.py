@@ -926,7 +926,8 @@ def _recommend(req, assumptions, sid):
         db_cmp = lf.database(ctx, none_component)
     else:
         db_cmp = none_component("database",
-                                (rf.database_why(ctx) if rf.applies(ctx) else "Content lives as Markdown/HTML files in the repository; there is no user data to store")
+                                (rf.database_why(ctx) if rf.applies(ctx) else "Content lives as Markdown/HTML files in the repository; there is no user data to store"
+                                 + (" (web form entries go to the hosted form tool listed below)" if ov.web_form(ctx) else ""))
                                 + (", and payment records stay with the payment provider." if req["requirements.payments"] else "."),
                                 ["project.type", "requirements.auth"] + (["project.description"] if rf.applies(ctx) else [])
                                 + (["requirements.payments"] if req["requirements.payments"] else []),
@@ -2038,6 +2039,11 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
             f"plus up to {costreal.ONPREM_RUNNING_SHARE:.0%} for power, cooling and spares at the upper bound (planning heuristic for the '{cx.TIER_NAMES[t]}' "
             f"scale tier, team of {ctx['size']}, ~{ctx['users']:,} users). Servers you already own would lower the new spend.")
         lines.append("Excluded: software licences, staff time, the building and network (capital/operational costs beyond the indicative hardware line).")
+    if db_c and db_c.vkey == "self" and db_c.item["id"] == "sqlserver":  # p4: only Express is free, capped at 10 GB per database (sqlserver-editions)
+        lines.append(f"SQL Server licence: the free Express edition caps each database at {sl.SQLSERVER_EXPRESS_GB} GB"
+                     + (f"; ~{cx.num(ctx['data_gb'])} GB in year one needs Standard or Enterprise licences, which are not in this band"
+                        if ctx["data_gb"] > sl.SQLSERVER_EXPRESS_GB else f" and ~{cx.num(ctx['data_gb'])} GB fits it; larger data needs Standard or Enterprise licences")
+                     + " (Developer edition is licensed for development and test only).")
     lines.append("Excluded: taxes, domain names, paid support plans and data-egress spikes. Order-of-magnitude band, not a quote.")
     return {"min": sum(i[1] for i in items), "max": sum(i[0] for i in items), "currency": "USD", "assumptions": lines,
             "_items": sorted(items, key=lambda i: (-i[0], i[2]))}
