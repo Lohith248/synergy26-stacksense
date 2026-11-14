@@ -91,7 +91,7 @@
      "strengths": ["Serverless containers with scale-to-zero and KEDA autoscaling", "Good fit for several small services"],
      "limits": ["More moving parts than App Service for a single web app"],
      "src": ["azure-container-apps", "azure-products-by-region", "azure-containerapps-reliability"]},
-    {"id": "gcp-cloud-run", "multi_zone": true, "scaling": "request", "name": "Google Cloud Run", "provider": "gcp", "deploy": "managed", "kind": "containers",
+    {"id": "gcp-cloud-run", "multi_zone": true, "zone_replicated": "gcp-cloudrun-locations", "scaling": "request", "name": "Google Cloud Run", "provider": "gcp", "deploy": "managed", "kind": "containers",
      "regions": {"india": "asia-south1 (Mumbai)", "eu": "europe-west1 (Belgium)", "us": "us-central1 (Iowa)", "australia": "australia-southeast1 (Sydney)", "singapore": "asia-southeast1 (Jurong West, Singapore)", "japan": "asia-northeast1 (Tokyo)", "south_korea": "asia-northeast3 (Seoul)", "indonesia": "asia-southeast2 (Jakarta)", "united_kingdom": "europe-west2 (London)", "canada": "northamerica-northeast1 (Montréal)", "brazil": "southamerica-east1 (Osasco, São Paulo)", "saudi_arabia": "me-central2 (Dammam, access-gated region)", "qatar": "me-central1 (Doha)", "israel": "me-west1 (Tel Aviv)", "south_africa": "africa-south1 (Johannesburg)", "switzerland": "europe-west6 (Zurich)", "mexico": "northamerica-south1 (Querétaro)"},
      "r": [5, 4, 5, 4, 4, 5], "learning": 2, "ops": 1, "max_tier": 3, "sla": "99.95", "commercial_ok": true,
      "cost": [[0, 10], [10, 80], [80, 500], [500, 3000]],

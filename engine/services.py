@@ -820,17 +820,17 @@ def build(ctx, host, backend, db, mobile, warn):
                                + ["SMS cost scales with logins"],
                                "managed", "aws", True,
                                # judge B5: SMS is billed once, in the band's Phone OTP line; this line is Cognito MAUs only
-                               # (R5 verified: Lite 10,000 MAU free, then $0.0055/MAU; MAU = 30-100% of users, as for OTP logins)
-                               [[round(max(0, ctx["users"] * costreal.MAU_SHARE[0] - costreal.COGNITO_FREE_MAU) * costreal.COGNITO_RATE),
-                                 round(max(0, ctx["users"] * costreal.MAU_SHARE[1] - costreal.COGNITO_FREE_MAU) * costreal.COGNITO_RATE)]] * 4,
+                               # (verified: Lite 10,000 MAU free, then $0.0055/MAU to 100,000 and $0.0046 above; MAU = 30-100% of users, as for OTP logins)
+                               [[round(costreal.cognito_usd(ctx["users"] * costreal.MAU_SHARE[0])),
+                                 round(costreal.cognito_usd(ctx["users"] * costreal.MAU_SHARE[1]))]] * 4,
                                ["aws-cognito-pricing", "aws-sns-sms"] + (["trai-dlt"] if india else []), loc))
                 out[-1]["_label"] = "Amazon Cognito monthly-active-user charges"  # J1: the budget warning names it apart from the SMS fees line
                 mlo, mhi = (round(ctx["users"] * x) for x in costreal.MAU_SHARE)
-                out[-1]["_note"] = (f" Cognito Lite: {costreal.COGNITO_FREE_MAU:,} MAU free, then a flat ${costreal.COGNITO_RATE} per MAU at every volume (Amazon Cognito pricing; "
-                                    "the knowledge base holds no volume-tier table, so a tier discount, if any, is not modelled). "
+                (t1, r1), (_, r2) = costreal.COGNITO_TIERS
+                out[-1]["_note"] = (f" Cognito Lite: {costreal.COGNITO_FREE_MAU:,} MAU free, then ${r1} per MAU up to {t1:,} MAU and ${r2} per MAU above "
+                                    f"(Amazon Cognito pricing; tiers above {costreal.COGNITO_TIER_READ_TO:,} MAU are not in the knowledge base, so ${r2} is kept there as an upper bound). "
                                     f"MAU is taken as {costreal.MAU_SHARE[0]:.0%}-{costreal.MAU_SHARE[1]:.0%} of ~{ctx['users']:,} users = {mlo:,}-{mhi:,} MAU (planning heuristic), "
-                                    f"so the lower bound is max(0, {mlo:,} - {costreal.COGNITO_FREE_MAU:,}) x ${costreal.COGNITO_RATE} and the upper bound "
-                                    f"max(0, {mhi:,} - {costreal.COGNITO_FREE_MAU:,}) x ${costreal.COGNITO_RATE}; SMS is counted once, in the Phone OTP line.")
+                                    "each slice above the free tier priced at its tier's rate; SMS is counted once, in the Phone OTP line.")
             elif india:
                 in_res = loc == "india" or ctx["residency"] == "india"
                 out.append(svc("auth", "Backend-issued sessions + MSG91 OTP API (India)",
@@ -852,12 +852,17 @@ def build(ctx, host, backend, db, mobile, warn):
             social = auth == "social"
             if db and db["id"] == "supabase":
                 out.append(svc("auth", "Supabase Auth" + (" with Google/GitHub/Apple social sign-in" if social else ""),
-                               f"{auth} login from the same Supabase project as the database: users sit next to the data and row-level security policies can use the signed-in user id; free plan covers this scale." + (SOCIAL_NOTE + named_social_note(ctx, "Supabase Auth") if social else ""),
+                               f"{auth} login from the same Supabase project as the database: users sit next to the data and "
+                               + ("the backend checks the signed-in user on every request" if backend else "row-level security policies can use the signed-in user id")
+                               + "; free plan covers this scale." + (SOCIAL_NOTE + named_social_note(ctx, "Supabase Auth") if social else ""),
                                dp + ["budget.monthly_infra_usd"],
-                               [("Framework built-in auth", "you would own password storage, reset e-mails and MFA"),
+                               # p4: Django's own auth hashes passwords and ships password-reset e-mail views (django-auth, verified 15 Nov 2026)
+                               [("Django's built-in auth (django.contrib.auth)", "also sound: it stores only password hashes and ships password-reset e-mail views; "
+                                 "Supabase Auth is kept because the database is already a Supabase project")
+                                if backend and backend["id"] == "python-django" else ("Framework built-in auth", "you would own password storage, reset e-mails and MFA"),
                                 ("Auth0 / Clerk (SaaS)", "another vendor and per-user pricing on a near-zero budget")],
                                ["Ties identity to the Supabase project; migrating users later needs a password-hash export"],
-                               "saas", "supabase", True, Z, ["supabase-pricing"], loc))
+                               "saas", "supabase", True, Z, ["supabase-pricing"] + (["django-auth"] if backend and backend["id"] == "python-django" else []), loc))
             elif p == "aws" and not selfh and ctx["lock"] != "low":
                 choice = f"Amazon Cognito user pool{rtxt}" + (" with Google/Apple/Microsoft social sign-in" if social else "")
                 out.append(svc("auth", choice, f"{auth} login on AWS: managed user pool with MFA and hosted UI{rtxt}." + (SOCIAL_NOTE + named_social_note(ctx, "Amazon Cognito") if social else ""),
@@ -1314,6 +1319,18 @@ def build(ctx, host, backend, db, mobile, warn):
                 why = ("Orders for physical goods or services are paid here, not through the app stores (their billing rule covers digital goods and "
                        "subscriptions only; the digital item is billed by the stores, see above). ") + why
             hosted = ctx["static_rule"] == "hosted_payments" and not store
+            named = ov.named_provider(ctx) if hosted and not psp_shape else None
+            if named:  # p4: keep the provider whose hosted page the description names (no second processor)
+                kind = "donation" if re.search(r"\bdonat", (req["project.description"] or "").lower()) else "payment"
+                name, prov = f"{named[1]} (hosted {kind} page, linked from the site)", named[0]
+                feats = []
+                low = (req["project.description"] or "").lower()
+                # review: a Donate button is an alternative only for a donation/NGO-like site or one that names PayPal, not for a shop
+                donate_ok = bool(re.search(r"\b(?:donat\w*|charit\w*|ngos?|non-?profits?|paypal)\b", low))
+                alts = [(n, "the description already names " + named[1] + "; a second processor adds an account and a reconciliation step") for k, n in
+                        (("stripe", "Stripe Payment Links"), ("paypal", "PayPal Donate button"), ("razorpay", "Razorpay Payment Links"))
+                        if k != named[0] and (k != "paypal" or donate_ok)][:2]
+                src = {"paypal": ["paypal-donate"], "stripe": ["stripe-billing-pricing"], "razorpay": ["razorpay-upi"]}[named[0]]
             if hosted and not psp_shape:  # D16: a static site links to the provider's hosted page; there is no server to receive webhooks
                 why = (f"Taking payments{for_noun(ctx)} (requirements.payments) through the provider's hosted checkout page or button, as the description says "
                        f"(\"{ov.quote(ctx, 'hosted_pay')}\"), keeps card data off the site entirely: the page only links to it, which can qualify for PCI DSS SAQ A "
@@ -1347,7 +1364,7 @@ def build(ctx, host, backend, db, mobile, warn):
                 loc_msg, loc_src, ctx["payment_location_assumption"] = payment_location(name.split(' (')[0], prov, ctx)
                 src = src + loc_src
                 warn("PAYMENT_DATA_LOCATION", "warning", loc_msg, ["requirements.payments"] + ctx["res_paths"])
-            if (not store or mixed) and not india and ctx["country"]:
+            if (not store or mixed) and not india and ctx["country"] and not named:
                 warn("PAYMENT_LOCAL_ACQUIRING", "info",
                      f"{name.split(' (')[0]} is the knowledge base's default gateway outside India; whether it offers local acquiring and local payment "
                      f"methods in {ctx['res_label']} is not in the knowledge base — confirm with the gateway or choose a local acquirer.",
@@ -1363,6 +1380,16 @@ def build(ctx, host, backend, db, mobile, warn):
                                       "Reconcile from the provider's reports; add a backend with signed webhooks when the site must react to a payment (accounts, entitlements, its own receipts)"
                                       if hosted else "Webhook handling must be idempotent"] + ([home[2]] if home_ok else []),
                                "saas", prov, True, Z, src, "india" if india else (home[0] if home_ok else None)))
+            fq = ov.web_form(ctx) if hosted else ""
+            if fq:  # p4: the site's web form goes to a hosted form tool, not to a backend
+                out.append(svc("other", f"Web form: embedded Google Form for the {fq} (responses in a Google Sheet)",
+                               f"The description names a {fq} but no accounts (requirements.auth is none), so the static site embeds a hosted form instead of "
+                               "running a server: Google Forms can be embedded in a website and its responses can be exported to Google Sheets. "
+                               "Entries are personal data held in the organisation's Google account: share the sheet only with the people who need it.",
+                               ["project.description", "requirements.auth"],
+                               [("A form endpoint on a backend", "needs a server and a database for one form; add them when the site gains accounts or stored user history")],
+                               ["Responses live in the Google account, not in the site", "Pricing of the Google account is not in the knowledge base; the band counts $0"],
+                               "saas", "google", True, Z, ["google-forms"]))
 
     # ---------------- cdn
     public_media = ctx["mobile"] and not ctx["web"] and req["requirements.file_media_storage"] and (d["video_vod"] or ctx["type"] == "social")

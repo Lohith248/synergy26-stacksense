@@ -29,6 +29,17 @@ SOFT_TYPES = ("web_app", "internal_tool")
 DYNAMIC_FLAGS = ("payouts", "ledger", "kyc", "chat", "collab", "iot", "uploads", "otp", "sms", "web3", "digital_goods", "store_billing", "video_vod",
                  "video_call", "live_media", "jobs_dispatch", "approvals", "scoring_model", "scheduler", "user_data", "lending", "gps")
 DYNAMIC_COMPLIANCE = ("hipaa", "rbi_localisation")  # regulated data is stored somewhere: not a pages-only site
+# p4: a named web form (sign-up, contact, volunteer...) on a site whose payments are a hosted page is not an account system: a hosted form
+# service takes the entries (planning heuristic: a form with no sign-in, no member area and no stored history needs no backend of its own)
+FORM_RX = (r"\b(?:(?:volunteer|newsletter|mailing[- ]list)\s+)?(?:sign[- ]?up|contact|volunteer|enquiry|inquiry|registration|feedback|rsvp|newsletter)"
+           r"\s+forms?\b")
+# p4 review: per-person stored data (their history, hours, orders, a profile or dashboard) means the form feeds an account system, not a form
+# service (planning heuristic)
+PER_PERSON_RX = (r"\b(?:their|my|your)\s+(?:own\s+)?(?:past|previous|history|hours|shifts|orders|bookings|purchases|attendance|progress|records?"
+                 r"|accounts?|profiles?|dashboards?)\b|\b(?:log|see|view|check|track|edit|update)\s+their\b"
+                 r"|\b(?:personal|member|volunteer|user|donor)\s+(?:accounts?|profiles?|dashboards?|area|portal)\b")
+# p4: the payment providers whose hosted page or link a static site can open (the payments line keeps the one the description names)
+HOSTED_PROVIDERS = (("paypal", "PayPal"), ("stripe", "Stripe"), ("razorpay", "Razorpay"))
 
 
 def dynamic_fields(req, api_only, mobile):
@@ -36,6 +47,37 @@ def dynamic_fields(req, api_only, mobile):
     return (req["requirements.auth"] != "none" or req["requirements.realtime"] or req["requirements.file_media_storage"]
             or req["requirements.multi_tenant"] or req["requirements.ml_features"] != "none" or api_only or bool(mobile)
             or req["scale.workload"] == "write_heavy")
+
+
+def web_form(c):
+    """The named web form (FORM_RX match, lower-case) on a site whose payments are a hosted page or link, else ''."""
+    d, low = c["desc"], (c["req"]["project.description"] or "").lower().replace("’", "'")
+    if not (d["hosted_pay"] and c["req"]["requirements.payments"]) or c.get("static_rule", "hosted_payments") != "hosted_payments":
+        return ""  # after context.build, only a site the static rule accepted counts
+    m = re.search(FORM_RX, low)
+    return m.group(0) if m else ""
+
+
+def form_only(c):
+    """True when the only stored-user-data evidence in the description is a named web form (web_form)."""
+    from .context import DESC_RX
+    if not (c["desc"]["user_data"] and web_form(c)):
+        return False
+    low = (c["req"]["project.description"] or "").lower().replace("’", "'")
+    rest = re.sub(FORM_RX, " ", low)
+    return not (re.search(DESC_RX["user_data"], rest) or re.search(PER_PERSON_RX, rest))
+
+
+def desc_dynamic(c):
+    """A description signal of server-side state (DYNAMIC_FLAGS), except a form_only site's web form."""
+    d = c["desc"]
+    return any(d[f] for f in DYNAMIC_FLAGS if not (f == "user_data" and form_only(c)))
+
+
+def named_provider(c):
+    """(key, label) of the payment provider the description names, else None."""
+    low = (c["req"]["project.description"] or "").lower()
+    return next(((k, n) for k, n in HOSTED_PROVIDERS if re.search(r"\b" + k + r"\b", low)), None)
 
 
 def dynamic_driver(c):
@@ -47,7 +89,7 @@ def dynamic_driver(c):
         return "requirements.auth"
     if req["requirements.multi_tenant"]:
         return "requirements.multi_tenant"
-    if any(d[f] for f in DYNAMIC_FLAGS):
+    if desc_dynamic(c):
         return "project.description"
     return "compliance"
 
@@ -57,7 +99,7 @@ def dynamic_app(c):
     of server-side state (planning heuristic: a generator builds pages at deploy time, it holds no sessions and no live connection)."""
     req, d = c["req"], c["desc"]
     return bool(req["requirements.realtime"] or req["requirements.auth"] != "none" or req["requirements.multi_tenant"]
-                or any(d[f] for f in DYNAMIC_FLAGS) or set(c["compliance"]) & set(DYNAMIC_COMPLIANCE))
+                or desc_dynamic(c) or set(c["compliance"]) & set(DYNAMIC_COMPLIANCE))
 
 
 def static_override(c):
@@ -71,7 +113,7 @@ def static_override(c):
         return None  # nothing to override: the baseline already says static, or the type is dynamic by nature
     if dynamic_fields(req, c["api_only"], c["mobile"]) or c["deploy"] != "managed_cloud" or c["existing"]:
         return None
-    if any(d[f] for f in DYNAMIC_FLAGS) or set(c["compliance"]) & set(DYNAMIC_COMPLIANCE):
+    if desc_dynamic(c) or set(c["compliance"]) & set(DYNAMIC_COMPLIANCE):
         return None
     if paying and not d["hosted_pay"]:
         return None

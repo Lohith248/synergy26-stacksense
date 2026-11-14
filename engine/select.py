@@ -327,6 +327,7 @@ def db_variant(db, host):
     return None, None
 
 
+SQLSERVER_EXPRESS_GB = 10  # vendor limit: SQL Server 2022 Express maximum relational database size (sqlserver-editions)
 DB_COST = {
     "managed": [[15, 35], [30, 120], [150, 700], [700, 4000]],
     "aws": [[15, 35], [30, 120], [150, 700], [700, 4000]],
@@ -378,6 +379,14 @@ def database_candidates(ctx, host, backend):
                 over = (lo - left) / max(left, 10)
                 c.add("budget", -(3 + min(6, over * 3)), "budget.monthly_infra_usd",
                       f"entry cost about ${cx.usd(lo)}/month leaves no room in the ${cx.usd(ctx['budget'])} budget after hosting")
+            elif lo == 0 and ctx["budget"] < 25 and vkey == "self" and d["id"] == "sqlserver":
+                # p4: only SQL Server Express is free, and it caps each database at 10 GB (sqlserver-editions, verified 15 Nov 2026)
+                if ctx["data_gb"] <= SQLSERVER_EXPRESS_GB:
+                    c.add("budget", 2, "budget.monthly_infra_usd", f"the free Express edition (up to {SQLSERVER_EXPRESS_GB} GB per database) holds "
+                          f"~{cx.num(ctx['data_gb'])} GB, so it fits the ${cx.usd(ctx['budget'])} budget")
+                else:
+                    c.add("budget", -1, "scale.data_volume_gb_12_months", f"~{cx.num(ctx['data_gb'])} GB is above the free Express edition's "
+                          f"{SQLSERVER_EXPRESS_GB} GB per-database cap, so production needs Standard or Enterprise licences (not in the cost band)")
             elif lo == 0 and ctx["budget"] < 25:
                 c.add("budget", 2, "budget.monthly_infra_usd", f"no licence or subscription fee, so it fits the ${cx.usd(ctx['budget'])} budget"
                       if vkey == "self" else f"has a free plan that fits the ${cx.usd(ctx['budget'])} budget")

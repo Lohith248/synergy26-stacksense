@@ -163,13 +163,18 @@ class OtpAndCognito(unittest.TestCase):
                 self.assertEqual(int(m.group(1)), round(users * 0.3 * lo_rate))
                 self.assertEqual(int(m.group(2)), round(users * 1.0 * hi_rate))
 
-    def test_cognito_line_states_flat_rate_assumption(self):
+    def test_cognito_line_states_tiered_rates(self):
+        # p4: Cognito Lite is tiered ($0.0055 to 100,000 MAU, $0.0046 above), not flat
         out = run(project__type="marketplace", requirements__auth="phone_otp", infrastructure__cloud_preference="aws",
                   infrastructure__data_residency="india", scale__users_12_months=300000, scale__users_at_launch=50000, scale__peak_concurrent_users=15000)
         l = next(x for x in lines(out) if x.startswith("auth: Amazon Cognito"))
-        self.assertIn("flat $0.0055", l)
-        self.assertIn("no volume-tier table", l)
+        self.assertNotIn("flat", l)
+        self.assertIn("$0.0055 per MAU up to 100,000 MAU and $0.0046 per MAU above", l)
         self.assertIn("90,000-300,000 MAU", l)
+        # 90,000 MAU: 80,000 x 0.0055 = 440; 300,000 MAU: 90,000 x 0.0055 + 200,000 x 0.0046 = 495 + 920 = 1,415
+        self.assertIn("$440-1415/month", l)
+        self.assertEqual(round(costreal.cognito_usd(10000)), 0)
+        self.assertEqual(round(costreal.cognito_usd(100000)), 495)
 
 
 class StoredDataOnce(unittest.TestCase):

@@ -2,7 +2,7 @@
   "scenario_id": "P4",
   "engine_version": "1.0.0",
   "status": "ok",
-  "summary": "Small set of services: React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) on Java 25 LTS + Spring Boot with Amazon RDS for PostgreSQL 17, hosted on AWS ECS on Fargate — ap-south-1 (Mumbai), at an estimated $1,660-7,684/month.",
+  "summary": "Small set of services: React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) on Java 25 LTS + Spring Boot with Amazon RDS for PostgreSQL 17, hosted on AWS ECS on Fargate — ap-south-1 (Mumbai), at an estimated $1,660-7,504/month.",
   "architecture_style": "service_oriented",
   "stack": {
     "frontend": {
@@ -663,13 +663,13 @@
   },
   "estimated_monthly_cost_usd": {
     "min": 1660,
-    "max": 7684,
+    "max": 7504,
     "currency": "USD",
     "assumptions": [
       "Hosting AWS ECS on Fargate (+ Application Load Balancer): $200-900/month at the 'medium' tier.",
       "Database Amazon RDS for PostgreSQL 17: $270-1400/month (HA doubles instances).",
       "Availability ≥99.95%: a second app instance in another zone $200-900/month (the hosting line counted again).",
-      "auth: Amazon Cognito user pool + Amazon SNS SMS OTP in ap-south-1 (Mumbai) $440-1595/month. Cognito Lite: 10,000 MAU free, then a flat $0.0055 per MAU at every volume (Amazon Cognito pricing; the knowledge base holds no volume-tier table, so a tier discount, if any, is not modelled). MAU is taken as 30%-100% of ~300,000 users = 90,000-300,000 MAU (planning heuristic), so the lower bound is max(0, 90,000 - 10,000) x $0.0055 and the upper bound max(0, 300,000 - 10,000) x $0.0055; SMS is counted once, in the Phone OTP line.",
+      "auth: Amazon Cognito user pool + Amazon SNS SMS OTP in ap-south-1 (Mumbai) $440-1415/month. Cognito Lite: 10,000 MAU free, then $0.0055 per MAU up to 100,000 MAU and $0.0046 per MAU above (Amazon Cognito pricing; tiers above 1,000,000 MAU are not in the knowledge base, so $0.0046 is kept there as an upper bound). MAU is taken as 30%-100% of ~300,000 users = 90,000-300,000 MAU (planning heuristic), each slice above the free tier priced at its tier's rate; SMS is counted once, in the Phone OTP line.",
       "storage: Amazon S3 (ap-south-1 (Mumbai)) $0/month here: the files it holds are priced by volume in the 'Stored data' line, not charged twice.",
       "cache: Amazon ElastiCache for Valkey in ap-south-1 (Mumbai) $50-300/month.",
       "queue: Amazon SQS in ap-south-1 (Mumbai) $5-30/month.",
@@ -686,6 +686,15 @@
     ]
   },
   "warnings": [
+    {
+      "code": "SKILL_MISMATCH",
+      "severity": "info",
+      "message": "ML inference (Separate Python inference service (FastAPI + ONNX Runtime) in the same private network): the model service is written and run in Python, which is not in the team's languages (java, kotlin, typescript). Plan for someone to learn Python for that service, or hire for it, or serve the model from the hosted endpoint listed as its alternative.",
+      "fields": [
+        "requirements.ml_features",
+        "team.languages"
+      ]
+    },
     {
       "code": "PEAK_EQUALS_LAUNCH_USERS",
       "severity": "info",
@@ -731,7 +740,7 @@
     {
       "code": "BUDGET_AT_RISK",
       "severity": "info",
-      "message": "Upper estimate $7,684/month is 28% above the $6,000 budget at peak usage; the largest upper-bound items are Phone OTP SMS fees (up to $1,800) and Amazon Cognito monthly-active-user charges (up to $1,595). Launch near the $1,660 lower bound and set billing alerts at the budget.",
+      "message": "Upper estimate $7,504/month is 25% above the $6,000 budget at peak usage; the largest upper-bound items are Phone OTP SMS fees (up to $1,800) and Amazon Cognito monthly-active-user charges (up to $1,415). Launch near the $1,660 lower bound and set billing alerts at the budget.",
       "fields": [
         "budget.monthly_infra_usd"
       ]

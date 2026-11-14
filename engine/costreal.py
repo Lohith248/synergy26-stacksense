@@ -23,7 +23,24 @@ INR_PER_USD = 90                       # planning exchange rate, not a quote
 SMS_GST = 0.18                         # GST charged on top of Indian SMS prices (planning heuristic)
 INDIA_SMS_RS = (0.20, 0.25)            # MSG91 OTP: Rs 0.20 per SMS at the 27k block + GST (msg91-otp); 0.25 is the upper planning figure
 SMS_RETRY_FACTOR = (1.0, 1.5)          # lower bound: every code arrives first time; upper: 1.5 sends per code (retries, DLT rejections)
-COGNITO_FREE_MAU, COGNITO_RATE = 10000, 0.0055   # aws-cognito-pricing (verified); the KB holds no volume-tier table, so the rate is flat
+COGNITO_FREE_MAU, COGNITO_RATE = 10000, 0.0055   # aws-cognito-pricing (verified)
+# p4: Cognito Lite volume tiers (aws-cognito-pricing worked example, rendered 15 Nov 2026): $0.0055 per MAU up to 100,000 MAU, then $0.0046
+# up to 1,000,000 MAU. Rates above 1,000,000 MAU were not read: the $0.0046 rate is kept there, an upper bound if later tiers are cheaper.
+COGNITO_TIERS = ((100_000, 0.0055), (float("inf"), 0.0046))
+COGNITO_TIER_READ_TO = 1_000_000
+
+
+def cognito_usd(mau):
+    """USD a month for mau Cognito Lite MAUs: the free tier, then each slice at its tier's rate."""
+    cost, prev = 0.0, COGNITO_FREE_MAU
+    for cap, rate in COGNITO_TIERS:
+        if mau <= prev:
+            break
+        cost += (min(mau, cap) - prev) * rate
+        prev = cap
+    return cost
+
+
 MAU_SHARE = (0.3, 1.0)                 # monthly active users as a share of all users
 
 

@@ -920,6 +920,24 @@ def _recommend(req, assumptions, sid):
             db_cmp["justification"] += (f" At ~{ctx['data_gb']:,.0f} GB in year one, partition the largest tables by time and move cold rows or blobs "
                                         "to object storage so backups and index maintenance stay manageable.")
             db_cmp["driven_by"] = order_paths(db_cmp["driven_by"] + ["scale.data_volume_gb_12_months"])
+        lim = DB_STORAGE_LIMIT_GB.get((db_c.vkey, db_c.id))
+        if lim and ctx["data_gb"] > lim[0]:  # p4: the year-one volume is above the managed product's per-instance storage limit
+            files = req["requirements.file_media_storage"]
+            nxt = lim[4]
+            tier = ("" if not nxt else
+                    (f"If the database itself needs more, use {nxt[1]} disks first: up to {nxt[2]} per server (the default regional disk quota "
+                     "per subscription is lower and is raised by request). "
+                     if ctx["data_gb"] <= nxt[0] else f"The volume is also above {nxt[1]} ({nxt[2]}), the largest disk tier. "))
+            W("DB_STORAGE_LIMIT", "info" if files else "warning",  # review: with media in object storage only the relational share counts
+              f"~{ctx['data_gb']:,.0f} GB in year one (scale.data_volume_gb_12_months) is above the {lim[1]} per-instance storage limit of {lim[2]} "
+              f"(~{lim[0]:,.0f} GB). " + tier
+              + ("Media files belong in the object storage listed in this stack, so only rows and metadata sit in the database; " if files else "")
+              + ("if the rows alone" if files else "If the rows")
+              + (" outgrow that" if nxt and ctx["data_gb"] <= nxt[0] else " approach that limit")
+              + ", split the data across several database instances (shard by tenant or key) or move the largest, append-only "
+              "tables to a distributed or analytical store; confirm the real database share of the volume before launch.",
+              ["scale.data_volume_gb_12_months"] + (["requirements.file_media_storage"] if files else []))
+            db_cmp["sources"] = db_cmp["sources"] + cite([lim[3]])
         if ctx["existing_db"] and ctx["existing_db"]["pattern"].get("engine") == db_c.id and ctx["existing_db"]["onprem"] and not ctx["self_host_only"]:
             db_cmp["justification"] += " New application data lives in the cloud database; the on-prem server is integrated, not migrated (see supporting 'other')."
         if ctx["kept_db"]:
@@ -930,7 +948,8 @@ def _recommend(req, assumptions, sid):
         db_cmp = lf.database(ctx, none_component)
     else:
         db_cmp = none_component("database",
-                                (rf.database_why(ctx) if rf.applies(ctx) else "Content lives as Markdown/HTML files in the repository; there is no user data to store")
+                                (rf.database_why(ctx) if rf.applies(ctx) else "Content lives as Markdown/HTML files in the repository; there is no user data to store"
+                                 + (" (web form entries go to the hosted form tool listed below)" if ov.web_form(ctx) else ""))
                                 + (", and payment records stay with the payment provider." if req["requirements.payments"] else "."),
                                 ["project.type", "requirements.auth"] + (["project.description"] if rf.applies(ctx) else [])
                                 + (["requirements.payments"] if req["requirements.payments"] else []),
@@ -1063,6 +1082,15 @@ def _recommend(req, assumptions, sid):
           f"ML training ({ml_line['choice']}): training code, notebooks and the mainstream libraries (scikit-learn, XGBoost, PyTorch) are used from Python, "
           f"which is not in the team's languages ({', '.join(ctx['langs'])}). Plan for someone to learn Python and the training workflow, or hire for it, "
           "and budget that time into the timeline before the first model is ready.",
+          ["requirements.ml_features", "team.languages"])
+    elif (ml_line and req["requirements.ml_features"] == "inference_api" and ml_line["choice"].startswith("Separate Python inference service")
+          and ctx["langs"] and "python" not in ctx["langs"] and "python" not in ctx["hiring"]):
+        # p4: the same gap for a Python model service next to a non-Python API (D24-p2 rule, inference side); severity as for the UI layers
+        small = (ctx["size"] or 0) <= SKILL_SMALL_TEAM and ctx["exp"] != "senior" or ctx["exp"] == "beginner"
+        W("SKILL_MISMATCH", "warning" if small else "info",
+          f"ML inference ({ml_line['choice']}): the model service is written and run in Python, which is not in the team's languages "
+          f"({', '.join(ctx['langs'])}). Plan for someone to learn Python for that service, or hire for it"
+          + ("." if ctx["self_host_only"] else ", or serve the model from the hosted endpoint listed as its alternative."),
           ["requirements.ml_features", "team.languages"])
     supporting += multi_region(ctx, host, db_c if ctx["needs_db"] else None, supporting, W, region)
     second = None if ctx.get("active_active") else second_region(ctx, host, db_c if ctx["needs_db"] else None)
@@ -1820,6 +1848,19 @@ def _usd_range(lo, hi, prose=False):
     return f"${lo:,}-{hi:,}" if prose or hi >= 10000 else f"${lo}-{hi}"
 
 
+# p4: managed relational database per-instance storage limits (vendor limits, verified 15 Nov 2026), converted to GB (10^9 bytes) because
+# scale.data_volume_gb_12_months is in GB: (GB, product, limit as the vendor writes it, source id, larger disk tier or None)
+GIB_IN_GB = 1.073741824  # 1 GiB = 2^30 bytes
+DB_STORAGE_LIMIT_GB = {
+    ("gcp", "postgresql"): (64000, "Cloud SQL", "64 TB", "gcp-cloudsql-quotas", None),
+    ("gcp", "mysql"): (64000, "Cloud SQL", "64 TB", "gcp-cloudsql-quotas", None),
+    ("aws", "postgresql"): (65536 * GIB_IN_GB, "Amazon RDS", "64 TiB", "aws-rds-storage", None),
+    ("aws", "mysql"): (65536 * GIB_IN_GB, "Amazon RDS", "64 TiB", "aws-rds-storage", None),
+    ("azure", "postgresql"): (32767 * GIB_IN_GB, "Azure Database for PostgreSQL flexible server", "32,767 GiB on Premium SSD", "azure-pg-storage",
+                              (65536 * GIB_IN_GB, "Premium SSD v2", "65,536 GiB")),
+}
+
+
 def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
     """Monthly band = the sum of its own "$a-b/month" lines (judge B1): every amount added to min/max is printed as a line.
     Returns the cost dict plus a private "_items" list of (upper, lower, label) for the budget warnings."""
@@ -1910,6 +1951,11 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         # A15: on your own servers a second instance is hardware, already counted in the indicative hardware line; no cloud bill
         lines.append(("Availability ≥99.95%" if ha_paths(ctx["sreq"])[0] == "requirements.availability" else cap(" and ".join(ha_targets(ctx["sreq"]))))
                      + ": the standby server is hardware, counted in the indicative hardware line below; there is no cloud bill for it.")
+    elif ha and host.get("zone_replicated"):
+        # p4: the platform itself replicates the service across the zones of its region (KB source), so the hosting line is not billed twice
+        lines.append(("Availability ≥99.95%" if ha_paths(ctx["sreq"])[0] == "requirements.availability" else cap(" and ".join(ha_targets(ctx["sreq"]))))
+                     + f": {host['name']} services are regional and replicated across the zones of their region, so no second copy of the hosting line is billed; "
+                     "the request-scaled hosting line above already carries the instances the peak needs.")
     elif ha:
         one_site = single_site(ctx, host)
         add("Second app instance (availability)", hlo, hhi,
@@ -2051,6 +2097,11 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
             f"plus up to {costreal.ONPREM_RUNNING_SHARE:.0%} for power, cooling and spares at the upper bound (planning heuristic for the '{cx.TIER_NAMES[t]}' "
             f"scale tier, team of {ctx['size']}, ~{ctx['users']:,} users). Servers you already own would lower the new spend.")
         lines.append("Excluded: software licences, staff time, the building and network (capital/operational costs beyond the indicative hardware line).")
+    if db_c and db_c.vkey == "self" and db_c.item["id"] == "sqlserver":  # p4: only Express is free, capped at 10 GB per database (sqlserver-editions)
+        lines.append(f"SQL Server licence: the free Express edition caps each database at {sl.SQLSERVER_EXPRESS_GB} GB"
+                     + (f"; ~{cx.num(ctx['data_gb'])} GB in year one needs Standard or Enterprise licences, which are not in this band"
+                        if ctx["data_gb"] > sl.SQLSERVER_EXPRESS_GB else f" and ~{cx.num(ctx['data_gb'])} GB fits it; larger data needs Standard or Enterprise licences")
+                     + " (Developer edition is licensed for development and test only).")
     lines.append("Excluded: taxes, domain names, paid support plans and data-egress spikes. Order-of-magnitude band, not a quote.")
     return {"min": sum(i[1] for i in items), "max": sum(i[0] for i in items), "currency": "USD", "assumptions": lines,
             "_items": sorted(items, key=lambda i: (-i[0], i[2]))}
