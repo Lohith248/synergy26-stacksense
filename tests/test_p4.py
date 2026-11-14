@@ -168,6 +168,26 @@ class StorageLimit(unittest.TestCase):
             self.assertIn("shard", w[0]["message"])
             self.assertEqual("Media files" in w[0]["message"], files, typ)
 
+    def lim(self, out):
+        return [x for x in out["warnings"] if x["code"] == "DB_STORAGE_LIMIT"]
+
+    def test_gib_limits_are_compared_in_gb(self):  # review MUST 2: 32,767 GiB = 35,184 GB, 64 TiB = 70,369 GB
+        for typ, cloud, gb, fires in (("ai_ml_product", "azure", 33000, False), ("saas_b2b", "azure", 35000, False), ("saas_b2b", "azure", 35300, True),
+                                      ("web_app", "aws", 68000, False), ("social", "aws", 70500, True)):
+            self.assertEqual(len(self.lim(vol_run(typ, cloud, gb))), int(fires), (cloud, gb))
+
+    def test_severity_and_azure_v2_route(self):  # review SHOULD 1
+        out = vol_run("social", "gcp", 200000, True)
+        self.assertEqual(self.lim(out)[0]["severity"], "info")  # media go to object storage: only the relational share counts
+        self.assertEqual(self.lim(vol_run("web_app", "aws", 100000))[0]["severity"], "warning")
+        for typ, gb, files in (("saas_b2b", 40000, False), ("social", 50000, True), ("marketplace", 60000, False)):
+            m = self.lim(vol_run(typ, "azure", gb, files))[0]
+            self.assertEqual(m["severity"], "info" if files else "warning", typ)
+            self.assertIn("Premium SSD v2", m["message"])
+            self.assertLess(m["message"].index("Premium SSD v2"), m["message"].index("shard"), typ)
+        m = self.lim(vol_run("web_app", "azure", 80000))[0]["message"]  # above v2 too: v2 is not offered as the fix
+        self.assertIn("above Premium SSD v2", m)
+
     def test_volume_below_limit_or_self_hosted_is_quiet(self):  # must not fire
         for kw in ({"scale.data_volume_gb_12_months": 20000}, {"infrastructure.deployment_model": "on_premise"}):
             out = vol_run("web_app", "gcp", 200000, **kw)

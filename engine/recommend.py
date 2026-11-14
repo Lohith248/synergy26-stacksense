@@ -919,11 +919,18 @@ def _recommend(req, assumptions, sid):
         lim = DB_STORAGE_LIMIT_GB.get((db_c.vkey, db_c.id))
         if lim and ctx["data_gb"] > lim[0]:  # p4: the year-one volume is above the managed product's per-instance storage limit
             files = req["requirements.file_media_storage"]
-            W("DB_STORAGE_LIMIT", "warning",
-              f"~{ctx['data_gb']:,.0f} GB in year one (scale.data_volume_gb_12_months) is above the {lim[1]} per-instance storage limit of {lim[2]}. "
+            nxt = lim[4]
+            tier = ("" if not nxt else
+                    (f"If the database itself needs more, use {nxt[1]} disks first: up to {nxt[2]} per server (the default regional disk quota "
+                     "per subscription is lower and is raised by request). "
+                     if ctx["data_gb"] <= nxt[0] else f"The volume is also above {nxt[1]} ({nxt[2]}), the largest disk tier. "))
+            W("DB_STORAGE_LIMIT", "info" if files else "warning",  # review: with media in object storage only the relational share counts
+              f"~{ctx['data_gb']:,.0f} GB in year one (scale.data_volume_gb_12_months) is above the {lim[1]} per-instance storage limit of {lim[2]} "
+              f"(~{lim[0]:,.0f} GB). " + tier
               + ("Media files belong in the object storage listed in this stack, so only rows and metadata sit in the database; " if files else "")
               + ("if the rows alone" if files else "If the rows")
-              + " approach that limit, split the data across several database instances (shard by tenant or key) or move the largest, append-only "
+              + (" outgrow that" if nxt and ctx["data_gb"] <= nxt[0] else " approach that limit")
+              + ", split the data across several database instances (shard by tenant or key) or move the largest, append-only "
               "tables to a distributed or analytical store; confirm the real database share of the volume before launch.",
               ["scale.data_volume_gb_12_months"] + (["requirements.file_media_storage"] if files else []))
             db_cmp["sources"] = db_cmp["sources"] + cite([lim[3]])
@@ -1831,13 +1838,16 @@ def _usd_range(lo, hi, commas=True):
     return f"${lo:,}-{hi:,}" if commas and hi >= 10000 else f"${lo}-{hi}"
 
 
-# p4: managed relational database per-instance storage limits (vendor limits, verified 15 Nov 2026): (GB, product, limit as written, source id)
+# p4: managed relational database per-instance storage limits (vendor limits, verified 15 Nov 2026), converted to GB (10^9 bytes) because
+# scale.data_volume_gb_12_months is in GB: (GB, product, limit as the vendor writes it, source id, larger disk tier or None)
+GIB_IN_GB = 1.073741824  # 1 GiB = 2^30 bytes
 DB_STORAGE_LIMIT_GB = {
-    ("gcp", "postgresql"): (64000, "Cloud SQL", "64 TB", "gcp-cloudsql-quotas"),
-    ("gcp", "mysql"): (64000, "Cloud SQL", "64 TB", "gcp-cloudsql-quotas"),
-    ("aws", "postgresql"): (65536, "Amazon RDS", "64 TiB", "aws-rds-storage"),
-    ("aws", "mysql"): (65536, "Amazon RDS", "64 TiB", "aws-rds-storage"),
-    ("azure", "postgresql"): (32767, "Azure Database for PostgreSQL flexible server", "32,767 GiB on Premium SSD (65,536 GiB on Premium SSD v2)", "azure-pg-storage"),
+    ("gcp", "postgresql"): (64000, "Cloud SQL", "64 TB", "gcp-cloudsql-quotas", None),
+    ("gcp", "mysql"): (64000, "Cloud SQL", "64 TB", "gcp-cloudsql-quotas", None),
+    ("aws", "postgresql"): (65536 * GIB_IN_GB, "Amazon RDS", "64 TiB", "aws-rds-storage", None),
+    ("aws", "mysql"): (65536 * GIB_IN_GB, "Amazon RDS", "64 TiB", "aws-rds-storage", None),
+    ("azure", "postgresql"): (32767 * GIB_IN_GB, "Azure Database for PostgreSQL flexible server", "32,767 GiB on Premium SSD", "azure-pg-storage",
+                              (65536 * GIB_IN_GB, "Premium SSD v2", "65,536 GiB")),
 }
 
 
