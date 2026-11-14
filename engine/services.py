@@ -577,7 +577,7 @@ SERVE_MODEL_RX = (r"\btrain\w*\s+and\s+(?:then\s+)?(?:serve|deploy)\w*\s+(?:it|t
                   r"|\bdeploy\w*\s+(?:\w+\s+){0,2}models?\b")
 
 
-def train_serving(ctx, p, backend, selfh, dp, loc):
+def train_serving(ctx, p, backend, selfh, dp, loc, host=None):
     """p1 (1b): requirements.ml_features=training and the description also serves the model: a serving component next to training."""
     ev = mls._live(SERVE_MODEL_RX, ctx)
     if not ev:
@@ -589,12 +589,18 @@ def train_serving(ctx, p, backend, selfh, dp, loc):
            "gcp": ("Vertex AI online prediction", "managed MLOps, but an always-on endpoint billed per node-hour")}.get(p, ("A hosted inference API (third party)", "sends your data to another vendor"))
     if vis:
         row = mls.ML["serving"]["triton"]
-        c = "Model serving: NVIDIA Triton Inference Server (the trained vision model exported to ONNX) as a container next to the API"
+        own = bool(host and host.get("plans")) and not selfh and not ctx["self_host_only"]  # p1 review: a model server on a plan-based PaaS host
+        plan = f"{host['name'].split(' (')[0]} {host['plans'][ctx['tier']]}" if own else ""
+        c = ("Model serving: NVIDIA Triton Inference Server (the trained vision model exported to ONNX) as "
+             + (f"its own small instance in the same private network (not inside the API's {plan} plan)" if own else "a container next to the API"))
         why = (f"The description serves the trained model (\"{ev[1]}\"), so training alone is not enough: {row['name']} {row['fact']}. The API sends "
                "images to Triton over the private network and stores the detections; each retrain publishes a new model version that Triton loads "
                "without redeploying the API. Start on CPU and add a GPU node only if measured images per second fall short.")
         srcs = row["src"]
         alts = [("In-process scikit-learn/XGBoost model", "a tabular model; it cannot run an image detector"), alt]
+        if own:
+            why += (f" Triton runs as its own instance, not beside the API inside the {plan} plan, so loading the vision model does not take the "
+                    "API's memory (planning heuristic).")
     else:
         binding = ONNX_BINDING.get(backend["id"]) if backend else None
         if py:
@@ -607,12 +613,17 @@ def train_serving(ctx, p, backend, selfh, dp, loc):
                "file that the serving path loads, so predictions never wait for a training job.")
         srcs = ["onnxruntime-languages"]
         alts = [alt]
+    cost = Z if ctx["self_host_only"] else [[0, 10], [10, 40], [40, 200], [200, 1000]]
+    if vis and own:  # at least one entry-tier instance of the host, the floor of a separate small instance
+        e0 = host["cost"][0]
+        cost = [[max(a, e0[0]), max(b, e0[1])] for a, b in cost]
     s = svc("ml", c, why, dp + ["project.description"], alts,
             ["Each retrain must be evaluated before the serving path loads it; keep the previous model version for rollback"],
-            "self_hosted" if selfh else "library", "neutral", True,
-            Z if ctx["self_host_only"] else [[0, 10], [10, 40], [40, 200], [200, 1000]], srcs, loc)
-    s["_note"] = (" Basis: the serving container runs on the compute already chosen or one small extra instance (planning heuristic, the same "
-                  "range as an in-API model); a GPU node for serving is not included.") if not ctx["self_host_only"] else ""
+            "self_hosted" if selfh else "library", "neutral", True, cost, srcs, loc)
+    s["_note"] = ((f" Basis: Triton is priced as at least one extra entry-tier {host['name'].split(' (')[0]} instance (${host['cost'][0][0]}-{host['cost'][0][1]}/month, "
+                   f"the {host['plans'][0]} band in the knowledge base), separate from the {plan} plan the API runs on; a GPU node for serving is not included.") if vis and own else
+                  (" Basis: the serving container runs on the compute already chosen or one small extra instance (planning heuristic, the same "
+                   "range as an in-API model); a GPU node for serving is not included.") if not ctx["self_host_only"] else "")
     return s
 
 
@@ -1506,7 +1517,7 @@ def build(ctx, host, backend, db, mobile, warn):
                      f"GPU-hours per GB a month (planning heuristic) = ${tfloor[0]:,}-{tfloor[1]:,} at the same GPU rate; the line is the larger of this and the tier table."
                      if tfloor and not ctx["self_host_only"] else "")
             out[-1]["_note"] = basis + floor
-            served = train_serving(ctx, p, backend, selfh, dp, loc)  # p1 (1b): train AND serve
+            served = train_serving(ctx, p, backend, selfh, dp, loc, host)  # p1 (1b): train AND serve
             if served:
                 out.append(served)
 

@@ -135,5 +135,31 @@ class AdapterOwnerWording(unittest.TestCase):
         self.assertIn("each customer's adapter", row["justification"])
 
 
+VISION_TRAIN = "Train and serve a computer-vision model that detects defects in product photos; inspectors review flags in a web app."
+
+
+def triton(out):
+    return next(x for x in out["stack"]["supporting"] if "Triton" in x["choice"])
+
+
+class TritonOnSmallPlan(unittest.TestCase):
+    def test_azure_app_service_prices_triton_as_own_instance(self):
+        out = run(VISION_TRAIN, ml="training", cloud="azure", typ="saas_b2b", team__has_devops=False, team__size=2)
+        t = triton(out)
+        self.assertIn("own small instance", t["choice"])
+        line = next(a for a in out["estimated_monthly_cost_usd"]["assumptions"] if "Triton" in a)
+        self.assertNotIn("$0-10", line)
+        self.assertRegex(line, r"plan")
+
+    def test_classical_serving_keeps_in_api_range(self):
+        out = run("Train a churn model weekly and serve predictions in the account dashboard.", ml="training", cloud="azure", typ="saas_b2b")
+        row = next(x for x in out["stack"]["supporting"] if x["choice"].startswith("Model serving"))
+        self.assertNotIn("own small instance", row["choice"])
+
+    def test_on_premise_triton_stays_beside_api(self):
+        t = triton(run(VISION_TRAIN, ml="training", cloud="any", deploy="on_premise", typ="saas_b2b"))
+        self.assertIn("container next to the API", t["choice"])
+
+
 if __name__ == "__main__":
     unittest.main()
