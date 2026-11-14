@@ -578,7 +578,8 @@ def _recommend(req, assumptions, sid):
         assumptions.append("team.languages is empty: no language preference applied; mainstream options ranked on other factors.")
     assumptions.append(f"Scale tier '{cx.TIER_NAMES[ctx['tier']]}' from {ctx['users']:,} users and ~{ctx['peak']:,} peak concurrent users "
                        + (f"and scale.peak_rps {req['scale.peak_rps']:,} requests/s (the higher of the two tiers is used)."
-                          if ctx["rps_tier"] is not None else "(people, not requests per second; used only for sizing and cost)."))
+                          if ctx["rps_tier"] is not None else "(a request rate from the description, used here as a sizing figure, not a count of people)." if ctx.get("peak_is_rate")
+                          else "(people, not requests per second; used only for sizing and cost)."))
     if ctx["peak_derived"] and ctx["peak_fraction"] != costreal.PEAK_FRACTION["default"]:
         # E8e: the validation note says 10%; state the ratio actually used (a stated monthly audience is rarely online at once)
         old = "estimated as 10% of users_12_months for sizing only."
@@ -1283,10 +1284,10 @@ def contradictions(ctx, W, assumptions, host, backend):
         top = max(req["scale.users_12_months"], req["scale.users_at_launch"])
         if peak > top and not ctx.get("peak_is_rate"):
             W("PEAK_EXCEEDS_USERS", "warning", f"peak_concurrent_users ({peak:,}) exceeds the total user count ({top:,}); check the numbers."
-              + (f" Sizing uses the total user count ({top:,}) as the peak instead." if ctx.get("peak_capped_from") else ""),
+              + (f" Sizing uses ~{ctx['peak']:,} concurrent users instead ({ctx['peak_cap_why']})." if ctx.get("peak_capped_from") else ""),
               ["scale.peak_concurrent_users", "scale.users_12_months"])
             if ctx.get("peak_capped_from"):
-                assumptions.append(f"scale.peak_concurrent_users ({peak:,}) is higher than the total user count ({top:,}); it is capped at the total users for sizing (planning heuristic).")
+                assumptions.append(f"scale.peak_concurrent_users ({peak:,}) is higher than the total user count ({top:,}); it is not used for sizing: ~{ctx['peak']:,} concurrent users is used instead ({ctx['peak_cap_why']}).")
         elif peak == req["scale.users_at_launch"] and peak > 1000:
             W("PEAK_EQUALS_LAUNCH_USERS", "info", f"Every launch user ({req['scale.users_at_launch']:,}) is assumed online at once at peak; sizing uses this conservative figure.",
               ["scale.peak_concurrent_users", "scale.users_at_launch"])
@@ -1401,7 +1402,7 @@ def contradictions(ctx, W, assumptions, host, backend):
                          "no replacement named in the knowledge base, so choose one from the vendor's current guidance and plan the migration."))
                      if life.get("discontinued") else
                      "keep it behind an isolated interface, do not build new features on it, and plan a migration."
-                     + (f" Supported successor to plan for: {life['successor']}." if life.get("successor") else "")),
+                     + (f" Upgrade or replacement options (knowledge-base suggestion): {life['successor']}." if life.get("successor") else "")),
                   ["infrastructure.existing_systems"])
                 if life.get("discontinued"):  # h1: nothing can be integrated with a retired service, so no component is built for it
                     assumptions.append(f"'{e['raw']}' is a discontinued service ({life['name']}): no integration component is added for it.")
@@ -1411,7 +1412,7 @@ def contradictions(ctx, W, assumptions, host, backend):
                   f"'{e['raw']}' ({life['name']}) reaches {life.get('milestone', 'end of support')} on {life['eol']}, within "
                   f"{life.get('horizon_days', 90)} days of the knowledge-base date {AS_OF}; "
                   + (life["after"] + "; " if life.get("after") else "") + "schedule the upgrade now and avoid building new features on it."
-                  + (f" Supported successor to plan for: {life['successor']}." if life.get("successor") else ""), ["infrastructure.existing_systems"])
+                  + (f" Upgrade or replacement options (knowledge-base suggestion): {life['successor']}." if life.get("successor") else ""), ["infrastructure.existing_systems"])
             elif life.get("mainstream_end") and life["mainstream_end"] <= AS_OF:
                 W("EXISTING_SYSTEM_EXTENDED_SUPPORT", "info",
                   f"'{e['raw']}' is in extended (security-only) support until {life['eol']}; supported, but plan the upgrade path.",

@@ -54,7 +54,7 @@ class LifecycleRowsNameASuccessor(unittest.TestCase):
                 out = run(project__type=typ, infrastructure__existing_systems=[raw])
                 w = eol_for(out, raw)
                 self.assertEqual([x["code"] for x in w], ["END_OF_LIFE_SYSTEM"])
-                self.assertIn("Supported successor to plan for", w[0]["message"])
+                self.assertIn("Upgrade or replacement options (knowledge-base suggestion)", w[0]["message"])
                 self.assertIn(succ, w[0]["message"])
 
     def test_supported_versions_do_not_fire(self):
@@ -68,7 +68,7 @@ class LifecycleRowsNameASuccessor(unittest.TestCase):
         m = eol_for(out, "CentOS 6")[0]["message"]
         self.assertIn("has not re-checked the exact date", m)
         self.assertNotIn("2020-11-30", m)
-        for sid, status in (("centos6-eol", "official-unverified"), ("vsphere6-eogs", "official-unverified"),
+        for sid, status in (("centos6-eol", "official-unverified"), ("vsphere6-eogs", "verified"),
                             ("vsphere7-eogs", "verified"), ("sap-bs7-maintenance", "verified")):
             from engine.kb import SOURCES
             self.assertEqual(SOURCES[sid]["status"], status)
@@ -145,6 +145,37 @@ class OlderVersionOfAKnownProduct(unittest.TestCase):
         self.assertFalse(warns(out, "END_OF_LIFE_SUSPECTED"))
 
 
+class CountsAreNotVersions(unittest.TestCase):
+    def test_a_number_before_a_count_noun_does_not_fire(self):
+        for typ, raw in (("web_app", "Postgres 2 replicas"), ("fintech", "MySQL 3 replicas"), ("saas_b2b", "MongoDB 3 node replica set"),
+                         ("ecommerce", "PHP 2 web servers"), ("healthtech", "vSphere 3 hosts"), ("internal_tool", "ESXi 2 hosts"),
+                         ("marketplace", "CentOS 5 boxes"), ("web_app", "MySQL 4 read replicas")):
+            with self.subTest(raw=raw):
+                out = run(project__type=typ, infrastructure__existing_systems=[raw])
+                self.assertFalse([w for w in out["warnings"] if w["code"] == "END_OF_LIFE_SUSPECTED" and "older version of a known product" in w["message"]])
+
+    def test_a_real_old_version_still_fires(self):
+        out = run(infrastructure__existing_systems=["Postgres 9.6 primary"])
+        self.assertTrue(eol_for(out, "Postgres 9.6"))
+
+
+class OtherReviewFixes(unittest.TestCase):
+    def test_mysql_57_date_and_django_wording(self):
+        out = run(infrastructure__existing_systems=["MySQL 5.7"])
+        self.assertIn("2023-10-25", eol_for(out, "MySQL 5.7")[0]["message"])
+        out = run(project__type="saas_b2b", infrastructure__existing_systems=["Django 1.8 monolith"])
+        self.assertIn("ended by 2020-04-01 at the latest", eol_for(out, "Django 1.8")[0]["message"])
+
+    def test_the_ondevice_realm_database_is_not_retired(self):
+        for raw in ("Realm database on the phones", "Realm DB offline cache"):
+            out = run(infrastructure__existing_systems=[raw])
+            self.assertFalse([w for w in eol_for(out, raw) if "discontinued" in w["message"]])
+
+    def test_vsphere6_is_verified_and_hard_dated(self):
+        out = run(infrastructure__existing_systems=["vSphere 6.7 cluster"])
+        self.assertIn("2022-10-15", eol_for(out, "vSphere 6.7")[0]["message"])
+
+
 class CobolIsNotAnOldReleaseMarker(unittest.TestCase):
     def test_cobol_alone_is_no_eol_marker(self):
         for typ, raw in (("fintech", "IBM z/OS mainframe running COBOL batch"), ("internal_tool", "COBOL claims engine"), ("saas_b2b", "COBOL back office")):
@@ -162,23 +193,32 @@ class PeakCapAtTotalUsers(unittest.TestCase):
         for typ in ("web_app", "ecommerce", "saas_b2b"):
             with self.subTest(typ=typ):
                 capped = run(project__type=typ, scale__users_at_launch=2000, scale__users_12_months=5000, scale__peak_concurrent_users=90000)
-                honest = run(project__type=typ, scale__users_at_launch=2000, scale__users_12_months=5000, scale__peak_concurrent_users=5000)
+                honest = run(project__type=typ, scale__users_at_launch=2000, scale__users_12_months=5000, scale__peak_concurrent_users=500)  # 10% of 5,000 users, the absent-peak rule
                 self.assertEqual(capped["estimated_monthly_cost_usd"]["max"], honest["estimated_monthly_cost_usd"]["max"])
                 self.assertEqual(capped["stack"]["hosting"]["choice"], honest["stack"]["hosting"]["choice"])
                 w = warns(capped, "PEAK_EXCEEDS_USERS")
                 self.assertEqual(len(w), 1)
-                self.assertIn("Sizing uses the total user count (5,000)", w[0]["message"])
-                self.assertTrue(any("capped at the total users" in a for a in capped["assumptions"]))
+                self.assertIn("Sizing uses ~500 concurrent users instead", w[0]["message"])
+                self.assertTrue(any("is not used for sizing: ~500 concurrent users" in a for a in capped["assumptions"]))
 
     def test_a_peak_given_as_a_rate_is_not_capped_or_warned(self):
         out = run(project__type="api_platform", project__platforms=["api_only"], scale__users_at_launch=300, scale__users_12_months=3000, scale__peak_concurrent_users=5000,
                   project__description="Payment API. About 5,000 transactions per second at peak.")
         self.assertFalse(warns(out, "PEAK_EXCEEDS_USERS"))
+        self.assertTrue(any("a request rate from the description" in a for a in out["assumptions"]))
+        self.assertFalse(any("people, not requests per second" in a for a in out["assumptions"]))
+
+    def test_rate_wording_variants(self):
+        for desc in ("Handles 2,000 req/s at peak.", "Peaks at 800 txns/sec.", "About 1,500 calls/s.", "5k ops/s sustained.", "Roughly 3000 tps."):
+            with self.subTest(desc=desc):
+                out = run(project__type="api_platform", project__platforms=["api_only"], scale__users_at_launch=100, scale__users_12_months=900,
+                          scale__peak_concurrent_users=3000, project__description=desc)
+                self.assertFalse(warns(out, "PEAK_EXCEEDS_USERS"))
 
     def test_a_peak_below_users_is_untouched(self):
         out = run(scale__users_12_months=50000, scale__peak_concurrent_users=900)
         self.assertFalse(warns(out, "PEAK_EXCEEDS_USERS"))
-        self.assertFalse(any("capped at the total users" in a for a in out["assumptions"]))
+        self.assertFalse(any("is not used for sizing" in a for a in out["assumptions"]))
 
 
 class TimeSeriesNeedsMoreThanWriteHeavy(unittest.TestCase):
@@ -199,6 +239,21 @@ class TimeSeriesNeedsMoreThanWriteHeavy(unittest.TestCase):
                 out = run(project__type=typ, project__description=desc, scale__workload="write_heavy", scale__data_volume_gb_12_months=2000,
                           scale__users_12_months=40000, scale__users_at_launch=5000)
                 self.assertEqual(len(self.ts(out)), 1)
+
+    def test_metrics_readings_and_trend_wording_adds_it(self):
+        for typ, desc in (("saas_b2b", "Observability SaaS that stores application performance data."),
+                          ("internal_tool", "Collects server CPU and memory stats from every host and graphs them over time."),
+                          ("healthtech", "Wearable app storing heart-rate readings for each user."),
+                          ("other", "PLCs push temperature and pressure values every second for trend charts.")):
+            with self.subTest(typ=typ):
+                out = run(project__type=typ, project__description=desc, scale__workload="write_heavy", scale__data_volume_gb_12_months=2000,
+                          scale__users_12_months=40000, scale__users_at_launch=5000)
+                self.assertEqual(len(self.ts(out)), 1)
+
+    def test_negated_wording_does_not_add_it(self):
+        out = run(project__type="social", project__description="A photo community; there are no metrics or logs to keep.", scale__workload="write_heavy",
+                  scale__data_volume_gb_12_months=2000, scale__users_12_months=40000, scale__users_at_launch=5000)
+        self.assertEqual(self.ts(out), [])
 
     def test_iot_is_unchanged(self):
         out = run(project__type="iot", project__description="Sensors report every minute.", scale__workload="write_heavy", scale__data_volume_gb_12_months=100)

@@ -126,7 +126,9 @@ DESC_RULES = [
     # large volume it adds the time-series storage item (domains.py). write_heavy alone (a social feed, a chat) is not evidence.
     ("time_series", r"time[- ]?series|\btelemetry\b|\bmetrics?\b|\bsensors?\b|\bmeasurements?\b|\bclick-?streams?\b|\bticks?\b|\bevent (?:logs?|streams?|stor\w+)"
                     r"|\b(?:audit|access|application|server|transaction) (?:logs?|trail)s?\b|\bledgers?\b|\bhistorical (?:prices?|rates?|data)\b|\bquotes? feeds?\b|\blog (?:ingest\w*|aggregat\w*|analy\w*)\b"
-                    r"|\blive location\b|\blocation (?:pings?|updates|history|tracks?|tracking)\b|\bgps\b|\btelematics\b"),
+                    r"|\blive location\b|\blocation (?:pings?|updates|history|tracks?|tracking)\b|\bgps\b|\btelematics\b"
+                    r"|\breadings?\b|\bstats\b|\bobservability\b|\bmonitoring\b|\bperformance data\b|\bover time\b|\btrend\w*\b"
+                    r"|\bevery (?:\d+ )?(?:second|minute)s?\b|\bplcs?\b|\bscada\b"),
     # D16 (overeng.py): evidence that payments are a hosted button/link, that the content is editorial, and that the site stores user data
     ("hosted_pay", r"\b(?:donat\w*|payments?|pay|buy|checkout|tip|order)\s+(?:buttons?|links?)\b|\bhosted\s+(?:checkout|payments?|donations?|payment pages?)\b"
                    r"|\bembedded\s+(?:checkout|payments?|donations?)\b|\b(?:paypal|stripe|razorpay|givebutter|ko-?fi|buy ?me ?a ?coffee|gumroad)\s+(?:donat\w*\s+|payment\s+|checkout\s+)?(?:buttons?|links?)\b"),
@@ -660,11 +662,19 @@ _MS_SELF_HOSTED = re.compile(r"(?<![a-z0-9])(?:sharepoint|exchange|skype for bus
 # h1 (blind9 A1), planning heuristic: the lowest release line of a few well-known product families that the knowledge base holds
 # lifecycle rows for (kb "version_floors"). An existing_systems entry that names an older version of one of them and matches no
 # lifecycle row is flagged END_OF_LIFE_SUSPECTED ("older version of a known product") with soft wording: the date is not stated.
+# a number followed by a count noun is a quantity, not a version ("Postgres 2 replicas", "vSphere 3 hosts"); (?!\d) ends the version
+OLD_VERSION_TAIL = r"(?!\d)"
+COUNT_NOUN_RX = re.compile(r"\s*(?:x\s*)?(?:\w+[- ])?(?:replicas?|nodes?|shards?|servers?|hosts?|instances?|vms?|boxes|machines?"
+                           r"|copies|sites?|regions?|zones?|dbs?|databases?)\b")
+
+
 def old_version_hit(norm):
     """The version-floor family an entry names below its oldest known line, or None. Returns {family, version, oldest, successor}."""
     for fl in TECH.get("version_floors", []):
-        for m in re.finditer(r"(?<![a-z0-9])" + fl["rx"] + r"(?!\d)", norm):
+        for m in re.finditer(r"(?<![a-z0-9])" + fl["rx"] + OLD_VERSION_TAIL, norm):
             ver = tuple(int(g) for g in m.groups() if g)
+            if len(ver) == 1 and COUNT_NOUN_RX.match(norm, m.end()):
+                continue  # a bare whole number before a count noun is a quantity, not a release ("Postgres 2 replicas"); a dotted version always is one
             if ver + (0,) * (2 - len(ver)) < tuple(fl["floor"]):
                 return {"family": fl["family"], "version": ".".join(g for g in m.groups() if g), "oldest": fl["oldest"], "successor": fl.get("successor")}
     return None
@@ -896,7 +906,7 @@ def lang_norm(langs):
     return sorted({LANG_ALIASES.get(x, x) for x in langs})
 
 
-PEAK_RATE_RX = re.compile(r"\bper\s+(?:second|sec)\b|\b(?:tps|rps|qps)\b|\b(?:requests?|transactions?|calls?|messages?|events?)\s*(?:/\s*s\b|a second\b)", re.I)
+PEAK_RATE_RX = re.compile(r"\b(?:req(?:uest)?s?|txns?|calls?|ops)\s*/\s*s(?:ec(?:ond)?)?\b|\bper\s+(?:second|sec)\b|\b(?:tps|rps|qps)\b|\b(?:requests?|transactions?|calls?|messages?|events?)\s*(?:/\s*s\b|a second\b)", re.I)
 
 
 def build(req):
@@ -918,8 +928,9 @@ def build(req):
     api_shaped = req["project.type"] == "api_platform" or "api_only" in plats
     c["peak_is_rate"] = api_shaped and bool(PEAK_RATE_RX.search(req["project.description"] or ""))
     c["peak_capped_from"] = None
-    if peak > users and not api_shaped:
-        c["peak_capped_from"], peak = peak, users
+    if peak > users and not api_shaped:  # sized like an absent peak: users x the documented fraction, never all users at once
+        c["peak_capped_from"] = peak
+        peak, c["peak_cap_fraction"], c["peak_cap_why"] = costreal.derived_peak(users, req, req["project.type"])
     c["users"], c["peak"] = users, peak
     if users <= 5000 and peak <= 200:
         tier = 0

@@ -1289,7 +1289,7 @@ def build(ctx, host, backend, db, mobile, warn):
                             + second_db_reason(ctx, e, pat, db))
                            + (f" It {cx.life_short(e['life'])} ({e['life']['name']}{'' if e['life'].get('soft') else ', ' + e['life']['eol']})"
                               + (", which is a further reason to retire it." if e["retire"] else
-                                 ": plan its upgrade" + (f" to {e['life']['successor']}" if e["life"].get("successor") else "")
+                                 ": plan its upgrade" + (f" (options, knowledge-base suggestion: {e['life']['successor']})" if e["life"].get("successor") else "")
                                  + ", or move its data into the new database and retire it once its owners agree.")
                               if e["life"] and e["life"]["eol"] <= AS_OF else ""),
                            ["infrastructure.existing_systems"],

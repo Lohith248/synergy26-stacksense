@@ -102,7 +102,7 @@ class ExistingAzureSql(unittest.TestCase):
 class DiscontinuedServices(unittest.TestCase):
     def test_replacement_is_labelled_a_candidate(self):
         # h1 (blind9 A1): a discontinued service now names candidate replacements, labelled as the knowledge base's suggestion
-        # (the vendor pages read name none), never as a vendor recommendation
+        # (never as a vendor recommendation)
         for typ, raw in (("saas_b2b", "Firebase Dynamic Links"), ("social", "Firebase Dynamic Links"), ("web_app", "Heroku free dynos")):
             with self.subTest(typ=typ, raw=raw):
                 out = run(project__type=typ, infrastructure__existing_systems=[raw])
