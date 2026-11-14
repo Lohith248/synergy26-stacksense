@@ -1829,11 +1829,14 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
 
     ha = bool(ha_paths(ctx["sreq"]))
     hlo, hhi = host["cost"][t]
+    # p3: Azure rates below were read for Central India; elsewhere they are a reference, not the deployment region's price
+    ci = "Central India" if ctx["res_key"] == "india" else "Central India reference rate; other regions are priced differently"
+    ci_rate = "Central India rate" if ctx["res_key"] == "india" else ci
     tier_txt = f" at the '{cx.TIER_NAMES[t]}' tier."
     if host.get("plan_ha") and host["plan_ha"] in host["name"]:
         # zone redundancy needs Premium v2-v4 with at least two instances (Microsoft reliability guide); price per Premium instance
         hlo, hhi = host["plan_ha_cost"]
-        tier_txt = (" per instance (P0v3 about $60 at $0.082/hour Linux, Central India, Azure Retail Prices API 12 Nov 2026, up to P1v3 about $113-130); "
+        tier_txt = (f" per instance (P0v3 about $60 at $0.082/hour Linux, {ci}, Azure Retail Prices API 12 Nov 2026, up to P1v3 about $113-130); "
                     "zone redundancy is available only on Premium plans with at least two instances.")
     if rf.applies(ctx):  # A18: transfer, not compute, is the cost to watch for a heavily read static site
         elo, ehi, ulo, uhi = rf.egress(ctx)
@@ -1873,19 +1876,19 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
             dlo, dhi = max(dlo, round(AZURE_SQL_NEVER_PAUSE_USD * (1.8 if ha else 1))), max(dhi, AZURE_SQL_NEVER_PAUSE_USD * 2)
             size = (f" Serverless auto-pause is not assumed because the availability or latency target is strict (a cold start after idling): priced as a provisioned "
                     f"0.5-vCore minimum that never pauses, about ${AZURE_SQL_NEVER_PAUSE_USD} a month of compute (0.5 vCore x ~$0.57/vCore-hour x 730 hours, "
-                    "Central India rate, Azure Retail Prices API 11 Nov 2026).")
+                    f"{ci_rate}, Azure Retail Prices API 11 Nov 2026).")
         if ha and db_c.vkey == "azure" and db_c.item["id"] == "postgresql":
             # Microsoft Learn PG HA concepts: zone-redundant HA is not supported on the Burstable tier; D2ds_v5 rate from R11
             dlo, dhi = max(dlo, 366), max(dhi, 480)
             size = (" Zone-redundant HA is not offered on the Burstable tier, so primary and standby are General Purpose D2ds_v5 "
-                    "(about $183 compute each, Central India, R11): at least about $366 before storage.")
+                    f"(about $183 compute each, {ci}, R11): at least about $366 before storage.")
         elif t == 1 and db_c.item["id"] == "postgresql":
             # R11 + Azure Retail Prices API (B1ms $0.0245/hour Central India, 12 Nov 2026): the band spans the burstable sizes
             size = {"azure": " Sized for Burstable B1ms (about $18 compute) to B2s (about $72 compute) plus storage; a General Purpose D2ds_v5 alone is about $183.",
                     "aws": " Sized for burstable db.t4g instances up to a db.t4g.medium (about $61 compute) plus storage; a db.m6g.large alone is about $165."}.get(db_c.vkey, "")
         if t <= 1 and db_c.item["id"] == "sqlserver" and db_c.vkey == "azure" and not no_pause:  # review 11 Nov: Azure Retail Prices API, Central India
             size += (f" Assumes serverless auto-pause outside working hours: about {dc[t][0] / 0.574:.0f}-{dc[t][1] / 0.574:.0f} active vCore-hours "
-                     "a month at ~$0.57/vCore-hour (Central India rate, 11 Nov 2026); a 0.5-vCore minimum that never pauses is about $210/month "
+                     f"a month at ~$0.57/vCore-hour ({ci_rate}, 11 Nov 2026); a 0.5-vCore minimum that never pauses is about $210/month "
                      "compute, and DTU Standard S0 (~$17/month) is the fixed-price alternative.")
         if t == 0 and db_c.vkey == "gcp" and db_c.item["id"] in ("postgresql", "mysql"):  # Cloud SQL SLA page, 11 Nov 2026
             size += (" Assumes a shared-core instance (db-f1-micro to db-g1-small: $0.0126-0.042/hour in Mumbai, $0.0105-0.035 in Iowa, about "

@@ -1061,7 +1061,7 @@ def build(ctx, host, backend, db, mobile, warn):
                        f"need no always-on socket server; authorisation and data stay in the {bname} backend.")
             if gate_g:  # D13 G1: a game that needs no server-side real-time loop keeps its state in the backend
                 _, fact, when, gpaths = gate_g
-                gname = domains.game_server_product(p, hyper and not selfh and not ctx["self_host_only"], rtxt)[0].split(" (")[0]
+                gname = domains.game_server_product(p, hyper and not selfh and not ctx["self_host_only"], rtxt, "Kubernetes" in host["name"])[0].split(" (")[0]
                 why = f"Game state stays in the same backend and live updates go over WebSockets: {fact}. Authorisation and data stay in one place."
                 drv = dp + gpaths
                 alts = [(gname, f"{fact}; add when {when}")] + alts
@@ -1189,7 +1189,7 @@ def build(ctx, host, backend, db, mobile, warn):
                   else "slow responses and lost work when a call fails")]
         qgate = False
         if selfh or not hyper:
-            c, prov, cost, src = "Database-backed job queue in the app (e.g. Graphile Worker / Hangfire / Celery)", "neutral", Z, ["postgres-versioning"]
+            c, prov, cost, src = domains.db_queue_name(backend), "neutral", Z, ["postgres-versioning"]
         else:
             c, prov, src = {"aws": (f"Amazon SQS{rtxt}", "aws", ["aws-regional"]), "azure": (f"Azure Service Bus{rtxt}", "azure", ["azure-products-by-region"]),
                             "gcp": (f"Google Cloud Pub/Sub / Cloud Tasks{rtxt}", "gcp", ["gcp-locations"])}[p]
@@ -1199,7 +1199,7 @@ def build(ctx, host, backend, db, mobile, warn):
                 qalts = [(c.split(" in ")[0], f"{qfact}; add it when the budget covers it or job volume outgrows the database queue")] + qalts
                 warn("SERVICE_NOT_ADDED", "info", rs.note("Managed message queue", qfact, "the budget covers it or job volume outgrows the database-backed queue"),
                      ["budget.monthly_infra_usd", "scale.users_12_months"])
-                c, prov, cost, src = "Database-backed job queue in the app (e.g. Graphile Worker / Hangfire / Celery)", "neutral", Z, ["postgres-versioning"]
+                c, prov, cost, src = domains.db_queue_name(backend), "neutral", Z, ["postgres-versioning"]
                 qgate = True
         out.append(svc("queue", c, cap_first("; ".join(why)) + ", so none of it blocks a request.",
                        [x for x in ("requirements.payments", "requirements.offline_support", "scale.workload", "requirements.ml_features")

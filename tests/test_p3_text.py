@@ -83,5 +83,47 @@ class TemplateLeaks(unittest.TestCase):
         self.assertNotIn("single author", t)
 
 
+class LanguageAndRegionHonesty(unittest.TestCase):
+    """Holdout review: library names in the backend's language; Central India rates labelled outside India; no Agones without Kubernetes."""
+
+    def test_job_queue_names_backend_language_only(self):
+        from engine.domains import db_queue_name
+        self.assertEqual(db_queue_name({"langs": ["python"]}), "Database-backed job queue in the app (e.g. Celery)")
+        self.assertEqual(db_queue_name({"langs": ["csharp"]}), "Database-backed job queue in the app (e.g. Hangfire)")
+        self.assertEqual(db_queue_name({"langs": ["javascript", "typescript"]}), "Database-backed job queue in the app (e.g. Graphile Worker)")
+        for langs in (["go"], ["java", "kotlin"], ["elixir"]):
+            n = db_queue_name({"langs": langs})
+            for lib in ("Celery", "Hangfire", "Graphile"):
+                self.assertNotIn(lib, n, langs)
+            self.assertIn("jobs table", n)
+
+    def test_central_india_rate_labelled_outside_india(self):
+        for res in ("eu", "us"):
+            t = dump_text(run(**{"infrastructure.cloud_preference": "azure", "infrastructure.data_residency": res,
+                                 "team.languages": ["csharp"], "requirements.availability": "99.95"}))
+            self.assertIn("Central India reference rate", t, res)
+        t = dump_text(run(**{"infrastructure.cloud_preference": "azure", "infrastructure.data_residency": "india",
+                             "team.languages": ["csharp"], "requirements.availability": "99.95"}))
+        self.assertNotIn("reference rate; other regions", t)
+
+    def test_no_agones_without_kubernetes(self):
+        from engine.domains import game_server_product
+        self.assertNotIn("Agones (", game_server_product("digitalocean", False, "", False)[0])
+        self.assertNotIn("Agones (", game_server_product("on_premise", False, "", False)[0])
+        self.assertTrue(game_server_product("on_premise", False, "", True)[0].startswith("Agones"))
+        self.assertTrue(game_server_product("aws", True, "", False)[0].startswith("Amazon GameLift"))
+
+    def test_app_like_reason_names_the_signal(self):
+        from engine.select import heavy_client_why
+        def ctx(desc, offline=False, collab=False):
+            return {"req": {"project.description": desc, "requirements.offline_support": offline}, "desc": {"collab": collab}}
+        self.assertIn("offline use", heavy_client_why(ctx("Replace our spreadsheets", offline=True)))
+        self.assertIn("'kanban'", heavy_client_why(ctx("A kanban board for teams")))
+        self.assertIn("collaboration", heavy_client_why(ctx("Teams collaborate on docs", collab=True)))
+        w = heavy_client_why(ctx("Replace our spreadsheets", offline=True))
+        for never in ("drag-and-drop", "canvas", "trading", "collaboration"):
+            self.assertNotIn(never, w)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -40,13 +40,30 @@ def reused_device_intake(ctx):
     return next((e["raw"] for e in ctx["existing"] if re.search(DEVICE_INTAKE_RX, e["raw"].lower())), None)
 
 
-def game_server_product(p, hyper, rtxt):
+def game_server_product(p, hyper, rtxt, k8s=True):
     """(name, provider, source ids, deployment) of the dedicated-game-server product for a host; also named by the D13 gate's alternative."""
     return {
         "aws": (f"Amazon GameLift Servers{rtxt} (managed dedicated game servers)", "aws", ["gamelift"], "managed"),
         "azure": ("Azure PlayFab Multiplayer Servers (managed dedicated game servers)", "azure", ["playfab-mps"], "managed"),
         "gcp": (f"Agones on Google Kubernetes Engine{rtxt} (open-source dedicated game servers)", "gcp", ["agones"], "managed"),
-    }.get(p if hyper else "", ("Agones (open-source dedicated game servers on Kubernetes)", "neutral", ["agones"], "self_hosted"))
+    }.get(p if hyper else "", ("Agones (open-source dedicated game servers on Kubernetes)", "neutral", ["agones"], "self_hosted") if k8s else
+          # p3: a host with no Kubernetes cluster runs match servers as containers beside the API, not Agones
+          ("Dedicated game-server containers on the same hosts (one process per match; Agones once the fleet moves to Kubernetes)",
+           "neutral", ["agones"], "self_hosted"))
+
+
+# p3: library examples only in the backend's own language (a Go or Java backend gets no Node/.NET/Python library names)
+QUEUE_LIBS = {"typescript": "Graphile Worker", "javascript": "Graphile Worker", "csharp": "Hangfire", "python": "Celery"}
+SCHED_LIBS = {"typescript": "Graphile Worker schedule", "javascript": "Graphile Worker schedule", "python": "Celery beat"}
+
+
+def _libs(table, backend):
+    return sorted({table[x] for x in (backend or {}).get("langs", []) if x in table})
+
+
+def db_queue_name(backend):
+    libs = _libs(QUEUE_LIBS, backend)
+    return "Database-backed job queue in the app " + (f"(e.g. {' / '.join(libs)})" if libs else "(a jobs table in the database, polled by a worker process)")
 
 
 def build(ctx, host, backend, db, svc, warn, Z, out):
@@ -61,7 +78,7 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
 
     # ---------------- games: dedicated game servers for realtime multiplayer (D13: only for a server-side real-time loop; else services.py)
     if typ == "gaming" and req["requirements.realtime"] and ctx["needs_backend"] and rs.game_servers(ctx)[0]:
-        name, prov, src, dep = game_server_product(p, hyper, rtxt)
+        name, prov, src, dep = game_server_product(p, hyper, rtxt, "Kubernetes" in host["name"])
         lat = req["requirements.p95_latency_ms"]
         out.append(svc("realtime", name,
                        "Multiplayer matches run on authoritative dedicated game servers (stateful UDP/WebSocket processes allocated per match), "
@@ -257,7 +274,7 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
     # ---------------- scheduled work (reminders, nightly jobs)
     if d["scheduler"] and ctx["needs_backend"]:
         if selfh or not hyper:
-            sc, ssrc, sdep, sprov = "Scheduler: cron / Celery beat or Graphile Worker schedule inside the app container", ["postgres-versioning"], "self_hosted", "neutral"
+            sc, ssrc, sdep, sprov = "Scheduler: " + " or ".join(["cron"] + _libs(SCHED_LIBS, backend)) + " inside the app container", ["postgres-versioning"], "self_hosted", "neutral"
         else:
             sc, sprov, ssrc, sdep = {"aws": (f"Scheduler: Amazon EventBridge Scheduler{rtxt}", "aws", ["aws-eventbridge-scheduler"], "managed"),
                                      "azure": (f"Scheduler: Azure Container Apps jobs or Functions timer trigger{rtxt}", "azure", ["azure-container-apps-jobs"], "managed"),

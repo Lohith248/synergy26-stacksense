@@ -440,6 +440,15 @@ def heavy_client(ctx):
                 or HEAVY_CLIENT_RX.search((ctx["req"]["project.description"] or "").lower()))
 
 
+def heavy_client_why(ctx):
+    """p3: name only the app-like signal the input gave (offline flag, collaboration wording, or the matched description words)."""
+    m = HEAVY_CLIENT_RX.search((ctx["req"]["project.description"] or "").lower())
+    what = [w for w, on in (("requirements.offline_support asks for offline use", ctx["req"]["requirements.offline_support"]),
+                            ("the description asks for collaboration", ctx["desc"]["collab"]),
+                            (f"the description mentions '{m.group(0)}'" if m else "", m)) if on]
+    return f"the screens are app-like ({'; '.join(what)}), which server-rendered pages serve poorly"
+
+
 def web_candidates(ctx, backend):
     req = ctx["req"]
     cands = []
@@ -455,7 +464,7 @@ def web_candidates(ctx, backend):
             c.add("api_anyway", -3, "project.platforms", "the mobile app needs a JSON API anyway, so server-rendered pages add a second presentation layer")
         if f["kind"] == "templates" and heavy_client(ctx):
             c.add("heavy_client", HEAVY_CLIENT_PENALTY, "project.description",
-                  "the screens are app-like (offline editing, collaboration, drag-and-drop, canvas or live trading views), which server-rendered pages serve poorly")
+                  heavy_client_why(ctx))
         prio_terms(c, ctx, f["r"])
         lang_term(c, ctx, f["langs"], 5, "the UI")
         framework_term(c, ctx, 5, "the UI")
