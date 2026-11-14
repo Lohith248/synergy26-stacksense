@@ -265,18 +265,21 @@ class WebUI(unittest.TestCase):  # item 11
         srv = make_server(port=0)
         t = threading.Thread(target=srv.serve_forever, daemon=True)
         t.start()
+        def fetch(u):  # closes each response (no ResourceWarning)
+            with urllib.request.urlopen(u) as r:
+                return r.read()
         try:
             base = f"http://127.0.0.1:{srv.server_address[1]}"
-            page = urllib.request.urlopen(base + "/").read().decode("utf-8")
+            page = fetch(base + "/").decode("utf-8")
             self.assertIn("<title>StackSense</title>", page)
             self.assertNotIn("https://", page.split("<script>")[0])  # no external assets
-            schema = json.loads(urllib.request.urlopen(base + "/api/schema").read())
+            schema = json.loads(fetch(base + "/api/schema"))
             self.assertIn("project.type", [f["path"] for f in schema])
             body = json.dumps(P(2)).encode("utf-8")
             req = urllib.request.Request(base + "/api/evaluate", data=body, headers={"Content-Type": "application/json"})
-            got = json.loads(urllib.request.urlopen(req).read())
+            got = json.loads(fetch(req))
             self.assertEqual(got, [evaluate(P(2))])
-            samples = json.loads(urllib.request.urlopen(base + "/api/samples").read())
+            samples = json.loads(fetch(base + "/api/samples"))
             self.assertGreaterEqual(len(samples), 15)
         finally:
             srv.shutdown()

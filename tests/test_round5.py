@@ -27,7 +27,8 @@ LOCAL_SERVER = {os.path.join("engine", "web.py"): {"http.server"}}  # the option
 
 
 def imports(path):
-    tree = ast.parse(open(path, encoding="utf-8").read())
+    with open(path, encoding="utf-8") as f:
+        tree = ast.parse(f.read())
     found = set()
     for n in ast.walk(tree):
         if isinstance(n, ast.Import):
