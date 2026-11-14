@@ -218,9 +218,11 @@ _NEG_AFTER = re.compile(r"\W*(?:\w+\W+){0,2}?(?:(?:is|are|was|were|will be|would
                         r"|(?:isn't|aren't|wasn't|weren't)\s+(?:needed|required|necessary|in scope|supported|used|planned|wanted))")
 
 
+@functools.lru_cache(maxsize=16)
 def clause_breaks(low):
+    """Clause start/end offsets of low; cached because the counterfactual pass re-reads the same description ~100 times."""
     spans = [m.span() for m in _CLAUSE_BREAK.finditer(low)]
-    return [b[0] for b in spans], [b[1] for b in spans]
+    return tuple(b[0] for b in spans), tuple(b[1] for b in spans)
 
 
 def _cue(pre, opening):
