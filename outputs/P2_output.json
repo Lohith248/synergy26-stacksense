@@ -28,7 +28,7 @@
         },
         {
           "choice": "Ionic Capacitor (web app wrapped)",
-          "why_not": "With priorities.performance=3 (neutral) and priorities.security=3 (neutral), React Native is faster at runtime and stronger on security. Known limit of Ionic Capacitor: WebView performance on low-end devices."
+          "why_not": "No priority or requirement this input states separates Ionic Capacitor from React Native (priorities.cost=4, priorities.time_to_market=5); React Native rates higher only on priorities this input leaves at the neutral 3 (priorities.performance=3, priorities.security=3, priorities.scalability=3). Known limit of Ionic Capacitor: WebView performance on low-end devices."
         },
         {
           "choice": "Kotlin + Jetpack Compose (native Android)",
@@ -85,11 +85,11 @@
       "alternatives": [
         {
           "choice": "Python 3.13 + Django 5.2 LTS",
-          "why_not": "Node.js 24 LTS + NestJS fits better: native WebSocket support (requirements.realtime=true); with priorities.performance=3 (neutral), it is faster at runtime (close call). Known limit of Python 3.13 + Django 5.2 LTS: WebSockets need Django Channels."
+          "why_not": "Node.js 24 LTS + NestJS fits better: native WebSocket support (requirements.realtime=true); one language (TypeScript/JavaScript) across clients and server (team.languages=javascript,python,typescript) (close call). Known limit of Python 3.13 + Django 5.2 LTS: WebSockets need Django Channels."
         },
         {
           "choice": "Node.js 24 LTS + Express 5",
-          "why_not": "With priorities.maintainability=3 (neutral) and priorities.security=3 (neutral), Node.js 24 LTS + NestJS is easier to maintain and stronger on security. Known limit of Node.js 24 LTS + Express 5: little structure; large codebases need discipline."
+          "why_not": "No priority or requirement this input states separates Node.js 24 LTS + Express 5 from Node.js 24 LTS + NestJS (priorities.cost=4, priorities.time_to_market=5); Node.js 24 LTS + NestJS rates higher only on priorities this input leaves at the neutral 3 (priorities.maintainability=3, priorities.security=3, priorities.scalability=3). Known limit of Node.js 24 LTS + Express 5: little structure; large codebases need discipline."
         }
       ],
       "tradeoffs": [
@@ -135,7 +135,7 @@
         "label": "low",
         "basis": "stability 0.63 (sensitive) over 54 priority vectors; score margin 0.8 over the runner-up (near-tie)."
       },
-      "contrast": "Node.js 24 LTS + NestJS (TypeScript) rather than Python 3.13 + Django 5.2 LTS. Node.js 24 LTS + NestJS fits better: native WebSocket support (requirements.realtime=true); with priorities.performance=3 (neutral), it is faster at runtime (close call). Trade-off accepted: More boilerplate than Express.",
+      "contrast": "Node.js 24 LTS + NestJS (TypeScript) rather than Python 3.13 + Django 5.2 LTS. Node.js 24 LTS + NestJS fits better: native WebSocket support (requirements.realtime=true); one language (TypeScript/JavaScript) across clients and server (team.languages=javascript,python,typescript) (close call). Trade-off accepted: More boilerplate than Express.",
       "what_would_change": [
         {
           "edit": "priorities.performance: 3 -> 2",
@@ -171,11 +171,11 @@
       "alternatives": [
         {
           "choice": "Supabase Postgres",
-          "why_not": "With priorities.cost=4 and priorities.maintainability=3 (neutral), Azure Database for PostgreSQL – Flexible Server 17 is cheaper to run and easier to maintain. Known limit of Supabase Postgres: free projects pause after 1 week of inactivity; production needs Pro."
+          "why_not": "With priorities.cost=4, Azure Database for PostgreSQL – Flexible Server 17 is cheaper to run; adds a separate vendor whose region must also be pinned (infrastructure.data_residency=india). Known limit of Supabase Postgres: free projects pause after 1 week of inactivity; production needs Pro."
         },
         {
           "choice": "Azure Database for MySQL – Flexible Server 8.4",
-          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 fits better: strict ACID transactions for marketplace transactions and payments (requirements.payments=true); with priorities.maintainability=3 (neutral), it is easier to maintain. Known limit of Azure Database for MySQL – Flexible Server 8.4: 8.0 moved to Sustaining Support (Apr 2026); no row-level security."
+          "why_not": "Azure Database for PostgreSQL – Flexible Server 17 fits better: strict ACID transactions for marketplace transactions and payments (requirements.payments=true). Known limit of Azure Database for MySQL – Flexible Server 8.4: 8.0 moved to Sustaining Support (Apr 2026); no row-level security."
         }
       ],
       "tradeoffs": [
@@ -210,7 +210,7 @@
         "label": "high",
         "basis": "stability 1.00 (robust) over 54 priority vectors; score margin 6.0 over the runner-up."
       },
-      "contrast": "Azure Database for PostgreSQL – Flexible Server 17 rather than Supabase Postgres. With priorities.cost=4 and priorities.maintainability=3 (neutral), Azure Database for PostgreSQL – Flexible Server 17 is cheaper to run and easier to maintain. Trade-off accepted: Vertical write scaling; sharding needs extensions.",
+      "contrast": "Azure Database for PostgreSQL – Flexible Server 17 rather than Supabase Postgres. With priorities.cost=4, Azure Database for PostgreSQL – Flexible Server 17 is cheaper to run; adds a separate vendor whose region must also be pinned (infrastructure.data_residency=india). Trade-off accepted: Vertical write scaling; sharding needs extensions.",
       "what_would_change": []
     },
     "hosting": {
@@ -228,7 +228,7 @@
       "alternatives": [
         {
           "choice": "Google Cloud Run",
-          "why_not": "With priorities.time_to_market=5 and priorities.maintainability=3 (neutral), Azure App Service is faster to deliver with and easier to maintain. Known limit of Google Cloud Run: cold starts unless min instances are paid for."
+          "why_not": "With priorities.time_to_market=5, Azure App Service is faster to deliver with. Known limit of Google Cloud Run: cold starts unless min instances are paid for."
         },
         {
           "choice": "Azure Container Apps",
@@ -279,7 +279,7 @@
         "label": "medium",
         "basis": "stability 0.85 (moderate) over 54 priority vectors; score margin 1.6 over the runner-up."
       },
-      "contrast": "Azure App Service (Linux, Basic B2 / Standard S1) rather than Google Cloud Run. With priorities.time_to_market=5 and priorities.maintainability=3 (neutral), Azure App Service is faster to deliver with and easier to maintain. Trade-off accepted: Less control than containers for unusual runtimes.",
+      "contrast": "Azure App Service (Linux, Basic B2 / Standard S1) rather than Google Cloud Run. With priorities.time_to_market=5, Azure App Service is faster to deliver with. Trade-off accepted: Less control than containers for unusual runtimes.",
       "what_would_change": [
         {
           "edit": "infrastructure.cloud_preference: any -> aws",
@@ -327,7 +327,7 @@
         ],
         "tradeoffs": [
           "DLT registration of sender ID/template before launch",
-          "OTP needs network at login; sessions must stay valid offline"
+          "OTP needs network at login"
         ],
         "deployment": "saas",
         "provider": "msg91",
@@ -445,7 +445,7 @@
           }
         ],
         "tradeoffs": [
-          "Per-transaction fees (~2% domestic cards) are charged on revenue, not in the infrastructure band",
+          "Per-transaction fees (~2% on domestic cards at Razorpay's standard pricing) are charged on revenue, not in the infrastructure band",
           "Webhook handling must be idempotent"
         ],
         "deployment": "saas",
@@ -600,7 +600,7 @@
     {
       "code": "BUDGET_AT_RISK",
       "severity": "warning",
-      "message": "Upper estimate $457/month is 3.0x the $150 budget at peak usage; the largest upper-bound items are Hosting Azure App Service (Linux, Basic B2 / Standard S1) (up to $150) and Phone OTP (up to $135). Launch near the $84 lower bound and set billing alerts at the budget.",
+      "message": "Upper estimate $457/month is 3.0x the $150 budget at peak usage; the largest upper-bound items are Hosting Azure App Service (Linux, Basic B2 / Standard S1) (up to $150) and Phone OTP SMS fees (up to $135). Launch near the $84 lower bound and set billing alerts at the budget.",
       "fields": [
         "budget.monthly_infra_usd"
       ]

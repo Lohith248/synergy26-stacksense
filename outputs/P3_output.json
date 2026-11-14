@@ -21,15 +21,15 @@
       "alternatives": [
         {
           "choice": "Vue 3 (Vite SPA)",
-          "why_not": "With priorities.time_to_market=3 (neutral), React is faster to deliver with."
+          "why_not": "No priority or requirement this input states separates Vue 3 from React (priorities.cost=2, priorities.scalability=5, priorities.performance=5, priorities.maintainability=4); React rates higher only on priorities this input leaves at the neutral 3 (priorities.time_to_market=3). Known limit of Vue 3: smaller hiring pool and component ecosystem than React."
         },
         {
           "choice": "Next.js",
-          "why_not": "Learning curve 3/5 for a senior team (team.experience=senior). Known limit of Next.js: server runtime needed for SSR; more moving parts than a static site."
+          "why_not": "React fits better: Next.js's learning curve is 3/5 for a senior team (team.experience=senior). Known limit of Next.js: server runtime needed for SSR; more moving parts than a static site."
         }
       ],
       "tradeoffs": [
-        "Client-rendered pages are weak for SEO"
+        "The first load waits for the JavaScript bundle, so page weight matters on slow devices"
       ],
       "deployment": "client",
       "provider": "neutral",
@@ -60,7 +60,7 @@
         "label": "high",
         "basis": "stability 0.91 (robust) over 54 priority vectors."
       },
-      "contrast": "React (Vite SPA) (web) rather than Vue 3 (Vite SPA). With priorities.time_to_market=3 (neutral), React is faster to deliver with. Trade-off accepted: Client-rendered pages are weak for SEO.",
+      "contrast": "React (Vite SPA) (web) rather than Vue 3 (Vite SPA). No priority or requirement this input states separates Vue 3 from React (priorities.cost=2, priorities.scalability=5, priorities.performance=5, priorities.maintainability=4); React rates higher only on priorities this input leaves at the neutral 3 (priorities.time_to_market=3). Trade-off accepted: The first load waits for the JavaScript bundle, so page weight matters on slow devices.",
       "what_would_change": [
         {
           "edit": "requirements.seo_critical: false -> true",
@@ -93,7 +93,7 @@
       "alternatives": [
         {
           "choice": "Node.js 24 LTS + NestJS (TypeScript)",
-          "why_not": "With priorities.performance=5 and priorities.security=3 (neutral), Go 1.27 is faster at runtime and stronger on security (close call). Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
+          "why_not": "With priorities.performance=5 and priorities.scalability=5, Go 1.27 is faster at runtime and built to scale further (close call). Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
         },
         {
           "choice": ".NET 10 LTS + ASP.NET Core",
@@ -138,7 +138,7 @@
         "label": "low",
         "basis": "stability 0.59 (sensitive) over 54 priority vectors; score margin 0.8 over the runner-up (near-tie)."
       },
-      "contrast": "Go 1.27 (net/http + chi) rather than Node.js 24 LTS + NestJS (TypeScript). With priorities.performance=5 and priorities.security=3 (neutral), Go 1.27 is faster at runtime and stronger on security (close call). Trade-off accepted: More hand-written code than batteries-included frameworks.",
+      "contrast": "Go 1.27 (net/http + chi) rather than Node.js 24 LTS + NestJS (TypeScript). With priorities.performance=5 and priorities.scalability=5, Go 1.27 is faster at runtime and built to scale further (close call). Trade-off accepted: More hand-written code than batteries-included frameworks.",
       "what_would_change": [
         {
           "edit": "priorities.time_to_market: 3 -> 5",
@@ -169,7 +169,7 @@
       "alternatives": [
         {
           "choice": "Supabase Postgres",
-          "why_not": "With priorities.maintainability=4 and priorities.security=3 (neutral), Azure Database for PostgreSQL – Flexible Server 17 is easier to maintain and stronger on security."
+          "why_not": "With priorities.maintainability=4, Azure Database for PostgreSQL – Flexible Server 17 is easier to maintain; adds a separate vendor whose region must also be pinned (compliance=gdpr)."
         },
         {
           "choice": "Azure Cosmos DB (NoSQL API)",
@@ -208,7 +208,7 @@
         "label": "high",
         "basis": "stability 1.00 (robust) over 54 priority vectors; score margin 3.2 over the runner-up."
       },
-      "contrast": "Azure Database for PostgreSQL – Flexible Server 17 rather than Supabase Postgres. With priorities.maintainability=4 and priorities.security=3 (neutral), Azure Database for PostgreSQL – Flexible Server 17 is easier to maintain and stronger on security. Trade-off accepted: Vertical write scaling; sharding needs extensions.",
+      "contrast": "Azure Database for PostgreSQL – Flexible Server 17 rather than Supabase Postgres. With priorities.maintainability=4, Azure Database for PostgreSQL – Flexible Server 17 is easier to maintain; adds a separate vendor whose region must also be pinned (compliance=gdpr). Trade-off accepted: Vertical write scaling; sharding needs extensions.",
       "what_would_change": []
     },
     "hosting": {
@@ -225,11 +225,11 @@
       "alternatives": [
         {
           "choice": "Google Cloud Run",
-          "why_not": "With priorities.maintainability=4 and priorities.time_to_market=3 (neutral), Azure App Service is easier to maintain and faster to deliver with. Known limit of Google Cloud Run: cold starts unless min instances are paid for."
+          "why_not": "With priorities.maintainability=4, Azure App Service is easier to maintain; WebSocket connections end at the request timeout, so long shared sessions must reconnect (project.type=realtime_collab). Known limit of Google Cloud Run: cold starts unless min instances are paid for."
         },
         {
           "choice": "Azure Container Apps",
-          "why_not": "With priorities.maintainability=4 and priorities.time_to_market=3 (neutral), Azure App Service is easier to maintain and faster to deliver with."
+          "why_not": "With priorities.maintainability=4, Azure App Service is easier to maintain."
         }
       ],
       "tradeoffs": [
@@ -276,7 +276,7 @@
         "label": "high",
         "basis": "stability 0.91 (robust) over 54 priority vectors; score margin 2.4 over the runner-up."
       },
-      "contrast": "Azure App Service (Linux, Premium v3, 2+ instances) rather than Google Cloud Run. With priorities.maintainability=4 and priorities.time_to_market=3 (neutral), Azure App Service is easier to maintain and faster to deliver with. Trade-off accepted: Less control than containers for unusual runtimes.",
+      "contrast": "Azure App Service (Linux, Premium v3, 2+ instances) rather than Google Cloud Run. With priorities.maintainability=4, Azure App Service is easier to maintain; WebSocket connections end at the request timeout, so long shared sessions must reconnect (project.type=realtime_collab). Trade-off accepted: Less control than containers for unusual runtimes.",
       "what_would_change": [
         {
           "edit": "requirements.realtime: true -> false",
@@ -315,7 +315,7 @@
         "alternatives": [
           {
             "choice": "Auth0 / Clerk (SaaS)",
-            "why_not": "per-active-user pricing across ~50,000 users and identity data outside the EU"
+            "why_not": "per-active-user pricing across ~50,000 users and a second vendor holding identity data, whose hosting region must be confirmed against the EU"
           },
           {
             "choice": "Hand-written auth in Go",
@@ -412,8 +412,8 @@
         ],
         "alternatives": [
           {
-            "choice": "Redis (7.4+)",
-            "why_not": "7.4-7.8 are source-available (RSALv2/SSPLv1) and Redis 8+ adds an AGPLv3 option (copyleft for network use); Valkey keeps the BSD licence"
+            "choice": "Self-run Valkey or Redis container",
+            "why_not": "the team would patch, back up and fail over the cache itself; Azure Managed Redis is the managed Azure service"
           },
           {
             "choice": "Azure Cache for Redis",
@@ -476,7 +476,7 @@
           }
         ],
         "tradeoffs": [
-          "Per-transaction fees (~2% domestic cards) are charged on revenue, not in the infrastructure band",
+          "Per-transaction fees (a percentage plus a fixed amount per charge, set by the gateway's price list for your country) are charged on revenue, not in the infrastructure band",
           "Webhook handling must be idempotent"
         ],
         "deployment": "saas",

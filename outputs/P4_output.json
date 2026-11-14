@@ -23,23 +23,23 @@
       "alternatives": [
         {
           "choice": "Angular",
-          "why_not": "With priorities.time_to_market=3 (neutral), React is faster to deliver with; learning curve 4/5 for a senior team (team.experience=senior) (close call). Known limit of Angular: steeper learning curve; 24-month support per major."
+          "why_not": "React fits better: Angular's learning curve is 4/5 for a senior team (team.experience=senior) (close call). Known limit of Angular: support lasts 24 months per major from Angular 22 (12 active + 12 LTS); v20 and v21 get 18 months."
         },
         {
           "choice": "Vue 3 (Vite SPA)",
-          "why_not": "With priorities.time_to_market=3 (neutral), React is faster to deliver with."
+          "why_not": "No priority or requirement this input states separates Vue 3 from React (priorities.cost=2, priorities.scalability=4, priorities.maintainability=4, priorities.security=5); React rates higher only on priorities this input leaves at the neutral 3 (priorities.time_to_market=3). Known limit of Vue 3: smaller hiring pool and component ecosystem than React."
         },
         {
           "choice": "React Native (Expo)",
-          "why_not": "With priorities.performance=3 (neutral) and priorities.security=5, Kotlin Multiplatform + Compose Multiplatform is faster at runtime and stronger on security (close call). Known limit of React Native: JS runtime overhead on very low-end phones."
+          "why_not": "With priorities.security=5, Kotlin Multiplatform + Compose Multiplatform is stronger on security (close call). Known limit of React Native: JS runtime overhead on very low-end phones."
         },
         {
           "choice": "Ionic Capacitor (web app wrapped)",
-          "why_not": "With priorities.security=5 and priorities.performance=3 (neutral), Kotlin Multiplatform + Compose Multiplatform is stronger on security and faster at runtime. Known limit of Ionic Capacitor: WebView performance on low-end devices."
+          "why_not": "With priorities.security=5 and priorities.scalability=4, Kotlin Multiplatform + Compose Multiplatform is stronger on security and built to scale further. Known limit of Ionic Capacitor: WebView performance on low-end devices."
         }
       ],
       "tradeoffs": [
-        "Client-rendered pages are weak for SEO",
+        "The first load waits for the JavaScript bundle, so page weight matters on slow devices",
         "iOS tooling less mature than native Swift"
       ],
       "deployment": "client",
@@ -76,7 +76,7 @@
         "label": "low",
         "basis": "stability 0.50 (sensitive) over 54 priority vectors."
       },
-      "contrast": "React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) rather than Angular. With priorities.time_to_market=3 (neutral), React is faster to deliver with; learning curve 4/5 for a senior team (team.experience=senior) (close call). Trade-off accepted: Client-rendered pages are weak for SEO.",
+      "contrast": "React (Vite SPA) (web) + Kotlin Multiplatform + Compose Multiplatform (Android + iOS) rather than Angular. React fits better: Angular's learning curve is 4/5 for a senior team (team.experience=senior) (close call). Trade-off accepted: The first load waits for the JavaScript bundle, so page weight matters on slow devices.",
       "what_would_change": [
         {
           "edit": "priorities.time_to_market: 3 -> 2",
@@ -126,7 +126,7 @@
         },
         {
           "choice": ".NET 10 LTS + ASP.NET Core",
-          "why_not": "Team lists java, kotlin, typescript but this needs csharp (team.languages=java,kotlin,typescript)."
+          "why_not": "Team lists java, kotlin, typescript but this needs csharp (team.languages=java,kotlin,typescript). Known limit of .NET 10 LTS + ASP.NET Core: smaller data-science and AI library ecosystem than Python."
         }
       ],
       "tradeoffs": [
@@ -169,7 +169,7 @@
     },
     "database": {
       "choice": "Amazon RDS for PostgreSQL 17 — ap-south-1 (Mumbai) (multi-AZ / zone-redundant HA)",
-      "justification": "Strict ACID transactions for money movement and ledger postings; good security (priority 5/5); good maintainability (priority 4/5). The 99.95% target uses a standby in a second zone with automatic failover and point-in-time recovery. Automated backups and snapshots stay in ap-south-1 (Mumbai) (no cross-region copies), as RBI localisation requires.",
+      "justification": "Strict ACID transactions for money movement and ledger postings; good security (priority 5/5); good maintainability (priority 4/5). The 99.95% target uses a standby in a second zone with automatic failover and point-in-time recovery. Automated backups and snapshots stay in India, in ap-south-1 (Mumbai); if a copy is enabled, keep it in a second Indian region such as ap-south-2 (Hyderabad), as RBI localisation requires storage only in India.",
       "driven_by": [
         "requirements.payments",
         "requirements.availability",
@@ -456,7 +456,7 @@
           }
         ],
         "tradeoffs": [
-          "Per-transaction fees (~2% domestic cards) are charged on revenue, not in the infrastructure band",
+          "Per-transaction fees (~2% on domestic cards at Razorpay's standard pricing) are charged on revenue, not in the infrastructure band",
           "Webhook handling must be idempotent"
         ],
         "deployment": "saas",
@@ -700,7 +700,7 @@
     {
       "code": "BUDGET_AT_RISK",
       "severity": "info",
-      "message": "Upper estimate $7564/month is 26% above the $6000 budget at peak usage; the largest upper-bound items are Phone OTP (up to $1,800) and Amazon Cognito user pool + Amazon SNS SMS OTP in ap-south-1 (Mumbai) (up to $1,595). Launch near the $1630 lower bound and set billing alerts at the budget.",
+      "message": "Upper estimate $7564/month is 26% above the $6000 budget at peak usage; the largest upper-bound items are Phone OTP SMS fees (up to $1,800) and Amazon Cognito monthly-active-user charges (up to $1,595). Launch near the $1630 lower bound and set billing alerts at the budget.",
       "fields": [
         "budget.monthly_infra_usd"
       ]

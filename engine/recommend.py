@@ -187,7 +187,7 @@ def component(cand, ranked_ok, ranked_out, extra_paths, extras, name=None, base_
     driven = [t[2] for t in cand.terms if abs(t[1]) >= (2.5 if t[0].startswith("prio_") else 1)] + list(extra_paths)
     out = {"choice": name or item["name"], "justification": why.strip() or "Best overall fit for the stated inputs.",
            "driven_by": order_paths(driven) or ["project.type"], "alternatives": alts,
-           "tradeoffs": list(item.get("limits", []))}
+           "tradeoffs": live_limits(item, ctx)}
     out["kb_id"] = item["id"]
     if len(ranked_ok) > 1:  # score gap to the runner-up: small margins are near-ties (see what_would_change)
         out["score_margin"] = round(cand.score - ranked_ok[1].score, 1)
@@ -280,15 +280,41 @@ def _limit_words(ctx):
     return words
 
 
-def known_limit(alt, ctx, always=False):
-    """' Known limit of X: ...' when the alternative's first KB limit touches an input this scenario switched on."""
-    lim = (alt.item.get("limits") or [None])[0]
+# planning heuristic: project types whose pages are normally found through search engines (a sign-in app, a game or a collaboration tool is not)
+SEO_TYPES = ("content_site", "ecommerce", "marketplace", "social")
+
+
+def seo_matters(ctx):
+    return bool(ctx["req"]["requirements.seo_critical"] or ctx["type"] in SEO_TYPES or ctx["desc"]["editorial"] or ctx["desc"]["public_pages"])
+
+
+def limit_applies(lim, ctx):
+    """J1: a KB limit that only holds when a need is switched on is shown only then (WebSocket limits need requirements.realtime;
+    the client-rendering SEO limit needs SEO or public pages). ctx None: no scenario, nothing is filtered."""
+    if ctx is None:
+        return True
+    low = lim.lower()
+    if "websocket" in low and not ctx["req"]["requirements.realtime"]:
+        return False
+    if re.search(r"\bseo\b", low) and not seo_matters(ctx):
+        return False
+    return True
+
+
+def live_limits(item, ctx):
+    return [x for x in item.get("limits") or [] if limit_applies(x, ctx)]
+
+
+def known_limit(alt, ctx, always=False, skip=""):
+    """' Known limit of X: ...' when the alternative's first KB limit touches an input this scenario switched on;
+    skip: a phrase already said in the reason (the first limit that does not repeat it is used)."""
+    lim = next((x for x in live_limits(alt.item, ctx) if not (skip and skip in x.lower())), None)
     if not lim or not (always or ctx is None or any(_word(w, lim) for w in _limit_words(ctx))):
         return ""
     return f" Known limit of {alt.item['name'].split(' (')[0]}: {_lower1(lim)}."
 
 
-def _gap_reason(win, alt, k, ctx, also=()):
+def _gap_reason(win, alt, k, ctx, also=(), lead=True):
     """One decisive score term in plain words, tied to the input value behind it; also: further priority keys
     folded into the same clause ('with priorities.a=4 and priorities.b=5, X is ... and ...')."""
     if k.startswith("prio_"):
@@ -297,6 +323,9 @@ def _gap_reason(win, alt, k, ctx, also=()):
         ws = " and ".join(f"priorities.{p}={ctx['prio'][p] if ctx else '?'}" + (" (neutral)" if ctx and ctx["prio"][p] == 3 else "") for p in ps)
         return f"with {ws}, {_short(win.item)} is {' and '.join(PRIO_BETTER[p] for p in ps)}"
     neg = next((t for t in alt.terms if t[0] == k and t[1] < 0), None)
+    if neg and k == "learning":  # J1: a bare fragment has no subject; name the winner and whose learning curve it is
+        text = re.sub(r"^learning curve (\d/5)", r"learning curve is \1", _lower1(neg[3]))
+        return f"{_short(win.item)} fits better: " * lead + f"{_short(alt.item)}'s {text} ({ground(neg[2], ctx)})"
     if neg:
         return f"{_lower1(neg[3])} ({ground(neg[2], ctx)})"
     pos = next((t for t in win.terms if t[0] == k and t[1] > 0), None)
@@ -330,6 +359,11 @@ def why_not(win, alt, ctx=None):
     (the gap to the runner-up is in score_margin)."""
     gaps = sorted(((win.term(k) - alt.term(k), k) for k in {t[0] for t in win.terms} | {t[0] for t in alt.terms}
                    if win.term(k) - alt.term(k) > 0.05), key=lambda x: (-x[0], x[1]))
+    # J1: a priority the input leaves at the neutral 3 expresses no preference, so it is never given as the reason one option beat another
+    neutral_only = bool(ctx) and bool(gaps) and all(k.startswith("prio_") and ctx["prio"][k[5:]] == 3 for _, k in gaps)
+    neutral_names = ", ".join(f"priorities.{k[5:]}=3" for _, k in gaps) if neutral_only else ""
+    if ctx:
+        gaps = [(g, k) for g, k in gaps if not (k.startswith("prio_") and ctx["prio"][k[5:]] == 3)]
     total = round(win.score - alt.score, 1)
     wn = _short(win.item)
     if total < 0:
@@ -342,6 +376,14 @@ def why_not(win, alt, ctx=None):
                 + known_limit(alt, ctx, always=True))
     # a priority the input rates 1-2/5 never leads a reason; when only such priorities separate the two, say so
     high = [(g, k) for g, k in gaps if not (ctx and k.startswith("prio_") and ctx["prio"][k[5:]] <= 2)]
+    if neutral_only and not gaps:
+        # the stated priorities (those away from the neutral 3) that do NOT separate the two, or that all six are neutral
+        stated = ", ".join(f"priorities.{k}={v}" for k, v in ctx["prio"].items() if v != 3) or "all six priorities are at the neutral 3"
+        if total < CLOSE_CALL:
+            return (f"{_short(alt.item)} is level with {wn} on every priority and requirement this input states ({stated}), so this is a near tie "
+                    "decided by small default differences (close call)." + known_limit(alt, ctx, always=True))
+        return (f"No priority or requirement this input states separates {_short(alt.item)} from {wn} ({stated}); {wn} rates higher only on "
+                f"priorities this input leaves at the neutral 3 ({neutral_names})." + known_limit(alt, ctx, always=True))
     if gaps and not high:
         p = gaps[0][1][5:]
         return (f"Close on everything this input rates important; the remaining difference is a low priority "
@@ -351,7 +393,7 @@ def why_not(win, alt, ctx=None):
     # the largest term always leads (a small one in a close call); a second one only when it is itself >= 1 point
     keys = [k for g, k in gaps[:2] if g >= 1 or k == gaps[0][1]] if gaps else []
     prios = [k for k in keys if k.startswith("prio_")]
-    reasons = [r for r in (_gap_reason(win, alt, k, ctx, prios[1:] if k == (prios or [None])[0] else ())
+    reasons = [r for r in (_gap_reason(win, alt, k, ctx, prios[1:] if k == (prios or [None])[0] else (), lead=(k == keys[0]))
                            for k in keys if not (k in prios[1:])) if r]
     fits = f"{wn} fits better: "
     if len(reasons) > 1 and reasons[0].startswith(fits) and reasons[1].startswith(fits):  # one "fits better", two reasons
@@ -361,7 +403,8 @@ def why_not(win, alt, ctx=None):
     if not reasons:
         return (f"Many small differences, none decisive, separate it from {wn} (close call)."
                 + known_limit(alt, ctx, always=True))
-    return cap("; ".join(reasons)) + (" (close call)" if total < CLOSE_CALL else "") + "." + known_limit(alt, ctx)
+    return (cap("; ".join(reasons)) + (" (close call)" if total < CLOSE_CALL else "") + "."
+            + known_limit(alt, ctx, skip="learning curve" if any("learning curve" in r for r in reasons) else ""))
 
 
 def excluded_text(a, ctx):
@@ -776,7 +819,8 @@ def _recommend(req, assumptions, sid):
             W("RTO_BELOW_FAILOVER", "warning", f"RTO {rto} min leaves almost no time for failover, DNS and connection-pool recovery; "
               "rehearse a failover and measure it before promising this, or relax the target.", ["requirements.rto_minutes"])
         if "rbi_localisation" in ctx["compliance"] and db_c.vkey != "self":
-            db_cmp["justification"] += f" Automated backups and snapshots stay in {db_region or 'the Indian region'} (no cross-region copies), as RBI localisation requires."
+            db_cmp["justification"] += (f" Automated backups and snapshots stay in India, in {db_region or 'the Indian region'}; if a copy is enabled, keep it in a second Indian region"
+                                         f"{' such as ' + SECOND_REGION[db_c.vkey]['india'] if db_c.vkey in SECOND_REGION else ''}, as RBI localisation requires storage only in India.")
             db_cmp["driven_by"] = order_paths(db_cmp["driven_by"] + ["compliance"])
         if ctx["desc"]["gps"] and db_c.id in ("postgresql", "supabase"):
             db_cmp["justification"] += " GPS coordinates are stored as PostGIS geography points, so area and distance queries run in the database."
@@ -1686,7 +1730,7 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         clo, chi = s["_cost"][t]
         name = short(s["choice"])
         if chi:
-            add(name, clo, chi, f"{s['layer']}: {name} {{r}}." + s.get("_note", ""))
+            add(s.get("_label", name), clo, chi, f"{s['layer']}: {name} {{r}}." + s.get("_note", ""))
         elif s["deployment"] == "self_hosted" and not s["choice"].startswith("Existing"):
             # judge B4: a self-hosted tool is never silently free
             if onprem and "existing" in s["choice"].lower():
@@ -1774,7 +1818,7 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
             plo, phi = 0.05, 0.06
             txt = "the Twilio Verify reference rate of ~$0.05 per verification plus the SMS fee (the chosen SMS aggregator's price is not in the knowledge base)"
         olo, ohi = round(logins * 0.3 * plo), round(logins * 1.0 * phi)
-        items.append((ohi, olo, "Phone OTP"))
+        items.append((ohi, olo, "Phone OTP SMS fees"))
         lines.append(f"Phone OTP: {logins:,} users x 0.3-1.0 OTP logins/month at {txt}{'' if 'reference rate' in txt else ' per SMS'} = ${olo:,}-{ohi:,}/month (long-lived sessions keep OTPs rare).")
     tp = ctx["req"]["scale.traffic_pattern"]
     if tp in ("spiky", "seasonal") and host.get("scaling") in ("request", "instances"):

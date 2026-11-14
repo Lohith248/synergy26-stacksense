@@ -25,7 +25,7 @@
         },
         {
           "choice": "SvelteKit",
-          "why_not": "Needs a server runtime for a site that does not (project.type=content_site); with priorities.cost=5, Astro is cheaper to run. Known limit of SvelteKit: smaller hiring pool than React."
+          "why_not": "An app framework, more machinery than a site that needs no server (project.type=content_site); with priorities.cost=5, Astro is cheaper to run. Known limit of SvelteKit: smaller hiring pool than React."
         }
       ],
       "tradeoffs": [

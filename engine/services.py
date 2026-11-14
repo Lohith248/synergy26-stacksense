@@ -196,7 +196,7 @@ def second_db_reason(ctx, e, pat, db):
             + (f"so it is left untouched ({engine} is also the engine of the new database; the new tables are a separate database)"
                if same else
                f"so it is left untouched and the new tables go to {db['_variant']}, which scored best for this input")
-            + "; to use it as the only database, write 'keep' in its entry, and to migrate off it write 'retire'.")
+            + "; if the existing database must stay as the only database, say so in infrastructure.existing_systems, and to migrate off it, say it will be retired.")
 
 
 def payment_location(gateway, prov, ctx):
@@ -518,6 +518,7 @@ def build(ctx, host, backend, db, mobile, warn):
                                # (R5 verified: Lite 10,000 MAU free, then $0.0055/MAU; MAU = 30-100% of users, as for OTP logins)
                                [[round(max(0, ctx["users"] * 0.3 - 10000) * 0.0055), round(max(0, ctx["users"] - 10000) * 0.0055)]] * 4,
                                ["aws-cognito-pricing", "aws-sns-sms"] + (["trai-dlt"] if india else []), loc))
+                out[-1]["_label"] = "Amazon Cognito monthly-active-user charges"  # J1: the budget warning names it apart from the SMS fees line
                 out[-1]["_note"] = (" Cognito Lite: 10,000 MAU free, then $0.0055 per MAU (Amazon Cognito pricing); "
                                     "SMS is counted once, in the Phone OTP line.")
             elif india:
@@ -528,7 +529,7 @@ def build(ctx, host, backend, db, mobile, warn):
                                dp + res_path + ([] if in_res else ["compliance"]),
                                [("Firebase Authentication (phone)", "stores identity data in Google's global auth service" + (", conflicting with India residency" if in_res else "; acceptable, but costlier per SMS at scale")),
                                 ("Twilio Verify", "about $0.05 per verification plus SMS, far above Indian SMS rates")],
-                               ["DLT registration of sender ID/template before launch", "OTP needs network at login; sessions must stay valid offline"],
+                               ["DLT registration of sender ID/template before launch", "OTP needs network at login" + ("; sessions must stay valid offline" if req["requirements.offline_support"] else "")],
                                "saas", "msg91", False, Z, ["msg91-otp", "trai-dlt", "firebase-pricing", "twilio-verify"]))
             else:
                 out.append(svc("auth", "Twilio Verify (SMS OTP) + backend-issued sessions",
@@ -570,7 +571,7 @@ def build(ctx, host, backend, db, mobile, warn):
                                 if kc else f"{auth} login for ~{ctx['users']:,} users stays inside the application: users live in your own database{' (in-region)' if loc else ''}, so no extra vendor or data transfer."
                                 + (SOCIAL_NOTE if social else "")),
                                dp + (["team.languages"] if backend else []),
-                               [("Auth0 / Clerk (SaaS)", f"per-active-user pricing across ~{ctx['users']:,} users" + (f" and identity data outside {res_name(ctx)}" if loc else "")),
+                               [("Auth0 / Clerk (SaaS)", f"per-active-user pricing across ~{ctx['users']:,} users" + (f" and a second vendor holding identity data, whose hosting region must be confirmed against {res_name(ctx)}" if loc else "")),
                                 (f"Hand-written auth in {kl}", "security-sensitive code the team would have to maintain") if kc else
                                 ("Keycloak", f"a separate service to run, patch and upgrade for a team of {ctx['size']}" + ("" if ctx["devops"] else " with no DevOps engineer"))],
                                ["You run and upgrade Keycloak"] if kc else ["You own password hashing, reset e-mails and MFA setup"],
@@ -825,7 +826,8 @@ def build(ctx, host, backend, db, mobile, warn):
             why.append("leaderboards and matchmaking queues on sorted sets")
         out.append(svc("cache", c, cap_first("; ".join(why)) + " (cache and pub/sub layer).",
                        ["scale.peak_concurrent_users"] + (["scale.workload"] if read_hot else []) + (["requirements.realtime"] if req["requirements.realtime"] and not managed_rt else []) + (["priorities.performance"] if ctx["prio"]["performance"] >= 5 else []),
-                       [("Redis (7.4+)", "7.4-7.8 are source-available (RSALv2/SSPLv1) and Redis 8+ adds an AGPLv3 option (copyleft for network use); Valkey keeps the BSD licence"),
+                       [(("Self-run Valkey or Redis container", "the team would patch, back up and fail over the cache itself; Azure Managed Redis is the managed Azure service") if p == "azure" else
+                         ("Redis (7.4+)", "7.4-7.8 are source-available (RSALv2/SSPLv1) and Redis 8+ adds an AGPLv3 option (copyleft for network use); Valkey keeps the BSD licence")),
                         ("Azure Cache for Redis", "being retired (Sept 2028); Azure Managed Redis is the replacement") if p == "azure" else ("No cache", f"the database absorbs every hot read from ~{ctx['peak']:,} concurrent users and there is no cross-instance pub/sub")],
                        ["Another stateful component to size and monitor"], "managed" if prov in ("aws", "azure", "gcp") else "self_hosted", prov, False, cost, src))
 
@@ -1029,7 +1031,8 @@ def build(ctx, host, backend, db, mobile, warn):
             if not store or mixed:
                 out.append(svc("payments", name + (" — " + "; ".join(feats) if feats else ""), why,
                                dp + (["project.description"] if (feats or d["upi"]) else []) + (["compliance"] if pci or via_compliance else []) + res_path,
-                               alts, ["Per-transaction fees (~2% domestic cards) are charged on revenue, not in the infrastructure band",
+                               alts, [("Per-transaction fees (~2% on domestic cards at Razorpay's standard pricing) are charged on revenue, not in the infrastructure band" if india else
+                                       "Per-transaction fees (a percentage plus a fixed amount per charge, set by the gateway's price list for your country) are charged on revenue, not in the infrastructure band"),
                                       "Reconcile from the provider's reports; add a backend with signed webhooks when the site must react to a payment (accounts, entitlements, its own receipts)"
                                       if hosted else "Webhook handling must be idempotent"] + ([home[2]] if home_ok else []),
                                "saas", prov, True, Z, src, "india" if india else (home[0] if home_ok else None)))
@@ -1304,7 +1307,7 @@ def build(ctx, host, backend, db, mobile, warn):
         out.append(svc("other", f"Offline-first sync: {local}, outbox + idempotent sync API",
                        "Must work without connectivity: " + "; ".join(bits) + ".",
                        ["requirements.offline_support"] + (["project.description"] if (d["media"] or d["low_bandwidth"] or cons.append_only(ctx)) else []),
-                       [("Firebase Firestore offline cache", "convenient but ties data to Google's global service and its pricing"),
+                       [("Firebase Firestore offline cache", "convenient, but adds Google as a second data processor with per-read/write pricing" + (f"; its database location must be chosen to match {res_name(ctx)}" if loc else "")),
                         ("Online-only app", "fails the stated offline requirement")],
                        ["Conflict resolution rules must be agreed with field teams", "Device storage limits on low-end phones"],
                        "client", "neutral", True, Z, lsrc, "device"))

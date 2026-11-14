@@ -23,7 +23,7 @@
         },
         {
           "choice": "Ionic Capacitor (web app wrapped)",
-          "why_not": "Heavier runtime on low-end phones (project.description); with priorities.performance=3 (neutral), React Native is faster at runtime. Known limit of Ionic Capacitor: WebView performance on low-end devices."
+          "why_not": "Heavier runtime on low-end phones (project.description); React Native fits better: mature on-device storage and background sync (requirements.offline_support=true). Known limit of Ionic Capacitor: WebView performance on low-end devices."
         }
       ],
       "tradeoffs": [
@@ -71,7 +71,7 @@
       "alternatives": [
         {
           "choice": "Node.js 24 LTS + NestJS (TypeScript)",
-          "why_not": "With priorities.time_to_market=4 and priorities.security=3 (neutral), Python 3.13 + Django 5.2 LTS is faster to deliver with and stronger on security. Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
+          "why_not": "With priorities.time_to_market=4, Python 3.13 + Django 5.2 LTS is faster to deliver with; Node.js 24 LTS + NestJS's learning curve is 3/5 for a mixed team (team.experience=mixed). Known limit of Node.js 24 LTS + NestJS: more boilerplate than Express."
         },
         {
           "choice": "Python 3.13 + FastAPI",
@@ -79,7 +79,7 @@
         }
       ],
       "tradeoffs": [
-        "WebSockets need Django Channels"
+        "Convention-heavy framework: less flexible than micro-frameworks for unusual architectures"
       ],
       "kb_id": "python-django",
       "score_margin": 1.8,
@@ -117,7 +117,7 @@
         "label": "medium",
         "basis": "stability 0.87 (moderate) over 54 priority vectors; score margin 1.8 over the runner-up."
       },
-      "contrast": "Python 3.13 + Django 5.2 LTS rather than Node.js 24 LTS + NestJS (TypeScript). With priorities.time_to_market=4 and priorities.security=3 (neutral), Python 3.13 + Django 5.2 LTS is faster to deliver with and stronger on security. Trade-off accepted: WebSockets need Django Channels.",
+      "contrast": "Python 3.13 + Django 5.2 LTS rather than Node.js 24 LTS + NestJS (TypeScript). With priorities.time_to_market=4, Python 3.13 + Django 5.2 LTS is faster to deliver with; Node.js 24 LTS + NestJS's learning curve is 3/5 for a mixed team (team.experience=mixed). Trade-off accepted: Convention-heavy framework: less flexible than micro-frameworks for unusual architectures.",
       "what_would_change": [
         {
           "edit": "requirements.realtime: false -> true",
@@ -142,7 +142,7 @@
       "alternatives": [
         {
           "choice": "Cloud SQL for MySQL 8.4",
-          "why_not": "With priorities.maintainability=4 and priorities.security=3 (neutral), Cloud SQL for PostgreSQL 17 is easier to maintain and stronger on security. Known limit of Cloud SQL for MySQL 8.4: 8.0 moved to Sustaining Support (Apr 2026); no row-level security."
+          "why_not": "With priorities.maintainability=4, Cloud SQL for PostgreSQL 17 is easier to maintain. Known limit of Cloud SQL for MySQL 8.4: 8.0 moved to Sustaining Support (Apr 2026); no row-level security."
         },
         {
           "choice": "Supabase Postgres",
@@ -182,7 +182,7 @@
         "label": "high",
         "basis": "stability 1.00 (robust) over 54 priority vectors; score margin 5.6 over the runner-up."
       },
-      "contrast": "Cloud SQL for PostgreSQL 17 rather than Cloud SQL for MySQL 8.4. With priorities.maintainability=4 and priorities.security=3 (neutral), Cloud SQL for PostgreSQL 17 is easier to maintain and stronger on security. Trade-off accepted: Vertical write scaling; sharding needs extensions.",
+      "contrast": "Cloud SQL for PostgreSQL 17 rather than Cloud SQL for MySQL 8.4. With priorities.maintainability=4, Cloud SQL for PostgreSQL 17 is easier to maintain. Trade-off accepted: Vertical write scaling; sharding needs extensions.",
       "what_would_change": []
     },
     "hosting": {
@@ -210,7 +210,7 @@
       ],
       "tradeoffs": [
         "Cold starts unless min instances are paid for",
-        "Per-request timeout bounds long jobs and WebSocket connections (clients must reconnect)"
+        "Per-request timeout bounds long jobs"
       ],
       "kb_id": "gcp-cloud-run",
       "score_margin": 1.5,
@@ -428,7 +428,7 @@
         "alternatives": [
           {
             "choice": "Firebase Firestore offline cache",
-            "why_not": "convenient but ties data to Google's global service and its pricing"
+            "why_not": "convenient, but adds Google as a second data processor with per-read/write pricing; its database location must be chosen to match India"
           },
           {
             "choice": "Online-only app",

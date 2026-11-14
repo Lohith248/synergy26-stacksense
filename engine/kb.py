@@ -5,9 +5,18 @@ import os
 _DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "kb")
 
 
+def _no_duplicate_keys(pairs):
+    """A repeated key silently drops the earlier entry (J1: four source ids were duplicated), so it is a load error."""
+    keys = [k for k, _ in pairs]
+    dup = sorted({k for k in keys if keys.count(k) > 1})
+    if dup:
+        raise ValueError(f"duplicate key(s) in the knowledge base: {', '.join(dup)}")
+    return dict(pairs)
+
+
 def _load(name):
     with open(os.path.join(_DIR, name), encoding="utf-8") as f:
-        return json.load(f)
+        return json.load(f, object_pairs_hook=_no_duplicate_keys)
 
 
 TECH = _load("technologies.json")
