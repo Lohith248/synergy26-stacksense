@@ -1599,7 +1599,8 @@ def contradictions(ctx, W, assumptions, host, backend, db_self=False):
           "routing; reads are local, writes reach the primary region. The engine cannot measure it — load-test from each continent before launch.",
           ["requirements.p95_latency_ms"])
     elif lat is not None and lat <= 100:
-        W("LATENCY_TARGET_UNMEASURED", "info", f"p95 {lat} ms is achievable only with users near the {host['name']} region and no cross-region calls; the engine cannot measure it — load-test before launch.",
+        W("LATENCY_TARGET_UNMEASURED", "info", f"p95 {lat} ms is achievable only with users near " + ("your own servers" if host["kind"] == "onprem" else f"the {host['name']} region")  # p3: on-prem has no region
+          + f" and no cross-region calls; the engine cannot measure it — load-test before launch.",
           ["requirements.p95_latency_ms"])
     if (lat is not None and lat < RELAX["latency_ms"] and req["requirements.realtime"] and ctx["geo"] in (None, "global") and ctx["needs_backend"]
             and not ctx["local_first"] and not ctx.get("active_active") and not any(w["code"] == "LATENCY_FAR_USERS" for w in W.items)):

@@ -328,11 +328,16 @@ def llm_description_constraints(ctx, ml, selfh, model, req, warn):
     adv = [k for k in ("legal", "medical") if k in found]
     if adv:
         kind = "legal" if adv[0] == "legal" else "medical"
+        pro = professional_users(req["project.description"], kind)
         warn("LLM_ADVICE_DISCLAIMER", "warning",
-             f"project.description describes {kind} guidance (\"{found[adv[0]]}\"). A language model can state wrong or outdated rules with confidence: show a "
-             f"'not {kind} advice' notice next to every answer, show the source passages the answer rests on, and give a route to a qualified {'lawyer' if kind == 'legal' else 'clinician'}"
-             "; test answers against the source material before launch.", ["project.description", "requirements.ml_features"])
-        extra.append(f"Answers carry a 'not {kind} advice' notice and a route to a qualified person (see LLM_ADVICE_DISCLAIMER).")
+             f"project.description describes {kind} guidance (\"{found[adv[0]]}\"). A language model can state wrong or outdated rules with confidence: "
+             + (f"the users are {pro}, so mark every answer as a draft they verify, show the source passages the answer rests on, and log which sources were shown"
+                if pro else
+                f"show a 'not {kind} advice' notice next to every answer, show the source passages the answer rests on, and give a route to a qualified "
+                f"{'lawyer' if kind == 'legal' else 'clinician'}")
+             + "; test answers against the source material before launch.", ["project.description", "requirements.ml_features"])
+        extra.append(f"Answers are marked as drafts for the {pro} to verify against the cited sources (see LLM_ADVICE_DISCLAIMER)." if pro else
+                     f"Answers carry a 'not {kind} advice' notice and a route to a qualified person (see LLM_ADVICE_DISCLAIMER).")
         paths.append("project.description")
     if extra:
         ml["justification"] += " " + " ".join(extra)
@@ -404,6 +409,15 @@ def security_line(ctx, host, rtxt, loc, svc_, front_door_paid=False):
            "The cost line is a planning estimate (provider list prices for these services were not read), driven mainly by request volume.")
     return svc_("other", name, why, driven, [alt], ["Rule tuning is ongoing work: start WAF rules in count mode, then block", "Key and secret rotation must be scheduled and tested"],
                 "managed", p, True, cost, src, loc)
+
+
+# p3: the description names the professionals as the users ("Lawyers upload ...", "for hospital doctors"): no "see a lawyer" route for lawyers
+PRO_USERS = {"legal": r"lawyers|attorneys|advocates|paralegals|legal teams|law firms", "medical": r"doctors|clinicians|physicians|nurses"}
+
+
+def professional_users(desc, kind):
+    m = re.search(r"(?:^|[.;]\s+|\bfor (?:[\w-]+ ){0,2})(" + PRO_USERS[kind] + r")\b", desc or "", re.I)
+    return m.group(1).lower() if m else ""
 
 
 def job_events(desc):

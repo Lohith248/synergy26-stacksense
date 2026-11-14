@@ -186,5 +186,36 @@ class SingleSiteWording(unittest.TestCase):
         self.assertIn("one region of managed services", m)
 
 
+class JudgeBText(unittest.TestCase):
+    """B-15: professionals are not told to see a professional; B-14: on-premises hosts have no region."""
+
+    def test_professional_users_detected(self):
+        from engine.services import professional_users
+        self.assertEqual(professional_users("Lawyers upload contracts and ask questions.", "legal"), "lawyers")
+        self.assertEqual(professional_users("A search tool for in-house legal teams.", "legal"), "legal teams")
+        self.assertEqual(professional_users("Assistant for hospital doctors on drug interactions.", "medical"), "doctors")
+        self.assertEqual(professional_users("Video visits between patients and doctors.", "medical"), "")
+        self.assertEqual(professional_users("Citizens ask about tenancy law.", "legal"), "")
+
+    def test_disclaimer_for_lawyers_is_not_see_a_lawyer(self):
+        def msg(desc):
+            out = run(**{"project.description": desc, "requirements.ml_features": "llm_rag"})
+            return " ".join(w["message"] for w in out["warnings"] if w["code"] == "LLM_ADVICE_DISCLAIMER")
+        m = msg("Lawyers upload contracts and ask questions in natural language; answers must cite the source paragraphs.")
+        self.assertIn("the users are lawyers", m)
+        self.assertNotIn("qualified lawyer", m)
+        m = msg("Citizens ask questions about tenancy law in natural language; answers cite the statute.")
+        self.assertIn("route to a qualified lawyer", m)
+
+    def test_on_prem_latency_has_no_region(self):
+        def msg(**kw):
+            out = run(**{"requirements.p95_latency_ms": 80, **kw})
+            return " ".join(w["message"] for w in out["warnings"] if w["code"] == "LATENCY_TARGET_UNMEASURED")
+        m = msg(**{"infrastructure.deployment_model": "on_premise"})
+        self.assertIn("users near your own servers", m)
+        self.assertNotIn("region and", m)
+        self.assertIn(" region and no cross-region", msg(**{"infrastructure.cloud_preference": "aws"}))
+
+
 if __name__ == "__main__":
     unittest.main()
