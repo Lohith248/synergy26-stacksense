@@ -29,7 +29,7 @@
         }
       ],
       "tradeoffs": [
-        "Client-rendered pages are weak for SEO"
+        "The first load waits for the JavaScript bundle, so page weight matters on slow devices"
       ],
       "deployment": "client",
       "provider": "neutral",
@@ -60,7 +60,7 @@
         "label": "medium",
         "basis": "stability 0.87 (moderate) over 52 priority vectors."
       },
-      "contrast": "React (Vite SPA) (web) rather than Blazor (ASP.NET Core 10). With priorities.time_to_market=5, React is faster to deliver with; it fits better: rich interactive screens for an internal tool (project.type=internal_tool). Trade-off accepted: Client-rendered pages are weak for SEO.",
+      "contrast": "React (Vite SPA) (web) rather than Blazor (ASP.NET Core 10). With priorities.time_to_market=5, React is faster to deliver with; it fits better: rich interactive screens for an internal tool (project.type=internal_tool). Trade-off accepted: The first load waits for the JavaScript bundle, so page weight matters on slow devices.",
       "what_would_change": [
         {
           "edit": "requirements.seo_critical: false -> true",
@@ -95,7 +95,7 @@
         }
       ],
       "tradeoffs": [
-        "Smaller open-source hosting choice outside Azure"
+        "Smaller data-science and AI library ecosystem than Python"
       ],
       "kb_id": "dotnet-aspnet",
       "score_margin": 9.2,
@@ -122,7 +122,7 @@
         "label": "high",
         "basis": "stability 1.00 (robust) over 52 priority vectors; score margin 9.2 over the runner-up."
       },
-      "contrast": ".NET 10 LTS + ASP.NET Core rather than Node.js 24 LTS + NestJS (TypeScript). .NET 10 LTS + ASP.NET Core fits better: first-class SQL Server driver/ORM (infrastructure.existing_systems); with priorities.security=4, it is stronger on security. Trade-off accepted: Smaller open-source hosting choice outside Azure.",
+      "contrast": ".NET 10 LTS + ASP.NET Core rather than Node.js 24 LTS + NestJS (TypeScript). .NET 10 LTS + ASP.NET Core fits better: first-class SQL Server driver/ORM (infrastructure.existing_systems); with priorities.security=4, it is stronger on security. Trade-off accepted: Smaller data-science and AI library ecosystem than Python.",
       "what_would_change": []
     },
     "database": {
@@ -146,7 +146,7 @@
         }
       ],
       "tradeoffs": [
-        "Licence cost outside Azure SQL; Windows-centric tooling"
+        "T-SQL and SQL Server features do not port to other engines without rewriting queries; licence cost applies outside Azure SQL"
       ],
       "kb_id": "sqlserver",
       "score_margin": 6.7,
@@ -176,7 +176,7 @@
         "label": "high",
         "basis": "stability 1.00 (robust) over 52 priority vectors; score margin 6.7 over the runner-up."
       },
-      "contrast": "Azure SQL Database (serverless/General Purpose) rather than Azure Database for PostgreSQL – Flexible Server 17. Azure SQL Database fits better: matches the existing On-prem SQL Server 2019 the team already runs (infrastructure.existing_systems); EF Core + SQL Server is the default .NET pairing (team.languages=csharp,javascript,sql). Trade-off accepted: Licence cost outside Azure SQL; Windows-centric tooling.",
+      "contrast": "Azure SQL Database (serverless/General Purpose) rather than Azure Database for PostgreSQL – Flexible Server 17. Azure SQL Database fits better: matches the existing On-prem SQL Server 2019 the team already runs (infrastructure.existing_systems); EF Core + SQL Server is the default .NET pairing (team.languages=csharp,javascript,sql). Trade-off accepted: T-SQL and SQL Server features do not port to other engines without rewriting queries; licence cost applies outside Azure SQL.",
       "what_would_change": []
     },
     "hosting": {
@@ -402,7 +402,7 @@
       {
         "layer": "other",
         "choice": "Integration with existing On-prem SQL Server 2019 via App Service Hybrid Connection (outbound 443 relay, no inbound ports)",
-        "justification": "Leave it running as it is and read the data the new application needs through a narrow data-access layer or read API; new tables go in the new database, not in the existing server. The new application keeps its own tables in Azure SQL Database (serverless/General Purpose) and reads the existing data through App Service Hybrid Connection (outbound 443 relay, no inbound ports). A second database exists only because infrastructure.existing_systems lists it without saying it must stay or be retired, so it is left untouched (SQL Server is also the engine of the new database; the new tables are a separate database); to use it as the only database, write 'keep' in its entry, and to migrate off it write 'retire'.",
+        "justification": "Leave it running as it is and read the data the new application needs through a narrow data-access layer or read API; new tables go in the new database, not in the existing server. The new application keeps its own tables in Azure SQL Database (serverless/General Purpose) and reads the existing data through App Service Hybrid Connection (outbound 443 relay, no inbound ports). A second database exists only because infrastructure.existing_systems lists it without saying it must stay or be retired, so it is left untouched (SQL Server is also the engine of the new database; the new tables are a separate database); if the existing database must stay as the only database, say so in infrastructure.existing_systems, and to migrate off it, say it will be retired.",
         "driven_by": [
           "infrastructure.existing_systems"
         ],

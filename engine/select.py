@@ -420,7 +420,10 @@ def database_candidates(ctx, host, backend):
         if backend["id"] == "dotnet-aspnet" and d["id"] == "sqlserver":
             c.add("synergy", 2.5, "team.languages", "EF Core + SQL Server is the default .NET pairing")
         if ctx["res_key"] and vkey == "any":
-            c.add("vendor", -2, "infrastructure.data_residency", "adds a separate vendor whose region must also be pinned")
+            # J1: cite the input that pins the region: the residency field, else the description's stated place, else the compliance regime
+            res_path = ("infrastructure.data_residency" if req["infrastructure.data_residency"] != "none"
+                        else "project.description" if (ctx["res_stated"] or {}).get("pin") else "compliance")
+            c.add("vendor", -2, res_path, "adds a separate vendor whose region must also be pinned")
         cands.append(c)
     return cands
 
@@ -462,7 +465,7 @@ def web_candidates(ctx, backend):
                   "server-rendered/static HTML that search engines index" if f["seo"] >= 4 else "client-rendered pages index poorly")
         if not ctx["needs_backend"]:
             c.add("static", 5 if f["kind"] == "static" else -3, "project.type",
-                  "pre-built static pages, no server needed" if f["kind"] == "static" else "needs a server runtime for a site that does not")
+                  "pre-built static pages, no server needed" if f["kind"] == "static" else "an app framework, more machinery than a site that needs no server")
         else:
             c.add("app", (f["app"] - 3) * 3.5, "project.type",
                   f"rich interactive {'screens' + for_noun(ctx) if type_noun(ctx) else 'app screens'}" if f["app"] >= 4
