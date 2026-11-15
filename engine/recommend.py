@@ -527,6 +527,7 @@ RELAX = {"availability": "99.9",   # availability the stack is sized for when AV
          "pilot_users": 5000,      # scale the stack is priced for when SCALE_VS_BUDGET is critical: the 'small' entry tier (<= 5,000 users,
          "pilot_peak": 200,        # <= 200 concurrent), the largest scale a budget under SCALE_BUDGET_USD can plausibly fund
          "latency_ms": 50}         # p95 below this on realtime traffic with unspecified/global users is flagged LATENCY_TARGET_VS_REACH
+HA_FLEET_TIER = 3                 # planning heuristic: from this scale tier (large) an instance-scaled multi-zone host's band is a fleet of 2+ instances
 AVAIL_TEAM_NO_DEVOPS = 5          # planning heuristic: a team of up to this many people without DevOps gets AVAILABILITY_VS_TEAM at 99.95%/99.99%
 USERS_IMPLAUSIBLE = 10_000_000_000  # planning heuristic: more users than this is more than the number of people on Earth (input typo check)
 SCALE_BUDGET_USD = 100             # planning heuristic: below this monthly budget a 500,000-user / 20,000-concurrent product is a critical conflict
@@ -1916,11 +1917,18 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
     ci = "Central India" if ctx["res_key"] == "india" else "Central India reference rate; other regions are priced differently"
     ci_rate = "Central India rate" if ctx["res_key"] == "india" else ci
     tier_txt = f" at the '{cx.TIER_NAMES[t]}' tier."
-    if host.get("plan_ha") and host["plan_ha"] in host["name"]:
+    plan_ha = bool(host.get("plan_ha") and host["plan_ha"] in host["name"])
+    if plan_ha:
         # zone redundancy needs Premium v2-v4 with at least two instances (Microsoft reliability guide); price per Premium instance
         hlo, hhi = host["plan_ha_cost"]
         tier_txt = (f" per instance (P0v3 about $60 at $0.082/hour Linux, {ci}, Azure Retail Prices API 12 Nov 2026, up to P1v3 about $113-130); "
                     "zone redundancy is available only on Premium plans with at least two instances.")
+        if ha:  # q3 item 4: the two instances are one hosting line, not the hosting line plus a "second app instance" line
+            hlo, hhi = 2 * hlo, 2 * hhi
+            tier_txt = (" for two instances across zones (the redundancy for the availability target is in this line), $60-130/month each"
+                        + tier_txt[len(" per instance"):])
+    # q3 item 4: a hosting choice that already states 2+ instances across zones is costed once
+    fleet_ha = ha and not plan_ha and host["kind"] not in ("static", "onprem") and host.get("multi_zone") and host.get("scaling") == "instances"         and (re.search(r"2\+ instances|across zones|multi-AZ|zone-redundant", host["name"]) or t >= HA_FLEET_TIER)
     if rf.applies(ctx):  # A18: transfer, not compute, is the cost to watch for a heavily read static site
         elo, ehi, ulo, uhi = rf.egress(ctx)
         if not rf.metered(host):
@@ -1991,6 +1999,12 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         lines.append(("Availability ≥99.95%" if ha_paths(ctx["sreq"])[0] == "requirements.availability" else cap(" and ".join(ha_targets(ctx["sreq"]))))
                      + f": {host['name']} services are regional and replicated across the zones of their region, so no second copy of the hosting line is billed; "
                      "the request-scaled hosting line above already carries the instances the peak needs.")
+    elif ha and (plan_ha or fleet_ha):
+        lines.append(("Availability ≥99.95%" if ha_paths(ctx["sreq"])[0] == "requirements.availability" else cap(" and ".join(ha_targets(ctx["sreq"]))))
+                     + f": the hosting line already includes it: {short(host['name'])} runs "
+                     + ("two instances across availability zones, priced in that line" if plan_ha else
+                        f"2+ instances across availability zones, and the '{cx.TIER_NAMES[t]}' band above is sized for that fleet")
+                     + ", so no second copy of the hosting line is billed.")
     elif ha:
         one_site = single_site(ctx, host)
         add("Second app instance (availability)", hlo, hhi,

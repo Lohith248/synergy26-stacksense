@@ -210,5 +210,44 @@ class DatabaseVocabulary(unittest.TestCase):
         self.assertIn("WAL", json.dumps(out["warnings"]))
 
 
+def cost_lines(out):
+    return out["estimated_monthly_cost_usd"]["assumptions"]
+
+
+class HaHostingCostedOnce(unittest.TestCase):
+    """Item 4: a hosting choice that already runs 2+ instances across zones gets no second 'app instance' cost line."""
+
+    def assertOnce(self, out):
+        lines = cost_lines(out)
+        self.assertFalse([l for l in lines if "counted again" in l], lines)
+        self.assertTrue([l for l in lines if "the hosting line already includes it" in l], lines)
+
+    def test_premium_plan_priced_as_two_instances(self):
+        out = run(**{"project.type": "saas_b2b", "infrastructure.cloud_preference": "azure", "team.languages": ["csharp"],
+                     "requirements.availability": "99.95", "project.description": "Visitor sign-in for office buildings."})
+        self.assertIn("2+ instances", out["stack"]["hosting"]["choice"])
+        self.assertOnce(out)
+        host = next(l for l in cost_lines(out) if l.startswith("Hosting"))
+        self.assertIn("$120-260/month for two instances across zones", host)
+
+    def test_fleet_band_at_medium_tier(self):
+        out = run(**{"project.type": "ecommerce", "infrastructure.cloud_preference": "azure", "team.languages": ["csharp"], "requirements.availability": "99.95",
+                     "scale.users_12_months": 150000, "scale.peak_concurrent_users": 3000, "budget.monthly_infra_usd": 5000,
+                     "project.description": "Bicycle spare parts shop."})
+        self.assertOnce(out)
+
+    def test_fleet_band_at_large_tier(self):
+        out = run(**{"project.type": "marketplace", "infrastructure.cloud_preference": "aws", "requirements.availability": "99.99",
+                     "scale.users_12_months": 2000000, "scale.peak_concurrent_users": 40000, "budget.monthly_infra_usd": 30000,
+                     "project.description": "Home cleaning marketplace with bookings."})
+        self.assertOnce(out)
+
+    # must-not-fire: a one-instance band at a small tier still adds the second instance
+    def test_small_band_keeps_second_instance(self):
+        out = run(**{"project.type": "fintech", "infrastructure.cloud_preference": "aws", "requirements.availability": "99.95",
+                     "project.description": "Receipt capture for freelancers."})
+        self.assertTrue([l for l in cost_lines(out) if "second app instance in another zone" in l], cost_lines(out))
+
+
 if __name__ == "__main__":
     unittest.main()

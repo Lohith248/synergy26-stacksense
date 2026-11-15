@@ -155,9 +155,13 @@ class AvailabilityBilledOnce(unittest.TestCase):
                 self.assertTrue([x for x in a if "replicated across the zones of their region" in x], typ)
 
     def test_instance_hosts_keep_the_second_instance(self):  # must not fire
+        # q3 item 4: Azure's zone-redundant Premium v3 plan is two instances priced in the hosting line, so it has no second line
         for cloud in ("aws", "azure"):
             a = ha_run("web_app", cloud)["estimated_monthly_cost_usd"]["assumptions"]
-            self.assertTrue([x for x in a if "the hosting line counted again" in x], cloud)
+            if cloud == "azure":
+                self.assertTrue([x for x in a if "the hosting line already includes it" in x], cloud)
+            else:
+                self.assertTrue([x for x in a if "the hosting line counted again" in x], cloud)
             self.assertFalse([x for x in a if "replicated across the zones of their region" in x], cloud)
 
 
