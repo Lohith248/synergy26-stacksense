@@ -11,6 +11,7 @@ from . import refresh as rf
 from . import descflags as dfl
 from . import compnotes as cn
 from . import restransfer as rt
+from . import dbvocab as dbv
 from . import costreal
 from . import rightsize as rs
 from . import select as sl
@@ -910,12 +911,12 @@ def _recommend(req, assumptions, sid):
             # A15: a self-hosted database on your own servers: the standby is a second server, not a managed zone
             hp = ha_paths(sreq)
             db_cmp["justification"] += (f" {cap(' and '.join(ha_targets(sreq)))} {'needs' if len(hp) == 1 else 'need'} a standby database server on separate hardware (a second rack or room) "
-                                        "with streaming replication, continuous WAL archiving and a rehearsed failover; the standby server is counted in the hardware line of the cost band.")
+                                        f"with {dbv.standby(db_c.id)} and a rehearsed failover; the standby server is counted in the hardware line of the cost band.")
             db_cmp["driven_by"] = order_paths(db_cmp["driven_by"] + hp)
         rto, rpo = req["requirements.rto_minutes"], req["requirements.rpo_minutes"]
         if rpo is not None and rpo < 5 and db_c.vkey == "self":
-            W("RPO_NEEDS_REPLICATION", "warning", f"RPO {rpo} min on a self-hosted database: configure streaming replication to a standby server and "
-              "continuous WAL/log archiving; nightly backups alone can lose up to a day of data.", ["requirements.rpo_minutes"])
+            W("RPO_NEEDS_REPLICATION", "warning", f"RPO {rpo} min on a self-hosted database: {dbv.rpo(db_c.id)}; "
+              "nightly backups alone can lose up to a day of data.", ["requirements.rpo_minutes"])
         if rto is not None and rto < 5:
             W("RTO_BELOW_FAILOVER", "warning", f"RTO {rto} min leaves almost no time for failover, DNS and connection-pool recovery; "
               "rehearse a failover and measure it before promising this, or relax the target.", ["requirements.rto_minutes"])
@@ -1117,7 +1118,8 @@ def _recommend(req, assumptions, sid):
 
     # ---- warnings from contradictions and context
     contradictions(ctx, W, assumptions, host, backend,
-                   db_self=bool(db_item and ctx["needs_db"] and not ctx.get("kept_db") and db_c.vkey == "self"))
+                   db_self=bool(db_item and ctx["needs_db"] and not ctx.get("kept_db") and db_c.vkey == "self"),
+                   db_id=db_c.id if db_item and ctx["needs_db"] else None)
     cnotes, cassume = dfl.component_notes(ctx, supporting, [backend_cmp, db_cmp] if ctx["needs_backend"] else [])  # description-only deliverables: quoted notes, no new layer
     for note in cnotes:
         W(*note)
@@ -1378,7 +1380,7 @@ def relax_note(ctx, pctx, host, db_item, db_c, supporting, cost, assumptions):
         if db_c and db_c.vkey not in ("self", "existing") and not sized_ha:
             dropped.append("the zone-redundant standby database (a single-zone instance with automated backups instead)")
         elif db_c and db_c.vkey == "self" and host["kind"] == "onprem" and not sized_ha:
-            dropped.append("the standby database server on separate hardware with streaming replication (and its share of the hardware line)")
+            dropped.append(f"the standby database server on separate hardware with {dbv.replica(db_c.id)} on it (and its share of the hardware line)")
         if not sized_ha and not ctx["local_first"] and host["kind"] not in ("static", "onprem"):
             dropped.append("the second app instance" + ("" if single_site(ctx, host) else " in another zone"))
         assumptions.append(f"Sized for {RELAX['availability']}% availability, not the requested {req['requirements.availability']}% (a solo beginner cannot run "
@@ -1453,7 +1455,7 @@ def single_site(ctx, host):
     return host["regions"].get(loc, "") if loc and loc in host.get("single_site_regions", ()) else ""
 
 
-def contradictions(ctx, W, assumptions, host, backend, db_self=False):
+def contradictions(ctx, W, assumptions, host, backend, db_self=False, db_id=None):
     req = ctx["req"]
     avail = req["requirements.availability"]
     one_site = single_site(ctx, host)
@@ -1461,7 +1463,7 @@ def contradictions(ctx, W, assumptions, host, backend, db_self=False):
         W("SINGLE_SITE_AVAILABILITY", "warning",
           f"{host['name']} in {one_site}: DigitalOcean's regional availability page lists one datacenter for this region and describes no availability zones, so a second "
           f"app server there covers a server failure but not an outage of the site, and the {avail}% target is not met on paper. "
-          + ("Keep a streaming replica of the self-run database on the second server and tested off-site backups, or "
+          + (f"Keep {dbv.replica(db_id)} of the self-run database on the second server and tested off-site backups, or "
              if db_self else "Keep tested off-site backups, or ")
           + "choose a provider with several zones in the residency region if the target is firm."
           if host["provider"] == "digitalocean" else
