@@ -54,7 +54,8 @@ def cognito_band(users):
 def cognito_note(users, staff=False):
     (t1, r1), (_, r2) = COGNITO_TIERS
     mlo, mhi = (round(users * x) for x in MAU_SHARE)
-    return (f" Cognito Lite: {COGNITO_FREE_MAU:,} MAU free, then ${r1} per MAU up to {t1:,} MAU and ${r2} per MAU up to {COGNITO_TIER_READ_TO:,} "
+    return (" Cognito Lite tier (pick Lite when creating the user pool: new pools default to Essentials, $0.015 per monthly active user after "
+            f"the free {COGNITO_FREE_MAU:,}): {COGNITO_FREE_MAU:,} monthly active users (MAU) free,then ${r1} per MAU up to {t1:,} MAU and ${r2} per MAU up to {COGNITO_TIER_READ_TO:,} "
             f"(Amazon Cognito pricing); MAU taken as {MAU_SHARE[0]:.0%}-{MAU_SHARE[1]:.0%} of ~{users:,} {'staff who sign in' if staff else 'users'} = "
             f"{mlo:,}-{mhi:,} MAU (planning heuristic)"
             + (f"; rates above {COGNITO_TIER_READ_TO:,} MAU are not in the knowledge base, so the lower bound counts only the first "

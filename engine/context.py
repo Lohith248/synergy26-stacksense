@@ -375,6 +375,13 @@ def removal_in_text(name_rx, text):
 WRITE_RX = (r"\bread(?:s|ing)?\s*(?:and|&|/)\s*writ\w*|\bread[- ]write\b|\bwrit(?:e|es|ing)\s+(?:\w+\s+){0,3}?(?:back\s+)?(?:to|into)\b"
             r"|\bupdat(?:e|es|ing)\s+(?:records?|rows?|data)\s+in\b")
 _NOT_WRITE_RX = r"read[- ]only|\breport\w*|\breplica\b|\bcopy\b|\bsnapshot\b|\bexport\w*|\bwarehouse\b"
+# p5b M1: a clause that moves the data ('migrate data from the Oracle database', 'until we migrate it to PostgreSQL') never reuses it
+_MIGRATE_RX = r"\bmigrat\w*\s+(?:\w+\s+){0,3}?(?:to|from|off|onto)\b"
+# p5b M1: in a description the database must be the OBJECT of the write wording ('read and write the existing Oracle policy database',
+# 'read/write the existing complaints register (old Oracle 11g DB)'); 'reads ... from Oracle and writes orders to Kafka' does not write Oracle
+_WRITE_VERB = (r"(?:\bread(?:s|ing)?\s*(?:and|&|/)\s*writ\w*(?:\s+(?:to|into|from|in))?|\bread[- ]write(?:\s+access)?(?:\s+(?:to|on|into))?"
+               r"|\bwrit(?:e|es|ing)\s+(?:[\w-]+\s+){0,2}?(?:back\s+)?(?:to|into)"
+               r"|\bupdat(?:e|es|ing)\s+(?:records?|rows?|data)\s+in)")
 
 
 ANON_READERS_RX = (r"\b(?:readers?|visitors?|viewers?|listeners?|the public|audience|citizens?)\s+(?:do not|don't|never|will not|won't|need not|needn't|does not|doesn't)"
@@ -383,7 +390,7 @@ ANON_READERS_RX = (r"\b(?:readers?|visitors?|viewers?|listeners?|the public|audi
 _STAFF = (r"(?:editors?|staff|admins?|administrators?|journalists?|authors?|moderators?|employees?|newsroom|curators?|producers?|officers?"
           r"|reporters?|contributors?)")
 STAFF_LOGIN_RX = r"\b" + _STAFF + r"\b[^.;]{0,40}?\b(?:log ?in|logs ?in|sign ?in|signs ?in|logins?)\b"
-STAFF_COUNT_RX = r"\b(\d{1,5})\s+(?:\w+\s+)?" + _STAFF + r"\b"
+STAFF_COUNT_RX = r"(?<![\d/,.])(\d{1,3}(?:,\d{3})+|\d{1,5})(?![\d/,])\s+(?:\w+\s+)?(" + _STAFF + r")\b"
 STAFF_LOGIN_DEFAULT = 100  # planning heuristic: sign-in users when only staff log in and the description gives no staff count
 
 
@@ -394,10 +401,24 @@ def tier_for(users):
 
 def staff_login_count(desc):
     """The staff count (stated, else STAFF_LOGIN_DEFAULT) when the description says readers stay anonymous and staff log in; else None."""
-    if not (re.search(ANON_READERS_RX, desc) and re.search(STAFF_LOGIN_RX, desc)):
+    if not (re.search(ANON_READERS_RX, desc) and re.search(STAFF_LOGIN_RX, desc)) or customer_login(desc):
         return None
-    m = re.search(STAFF_COUNT_RX, desc)
-    return int(m.group(1)) if m else STAFF_LOGIN_DEFAULT
+    # p5b S5: '1,200 employees' is 1200; '24/7 newsroom' is not a count; '40 reporters and 5 editors' is 45
+    found = {(int(m.group(1).replace(",", "")), m.group(2)) for m in re.finditer(STAFF_COUNT_RX, desc)}
+    return sum(n for n, _ in found) if found else STAFF_LOGIN_DEFAULT
+
+
+# p5b M2: customers / users / members who sign in ('customers must sign in to check out') are not anonymous readers
+_CUSTOMERS = r"(?:customers?|users?|members?|buyers?|shoppers?|subscribers?|clients?|patients?|students?|guests?|players?|tenants?)"
+CUSTOMER_LOGIN_RX = (r"(?<!staff )(?<!admin )(?<!internal )(?<!back-office )\b" + _CUSTOMERS + r"\b([^.;]{0,30}?)\b(?:log ?in|logs ?in|sign ?in|signs ?in|sign up|signs up|register|create accounts?"
+                     r"|have accounts?|logins?)\b")
+_NEG = r"\b(?:not|never|no|without)\b|n't\b"
+
+
+def customer_login(desc):
+    """A clause where customers or users (not staff) sign in, without a negation between them and the sign-in verb."""
+    return any(not re.search(_NEG, m.group(1)) and not re.search(r"\b" + _STAFF + r"\b", m.group(1))
+               for m in re.finditer(CUSTOMER_LOGIN_RX, desc))
 
 
 def login_users(ctx):
@@ -410,13 +431,21 @@ def staff_login_only(ctx):
     return login_users(ctx) < ctx["users"]
 
 
-def write_in_text(name_rx, text):
-    """A clause (or existing_systems entry) that names the database and says the app reads and writes / writes to it."""
+def write_in_text(name_rx, text, entry=False):
+    """A clause that names the database and says the app reads and writes / writes to it. An existing_systems entry speaks about
+    one system, so any write wording counts there; in a description the database must be the object of the write wording."""
+    obj = _WRITE_VERB + r"\s+" + _DETS + r"(?:[\w-]+\s+){0,3}?\(?" + _DETS + r"(?:" + name_rx + r")"
     for clause in re.split(r"[,;:]\s*|\s+(?:but|while|whereas)\s+", text):
-        if (re.search(name_rx, clause) and re.search(WRITE_RX, clause) and not re.search(REMOVE_RX, clause)
-                and not re.search(_NOT_WRITE_RX, clause)):
+        if (re.search(name_rx, clause) and re.search(WRITE_RX if entry else obj, clause) and not re.search(REMOVE_RX, clause)
+                and not re.search(_NOT_WRITE_RX, clause) and not re.search(_MIGRATE_RX, clause)):
             return True
     return False
+
+
+def moved_in_text(name_rx, sentences):
+    """p5b M1: some sentence says the database is replaced or migrated ('will be replaced by PostgreSQL next year')."""
+    return any(removal_in_text(name_rx, s) or any(re.search(name_rx, c) and re.search(_MIGRATE_RX, c)
+                                                   for c in re.split(r"[,;:]\s*|\s+(?:but|while|whereas)\s+", s)) for s in sentences)
 
 
 # Server-side language named by an existing system (frameworks and app servers included; front-end frameworks are not).
@@ -1105,7 +1134,7 @@ def build(req):
     flags, prim = desc_signals(req["project.description"] or "")
     desc = (req["project.description"] or "").lower()
     # p5 item 5: readers are anonymous and only staff sign in: sign-in is sized for the staff, not the audience
-    c["staff_login_n"] = staff_login_count(desc)
+    c["staff_login_n"] = None if req["project.type"] in ("ecommerce", "marketplace") else staff_login_count(desc)
     # the description only promotes a language team.languages already lists; it never adds one
     c["desc"], c["primary_langs"] = dict(flags), [x for x in prim if x in c["langs"]]
     # A1: a web3 word that only a stakeholder asks for ("the CTO wants blockchain receipts") or a hype word frames is not a requirement
@@ -1136,8 +1165,9 @@ def build(req):
             name_rx = r"(?<![a-z0-9])(?:" + "|".join(hit["match"] + ([re.escape(hit["product"].split()[0].lower())] if hit.get("product") and not hit.get("synthetic") else [])) + r")(?![a-z0-9])"
         keep = "infrastructure.existing_systems" if keep_in_entry(low) else "project.description" if hit and any(
             keep_in_text(name_rx, s) for s in sentences) else None
-        if not keep and hit and hit["kind"] == "database" and (write_in_text(name_rx, low) or any(write_in_text(name_rx, s) for s in sentences)):
-            keep, keep_write = ("infrastructure.existing_systems" if write_in_text(name_rx, low) else "project.description"), True
+        if (not keep and hit and hit["kind"] == "database" and not moved_in_text(name_rx, sentences)
+                and (write_in_text(name_rx, low, entry=True) or any(write_in_text(name_rx, s) for s in sentences))):
+            keep, keep_write = ("infrastructure.existing_systems" if write_in_text(name_rx, low, entry=True) else "project.description"), True
         else:
             keep_write = False
         # a tenant described only as workforce/staff identity is not a customer login directory
