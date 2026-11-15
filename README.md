@@ -16,7 +16,7 @@ Hard constraints (cloud preference, deployment model, data residency, compliance
 
 | Check | Result |
 |---|---|
-| Unit and acceptance tests (`python -I -m unittest discover -s tests`) | 1219 tests OK (17 skip cleanly when the optional `research/` folder is absent) |
+| Unit and acceptance tests (`python -I -m unittest discover -s tests`) | 1293 tests OK (17 skip cleanly when the optional `research/` folder is absent) |
 | Public scenarios P1-P6 | outputs in `outputs/` reproduce byte-for-byte |
 | Output contract (`tools/check_contract.py`) | PASS 6/6 |
 | One-field perturbation sweep (`tools/perturb.py`) | 1,087 edits, 0 crashes, 0 violations |
