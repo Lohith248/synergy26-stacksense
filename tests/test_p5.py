@@ -146,5 +146,40 @@ class WrittenDatabaseIsKept(unittest.TestCase):
             self.assertNotIn("reused", self._db(typ, desc, systems)["choice"], desc)
 
 
+class StaffOnlySignIn(unittest.TestCase):
+    """Item 5: anonymous readers, staff-only sign-in: auth is sized for the staff; the scope-cut sentence agrees with the band."""
+
+    def _run(self, typ, desc, auth="phone_otp", cloud="gcp"):
+        return run(**{"project.type": typ, "project.description": desc, "requirements.auth": auth, "infrastructure.cloud_preference": cloud,
+                      "scale.users_12_months": 2000000, "scale.users_at_launch": 500000, "budget.monthly_infra_usd": 3000})
+
+    def _otp(self, out):
+        return next(a for a in out["estimated_monthly_cost_usd"]["assumptions"] if a.startswith("Phone OTP"))
+
+    def test_staff_sized(self):
+        cases = [("content_site", "Regional news site. Editors log in to a CMS; readers do not log in.", "100 staff"),
+                 ("other", "Podcast site for a public radio show; listeners don't need accounts. 12 producers sign in to publish episodes.", "12 staff"),
+                 ("web_app", "Public notices portal for a city: citizens do not register; 40 officers and admins log in to post notices.", "40 staff")]
+        for typ, desc, want in cases:
+            self.assertIn(want, self._otp(self._run(typ, desc)), desc)
+
+    def test_cognito_mau_staff(self):
+        staff = self._run("content_site", "Magazine site with anonymous readers; 25 editors log in.", auth="email_password", cloud="aws")
+        everyone = self._run("content_site", "Magazine site; 25 editors log in and readers log in to save articles.", auth="email_password", cloud="aws")
+        self.assertLess(staff["estimated_monthly_cost_usd"]["min"], everyone["estimated_monthly_cost_usd"]["min"])
+
+    def test_readers_log_in_not_fired(self):
+        out = self._run("content_site", "News site where editors log in and readers log in to comment.")
+        self.assertIn("2,000,000 users", self._otp(out))
+
+    def test_scope_cut_agrees_with_band(self):
+        from engine import costreal
+        within = costreal.over_multiple_note([(5000, 200, "CDN")], 300, band_min=250)
+        self.assertNotIn("no scope cut", within)
+        self.assertIn("low end of the band", within)
+        self.assertIn("other lines must shrink", costreal.over_multiple_note([(5000, 200, "CDN")], 300, band_min=900))
+        self.assertIn("no scope cut", costreal.over_multiple_note([(5000, 400, "CDN")], 300, band_min=900))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -331,7 +331,7 @@ def dominant_text(items, budget, total_hi):
             "this only says where the money goes.")
 
 
-def over_multiple_note(items, budget):
+def over_multiple_note(items, budget, band_min=None):
     """Explicit note for each single line above SINGLE_LINE_BUDGET_MULTIPLE x budget (budget > 0), largest first; '' if none."""
     if budget <= 0:
         return ""
@@ -342,4 +342,12 @@ def over_multiple_note(items, budget):
             bits.append(f"{label} alone (${lo:,}-{hi:,} a month) is above {SINGLE_LINE_BUDGET_MULTIPLE}x the budget even at its lower bound")
         elif hi > cap:
             bits.append(f"{label} alone (up to ${hi:,} a month) is above {SINGLE_LINE_BUDGET_MULTIPLE}x the budget at its upper bound")
-    return (" Sanity check: " + "; ".join(bits[:2]) + ". The band keeps the figure as the estimate; no scope cut that keeps this feature fits the budget.") if bits else ""
+    if not bits:
+        return ""
+    # p5 item 5: 'no scope cut fits' only when a flagged line's own lower bound is above the whole budget
+    floor = max(lo for hi, lo, label in items if hi > cap)
+    tail = ("no scope cut that keeps this line fits the budget." if floor > budget else
+            "at its lower bound the line is within the budget, so the budget holds only while usage stays near the low end of the band."
+            if band_min is None or band_min <= budget else
+            "at its lower bound the line is within the budget, but the band minimum is not, so other lines must shrink as well.")
+    return " Sanity check: " + "; ".join(bits[:2]) + ". The band keeps the figure as the estimate; " + tail

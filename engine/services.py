@@ -821,15 +821,15 @@ def build(ctx, host, backend, db, mobile, warn):
                                "managed", "aws", True,
                                # judge B5: SMS is billed once, in the band's Phone OTP line; this line is Cognito MAUs only
                                # (verified: Lite 10,000 MAU free, then $0.0055/MAU to 100,000 and $0.0046 above; MAU = 30-100% of users, as for OTP logins)
-                               [[round(costreal.cognito_usd(ctx["users"] * costreal.MAU_SHARE[0])),
-                                 round(costreal.cognito_usd(ctx["users"] * costreal.MAU_SHARE[1]))]] * 4,
+                               [[round(costreal.cognito_usd(cx.login_users(ctx) * costreal.MAU_SHARE[0])),
+                                 round(costreal.cognito_usd(cx.login_users(ctx) * costreal.MAU_SHARE[1]))]] * 4,
                                ["aws-cognito-pricing", "aws-sns-sms"] + (["trai-dlt"] if india else []), loc))
                 out[-1]["_label"] = "Amazon Cognito monthly-active-user charges"  # J1: the budget warning names it apart from the SMS fees line
-                mlo, mhi = (round(ctx["users"] * x) for x in costreal.MAU_SHARE)
+                mlo, mhi = (round(cx.login_users(ctx) * x) for x in costreal.MAU_SHARE)
                 (t1, r1), (_, r2) = costreal.COGNITO_TIERS
                 out[-1]["_note"] = (f" Cognito Lite: {costreal.COGNITO_FREE_MAU:,} MAU free, then ${r1} per MAU up to {t1:,} MAU and ${r2} per MAU above "
                                     f"(Amazon Cognito pricing; tiers above {costreal.COGNITO_TIER_READ_TO:,} MAU are not in the knowledge base, so ${r2} is kept there as an upper bound). "
-                                    f"MAU is taken as {costreal.MAU_SHARE[0]:.0%}-{costreal.MAU_SHARE[1]:.0%} of ~{ctx['users']:,} users = {mlo:,}-{mhi:,} MAU (planning heuristic), "
+                                    f"MAU is taken as {costreal.MAU_SHARE[0]:.0%}-{costreal.MAU_SHARE[1]:.0%} of ~{cx.login_users(ctx):,} {'staff who sign in' if cx.staff_login_only(ctx) else 'users'} = {mlo:,}-{mhi:,} MAU (planning heuristic), "
                                     "each slice above the free tier priced at its tier's rate; SMS is counted once, in the Phone OTP line.")
             elif india:
                 in_res = loc == "india" or ctx["residency"] == "india"

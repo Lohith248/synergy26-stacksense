@@ -1158,7 +1158,7 @@ def _recommend(req, assumptions, sid):
     # judge B2: name the largest lines of the band itself (derived ones too: stored data, OTP, extra instances), by upper bound
     items = cost.pop("_items")
     top = [(hi, name) for hi, _, name in items if hi > 0][:2]
-    over_txt = costreal.over_multiple_note(items, ctx["budget"])  # E8d: explicit note for a single line above 10x the budget
+    over_txt = costreal.over_multiple_note(items, ctx["budget"], cost["min"])  # E8d: explicit note for a single line above 10x the budget
     top_txt = f"; the largest upper-bound items are {' and '.join(f'{n} (up to ${v:,.0f})' for v, n in top)}" if top else ""
     if rf.applies(ctx) and rf.metered(host) and rf.egress_warning(ctx, ctx["budget"]):  # A18: the transfer line can exceed the budget
         W(*rf.egress_warning(ctx, ctx["budget"]))
@@ -1975,13 +1975,15 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
     obj = any(s["layer"] == "storage" and s["deployment"] != "self_hosted" for s in supporting)
     extra_proc = []
     for s in supporting:
-        clo, chi = s["_cost"][t]
+        staff_auth = s["layer"] == "auth" and cx.staff_login_only(ctx)  # p5 item 5: sign-in sized for the staff who log in
+        clo, chi = s["_cost"][cx.tier_for(cx.login_users(ctx)) if staff_auth else t]
         name = short(s["choice"])
         if chi and s["layer"] == "storage" and obj:
             # M1: the volume is priced once, in the "Stored data" line; the tier range of this line would charge the same files twice
             add(name, 0, 0, f"{s['layer']}: {name} {{r}} here: the files it holds are priced by volume in the 'Stored data' line, not charged twice.")
         elif chi:
-            add(s.get("_label", name), clo, chi, f"{s['layer']}: {name} {{r}}." + s.get("_note", ""))
+            add(s.get("_label", name), clo, chi, f"{s['layer']}: {name} {{r}}." + s.get("_note", "")
+                + (f" Sized for ~{cx.login_users(ctx):,} staff sign-ins (planning heuristic): the description says readers do not log in." if staff_auth else ""))
             if s.get("_extra_proc"):
                 extra_proc.append(name)
         elif s.get("_on_plan"):
@@ -2053,7 +2055,7 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         elo, ehi, etxt = costreal.email_line(ctx)
         add("Email", elo, ehi, etxt)
     if ctx["req"]["requirements.auth"] == "phone_otp" and not ctx["no_internet"]:
-        logins = ctx["users"]
+        logins = cx.login_users(ctx)  # p5 item 5: anonymous readers send no OTPs
         auth_choice = next((s["choice"] for s in supporting if s["layer"] == "auth"), "")
         rl, rh = costreal.SMS_RETRY_FACTOR
         india_rate = "Rs %s-%s + %d%% GST, converted at Rs %d/USD (planning rate), i.e. $%.4f-%.4f per SMS" % (
@@ -2089,7 +2091,7 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         ll, lh = costreal.OTP_LOGINS_PER_USER
         olo, ohi = round(logins * ll * plo), round(logins * lh * phi)
         items.append((ohi, olo, "Phone OTP SMS fees"))
-        lines.append(f"Phone OTP: {logins:,} users x {ll:.1f}-{lh:.1f} OTP logins/month at {txt}: {_usd_range(olo, ohi)}/month (long-lived sessions keep OTPs rare).")
+        lines.append(f"Phone OTP: {logins:,} {'staff who sign in' if cx.staff_login_only(ctx) else 'users'} x {ll:.1f}-{lh:.1f} OTP logins/month at {txt}: {_usd_range(olo, ohi)}/month (long-lived sessions keep OTPs rare).")
     tp = ctx["req"]["scale.traffic_pattern"]
     if tp in ("spiky", "seasonal") and host.get("scaling") in ("request", "instances"):
         lines.append(f"{'Seasonal' if tp == 'seasonal' else 'Spiky'} traffic: the upper bound is a peak month; with autoscaling, "
