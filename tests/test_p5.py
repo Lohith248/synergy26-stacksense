@@ -72,5 +72,25 @@ class MobileMoney(unittest.TestCase):
         self.assertIn("South Africa", text(out))
 
 
+class LiveQuizWording(unittest.TestCase):
+    """Item 3: a live timed quiz is not turn-based; a p95 target under the threshold is never contradicted."""
+
+    def test_live_quiz(self):
+        for desc, lat in (("Live multiplayer trivia quiz: players answer timed questions at the same moment.", 80),
+                          ("Quiz show app where thousands answer each question within 10 seconds simultaneously.", 150),
+                          ("Classroom quiz game played live: the teacher starts a countdown and pupils buzz in.", 90)):
+            out = run(**{"project.type": "gaming", "project.description": desc, "requirements.realtime": True, "requirements.p95_latency_ms": lat})
+            t = text(out)
+            self.assertNotIn("turn-based", t, desc)
+            self.assertIn("live, timed quiz", t, desc)
+            if lat <= 100:
+                self.assertNotIn("needs p95 latency of 100 ms or less", t, desc)
+
+    def test_turn_based_kept(self):
+        out = run(**{"project.type": "gaming", "project.description": "Trivia game where friends take their turns whenever they like.",
+                     "requirements.realtime": True, "requirements.p95_latency_ms": 300})
+        self.assertIn("turn-based", text(out))
+
+
 if __name__ == "__main__":
     unittest.main()

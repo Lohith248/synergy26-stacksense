@@ -7,6 +7,8 @@ Each predicate returns (needed, fact, add_when, paths): fact quotes the input va
 would change it. Gates only touch supporting services and warnings, never a core layer.
 """
 
+import re
+
 THRESHOLDS = {
     "game_p95_ms": 100,           # heuristic: a server-side game loop is justified at or below this p95 latency target
     "warehouse_gb_type": 100,     # heuristic: data_analytics type; at 10x the managed-DB storage price the app DB still serves reports
@@ -21,6 +23,10 @@ THRESHOLDS = {
 PUBLIC_TYPES = ("content_site", "ecommerce", "marketplace", "social", "gaming", "web_app", "realtime_collab")
 TIER_CDN_EXEMPT = 2           # heuristic: from tier 2 (over 50,000 users in 12 months or 2,000 concurrent) a signed-in app keeps its CDN: static-file traffic is large enough to cache
 _GEO_WIDE = ("multi_region", "global")
+# p5 (planning heuristic, vocabulary): a quiz/trivia played live against a clock is simultaneous play, not turn-based; only explicit
+# turn-taking words make it turn-based
+LIVE_TIMED_RX = r"\blive\b|\btimed\b|\bcountdown\b|\bagainst the clock\b|same (?:moment|time)|simultaneous\w*|real-?time|within \d+ ?(?:s|secs?|seconds)\b"
+EXPLICIT_TURN_RX = r"turn-based|turn based|\basynchronous\b|take (?:a|their) turns?|a move every|whenever they like"
 
 
 def note(service, fact, add_when):
@@ -36,6 +42,14 @@ def game_servers(ctx):
     add_when = (f"the match runs a server-side loop that needs p95 latency of {limit} ms or less "
                 "(fast-action play such as a shooter, racing or battle-royale mode)")
     lat_txt = f"requirements.p95_latency_ms is {lat}" if lat is not None else "requirements.p95_latency_ms is not given"
+    if lat is not None and lat <= limit:  # p5: not chosen although the target is under the threshold: never say "needed at 100 ms or less"
+        add_when = (f"the match runs a server-side simulation loop at a fixed tick rate (fast-action play such as a shooter, racing or battle-royale mode); "
+                    f"the {lat} ms p95 target here applies to delivering messages, so load-test WebSocket push from a region near the players against it")
+    low = (ctx["req"]["project.description"] or "").lower()
+    if d["turn_based"] and re.search(LIVE_TIMED_RX, low) and not re.search(EXPLICIT_TURN_RX, low):
+        return False, (f"project.description describes a live, timed quiz or trivia game ({lat_txt}): players answer the same question at the same time "
+                       "within a time limit, one message per answer, so the backend scores answers as they arrive over WebSockets and no per-match "
+                       "simulation loop is needed"), add_when, paths
     if d["turn_based"]:
         return False, (f"project.description describes a turn-based game ({lat_txt}); moves arrive seconds apart, so a per-match "
                        "server fleet is not needed"), add_when, paths
