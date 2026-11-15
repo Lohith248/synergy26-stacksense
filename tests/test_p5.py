@@ -175,7 +175,7 @@ class ProviderCdnAndCognitoTiers(unittest.TestCase):
             out = run(**{"project.type": typ, "project.description": "Members sign in.", "infrastructure.cloud_preference": "aws",
                          "scale.users_12_months": 20000000, "requirements.auth": "email_password", "budget.monthly_infra_usd": 100000})
             line = next(a for a in out["estimated_monthly_cost_usd"]["assumptions"] if "Cognito" in a)
-            self.assertIn("lower bound counts only the first 1,000,000 MAU", line, typ)
+            self.assertIn("apply the last verified rate ($0.0046 per MAU) to every MAU above 1,000,000", line, typ)
             self.assertNotIn("$300-2,000", line)
 
 
