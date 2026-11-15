@@ -93,5 +93,46 @@ class TransferOutOfResidency(unittest.TestCase):
             nocode(self, {**SHOP_IN, "project.description": d})
 
 
+from test_p2 import ops_run  # noqa: E402
+
+
+def avt(out):
+    ws = warn(out, "AVAILABILITY_VS_TEAM")
+    return ws[0] if ws else None
+
+
+class AvailabilityVsTeam(unittest.TestCase):
+    """Item 2: a small team without DevOps or one or two beginners is never told it can staff a rota; self-run stacks get no managed claim."""
+
+    def test_no_devops_teams_get_the_gap_as_a_warning(self):
+        for ptype, size, avail in (("ecommerce", 4, "99.95"), ("iot", 3, "99.95"), ("healthtech", 5, "99.99")):
+            w = avt(ops_run(ptype, size, False, avail))
+            self.assertEqual(w["severity"], "warning", ptype)
+            self.assertNotIn("can staff", w["message"])
+            self.assertIn("nobody in the inputs owns out-of-hours on-call", w["message"])
+
+    def test_beginner_pair_with_devops(self):
+        w = avt(ops_run("marketplace", 2, True, "99.95", exp="beginner"))
+        self.assertEqual(w["severity"], "warning")
+        self.assertIn("cannot cover a 24/7 rota alone", w["message"])
+        self.assertNotIn("nobody in the inputs", w["message"])
+
+    def test_self_run_stacks_do_not_claim_managed_services(self):
+        for ptype, dep in (("internal_tool", "on_premise"), ("fintech", "self_hosted_cloud_vm"), ("healthtech", "air_gapped")):
+            w = avt(ops_run(ptype, 3, False, "99.95", dep=dep))
+            self.assertIsNotNone(w, dep)
+            self.assertNotIn("Managed multi-zone", w["message"], dep)
+            self.assertIn(dep, w["message"])
+
+    def test_managed_cloud_keeps_managed_wording(self):
+        self.assertIn("Managed multi-zone services were preferred", avt(ops_run("saas_b2b", 4, False, "99.95"))["message"])
+
+    # must-not-fire
+    def test_staffed_team_or_standard_target(self):
+        self.assertIsNone(avt(ops_run("web_app", 8, False, "99.95")))
+        self.assertIsNone(avt(ops_run("web_app", 4, True, "99.99")))
+        self.assertIsNone(avt(ops_run("web_app", 3, False, "99.9")))
+
+
 if __name__ == "__main__":
     unittest.main()
