@@ -1937,7 +1937,10 @@ def build(ctx, host, backend, db, mobile, warn):
                            "The input says it is going away: read its data once through an export or ETL job (or its own API), check row counts, "
                            "and switch it off once its owners agree; the new application does not depend on it afterwards." if retire else pat["how"],
                            ["infrastructure.existing_systems"],
-                           [("Keep integrating with it after launch", "keeps the system the input is retiring in service")] if retire else [("Replacing it", "outside MVP scope")],
+                           [("Keep integrating with it after launch", "keeps the system the input is retiring in service")] if retire else
+                           [("Replacing it in the first release", "it is past end of support, so a replacement must be planned (see the end-of-life warning), but a rewrite "
+                             "or migration needs its own scope, owners and cut-over date; until then it is integrated as it is")] if e["life"] and e["life"]["eol"] <= AS_OF else
+                           [("Replacing it", "outside MVP scope")],
                            ["The one-off job needs a read-only account on the old system"] if retire else ["Depends on the existing system's API limits"],
                            "library", "neutral", False, Z, pat["src"]))
         elif e.get("adapter") and e["adapter"]["kind"] != "retire":  # A7: unrecognised by name, integrated by what the description does with it
