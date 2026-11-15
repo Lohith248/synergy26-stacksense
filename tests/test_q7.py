@@ -141,5 +141,66 @@ class UntouchableSystemIsReadOnly(unittest.TestCase):
             self.assertNotIn(READ_ONLY, text(out), typ)
 
 
+def run_scale(typ, desc, existing, workload="read_heavy", gb=400):
+    s = copy.deepcopy(BASE)
+    s["project"].update(type=typ, description=desc)
+    s["infrastructure"]["existing_systems"] = list(existing)
+    s["scale"].update(workload=workload, data_volume_gb_12_months=gb)
+    out = evaluate(s, counterfactuals=False)
+    assert out["stack"], out["warnings"]
+    return out
+
+
+def unrecognised(out, raw):
+    return [w for w in out["warnings"] if w["code"] == "EXISTING_SYSTEM_UNRECOGNISED" and raw in w["message"]]
+
+
+class WellKnownProductsRecognised(unittest.TestCase):
+    def test_warehouses_are_recognised(self):
+        cases = (("data_analytics", "Weekly sales dashboards for a retail chain.", "Snowflake"),
+                 ("ecommerce", "Online store for spare parts; marketing analytics run elsewhere.", "Google BigQuery"),
+                 ("fintech", "Loan servicing portal for a lender.", "Amazon Redshift cluster"),
+                 ("saas_b2b", "Fleet maintenance planning for logistics firms.", "Databricks lakehouse"))
+        for typ, desc, raw in cases:
+            out = run_scale(typ, desc, [raw], workload="balanced", gb=50)
+            c = line(out, raw)
+            self.assertIsNotNone(c, raw)
+            self.assertIn("existing data warehouse / lakehouse", c["justification"], raw)
+            self.assertFalse(unrecognised(out, raw), raw)
+
+    def test_game_sdk_and_hl7_engine_are_recognised(self):
+        cases = (("gaming", "A co-op PC game with leaderboards, sold on Steam.", "Steamworks", "platform SDK for games sold on Steam"),
+                 ("healthtech", "Lab results portal for a hospital group.", "Mirth Connect", "HL7 integration engine"),
+                 ("internal_tool", "Ward bed board for nurses.", "NextGen Connect integration engine", "HL7 integration engine"),
+                 ("web_app", "Referral tracking between clinics.", "Mirth Connect 4.4", "HL7 integration engine"))
+        for typ, desc, raw, says in cases:
+            out = run_scale(typ, desc, [raw], workload="balanced", gb=20)
+            c = line(out, raw)
+            self.assertIsNotNone(c, raw)
+            self.assertIn(says, c["justification"], raw)
+            self.assertFalse(unrecognised(out, raw), raw)
+
+    def test_existing_warehouse_is_reused_not_duplicated(self):
+        cases = (("data_analytics", "Weekly sales dashboards for a retail chain.", "Snowflake"),
+                 ("data_analytics", "Claims analytics for an insurer.", "Amazon Redshift"),
+                 ("ecommerce", "Online store with sales analytics dashboards for the buying team.", "Google BigQuery"))
+        for typ, desc, raw in cases:
+            out = run_scale(typ, desc, [raw])
+            self.assertFalse([c for c in out["stack"]["supporting"] if c["choice"].startswith("Analytics warehouse")], raw)
+            self.assertTrue(any(w["code"] == "SERVICE_NOT_ADDED" and f"existing '{raw}' is reused" in w["message"] for w in out["warnings"]), raw)
+            bi = [c for c in out["stack"]["supporting"] if c["choice"].startswith("BI dashboards")]
+            self.assertTrue(bi and f"query the existing '{raw}' warehouse" in bi[0]["justification"], raw)
+
+    def test_must_not_fire(self):
+        # no warehouse entry: the new warehouse is still added; a 'snowflake schema' entry is not Snowflake; a retired warehouse is replaced
+        out = run_scale("data_analytics", "Weekly sales dashboards; a snowflake schema in the reports.", [])
+        self.assertTrue([c for c in out["stack"]["supporting"] if c["choice"].startswith("Analytics warehouse")])
+        out = run_scale("data_analytics", "Weekly sales dashboards.", ["SQL Server snowflake schema reporting database"])
+        self.assertNotIn("existing data warehouse / lakehouse", text(out))
+        out = run_scale("data_analytics", "Weekly sales dashboards. Redshift is being decommissioned.", ["Amazon Redshift"])
+        self.assertTrue([c for c in out["stack"]["supporting"] if c["choice"].startswith("Analytics warehouse")])
+        self.assertNotIn("is reused as the analytics store", text(out))
+
+
 if __name__ == "__main__":
     unittest.main()

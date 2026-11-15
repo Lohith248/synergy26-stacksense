@@ -189,13 +189,18 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
     # ---------------- analytics: warehouse + BI (D13: the warehouse needs data volume; below it reports run on the application database)
     if typ == "data_analytics" or (d["analytics"] and req["scale.workload"] == "read_heavy" and ctx["data_gb"] >= 200):
         want_wh, wh_fact, wh_when, wh_paths = rs.warehouse(ctx)
+        # q7: a warehouse the input already runs is the analytics store; a second one would duplicate it
+        ex_wh = next((e for e in ctx["existing"] if e["pattern"] and e["pattern"].get("warehouse") and not e["retire"]), None)
         if selfh or not hyper:
             wh, wprov, wsrc, wdep = "ClickHouse (self-hosted columnar warehouse)", "neutral", ["clickhouse"], "self_hosted"
         else:
             wh, wprov, wsrc, wdep = {"gcp": (f"BigQuery{rtxt}", "gcp", ["bigquery-locations"], "managed"),
                                      "aws": (f"Amazon Redshift Serverless{rtxt}", "aws", ["redshift-serverless"], "managed"),
                                      "azure": (f"Microsoft Fabric Warehouse{rtxt}", "azure", ["fabric-overview", "synapse-to-fabric"], "managed")}[p]
-        if want_wh:
+        if ex_wh:
+            warn("SERVICE_NOT_ADDED", "info", f"Analytics warehouse not added: the existing '{ex_wh['raw']}' is reused as the analytics store "
+                 "(see its integration line), so a second warehouse would duplicate it.", ["infrastructure.existing_systems", "project.type"])
+        elif want_wh:
             out.append(svc("other", "Analytics warehouse: " + wh,
                            f"Ad-hoc SQL and reports over ~{ctx['data_gb']:,.0f} GB run on a columnar warehouse, so analysts' heavy scans never slow the "
                            "application database; data is loaded on a schedule (ELT) from the operational store.",
@@ -221,7 +226,10 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
                    ("Apache Superset", "comparable open-source tool; heavier to operate"),
                    ("Custom React dashboards", "every new report becomes a development task")]
         bi_drv = ["project.type", "requirements.auth"]
-        if not want_wh:
+        if ex_wh:
+            bi_why += (f" Dashboards query the existing '{ex_wh['raw']}' warehouse (confirm the BI tool's connector for it with its owners).")
+            bi_drv = bi_drv + ["infrastructure.existing_systems"]
+        elif not want_wh:
             bi_why += (f" Reports run on the application database through a read-only role (~{ctx['data_gb']:,.0f} GB), "
                        "so no separate warehouse is needed yet.")
             bi_alts = [("Analytics warehouse: " + wh, f"{wh_fact}; add when {wh_when}")] + bi_alts
