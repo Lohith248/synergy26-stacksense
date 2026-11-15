@@ -50,7 +50,7 @@ class PaymentsFollowPciScope(unittest.TestCase):
                 self.assertIsNotNone(warn(out, "PCI_SCOPE"))
                 pay = sup(out, "payments")[0]["justification"]
                 self.assertNotIn("can qualify for PCI DSS SAQ A", pay)
-                self.assertIn("does not apply", pay)
+                self.assertIn("SAQ A shortcut do not apply", pay)
 
     def test_a_shop_that_names_its_psp_keeps_saq_a(self):
         out = run("An online shop; customers pay at checkout through our PSP, an acquirer we already use.", "ecommerce", req={"payments": True}, comp=["pci_dss"])
