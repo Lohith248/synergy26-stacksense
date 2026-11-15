@@ -261,6 +261,13 @@ def validate(raw):
             else:
                 req[path] = default
                 how = f"{path} null: treated as absent;" if was_null else f"{path} absent:"
+                if path == "infrastructure.deployment_model" and req.get("infrastructure.cloud_preference") == "none":
+                    # q9: the managed_cloud default would contradict the one thing the input states (no public cloud) and end in
+                    # 'infeasible' through the engine's own default; an explicit deployment_model is never overridden
+                    req[path] = "on_premise"
+                    assumptions.append(f"{how} cloud_preference 'none' rules out public cloud, so 'on_premise' is assumed instead of the "
+                                       "default 'managed_cloud' (state deployment_model to choose 'air_gapped' or another model).")
+                    continue
                 if default is not None:
                     assumptions.append(f"{how} default {_fmt(default) if not isinstance(default, list) else default} applied.")
                 elif path in UNSPECIFIED_NOTE:
