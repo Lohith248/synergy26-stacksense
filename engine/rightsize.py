@@ -90,6 +90,10 @@ def warehouse(ctx):
         f"the data volume reaches about {t_type} GB (reports then compete with application traffic on the database)", paths
 
 
+MEDIA_WORDS = (("public pages", r"public\s+pages?"), ("listings", r"listings?"), ("catalogue", r"catalog(?:ue)?s?"), ("directory", r"director(?:y|ies)"),
+               ("profiles", r"profiles?"), ("blog", r"blogs?"), ("video", r"videos?"), ("audio", r"audio"), ("large files", r"large\s+files?"))
+
+
 def public_pages(ctx):
     """True when the input says public pages exist (SEO, a public project type, or editorial/public-page wording)."""
     return bool(ctx["req"]["requirements.seo_critical"] or ctx["type"] in PUBLIC_TYPES or ctx["desc"]["editorial"] or ctx["desc"]["public_pages"])
@@ -114,8 +118,13 @@ def public_facing(ctx):
                + (f"{geo}" if geo else "not given"))
         paths = ["project.type", "requirements.seo_critical", "scale.geo_spread"]
     elif req["requirements.auth"] != "none" and not public_pages(ctx) and not media_delivery(ctx) and ctx["tier"] < TIER_CDN_EXEMPT and geo not in _GEO_WIDE:
+        # q3 item 5b: the word list never names a word the description uses; a word it does use is stated as not public delivery
+        desc = (req["project.description"] or "").lower()
+        used = [w for w, rx in MEDIA_WORDS if re.search(r"\b" + rx + r"\b", desc)]
+        absent = [w for w, _ in MEDIA_WORDS if w not in used]
         why = (f"requirements.auth is {req['requirements.auth']}, requirements.seo_critical is false, project.type is {typ}, the description has no public-page "
-               f"or media-delivery wording (public pages, listings, catalogue, directory, profiles, blog, video, audio, large files) "
+               f"or media-delivery wording ({', '.join(absent)})"
+               + (f"; it mentions {', '.join(used)}, but not as public pages or media delivered to users" if used else "") + " "
                f"and scale.geo_spread is " + (f"{geo}" if geo else "not given") + ", which this planning heuristic reads as an app that is signed in on every route")
         paths, aud = ["requirements.auth", "requirements.seo_critical", "project.type", "scale.geo_spread"], "a signed-in audience"
     else:

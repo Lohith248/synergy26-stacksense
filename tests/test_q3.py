@@ -139,7 +139,7 @@ import re  # noqa: E402
 
 from engine import dbvocab  # noqa: E402
 
-PG_ONLY = re.compile(r"BRIN|WAL|streaming replica|pg_\w+|pgvector|pg_trgm|TimescaleDB|CREATE POLICY|postgresql\.org/docs", re.I)
+PG_ONLY = re.compile(r"\bBRIN\b|\bWAL\b|streaming replica|\bpg_\w+|pgvector|pg_trgm|TimescaleDB|CREATE POLICY|postgresql\.org/docs", re.I)
 NON_PG = [  # each keeps a non-PostgreSQL database the input names, on a different project type
     {"project.type": "healthtech", "team.languages": ["csharp"], "infrastructure.deployment_model": "on_premise", "requirements.availability": "99.95",
      "requirements.rpo_minutes": 2, "infrastructure.existing_systems": ["Microsoft SQL Server 2022 ward database (must stay)"],
@@ -276,6 +276,42 @@ class StockSentenceMobileApp(unittest.TestCase):
             out = run(**{"project.type": typ, "project.platforms": plats, "team.languages": ["csharp", "typescript"],
                          "project.description": "Staff plan the week and share notes."})
             self.assertNotIn("for the mobile app", all_text(out), typ)
+
+
+
+def cdn_note(out):
+    return " ".join(w["message"] for w in out["warnings"]) + " ".join(out["assumptions"]) + all_text(out)
+
+
+TIER1 = {"scale.users_12_months": 20000, "scale.peak_concurrent_users": 600}
+
+
+class StockSentenceMediaWording(unittest.TestCase):
+    """Item 5b: the 'no public-page or media-delivery wording (...)' list never names a word the description uses."""
+
+    def check(self, typ, desc, word):
+        out = run(**{"project.type": typ, "requirements.auth": "email_password", "project.description": desc, **TIER1})
+        t = all_text(out)
+        m = re.search(r"no public-page or media-delivery wording \(([^)]*)\)", t)
+        self.assertIsNotNone(m, typ)
+        self.assertNotIn(word, m.group(1), typ)
+        self.assertIn(f"it mentions {word}", t, typ)
+
+    def test_video_calls(self):
+        self.check("healthtech", "Video consultations between therapists and their clients, with session notes.", "video")
+
+    def test_profile_pages(self):
+        self.check("saas_b2b", "Recruiters keep candidate profiles and interview notes for their agency.", "profiles")
+
+    def test_directory_word(self):
+        self.check("fintech", "Loan officers keep a directory of branch contacts and approve applications.", "directory")
+
+    # must-not-fire: no listed word in the description keeps the full list
+    def test_full_list_when_no_word_used(self):
+        out = run(**{"project.type": "saas_b2b", "requirements.auth": "email_password", "project.description": "Agencies track invoices and approvals.", **TIER1})
+        t = all_text(out)
+        self.assertIn("(public pages, listings, catalogue, directory, profiles, blog, video, audio, large files)", t)
+        self.assertNotIn("it mentions", t)
 
 
 if __name__ == "__main__":
