@@ -2051,7 +2051,8 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         u = ctx["users"]
         g_lo, g_hi = (u * x for x in costreal.VIDEO_GB_PER_USER)
         # p5 item 6: priced on the stack's own CDN tiers when that CDN is CloudFront or Front Door
-        cdn_p = next((s["provider"] for s in supporting if s["layer"] == "cdn"), host["provider"])
+        # p5b S6: no CDN line, no CDN named: the reference tiers price it
+        cdn_p = next((s["provider"] for s in supporting if s["layer"] == "cdn"), None)
         vt = costreal.provider_tiers(cdn_p, ctx.get("residency"))
         if vt:
             add("Video egress", costreal.tiered_egress(g_lo, vt), costreal.tiered_egress(g_hi, vt),

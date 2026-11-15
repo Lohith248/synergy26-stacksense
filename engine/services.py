@@ -374,8 +374,15 @@ AZURE_FRONT_DOOR_PREMIUM_BASE = 330
 FRONT_DOOR_PREMIUM_BUDGET_SHARE = 0.15
 
 
+def premium_signal(ctx):
+    """p5b S1: a security or scale reason for the managed rule set and bot protection (budget headroom alone is not one):
+    a PCI DSS / ISO 27001 entry, priorities.security=5, financial data, or more than 5,000 users."""
+    return bool([c for c in ctx["compliance"] if c in SECURITY_COMPLIANCE] or ctx["prio"]["security"] >= 5
+                or ctx["type"] == "fintech" or ctx["users"] > 5000)
+
+
 def front_door_premium(ctx):
-    return ctx["budget"] * FRONT_DOOR_PREMIUM_BUDGET_SHARE >= AZURE_FRONT_DOOR_PREMIUM_BASE
+    return premium_signal(ctx) and ctx["budget"] * FRONT_DOOR_PREMIUM_BUDGET_SHARE >= AZURE_FRONT_DOOR_PREMIUM_BASE
 # per provider: (choice, what each part does, alternative, cost per scale tier [lo, hi] USD/month (planning estimate), source ids)
 SECURITY_SET = {
     "aws": ("AWS WAF + AWS KMS + AWS Secrets Manager + AWS CloudTrail",
@@ -426,7 +433,10 @@ def security_line(ctx, host, rtxt, loc, svc_, front_door_paid=False):
             what = what.replace("Azure Front Door with its web application firewall (managed rule sets plus rate limits on login and payment routes)",
                                 "Azure Front Door Standard with custom web application firewall rules (rate limits on login and payment routes, "
                                 "geo-filtering and IP rules; the Microsoft-managed rule set and bot protection need Premium, "
-                                f"${AZURE_FRONT_DOOR_PREMIUM_BASE}/month base fee, more than {FRONT_DOOR_PREMIUM_BUDGET_SHARE:.0%} of this budget)")
+                                f"${AZURE_FRONT_DOOR_PREMIUM_BASE}/month base fee, "
+                                + (f"more than {FRONT_DOOR_PREMIUM_BUDGET_SHARE:.0%} of this budget" if premium_signal(ctx) else
+                                   "not needed without a PCI DSS / ISO 27001 entry, security priority 5 or more than 5,000 users")
+                                + "; whether custom rules add a per-policy or per-rule fee is not confirmed, so this line stays a planning estimate)")
     driven = (["requirements.payments"] if req["requirements.payments"] else ["project.type"]) + ["priorities.security"] + (["compliance"] if comp else [])
     why = (("Taking payments" if req["requirements.payments"] else f"Financial data (project.type={ctx['type']})") + f" with priorities.security={ctx['prio']['security']}" + (f" and compliance={','.join(comp)}" if comp else "")
            + f" needs protection in front of the app and control of keys, secrets and audit evidence: {what}{rtxt}. "
@@ -1497,7 +1507,12 @@ def build(ctx, host, backend, db, mobile, warn):
                        [("No CDN", f"every asset request from the {ctx['users']:,} expected users would hit the origin"
                             + (f"; with scale.geo_spread={ctx['geo']}, distant users wait longest" if ctx["geo"] in ("multi_region", "global") else ", adding latency and origin load"))]
                        + ([("Cloudflare (free plan) in front of Azure", "cheaper for a small site, but a second vendor for DNS/TLS and outside the Azure contract")] if p == "azure" else []),
-                       ["Cache invalidation on deploys"] + (["Front Door Standard has a $35/month base fee before requests and egress"] if p == "azure" else [])
+                       ["Cache invalidation on deploys"] + ([
+                           # p5b S2: one profile, one tier: when the WAF line moves it to Premium, this line says so
+                           f"Front Door runs on the Premium tier for its WAF: the ${AZURE_FRONT_DOOR_BASE}/month counted here plus "
+                           f"${AZURE_FRONT_DOOR_PREMIUM_BASE - AZURE_FRONT_DOOR_BASE} in the WAF line make up the ${AZURE_FRONT_DOOR_PREMIUM_BASE}/month Premium base fee, "
+                           "before requests and egress" if front_door_premium(ctx) and security_line(ctx, host, "", None, svc) else
+                           "Front Door Standard has a $35/month base fee before requests and egress"] if p == "azure" else [])
                        + ([CF_FREE] if name.startswith("Cloudflare (free plan)") else []),
                        "managed", p if hyper else "cloudflare", False,
                        # Azure: the $35 base fee is verified (R11); request/egress growth in the larger tiers is an estimate
