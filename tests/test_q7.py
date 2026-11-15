@@ -95,5 +95,51 @@ class ReplacedSystemIsMigrated(unittest.TestCase):
             self.assertNotIn("takes over what it does", text(out), (typ, word))
 
 
+READ_ONLY = "so access is read-only"
+
+
+def db_lines(out):
+    return [out["stack"]["database"]] + [c for c in out["stack"]["supporting"] if "existing" in c["choice"].lower()]
+
+
+class UntouchableSystemIsReadOnly(unittest.TestCase):
+    def test_no_touch_wording_makes_the_integration_read_only(self):
+        cases = (("data_analytics", "Loan dashboards for a credit society. Core jobs write to Db2 every night; we need daily dashboards "
+                  "without touching the core.", ["IBM Db2 for z/OS"], "on_premise", "Db2"),
+                 ("internal_tool", "Claims reports for an insurer. The Oracle 19c policy database must not be modified.",
+                  ["Oracle 19c policy database"], "managed_cloud", "Oracle"),
+                 ("web_app", "A parts catalogue for dealers, read from the existing SQL Server 2019 database through a read-only replica.",
+                  ["SQL Server 2019 parts database"], "managed_cloud", "SQL Server"),
+                 ("healthtech", "Appointment reminders for a hospital. The hospital's MySQL 8.0 patient database is read-only for us: "
+                  "no writes to it.", ["MySQL 8.0 patient database"], "managed_cloud", "MySQL"))
+        for typ, desc, ex, dep, word in cases:
+            out = run(typ, desc, ex, deployment=dep)
+            c = line(out, word)
+            self.assertIsNotNone(c, typ)
+            self.assertIn(READ_ONLY, c["justification"], typ)
+            self.assertIn("never writes to it", c["justification"], typ)
+            for x in db_lines(out):
+                self.assertNotIn("must read and write", x["justification"], typ)
+                self.assertNotIn("reads and writes the existing", x["justification"], typ)
+
+    def test_kept_database_that_must_not_change_is_read_in_place(self):
+        out = run("internal_tool", "Shift planning for a hospital. Keep the existing PostgreSQL 15 database; it must not be modified.",
+                  ["PostgreSQL 15 HR database"])
+        just = out["stack"]["database"]["justification"]
+        self.assertIn("reused", out["stack"]["database"]["choice"])
+        self.assertIn("never writes to it", just)
+        self.assertNotIn("reads and writes", just)
+
+    def test_must_not_fire(self):
+        cases = (("internal_tool", "Claims reports for an insurer from the Oracle 19c database; reports must not slow the core.",
+                  ["Oracle 19c database"], "Oracle"),
+                 ("web_app", "Admissions currently run on a PHP 5.6 site that nobody dares to touch; the new portal reads from it.",
+                  ["PHP 5.6 admissions website"], "PHP"),
+                 ("ecommerce", "Order history must read and write the existing MySQL 8.0 database.", ["MySQL 8.0 database"], "MySQL"))
+        for typ, desc, ex, word in cases:
+            out = run(typ, desc, ex)
+            self.assertNotIn(READ_ONLY, text(out), typ)
+
+
 if __name__ == "__main__":
     unittest.main()

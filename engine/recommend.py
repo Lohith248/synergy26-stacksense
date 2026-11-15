@@ -1859,9 +1859,15 @@ def kept_database(ctx, e, d_ok, loc):
     why = (f"'{e['raw']}' is the system of record the application must read and write ({e['keep']}), so it stays: the new application "
            f"writes to the existing {pat['product']} in place " if e.get("keep_write") else
            f"'{e['raw']}' must stay ({e['keep']}): the new application reads and writes the existing {pat['product']} in place ")
-    why += ("instead of creating a second primary database, so existing consumers and batch jobs keep working. It is reached over "
-            + ("the local network (LAN) on the same premises" if onsite else "a private network path (VPN / private link)")
-            + " with credentials in a secret store; new tables or collections only with the owners' agreement.")
+    path = "the local network (LAN) on the same premises" if onsite else "a private network path (VPN / private link)"
+    if e.get("read_only"):  # q7: the description forbids changing it, so the reuse is read only
+        why = (f"'{e['raw']}' must stay ({e['keep']}) and the description says '{e['read_only']}': the new application reads the existing "
+               f"{pat['product']} in place through a read-only account (or a read replica / change-data-capture feed) and never writes to it. "
+               f"It is reached over {path} with credentials in a secret store; data the new application creates itself needs a writable "
+               "store agreed with the owners (a separate schema or a small database of its own).")
+    else:
+        why += ("instead of creating a second primary database, so existing consumers and batch jobs keep working. It is reached over "
+                + path + " with credentials in a secret store; new tables or collections only with the owners' agreement.")
     if eol:
         why += (f" It is past end of support ({life['name']}): upgrade it in place to a supported release before building on it "
                 "(see END_OF_LIFE_SYSTEM).")

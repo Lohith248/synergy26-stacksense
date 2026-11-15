@@ -82,24 +82,40 @@ def rebuilt_function(e, desc):
     return None
 
 
-def no_touch_quote(desc):
-    """The words of the description that forbid changes to existing systems, else None."""
+# a no-touch clause must be about the existing estate: it names an existing system or one of these nouns ('without changing the
+# menu', 'a read-only dashboard for managers' are not about it)
+ESTATE_RX = (r"\b(?:core|core banking|systems?|existing|legacy|databases?|db|mainframe|servers?|erp|crm|ledger|records?|source data"
+             r"|replicas?|tables?|schemas?)\b")
+
+
+def no_touch(desc, name_rxs):
+    """(quoted sentence, [lower-case clauses]) for the description clauses that forbid changes to the existing estate."""
+    quote, clauses = None, []
+    prev = ""
     for s in re.split(r"(?<=[.!?;])\s+|\n", (desc or "").replace("’", "'")):
-        if re.search(NO_TOUCH_RX, s.lower()):
-            s = s.strip().rstrip(".")
-            return s if len(s) <= 160 else s[:157].rsplit(" ", 1)[0] + " ..."
-    return None
+        for cl in re.split(r"[,;:]\s*|\s+(?:but|while|whereas)\s+", s.lower()):
+            said = s
+            if re.search(NO_TOUCH_RX, cl) and re.match(r"\s*(?:it|they|this|that|which)\b", cl):
+                # 'keep the Oracle database; it must not be modified': the clause before the pronoun says what it is
+                said = (prev + " " + s).strip()
+                cl = said.lower()
+            if re.search(NO_TOUCH_RX, cl) and (re.search(ESTATE_RX, cl) or any(rx and re.search(rx, cl) for rx in name_rxs)):
+                clauses.append(cl)
+                if quote is None:
+                    q = said.strip().rstrip(".")
+                    quote = q if len(q) <= 160 else q[:157].rsplit(" ", 1)[0] + " ..."
+        prev = s
+    return quote, clauses
 
 
 def mark(ctx, req):
     """Adds e['rebuilt'] (function word or None) and e['read_only'] (quoted description words or None) to each existing system;
     a rebuilt system is also marked retire."""
     desc = req["project.description"] or ""
-    quote = no_touch_quote(desc)
     names = {id(e): _name_rx(e) for e in ctx["existing"]}
     sents = _sentences(desc)
+    quote, hits = no_touch(desc, list(names.values()))
     # a no-touch clause that names some existing systems covers only those; one that names none covers all of them
-    hits = [s for s in sents if re.search(NO_TOUCH_RX, s)]
     named = {i for i, rx in names.items() if rx and any(re.search(rx, s) for s in hits)}
     for e in ctx["existing"]:
         fw = rebuilt_function(e, desc)
@@ -111,4 +127,4 @@ def mark(ctx, req):
         rx = names[id(e)]
         writes = bool(rx and any(cx.write_in_text(rx, s) for s in sents)) or e.get("keep_write")
         e["read_only"] = (quote if quote and covered and not e["retire"] and not writes
-                          and kind in ("database", "record", "legacy_app") else None)
+                          and kind in ("database", "record", "legacy_app", "erp", "crm") else None)
