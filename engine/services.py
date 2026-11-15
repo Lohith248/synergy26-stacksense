@@ -188,6 +188,14 @@ def llm_constraints(ctx):
 ENGINE_NAMES = {"sqlserver": "SQL Server", "postgresql": "PostgreSQL", "mysql": "MySQL", "mongodb": "MongoDB"}
 
 
+def read_only_note(e):
+    """q7: the description forbids changing what exists: access to this system is read only."""
+    if not e.get("read_only"):
+        return ""
+    return (f" The description says '{e['read_only']}', so access is read-only: a read replica, a change-data-capture feed or a "
+            "read API with a read-only account; the new application never writes to it.")
+
+
 def second_db_reason(ctx, e, pat, db):
     """G1 (D19-g1): why a second database exists beside the new one: the entry says neither that the existing database must stay
     (it would then be THE database) nor that it is going away, so it is left untouched and read through a narrow layer."""
@@ -1916,7 +1924,7 @@ def build(ctx, host, backend, db, mobile, warn):
                             "check row counts and checksums, and switch it off once its owners agree. The new application does not depend on a live connection to it afterwards."
                             if e["retire"] else
                             f"{pat.get('how_beside', pat['how']).replace('Leave it running as it is and read', 'Until it is migrated or retired, read') if e['life'] and e['life']['eol'] <= AS_OF else pat.get('how_beside', pat['how'])} The new application keeps its own tables in {db['_variant']} and reads the existing data through {via}. "
-                            + second_db_reason(ctx, e, pat, db))
+                            + second_db_reason(ctx, e, pat, db) + read_only_note(e))
                            + (f" It {cx.life_short(e['life'])} ({e['life']['name']}{'' if e['life'].get('soft') else ', ' + e['life']['eol']})"
                               + (", which is a further reason to retire it." if e["retire"] else
                                  ": plan its upgrade" + (f" (options, knowledge-base suggestion: {e['life']['successor']})" if e["life"].get("successor") else "")
@@ -1940,7 +1948,7 @@ def build(ctx, host, backend, db, mobile, warn):
                            f"{gone}: migrate its data once through an export or ETL job (or its own API) and check row counts, keep it "
                            "read-only during the transition, then cut over with a rollback path (it stays available, read-only, until the "
                            "cut-over is confirmed) and switch it off once its owners agree; the new application does not depend on it afterwards."
-                           if retire else pat["how"],
+                           if retire else pat["how"] + read_only_note(e),
                            ["infrastructure.existing_systems"],
                            [("Keep integrating with it after launch", "keeps the system the input is retiring in service")] if retire else
                            [("Replacing it in the first release", "it is past end of support, so a replacement must be planned (see the end-of-life warning), but a rewrite "
