@@ -164,7 +164,7 @@ class ReviewFixes(unittest.TestCase):
             with self.subTest(raw=raw):
                 out = run([raw], typ)
                 self.assertEqual(len(eol(out, raw)), 1, raw)
-                self.assertIn("paid or third-party add-on", eol(out, raw)[0]["message"])
+                self.assertIn("paid add-on", eol(out, raw)[0]["message"])
 
     def test_vendor_sold_extension_says_it_may_be_paid(self):
         out = run(["Spring Framework 5.3 app"], "web_app")

@@ -732,7 +732,10 @@ def lifecycle_hits(norm):
     for lc, rx in _life_compiled():
         if rx.search(norm) and all(o["name"] != lc["name"] for o in out):
             out.append(lc)
-    return out
+    # one row per release: a point release ("android 12.1") and its major line ("android 12") from the same source keep the point release
+    pats = [o.get("pattern", "") for o in out]
+    return [o for o in out if not any(p != o.get("pattern", "") and p.startswith(o.get("pattern", "") + ".") and q.get("src") == o.get("src")
+                                      for p, q in zip(pats, out))]
 
 
 _LIFE_RX = []
