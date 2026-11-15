@@ -16,6 +16,7 @@ from . import refresh as rf
 from . import descflags as dfl
 from . import rightsize as rs
 from . import mlstack as mls
+from . import payreuse as pr
 from .kb import cite, AS_OF
 from .select import for_noun, type_noun
 
@@ -140,7 +141,17 @@ GATEWAY_EEA = {"stripe": {
     "sources": ["stripe-ssa", "stripe-dpa", "stripe-privacy", "stripe-dpf-list", "ec-scc", "ec-adequacy", "adyen-dpa"],
     "elsewhere": ("Stripe's privacy policy says personal data may be transferred to the United States and India, so in-country "
                   "processing is not assumed."),
-    "transfer_sources": ["stripe-privacy"]}}
+    "transfer_sources": ["stripe-privacy"]},
+    # q2: an existing Adyen merchant account is reused (adyen-dpa, verified 13 Nov 2026)
+    "adyen": {
+    "mechanism": ("Adyen's data processing agreement says it stores the merchant's personal data in data centres located in the EU; its employees "
+                  "or sub-processors may access it from outside the EU, and Standard Contractual Clauses cover those sub-processor transfers. "
+                  "Its EEA contracting entity and Data Privacy Framework status are not confirmed in the knowledge base."),
+    "action": ("Check that the DPA on your existing Adyen contract is this version, and whether access from outside the EU is acceptable for what "
+               "EU residency means for you."),
+    "sources": ["adyen-dpa", "ec-scc"],
+    "elsewhere": ("The knowledge base knows only that Adyen's DPA names EU data centres, so processing in this country is not assumed."),
+    "transfer_sources": ["adyen-dpa"]}}
 AREA = {"EU": "the EU", "US": "the US", "INDIA": "India"}  # res_label of a named residency, as it reads in a sentence
 
 # A15 (llm_rag): constraints the description states about the model's data and answers (planning heuristic wording signals; each is read
@@ -1370,6 +1381,18 @@ def build(ctx, host, backend, db, mobile, warn):
                        + 
                        f"or a managed key service, and an audit trail that cannot be edited. The connection to {net} is part of this design and is certified with them, "
                        "not an outside dependency. Every payment state change is confirmed from the network's or acquirer's signed response, idempotently.")
+            cards_kept = None if psp_shape else pr.card_storage(req["project.description"])
+            if cards_kept:  # q2: the stated plan to keep card data is replaced by provider tokenisation, and the reason is said
+                crit = pci or (ctx["type"] in ("fintech", "ecommerce", "marketplace"))
+                warn("CARD_DATA_STORAGE", "critical" if crit else "warning",
+                     f"The description plans to store card data itself (\"{cards_kept}\"). Storing full card numbers (PANs) puts the database, the "
+                     "application and every system connected to them in PCI DSS scope, with encryption key management to run. A merchant that "
+                     "keeps card numbers no longer fits SAQ A and is normally assessed with SAQ D or a full assessment; the acquirer decides, and "
+                     "every eligibility criterion of an SAQ must be met to use it (PCI SSC FAQ 1215; the SAQ D criterion itself is not confirmed "
+                     "in the knowledge base). Card verification codes (CVV2/CVC2/CID) cannot be stored after authorisation, even if encrypted "
+                     "(PCI SSC FAQ 1280), so they can never be kept for retries. The recommended stack replaces that plan: the payment provider's hosted checkout and tokenisation keep card numbers off your "
+                     "servers, and the application stores only the provider's customer or payment-method token for repeat or retried charges.",
+                     ["project.description", "requirements.payments"] + (["compliance"] if pci else []))
             mm = None if (psp_shape or india or (store and not mixed)) else dfl.first_live(cn.MOBILE_MONEY_RX, req["project.description"] or "")
             if mm:  # p5: wallet payments go through the wallet operator's API or an aggregator; a card checkout does not reach them
                 mpesa = bool(re.search(r"m-?pesa", (req["project.description"] or "").lower()))
@@ -1404,6 +1427,43 @@ def build(ctx, host, backend, db, mobile, warn):
                        f"(\"{ov.quote(ctx, 'hosted_pay')}\"), keeps card data off the site entirely: the page only links to it, which can qualify for PCI DSS SAQ A "
                        "(your acquirer confirms; protect the page from script attacks). Receipts and payment records come from the provider's dashboard and e-mails, "
                        "so no webhook server is needed.")
+            reuse = pr.existing_psp(ctx) if not named and not psp_shape and not mm and (not store or mixed) else None
+            if reuse:  # q2: the organisation already has this provider: reuse it, no second processor
+                rkey, rname, rquote, rpath = reuse
+                said = (f"infrastructure.existing_systems lists '{rquote}'" if rpath == "infrastructure.existing_systems"
+                        else f"the description says \"{rquote}\"")
+                lead = f"The organisation already has {'an' if rname[0] in 'AEIOU' else 'a'} {rname} account ({said}), so payments reuse it: no second processor, merchant onboarding or reconciliation. "
+                second = "a second processor next to the existing " + rname + " account adds a merchant account, onboarding, webhooks and a daily reconciliation step"
+                if rkey == prov:
+                    name = name.replace(" (", " (existing account reused; ", 1) if " (" in name else name + " (existing account reused)"
+                    why = lead + why
+                    alts = [(a, second + "; switch only if " + rname + " cannot take a payment method you need") for a, _ in alts
+                            if not a.lower().startswith(rname.lower())][:2]
+                else:
+                    gone = bool(feats)
+                    name, prov, feats = f"{rname} (existing merchant account reused)", rkey, []
+                    alts = [(("Razorpay (UPI, cards, netbanking)" if india else "Stripe (Checkout)"),
+                             second + "; switch only if " + rname + " cannot take a payment method or region you need")]
+                    src = (["razorpay-upi"] if rkey == "razorpay" else ["stripe-billing-pricing"] if rkey == "stripe" else []) + ["statement"]
+                    why = (("Orders for physical goods or services are paid here, not through the app stores (their billing rule covers digital goods and "
+                            "subscriptions only; the digital item is billed by the stores, see above). ") if mixed else "") + lead + (
+                        (f"{rname}'s fees, {'' if rkey in GATEWAY_EEA else 'regions, '}supported payment methods and features are not in the knowledge base; confirm them on the existing contract. "
+                         if rkey not in pr.KNOWN else "")
+                        + (f"The subscriptions or payouts this product needs run through the same {rname} account if it offers them, which is not confirmed in the knowledge base. "
+                           if gone else "")
+                        + (f"Customers pay on {rname}'s hosted payment page or button, linked from the site, so card data stays off the site (which can qualify for PCI DSS SAQ A; "
+                           "your acquirer confirms); receipts come from the provider's dashboard." if hosted else
+                           f"Use {rname}'s hosted payment page or hosted card fields, where the account offers them, so card data stays off your servers "
+                           "(which can qualify for PCI DSS SAQ A; your acquirer confirms). Payment confirmation is trusted only from the provider's signed "
+                           "server-side notifications, handled idempotently."))
+                dp = dp + [rpath]
+            if not psp_shape and not mm and (not store or mixed):  # q2: the methods the description asks for are named, and their support stated
+                meths = [m for m in pr.requested_methods(req["project.description"]) if not (m == "UPI" and prov == "razorpay")]
+                mtxt, msrc = pr.methods_text(prov, name.split(" (")[0], meths)
+                why, src = why + mtxt, src + msrc
+            if cards_kept:
+                why += " The description's plan to keep card numbers is replaced by the provider's tokens (see the card-data warning)."
+                src = src + ["pci-faq-1280", "pci-faq-1215"]
             if d["upi"]:
                 why = "The description requires UPI. " + why
             if ctx["type"] == "fintech" and d["ledger"] and d["lending"]:
@@ -1415,7 +1475,8 @@ def build(ctx, host, backend, db, mobile, warn):
                     why += " pci_dss: confirm your PCI DSS level and assessor with your acquirer."
                     src += ["pci-v4"]
                 else:
-                    why += " pci_dss: the gateway is PCI DSS Level 1; your scope still covers the pages that embed checkout."
+                    why += (f" pci_dss: ask {name.split(' (')[0]} for its PCI DSS Attestation of Compliance (not in the knowledge base); your scope still covers the pages that embed checkout."
+                            if reuse and prov not in pr.KNOWN else " pci_dss: the gateway is PCI DSS Level 1; your scope still covers the pages that embed checkout.")
                     src += ["pci-saq-a", "pci-v4"]
             if ctx["self_host_only"] and not psp_shape:
                 warn("EXTERNAL_PAYMENT_GATEWAY", "critical",
@@ -1432,7 +1493,7 @@ def build(ctx, host, backend, db, mobile, warn):
                 loc_msg, loc_src, ctx["payment_location_assumption"] = payment_location(name.split(' (')[0], prov, ctx)
                 src = src + loc_src
                 warn("PAYMENT_DATA_LOCATION", "warning", loc_msg, ["requirements.payments"] + ctx["res_paths"])
-            if (not store or mixed) and not psp_shape and not mm and not india and ctx["country"] and not named:
+            if (not store or mixed) and not psp_shape and not mm and not india and ctx["country"] and not named and not (reuse and prov not in ("stripe",)):
                 warn("PAYMENT_LOCAL_ACQUIRING", "info",
                      f"{name.split(' (')[0]} is the knowledge base's default gateway outside India; whether it offers local acquiring and local payment "
                      f"methods in {ctx['res_label']} is not in the knowledge base — confirm with the gateway or choose a local acquirer.",
@@ -1442,7 +1503,7 @@ def build(ctx, host, backend, db, mobile, warn):
                 src = src + ["stripe-usage-billing"]
             if not store or mixed:
                 out.append(svc("payments", name + (" — " + "; ".join(feats) if feats else ""), why,
-                               dp + (["project.description"] if (feats or d["upi"]) else []) + (["compliance"] if pci or via_compliance else []) + res_path,
+                               list(dict.fromkeys(dp + (["project.description"] if (feats or d["upi"]) else []) + (["compliance"] if pci or via_compliance else []) + res_path)),
                                alts, ["Scheme/NPCI certification, a PCI DSS assessment and HSM or key-service costs are not in the infrastructure band (planning heuristic: budget them separately)",
                                       "Every network message and callback must be idempotent and reconciled daily against the scheme's settlement files"] if psp_shape else [("Per-transaction fees (~2% on domestic cards at Razorpay's standard pricing) are charged on revenue, not in the infrastructure band" if india else
                                        "Per-transaction fees (a percentage plus a fixed amount per charge, set by the gateway's price list for your country) are charged on revenue, not in the infrastructure band"),
