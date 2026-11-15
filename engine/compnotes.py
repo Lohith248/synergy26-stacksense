@@ -13,6 +13,9 @@ MINORS_RX = (r"\bunder[- ]?(?:18|17|16|15|14|13|eighteen|sixteen|thirteen)\b|\bm
              r"|\bclass(?:es)? \d{1,2}\s*(?:to|-)\s*\d{1,2}\b|\bgrades? \d{1,2}\s*(?:to|-)\s*\d{1,2}\b")
 # weaker evidence: a school level that is usually minors, with no age stated
 MINORS_WEAK_RX = r"\bpupils?\b|\bprimary schools?\b|\bsecondary schools?\b"
+# p6: card signals in the description (shared by the payments text and the PCI service-provider note)
+CARD_RX = r"\bcards?\b|\bcardholder\b|\bvisa\b|\bmastercard\b|\brupay\b"
+
 # a payment service provider shape: the project itself routes, authorises or vaults card payments for merchants
 PSP_RX = (r"\bpayment orchestrat\w*|\broutes? to acquirers?\b|\b(?:we are|we.re|become|becoming|building) an? (?:\w+ )?(?:payment service provider|psp|acquirer)\b|\bvault(?:s|ing)? cards?\b|\bpayment facilitators?\b|\bpayment aggregators?\b"
           r"|\bcard (?:vault|tokeni[sz]ation)\b|\bcardholder data (?:environment|vault)\b|\bmerchant acquiring\b"
@@ -79,6 +82,13 @@ def refine(ctx, notes, managed_cloud_hipaa):
     p = psp(ctx) if "pci_dss" in notes else None
     if p:
         code, sev, msg, fields = notes["pci_dss"]
+        if not re.search(CARD_RX, (ctx["req"]["project.description"] or "").lower()):  # p6: agree with the payments text when no card data is named
+            notes["pci_dss"] = (code, "warning",
+                                f"PCI DSS v4.0.1: project.description says this system itself routes payments for others ('{p[1]}') but names no card data, so PCI DSS "
+                                "applies only if cards are added later (then in full scope as a service provider, and the hosted-checkout shortcut, SAQ A, does not apply). "
+                                "Until then keep account and transaction data in one segmented environment, tokenise account identifiers, hold keys in an HSM or a managed "
+                                "key service, and keep an audit trail that cannot be edited.", fields + ["project.description"])
+            return notes
         notes["pci_dss"] = (code, "warning",
                             f"PCI DSS v4.0.1: project.description says this system itself accepts or routes card payments for merchants ('{p[1]}'), so it stores, processes or transmits "
                             "cardholder data as a service provider and the hosted-checkout shortcut (SAQ A) does not apply. Scope is what you design: keep raw card numbers inside one small, "
