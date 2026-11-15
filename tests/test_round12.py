@@ -96,7 +96,12 @@ class B3HaTierMatchesPrice(unittest.TestCase):
         out = ev(blind("C08"))
         h, ha = line(out, "Hosting"), line(out, "Availability")
         self.assertIn("Premium v3", h)
-        self.assertGreaterEqual(rng(h)[0] + rng(ha)[0], 120)
+        # q3 item 4: the two zone-redundant instances are priced once, in the hosting line; the availability line names that
+        # line and carries no second amount (before q3 the floor was split over the two lines: same $120 total)
+        self.assertIn("two instances", h)
+        self.assertGreaterEqual(rng(h)[0], 120)
+        self.assertIsNone(RANGE.search(ha), ha)
+        self.assertIn("hosting line already includes it", ha)
 
     def test_small_tier_label_inside_band(self):
         db = line(ev(PUBLIC["P2"]), "Database")
