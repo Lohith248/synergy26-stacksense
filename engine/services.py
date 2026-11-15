@@ -7,6 +7,7 @@ import re
 from . import costreal
 from . import domains
 from . import context as cx
+from . import dbvocab as dbv
 from . import overeng as ov
 from . import integrations as ig
 from . import localfirst as lf
@@ -1860,7 +1861,7 @@ def build(ctx, host, backend, db, mobile, warn):
                        + ("the database" if rls else "a repository layer") + ", so one bug cannot leak another organisation's data.",
                        ["requirements.multi_tenant"], [("Database per tenant", "strong isolation, but a separate database to provision, migrate and back up per customer organisation"
                                                         + f", for a team of {ctx['size']}" + ("" if ctx["devops"] else " without a DevOps engineer"))],
-                       ["Every new table needs a policy"], "library", "neutral", False, Z, ["postgres-rls"]))
+                       ["Every new table needs a policy"], "library", "neutral", False, Z, [dbv.rls_source(db["id"])] if rls else []))
     if d["ledger"]:
         # name only the money flows the input names
         parts = (["Loan disbursals"] if d["lending"] else []) + (["EMI collections"] if d["emi"] else [])

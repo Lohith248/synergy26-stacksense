@@ -10,6 +10,7 @@ from . import costreal
 from . import mlstack as mls
 from . import kb
 from . import rightsize as rs
+from . import dbvocab as dbv
 
 SECONDS_PER_MONTH = 30 * 24 * 3600
 # A13: an existing system that already receives the device messages (an MQTT broker, a LoRaWAN network server) is reused; no second ingestion service is added beside it
@@ -169,7 +170,7 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
             out[-1]["_note"] = note
     if (iot or (req["scale.workload"] == "write_heavy" and ctx["data_gb"] >= 500 and d["time_series"])) and db and db.get("family") == "relational":
         ts = "TimescaleDB hypertables (extension supported on Azure Database for PostgreSQL)" if (p == "azure" and db["id"] == "postgresql" and not selfh) else \
-            "native monthly partitions + BRIN index on the timestamp"
+            dbv.time_partitions(db["id"])[0]
         out.append(svc("other", f"Time-series storage: {ts}",
                        # E9: "readings" only when the input is an IoT/sensor workload; otherwise the premise is the write-heavy workload
                        (f"~{ctx['data_gb']:,.0f} GB of append-only readings" if iot else
@@ -183,7 +184,7 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
                        [("One unpartitioned table", "index bloat and slow deletes as data grows"),
                         ("Amazon Timestream for LiveAnalytics", "closed to new customers since June 2025")],
                        ["Retention and rollup jobs must be scheduled"], "library", "neutral", False, Z,
-                       ["postgres-partitioning"] + (["azure-pg-timescale"] if "Timescale" in ts else []) + (["timestream-change"] if iot else [])))
+                       dbv.time_partitions(db["id"])[1] + (["azure-pg-timescale"] if "Timescale" in ts else []) + (["timestream-change"] if iot else [])))
 
     # ---------------- analytics: warehouse + BI (D13: the warehouse needs data volume; below it reports run on the application database)
     if typ == "data_analytics" or (d["analytics"] and req["scale.workload"] == "read_heavy" and ctx["data_gb"] >= 200):

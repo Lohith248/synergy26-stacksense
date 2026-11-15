@@ -134,5 +134,81 @@ class AvailabilityVsTeam(unittest.TestCase):
         self.assertIsNone(avt(ops_run("web_app", 3, False, "99.9")))
 
 
+import json  # noqa: E402
+import re  # noqa: E402
+
+from engine import dbvocab  # noqa: E402
+
+PG_ONLY = re.compile(r"BRIN|WAL|streaming replica|pg_\w+|pgvector|pg_trgm|TimescaleDB|CREATE POLICY|postgresql\.org/docs", re.I)
+NON_PG = [  # each keeps a non-PostgreSQL database the input names, on a different project type
+    {"project.type": "healthtech", "team.languages": ["csharp"], "infrastructure.deployment_model": "on_premise", "requirements.availability": "99.95",
+     "requirements.rpo_minutes": 2, "infrastructure.existing_systems": ["Microsoft SQL Server 2022 ward database (must stay)"],
+     "project.description": "Ward round checklists and bed allocation for a district hospital."},
+    {"project.type": "iot", "team.languages": ["csharp"], "infrastructure.cloud_preference": "azure", "scale.workload": "write_heavy",
+     "scale.data_volume_gb": 900, "infrastructure.existing_systems": ["SQL Server 2019 telemetry database (keep)"],
+     "project.description": "Water pumping stations report pressure every ten seconds."},
+    {"project.type": "ecommerce", "team.languages": ["php"], "infrastructure.deployment_model": "on_premise", "requirements.availability": "99.95",
+     "infrastructure.existing_systems": ["MySQL 8.4 product catalogue database (keep as system of record)"],
+     "project.description": "Garden centre catalogue with click-and-collect orders."},
+    {"project.type": "saas_b2b", "team.languages": ["php"], "requirements.multi_tenant": True, "requirements.ml_features": "llm_rag",
+     "infrastructure.existing_systems": ["MySQL 8.0 database (must remain)"],
+     "project.description": "Tender tracking for construction firms with an assistant that answers from uploaded tender documents."},
+    {"project.type": "social", "team.languages": ["javascript"], "requirements.ml_features": "llm_rag",
+     "infrastructure.existing_systems": ["MongoDB 7 replica set (must stay)"],
+     "project.description": "Birdwatching community with sightings, comments and an assistant that answers from past sightings."},
+    {"project.type": "iot", "team.languages": ["javascript"], "scale.workload": "write_heavy", "scale.data_volume_gb": 800,
+     "infrastructure.deployment_model": "self_hosted_cloud_vm", "requirements.availability": "99.95", "requirements.rpo_minutes": 1,
+     "infrastructure.existing_systems": ["MongoDB 7 cluster (keep)"], "project.description": "Cold-store sensors report temperature every minute."},
+    {"project.type": "fintech", "team.languages": ["csharp"], "requirements.multi_tenant": True, "infrastructure.cloud_preference": "azure",
+     "requirements.availability": "99.99", "infrastructure.existing_systems": ["SQL Server 2022 loan ledger (system of record)"],
+     "project.description": "Equipment leasing portal for small workshops."},
+    {"project.type": "data_analytics", "team.languages": ["python"], "scale.workload": "write_heavy", "scale.data_volume_gb": 2000,
+     "infrastructure.deployment_model": "on_premise", "requirements.rpo_minutes": 3, "infrastructure.existing_systems": ["MySQL 8.4 sales database (keep)"],
+     "project.description": "Weekly sales reports for a chain of pharmacies."},
+    {"project.type": "internal_tool", "team.languages": ["java"], "infrastructure.deployment_model": "on_premise", "requirements.rpo_minutes": 2,
+     "infrastructure.existing_systems": ["SQL Server 2017 HR database (keep)"], "project.description": "Leave requests and approvals for staff."},
+]
+
+
+class DatabaseVocabulary(unittest.TestCase):
+    """Item 3: no PostgreSQL-only term on a stack whose database is not PostgreSQL."""
+
+    def test_sweep_non_postgres_outputs(self):
+        engines = set()
+        for kw in NON_PG:
+            out = run(**kw)
+            self.assertNotEqual(out["status"], "invalid_input", out["validation_errors"])
+            db = out["stack"]["database"]["choice"]
+            self.assertNotIn("postgres", db.lower(), kw["project.description"])
+            engines.add(db.split()[1])
+            for comp in [out["stack"][k] for k in ("frontend", "backend", "database", "hosting") if out["stack"].get(k)] + out["stack"]["supporting"]:
+                text = json.dumps({k: v for k, v in comp.items() if k != "alternatives"}, ensure_ascii=False)
+                self.assertIsNone(PG_ONLY.search(text), (db, comp["choice"], PG_ONLY.search(text)))
+            rest = json.dumps([out["warnings"], out["assumptions"], out["estimated_monthly_cost_usd"]], ensure_ascii=False)
+            self.assertIsNone(PG_ONLY.search(rest), (db, PG_ONLY.search(rest)))
+        self.assertEqual(engines, {"SQL", "MySQL", "MongoDB"})
+
+    def test_engine_terms(self):
+        self.assertIn("Always On availability group", dbvocab.standby("sqlserver"))
+        self.assertIn("log shipping", dbvocab.rpo("sqlserver"))
+        self.assertIn("binary-log", dbvocab.rpo("mysql"))
+        self.assertIn("replica set", dbvocab.rpo("mongodb"))
+        self.assertIn("columnstore", dbvocab.time_partitions("sqlserver")[0])
+        self.assertIn("RANGE", dbvocab.time_partitions("mysql")[0])
+        for e in ("sqlserver", "mysql", "mongodb", "dynamodb", "cosmosdb"):
+            for f in (dbvocab.standby, dbvocab.rpo, dbvocab.replica):
+                self.assertIsNone(PG_ONLY.search(f(e)), (e, f.__name__))
+            self.assertIsNone(PG_ONLY.search(dbvocab.time_partitions(e)[0]), e)
+
+    # must-not-fire: PostgreSQL keeps its own terms
+    def test_postgres_keeps_wal_and_brin(self):
+        self.assertIn("WAL", dbvocab.rpo("postgresql"))
+        self.assertIn("BRIN", dbvocab.time_partitions("postgresql")[0])
+        out = run(**{"project.type": "iot", "scale.workload": "write_heavy", "scale.data_volume_gb": 900, "infrastructure.deployment_model": "on_premise",
+                     "requirements.rpo_minutes": 2, "project.description": "Weather stations report wind speed every minute."})
+        self.assertIn("PostgreSQL", out["stack"]["database"]["choice"])
+        self.assertIn("WAL", json.dumps(out["warnings"]))
+
+
 if __name__ == "__main__":
     unittest.main()
