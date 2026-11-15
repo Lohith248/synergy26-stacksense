@@ -86,5 +86,49 @@ class ExistingProviderReused(unittest.TestCase):
             self.assertNotIn("existing", p["choice"].lower(), desc)
 
 
+class CardStoragePlanWarned(unittest.TestCase):
+    def test_ecommerce_with_pci_is_critical(self):
+        out = run(**{"project.type": "ecommerce", "requirements.payments": True, "compliance": ["pci_dss"],
+                     "project.description": "Coffee subscription shop. We plan to keep customers' full card numbers in our own database for re-billing."})
+        w = warn(out, "CARD_DATA_STORAGE")
+        self.assertIsNotNone(w)
+        self.assertEqual(w["severity"], "critical")
+        for word in ("PCI DSS", "SAQ D", "CVV", "token", "replaces", "full card numbers in our own database"):
+            self.assertIn(word, w["message"])
+        self.assertIn("compliance", w["fields"])
+        self.assertIn("replaced by the provider's tokens", pay(out)["justification"])
+
+    def test_marketplace_cvv_critical_without_pci_listed(self):
+        out = run(**{"project.type": "marketplace", "requirements.payments": True,
+                     "project.description": "Ticket resale marketplace; we save card numbers and CVV codes so buyers can check out in one click."})
+        w = warn(out, "CARD_DATA_STORAGE")
+        self.assertEqual(w["severity"], "critical")
+        self.assertNotIn("compliance", w["fields"])
+
+    def test_web_app_is_warning(self):
+        out = run(**{"project.type": "web_app", "requirements.payments": True,
+                     "project.description": "Gym booking site. Members' credit card numbers will be stored in our database so staff can charge no-show fees."})
+        self.assertEqual(warn(out, "CARD_DATA_STORAGE")["severity"], "warning")
+
+    def test_healthtech_pans_in_capitals(self):
+        out = run(**{"project.type": "healthtech", "requirements.payments": True,
+                     "project.description": "Clinic billing portal. The billing table stores PANs and expiry dates so the front desk can retry a declined copay."})
+        self.assertEqual(warn(out, "CARD_DATA_STORAGE")["severity"], "warning")
+
+    def test_must_not_fire(self):
+        for desc in ["Coffee subscription shop. We never store card numbers; the gateway keeps them.",
+                     "Coffee subscription shop. Card numbers must not be stored on our servers.",
+                     "Coffee subscription shop. We store order history and delivery addresses in our database.",
+                     "Coffee subscription shop. We store only the last four digits of the card number for receipts.",
+                     "Coffee subscription shop. We save loyalty card numbers so members collect points.",
+                     "Coffee subscription shop. Staff upload card-sized photos of each blend and we keep them in the catalogue.",
+                     "Coffee subscription shop. For KYC we record the customer's PAN card and Aadhaar number.",
+                     "Coffee subscription shop. The provider's vault stores card details and gives us a token.",
+                     "Coffee subscription shop. We keep SIM card details of the delivery riders."]:
+            out = run(**{"project.type": "ecommerce", "requirements.payments": True, "compliance": ["pci_dss"], "project.description": desc})
+            self.assertIsNone(warn(out, "CARD_DATA_STORAGE"), desc)
+            self.assertNotIn("replaced by the provider's tokens", pay(out)["justification"], desc)
+
+
 if __name__ == "__main__":
     unittest.main()

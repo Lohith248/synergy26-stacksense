@@ -1408,6 +1408,18 @@ def build(ctx, host, backend, db, mobile, warn):
                        + 
                        f"or a managed key service, and an audit trail that cannot be edited. The connection to {net} is part of this design and is certified with them, "
                        "not an outside dependency. Every payment state change is confirmed from the network's or acquirer's signed response, idempotently.")
+            cards_kept = None if psp_shape else pr.card_storage(req["project.description"])
+            if cards_kept:  # q8: the stated plan to keep card data is replaced by provider tokenisation, and the reason is said
+                crit = pci or (ctx["type"] in ("fintech", "ecommerce", "marketplace"))
+                warn("CARD_DATA_STORAGE", "critical" if crit else "warning",
+                     f"The description plans to store card data itself (\"{cards_kept}\"). Storing full card numbers (PANs) puts the database, the "
+                     "application and every system connected to them in PCI DSS scope, with encryption and key management to run, so the hosted-checkout "
+                     "shortcut (SAQ A) no longer applies and the full questionnaire (SAQ D) or an on-site assessment is the likely route (planning heuristic: "
+                     "the knowledge base does not confirm which SAQ applies); your acquirer decides, and all the eligibility criteria of an SAQ must be met to use it (PCI SSC FAQ 1215). Card verification codes (CVV2/CVC2/CID) "
+                     "cannot be stored after authorisation, even if encrypted (PCI SSC FAQ 1280), so they can never be kept for repeat charges. "
+                     "The recommended stack replaces that plan: the payment provider's hosted checkout and tokenisation keep card numbers off your "
+                     "servers, and the application stores only the provider's customer or payment-method token for repeat or retried charges.",
+                     ["project.description", "requirements.payments"] + (["compliance"] if pci else []))
             mm = None if (psp_shape or india or (store and not mixed)) else dfl.first_live(cn.MOBILE_MONEY_RX, req["project.description"] or "")
             if mm:  # p5: wallet payments go through the wallet operator's API or an aggregator; a card checkout does not reach them
                 mpesa = bool(re.search(r"m-?pesa", (req["project.description"] or "").lower()))
@@ -1472,6 +1484,9 @@ def build(ctx, host, backend, db, mobile, warn):
                            "(which can qualify for PCI DSS SAQ A; your acquirer confirms). Payment confirmation is trusted only from the provider's signed "
                            "server-side notifications, handled idempotently."))
                 dp = dp + [rpath]
+            if cards_kept and (not store or mixed):
+                why += " The description's plan to keep card numbers is replaced by the provider's tokens (see the card-data warning)."
+                src = src + ["pci-faq-1280", "pci-faq-1215"]
             if d["upi"]:
                 why = "The description requires UPI. " + why
             if ctx["type"] == "fintech" and d["ledger"] and d["lending"]:

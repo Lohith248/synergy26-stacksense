@@ -65,12 +65,20 @@ def existing_psp(ctx):
 
 # q2: the description plans to keep card data itself (full card numbers, CVV, magnetic-stripe data). A storage verb and a card-data
 # noun within a few words, in a sentence without a negation (planning heuristic wording signal).
-_CARD = (r"(?:full |raw |complete |plain(?:-text)? )?(?:credit |debit |payment )?card ?(?:numbers?|details|data)\b|\bpans?\b|\bprimary account numbers?\b"
-         r"|\bcvv2?s?\b|\bcvcs?\b|\bcard (?:verification|security) (?:codes?|values?)\b|\bmagnetic[- ]?stripe\b|\btrack (?:1 |2 )?data\b")
-_STORE = r"\b(?:stor\w*|keep\w*|kept|sav\w*|retain\w*|persist\w*|hold\w*|log\w*|record\w*)\b"
-CARD_STORE_RX = (r"(?i:" + _STORE + r"(?:\W+\w+){0,6}?\W+(?:" + _CARD + r")|(?:" + _CARD + r")(?:\W+\w+){0,4}?\W+(?:will be |are |is |get |gets )?"
-                 + _STORE + r")")
-_CARD_NEG = r"(?i:\b(?:not|never|no(?!-)|don'?t|won'?t|without|avoid\w*|instead of|tokeni[sz]\w*)\b)"
+# q8: a card that is not a payment card (loyalty, ID, SIM, business card, ...) never counts; "PAN" counts only in capitals and not as
+# India's tax identifier (PAN card / PAN number / KYC wording).
+_NOT_PAY = (r"(?<!business )(?<!gift )(?<!loyalty )(?<!membership )(?<!member )(?<!library )(?<!id )(?<!identity )(?<!sim )(?<!student )"
+            r"(?<!insurance )(?<!health )(?<!ration )(?<!transit )(?<!metro )(?<!access )(?<!key )(?<!report )(?<!sd )(?<!flash )(?<!score)(?<!-)")
+_CARD = (r"(?:full |raw |complete |plain(?:-text)? )?(?:credit |debit |payment )?" + _NOT_PAY + r"\bcard ?(?:numbers?|details|data)\b"
+         r"|\bprimary account numbers?\b|\bcvv2?s?\b|\bcvcs?\b|\bcard (?:verification|security) (?:codes?|values?)\b"
+         r"|\bmagnetic[- ]?stripe data\b|\btrack (?:1 |2 )?data\b")
+_PAN = r"(?-i:\bPANs?\b)(?! card| number| details| of)"
+_STORE = r"\b(?:stor(?:e|es|ed|ing)|keep(?:s|ing)?|kept|sav(?:e|es|ed|ing)|retain\w*|persist\w*|hold(?:s|ing)?|log(?:s|ged|ging)?|record(?:s|ed|ing)?)\b"
+CARD_STORE_RX = (r"(?i:" + _STORE + r"(?:\W+\w+){0,6}?\W+(?:" + _CARD + "|" + _PAN + r")|(?:" + _CARD + "|" + _PAN
+                 + r")(?:\W+\w+){0,4}?\W+(?:will be |are |is |get |gets )?" + _STORE + r")")
+# negation, someone else keeps the data, or only a non-sensitive part of it (last four digits, masked or truncated numbers) is kept
+_CARD_NEG = (r"(?i:\b(?:not|never|no(?!-)|don'?t|won'?t|without|avoid\w*|instead of|tokeni[sz]\w*|tokens?|off|out of|outside|away from"
+             r"|last (?:four|4)(?: digits)?|masked|truncat\w*|gateway|provider|processor|vault|kyc|aadhaar|income tax)\b)")
 
 
 def card_storage(desc):
