@@ -190,7 +190,10 @@ def build(ctx, host, backend, db, svc, warn, Z, out):
     if typ == "data_analytics" or (d["analytics"] and req["scale.workload"] == "read_heavy" and ctx["data_gb"] >= 200):
         want_wh, wh_fact, wh_when, wh_paths = rs.warehouse(ctx)
         # q7: a warehouse the input already runs is the analytics store; a second one would duplicate it
-        ex_wh = next((e for e in ctx["existing"] if e["pattern"] and e["pattern"].get("warehouse") and not e["retire"]), None)
+        # (q7 review) ... unless it runs outside the residency area: then it cannot hold the project's records and the usual rule applies
+        from . import restransfer as rt
+        abroad = {id(f[4]) for f in rt.findings(ctx) if f[4] is not None}
+        ex_wh = next((e for e in ctx["existing"] if e["pattern"] and e["pattern"].get("warehouse") and not e["retire"] and id(e) not in abroad), None)
         if selfh or not hyper:
             wh, wprov, wsrc, wdep = "ClickHouse (self-hosted columnar warehouse)", "neutral", ["clickhouse"], "self_hosted"
         else:

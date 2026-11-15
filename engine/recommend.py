@@ -1697,15 +1697,16 @@ def contradictions(ctx, W, assumptions, host, backend, db_self=False, db_id=None
             if life["eol"] <= AS_OF:
                 what = cx.life_what(life)
                 W("END_OF_LIFE_SYSTEM", "warning",
-                  f"'{e['raw']}' {what} ({life['name']}); " + ("confirm its support status with the vendor, " if life.get("soft") else "")
+                  f"'{e['raw']}' {what} ({life['name']}); " + (("confirm its support status with the vendor; " if e.get("retire") and not life.get("discontinued")
+                                                             else "confirm its support status with the vendor, ") if life.get("soft") else "")
                   + (("it is a discontinued service, not a version to upgrade, so do not build on it and add no integration with it; "
                       + (f"candidate replacements (the knowledge base's suggestion, not a vendor recommendation): {life['successor']}; "
                          "confirm the choice against the vendor's current guidance and plan the migration."
                          if life.get("successor") else
                          "no replacement named in the knowledge base, so choose one from the vendor's current guidance and plan the migration."))
                      if life.get("discontinued") else
-                     ("the input retires or replaces it, so build no new integration on it: migrate what it holds, keep it read-only until the "
-                      "cut-over, then switch it off." if e.get("retire") else
+                     ("the input retires or replaces it, so build no new integration on it: move what still depends on it to its replacement, "
+                      "leave it unchanged until the cut-over, then switch it off." if e.get("retire") else
                       "keep it behind an isolated interface, do not build new features on it, and plan a migration.")
                      + (f" Upgrade or replacement options (knowledge-base suggestion): {life['successor']}." if life.get("successor") else "")),
                   ["infrastructure.existing_systems"])

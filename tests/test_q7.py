@@ -202,5 +202,70 @@ class WellKnownProductsRecognised(unittest.TestCase):
         self.assertNotIn("is reused as the analytics store", text(out))
 
 
+class ReviewFixes(unittest.TestCase):
+    """Review of q7 on 15 Nov: a warehouse outside the residency area is not the project's analytics store; the end-of-life text for a
+    retired system makes no claim about data it may not hold."""
+
+    @staticmethod
+    def res_run(typ, residency, existing, compliance=()):
+        s = copy.deepcopy(BASE)
+        s["project"].update(type=typ, description="Operational records with weekly reporting for managers.")
+        s["infrastructure"].update(existing_systems=[existing], data_residency=residency)
+        s["compliance"] = list(compliance)
+        out = evaluate(s, counterfactuals=False)
+        assert out["stack"], out["warnings"]
+        return out
+
+    def test_warehouse_outside_the_residency_area(self):
+        for typ, res, raw, comp in (("fintech", "india", "Snowflake account in AWS us-east-1", ["rbi_localisation"]),
+                                    ("healthtech", "eu", "BigQuery datasets in us-central1", ["gdpr"]),
+                                    ("saas_b2b", "india", "Amazon Redshift cluster in us-west-2", ["dpdp"])):
+            out = self.res_run(typ, res, raw, comp)
+            j = line(out, raw.split(" ")[0] if not raw.startswith("Amazon") else "Redshift")["justification"]
+            self.assertTrue(j.startswith("Residency limits this integration"), (raw, j[:120]))
+            self.assertIn("not this project's analytics store", j, raw)
+            self.assertNotIn("treat it as this project's analytics store", j, raw)
+            self.assertIn("RESIDENCY_TRANSFER_OUT", [w["code"] for w in out["warnings"]], raw)
+
+    def test_warehouse_abroad_is_not_reused_as_the_analytics_store(self):
+        s = copy.deepcopy(BASE)
+        s["project"].update(type="data_analytics", description="Dashboards and ad-hoc SQL for analysts over transaction data.")
+        s["scale"]["data_volume_gb_12_months"] = 4000
+        s["infrastructure"].update(existing_systems=["Snowflake account in AWS us-east-1"], data_residency="india")
+        s["compliance"] = ["rbi_localisation"]
+        out = evaluate(s, counterfactuals=False)
+        self.assertNotIn("is reused as the analytics store", text(out))
+        self.assertNotIn("Dashboards query the existing", text(out))
+        self.assertIn("RESIDENCY_TRANSFER_OUT", [w["code"] for w in out["warnings"]])
+        # the same warehouse in the residency area is reused as before
+        s["infrastructure"]["existing_systems"] = ["Snowflake account in AWS ap-south-1 (Mumbai)"]
+        self.assertIn("is reused as the analytics store", text(evaluate(s, counterfactuals=False)))
+
+    def test_warehouse_inside_the_area_or_without_residency_keeps_its_text(self):
+        for res, raw in (("none", "Snowflake account in AWS us-east-1"), ("india", "Snowflake account in AWS ap-south-1 (Mumbai)"),
+                         ("us", "BigQuery datasets in us-central1")):
+            out = self.res_run("saas_b2b", res, raw)
+            j = line(out, raw.split(" ")[0])["justification"]
+            self.assertIn("treat it as this project's analytics store", j, (res, raw))
+            self.assertNotIn("Residency limits this integration", j, (res, raw))
+
+    def test_retired_end_of_life_system_wording(self):
+        for typ, raw in (("internal_tool", "Windows CE 6.0 handheld scanners (being retired)"),
+                         ("ecommerce", "Magento 1.9 storefront (to be retired)"),
+                         ("web_app", "Adobe Flash admin console (to be replaced)")):
+            out = run(typ, "A new system for the operations team.", [raw])
+            w = [x["message"] for x in out["warnings"] if x["code"] == "END_OF_LIFE_SYSTEM"]
+            self.assertTrue(w, raw)
+            self.assertIn("move what still depends on it to its replacement", w[0], raw)
+            self.assertNotIn("migrate what it holds", w[0], raw)
+            self.assertNotIn("vendor, the input", w[0], raw)
+
+    def test_kept_end_of_life_system_keeps_the_isolation_wording(self):
+        out = run("internal_tool", "A new system for the operations team.", ["Windows CE 6.0 handheld scanners"])
+        w = [x["message"] for x in out["warnings"] if x["code"] == "END_OF_LIFE_SYSTEM"]
+        self.assertIn("keep it behind an isolated interface", w[0])
+        self.assertNotIn("the input retires or replaces it", w[0])
+
+
 if __name__ == "__main__":
     unittest.main()

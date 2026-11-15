@@ -26,6 +26,8 @@ EXTRA_PLACES = [
     (r"ca-central-1|northamerica-northeast[12]|canada ?(?:central|east)", "canada"),
 ]
 UPPER_US = r"(?<![A-Za-z])US(?![A-Za-z])"
+# first words of the knowledge-base text for an existing warehouse (kb existing_patterns rows with "warehouse": true)
+WAREHOUSE_HOW = "It is an existing data warehouse / lakehouse: treat it as this project's analytics store."
 # a place word directly followed by one of these names people, not a system's location ("the US investors' team", "EU customers")
 AUDIENCE_AFTER = (r"\s*(?:'s\s+|-based\s+)?(?:customers?|users?|clients?|investors?|teams?|players?|patients?|students?|people|visitors?|"
                   r"buyers?|sellers?|merchants?|partners?|subscribers?|market|audiences?|staff|employees?|offices?)\b")
@@ -184,6 +186,12 @@ def apply(ctx, supporting):
                     f"data may be sent to the system in {place}, or an instance of it that runs in {res} replaces it; a full export of the records is not part of this plan. ")
             for s in supporting:
                 if s["layer"] == "other" and name and name in s["choice"].lower() and not s["justification"].startswith("Residency limits"):
+                    if s["justification"].startswith(WAREHOUSE_HOW):
+                        # q7 review: a warehouse outside the residency area cannot be "this project's analytics store"
+                        s["justification"] = (f"It is an existing data warehouse or lakehouse, but it runs in {place}, so it is not this project's "
+                                              "analytics store: load only the aggregated or anonymised extracts allowed above into it, through a "
+                                              "service account limited to the project's own schema; the new application never writes to the tables "
+                                              f"other teams own. Reporting on the raw records runs on data kept in {res}.")
                     s["justification"] = note + s["justification"]
                     if "infrastructure.data_residency" not in s["driven_by"] and ctx["res_paths"]:
                         s["driven_by"] = s["driven_by"] + [p for p in ctx["res_paths"] if p not in s["driven_by"]]
