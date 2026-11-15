@@ -48,7 +48,8 @@ def cognito_band(users):
     """(lo, hi) USD a month for Cognito Lite MAUs of `users` sign-in users (p5 item 6). Rates above COGNITO_TIER_READ_TO MAU were not
     read, so the lower bound counts MAUs only up to that point (a true floor) and the upper bound keeps the last read rate above it."""
     lo_mau, hi_mau = (users * x for x in MAU_SHARE)
-    return round(cognito_usd(min(lo_mau, COGNITO_TIER_READ_TO))), round(cognito_usd(hi_mau))
+    # p6: both bounds continue the last verified rate above COGNITO_TIER_READ_TO (planning estimate, stated in cognito_note)
+    return round(cognito_usd(lo_mau)), round(cognito_usd(hi_mau))
 
 
 def cognito_note(users, staff=False):
@@ -58,7 +59,9 @@ def cognito_note(users, staff=False):
             f"the free {COGNITO_FREE_MAU:,}): {COGNITO_FREE_MAU:,} monthly active users (MAU) free,then ${r1} per MAU up to {t1:,} MAU and ${r2} per MAU up to {COGNITO_TIER_READ_TO:,} "
             f"(Amazon Cognito pricing); MAU taken as {MAU_SHARE[0]:.0%}-{MAU_SHARE[1]:.0%} of ~{users:,} {'staff who sign in' if staff else 'users'} = "
             f"{mlo:,}-{mhi:,} MAU (planning heuristic)"
-            + (f"; rates above {COGNITO_TIER_READ_TO:,} MAU are not in the knowledge base, so the lower bound counts only the first "
+            + (f"; rates above {COGNITO_TIER_READ_TO:,} MAU are not in the knowledge base, so both bounds apply the last verified rate (${r2} per MAU) "
+               f"to every MAU above {COGNITO_TIER_READ_TO:,} (planning estimate; later volume tiers may be cheaper, confirm with AWS)." if mlo > COGNITO_TIER_READ_TO
+               else f"; rates above {COGNITO_TIER_READ_TO:,} MAU are not in the knowledge base, so the lower bound counts only the first "
                f"{COGNITO_TIER_READ_TO:,} MAU and the upper bound keeps ${r2} above it." if mhi > COGNITO_TIER_READ_TO else "."))
 
 

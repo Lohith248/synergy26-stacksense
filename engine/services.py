@@ -1354,7 +1354,7 @@ def build(ctx, host, backend, db, mobile, warn):
                 net = "NPCI (UPI/IMPS)" if re.search(r"\bnpci\b|\bupi\b|\bimps\b", low) else "the card schemes through a sponsor acquirer" if re.search(r"payment (?:facilitator|aggregator)", low) else "the card schemes and acquiring banks"
                 if re.search(r"\bnpci\b|\bupi\b|\bimps\b", low) and re.search(r"\bcards?\b|\bvisa\b|\bmastercard\b|\brupay\b", low):
                     net = "NPCI (UPI/IMPS) and the card schemes"
-                cards = bool(re.search(r"\bcards?\b|\bcardholder\b|\bvisa\b|\bmastercard\b|\brupay\b", low))
+                cards = bool(re.search(cn.CARD_RX, low))
                 name = f"In-house payment core: tokenisation vault + HSM/managed KMS, {'connection' if 'sponsor' in net else 'direct connection'} to {net} (in scope)"
                 feats, prov, src = [], "neutral", ["pci-v4", "mastercard-sdp"]
                 alts = [("Stripe Checkout / Razorpay hosted checkout", "a merchant checkout sits in front of a shop; this system is the payment provider itself, so it cannot hand its card data to another merchant's checkout"),
@@ -1443,12 +1443,14 @@ def build(ctx, host, backend, db, mobile, warn):
             if not store or mixed:
                 out.append(svc("payments", name + (" — " + "; ".join(feats) if feats else ""), why,
                                dp + (["project.description"] if (feats or d["upi"]) else []) + (["compliance"] if pci or via_compliance else []) + res_path,
-                               alts, ["Scheme/NPCI certification, a PCI DSS assessment and HSM or key-service costs are not in the infrastructure band (planning heuristic: budget them separately)",
+                               alts, [("Scheme/NPCI" if ("NPCI" in net or india) else "Card-scheme") + " certification, a PCI DSS assessment and HSM or key-service costs are not in the infrastructure band (planning heuristic: budget them separately)",
                                       "Every network message and callback must be idempotent and reconciled daily against the scheme's settlement files"] if psp_shape else [("Per-transaction fees (~2% on domestic cards at Razorpay's standard pricing) are charged on revenue, not in the infrastructure band" if india else
                                        "Per-transaction fees (a percentage plus a fixed amount per charge, set by the gateway's price list for your country) are charged on revenue, not in the infrastructure band"),
                                       "Reconcile from the provider's reports; add a backend with signed webhooks when the site must react to a payment (accounts, entitlements, its own receipts)"
                                       if hosted else "Webhook handling must be idempotent"] + ([home[2]] if home_ok else []),
-                               "saas", prov, True, Z, src, "india" if india else (home[0] if home_ok else None)))
+                               # p6: an in-house payment core runs on this stack, so it is self-hosted and inherits the stack's residency region
+                               "self_hosted" if psp_shape else "saas", prov, True, Z, list(dict.fromkeys(src)) if psp_shape else src,  # p6: dedupe, first-seen order
+                               "india" if india else (loc if psp_shape and (region or selfh) else (home[0] if home_ok else None))))
             fq = ov.web_form(ctx) if hosted else ""
             if fq:  # p4: the site's web form goes to a hosted form tool, not to a backend
                 out.append(svc("other", f"Web form: embedded Google Form for the {fq} (responses in a Google Sheet)",

@@ -1815,6 +1815,9 @@ def kept_database(ctx, e, d_ok, loc):
     managed = not re.search(r"self[- ]?(?:managed|hosted)|on[- ]?prem", low) and bool(re.search(MANAGED_DB_RX, low))
     # data location: none without a residency requirement; otherwise the location the entry states, else 'unverified'
     where = cx.existing_location(e["raw"]) if loc else None
+    onsite = ctx["self_host_only"] and not managed  # p6: an on-premises stack's own database sits on the same premises
+    if loc and not where and onsite:
+        where = loc
     data_loc = (where or ("unverified" if ctx["res_named"] or ctx["residency_from_rbi"] else loc)) if loc else None
     label = f"Existing {pat['product']} ({'managed service' if managed else 'self-managed'}, reused)"
     item = next((d for d in TECH["database"] if d["id"] == pat["engine"]), None)
@@ -1828,8 +1831,9 @@ def kept_database(ctx, e, d_ok, loc):
     why = (f"'{e['raw']}' is the system of record the application must read and write ({e['keep']}), so it stays: the new application "
            f"writes to the existing {pat['product']} in place " if e.get("keep_write") else
            f"'{e['raw']}' must stay ({e['keep']}): the new application reads and writes the existing {pat['product']} in place ")
-    why += ("instead of creating a second primary database, so existing consumers and batch jobs keep working. It is reached over a "
-           "private network path (VPN / private link) with credentials in a secret store; new tables or collections only with the owners' agreement.")
+    why += ("instead of creating a second primary database, so existing consumers and batch jobs keep working. It is reached over "
+            + ("the local network (LAN) on the same premises" if onsite else "a private network path (VPN / private link)")
+            + " with credentials in a secret store; new tables or collections only with the owners' agreement.")
     if eol:
         why += (f" It is past end of support ({life['name']}): upgrade it in place to a supported release before building on it "
                 "(see END_OF_LIFE_SYSTEM).")
