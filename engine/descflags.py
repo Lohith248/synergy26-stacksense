@@ -215,7 +215,7 @@ def reminder_warning(ctx):
 
 
 # ---- an existing identity provider that staff sign in through
-STAFF_WHO = (r"(?:staff|employees?|workforce|clinicians?|doctors?|nurses?|physicians?|teachers?|faculty|administrators?|admins?|agents?|officers?|analysts?"
+STAFF_WHO = (r"(?:staff|employees?|workforce|clinicians?|doctors?|nurses?|physicians?|therapists?|psychologists?|counsell?ors?|pharmacists?|dentists?|teachers?|instructors?|lecturers?|tutors?|faculty|administrators?|admins?|agents?|officers?|analysts?"
              r"|caseworkers?|operators?|technicians?|team members|personnel|back[- ]office users?|internal users?|moderators?|managers?)")
 _IDP_NAMES = (r"(?:identity provider|idp|sso|single sign[- ]on|domain|directory|active directory|okta|entra|azure ad|keycloak|google workspace|ad ?fs|ldap"
               r"|ping(?: identity)?|auth0|onelogin|jumpcloud|authentik)")

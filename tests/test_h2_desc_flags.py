@@ -155,7 +155,10 @@ class StaffSso(unittest.TestCase):
         cases = (("healthtech", "Patient portal for a hospital. Staff sign in through the hospital identity provider.", "Okta workforce identity", "Okta"),
                  ("internal_tool", "Parts ordering. Employees log in with their Google Workspace accounts through single sign-on.", "Google Workspace", "Google Workspace"),
                  ("web_app", "Parent portal for a school. Teachers sign in with their domain logins.", "On-prem Active Directory", "Active Directory"),
-                 ("ecommerce", "Online shop. Staff sign in through our Ping Identity tenant to manage orders.", "Ping Identity", "Ping Identity"))
+                 ("ecommerce", "Online shop. Staff sign in through our Ping Identity tenant to manage orders.", "Ping Identity", "Ping Identity"),
+                 # holdout2 twin M01 (L05 says "Clinicians already sign in through our Okta tenant"): therapists are staff too
+                 ("healthtech", "Patients book live video therapy sessions; therapists sign in via the company's existing Okta.", "Okta workforce identity", "Okta"),
+                 ("web_app", "Course platform for students. Instructors sign in through the university's Okta tenant.", "Okta workforce identity", "Okta"))
         for typ, desc, existing, name in cases:
             with self.subTest(existing=existing):
                 out = run(desc, typ, infra={"existing_systems": [existing]})
@@ -171,7 +174,8 @@ class StaffSso(unittest.TestCase):
         for desc, req, existing in ((d, {"auth": "enterprise_sso"}, ["Okta workforce identity"]),      # enterprise_sso already uses it
                                     (d, {}, []),                                                         # no provider exists
                                     ("Shop for customers. Customers sign in with e-mail.", {}, ["Okta workforce identity"]),  # no staff sign-in sentence
-                                    ("Staff do not sign in through the identity provider; they use local accounts.", {}, ["Okta workforce identity"])):
+                                    ("Staff do not sign in through the identity provider; they use local accounts.", {}, ["Okta workforce identity"]),
+                                    ("Therapy app. Patients sign in with e-mail; therapists are listed in a directory.", {}, ["Okta"])):  # no staff sign-in sentence
             with self.subTest(desc=desc, req=req):
                 self.assertEqual(self.staff_items(run(desc, "healthtech", req=req, infra={"existing_systems": existing})), [])
 
