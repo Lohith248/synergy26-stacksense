@@ -1825,13 +1825,16 @@ def kept_database(ctx, e, d_ok, loc):
     c.vkey, c.variant = "existing", label
     life = e["life"]
     eol = bool(life and life["eol"] <= AS_OF)
-    why = (f"'{e['raw']}' must stay ({e['keep']}): the new application reads and writes the existing {pat['product']} in place "
-           "instead of creating a second primary database, so existing consumers and batch jobs keep working. It is reached over a "
+    why = (f"'{e['raw']}' is the system of record the application must read and write ({e['keep']}), so it stays: the new application "
+           f"writes to the existing {pat['product']} in place " if e.get("keep_write") else
+           f"'{e['raw']}' must stay ({e['keep']}): the new application reads and writes the existing {pat['product']} in place ")
+    why += ("instead of creating a second primary database, so existing consumers and batch jobs keep working. It is reached over a "
            "private network path (VPN / private link) with credentials in a secret store; new tables or collections only with the owners' agreement.")
     if eol:
         why += (f" It is past end of support ({life['name']}): upgrade it in place to a supported release before building on it "
                 "(see END_OF_LIFE_SYSTEM).")
-    alts = [{"choice": f"Migrate to {a.variant}", "why_not": f"infrastructure.existing_systems=['{e['raw']}'] must remain, so the "
+    stays = ("is the system of record the application must write to" if e.get("keep_write") else "must remain")
+    alts = [{"choice": f"Migrate to {a.variant}", "why_not": f"infrastructure.existing_systems=['{e['raw']}'] {stays}, so the "
              f"{'best-scoring' if i == 0 else 'runner-up'} new database for these inputs is a later migration (change-data-capture or dual writes, then cut-over) once the new app is stable."}
             for i, a in enumerate([a for a in d_ok if not _licence_filler(a, ctx)][:2])]
     cmp = {"choice": label, "justification": why,

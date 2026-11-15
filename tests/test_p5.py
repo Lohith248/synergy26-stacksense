@@ -115,5 +115,35 @@ class GpuCount(unittest.TestCase):
         self.assertIn("across 2-7 T4-class GPUs", costreal.gpu_count_text(1200, 4800, "T4-class"))
 
 
+class WrittenDatabaseIsKept(unittest.TestCase):
+    """Item 8: an existing database the app must read and write stays the system of record (reused as the database layer)."""
+
+    def _db(self, typ, desc, systems, langs=("java", "sql")):
+        out = run(**{"project.type": typ, "project.description": desc, "infrastructure.existing_systems": systems,
+                     "team.languages": list(langs)})
+        return out["stack"]["database"]
+
+    def test_write_path_reuses(self):
+        cases = [
+            ("internal_tool", "Claims screens for back-office staff. Must read and write the existing Oracle policy database.", ["Oracle Database 19c (policy data)"]),
+            ("saas_b2b", "Customer portal that writes orders back to our SQL Server ERP database.", ["Microsoft SQL Server 2019 (ERP)"]),
+            ("ecommerce", "Storefront that reads and writes stock levels in the existing MySQL inventory database.", ["MySQL 8.0 inventory database"]),
+            ("web_app", "Field inspection app for municipal staff.", ["PostgreSQL 15 (read/write by the new app)"]),
+        ]
+        for typ, desc, systems in cases:
+            db = self._db(typ, desc, systems)
+            self.assertIn("reused", db["choice"], desc)
+            self.assertIn("system of record", db["justification"], desc)
+
+    def test_read_only_or_leaving_not_kept(self):
+        cases = [
+            ("internal_tool", "Dashboard that reads the existing Oracle policy database nightly.", ["Oracle Database 19c"]),
+            ("saas_b2b", "We migrate off the existing MySQL database; the new app must read and write a new store.", ["MySQL 5.7 (to be retired)"]),
+            ("data_analytics", "Reports read and write a reporting copy of the Oracle database.", ["Oracle Database 19c"]),
+        ]
+        for typ, desc, systems in cases:
+            self.assertNotIn("reused", self._db(typ, desc, systems)["choice"], desc)
+
+
 if __name__ == "__main__":
     unittest.main()

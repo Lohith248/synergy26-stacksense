@@ -370,6 +370,22 @@ def removal_in_text(name_rx, text):
     return False
 
 
+# p5 item 8: the new app WRITES to the existing database ('must read and write the existing Oracle database'): that database stays
+# the system of record even without keep wording. A clause that removes it, or speaks of a read-only / reporting / replica copy, does not.
+WRITE_RX = (r"\bread(?:s|ing)?\s*(?:and|&|/)\s*writ\w*|\bread[- ]write\b|\bwrit(?:e|es|ing)\s+(?:\w+\s+){0,3}?(?:back\s+)?(?:to|into)\b"
+            r"|\bupdat(?:e|es|ing)\s+(?:records?|rows?|data)\s+in\b")
+_NOT_WRITE_RX = r"read[- ]only|\breport\w*|\breplica\b|\bcopy\b|\bsnapshot\b|\bexport\w*|\bwarehouse\b"
+
+
+def write_in_text(name_rx, text):
+    """A clause (or existing_systems entry) that names the database and says the app reads and writes / writes to it."""
+    for clause in re.split(r"[,;:]\s*|\s+(?:but|while|whereas)\s+", text):
+        if (re.search(name_rx, clause) and re.search(WRITE_RX, clause) and not re.search(REMOVE_RX, clause)
+                and not re.search(_NOT_WRITE_RX, clause)):
+            return True
+    return False
+
+
 # Server-side language named by an existing system (frameworks and app servers included; front-end frameworks are not).
 # Node needs a version or an app noun ('Kubernetes node pool' is not Node.js).
 EXISTING_LANG = {"java": r"\bjava\b|\btomcat\b|\bspring\b|\bjboss\b|\bwildfly\b|\bweblogic\b|\bwebsphere\b",
@@ -1085,6 +1101,10 @@ def build(req):
             name_rx = r"(?<![a-z0-9])(?:" + "|".join(hit["match"] + ([re.escape(hit["product"].split()[0].lower())] if hit.get("product") and not hit.get("synthetic") else [])) + r")(?![a-z0-9])"
         keep = "infrastructure.existing_systems" if keep_in_entry(low) else "project.description" if hit and any(
             keep_in_text(name_rx, s) for s in sentences) else None
+        if not keep and hit and hit["kind"] == "database" and (write_in_text(name_rx, low) or any(write_in_text(name_rx, s) for s in sentences)):
+            keep, keep_write = ("infrastructure.existing_systems" if write_in_text(name_rx, low) else "project.description"), True
+        else:
+            keep_write = False
         # a tenant described only as workforce/staff identity is not a customer login directory
         workforce = bool(re.search(r"\b(?:workforce|employees?|staff)\b", low)) and not re.search(
             r"\b(?:customers?|consumers?|ciam|b2c|external|partners?|public)\b", low)
@@ -1102,7 +1122,7 @@ def build(req):
             else:
                 names = ([name_rx_plain(hit)] if hit else []) + ([life_rx(life)] if life else [])
                 retire = any(removal_in_text(n, lifecycle_text(s)) for n in names for s in sentences)
-        ex.append({"raw": raw, "pattern": hit, "life": life, "life_more": lifes[1:], "old_ver": old_ver, "keep": keep, "onprem": onprem, "workforce": workforce,
+        ex.append({"raw": raw, "pattern": hit, "life": life, "life_more": lifes[1:], "old_ver": old_ver, "keep": keep, "keep_write": keep_write, "onprem": onprem, "workforce": workforce,
                    "retire": retire, "adapter": adapter})
     # list-order invariance: knowledge-base pattern order (identity, databases, brokers, ...), then keyword categories
     # (knowledge-base order), then name; unrecognised last
