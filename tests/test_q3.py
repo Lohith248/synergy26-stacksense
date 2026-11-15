@@ -249,5 +249,34 @@ class HaHostingCostedOnce(unittest.TestCase):
         self.assertTrue([l for l in cost_lines(out) if "second app instance in another zone" in l], cost_lines(out))
 
 
+def all_text(out):
+    return json.dumps(out, ensure_ascii=False)
+
+
+class StockSentenceMobileApp(unittest.TestCase):
+    """Item 5a: 'team already writes X for the mobile app' only for a non-game app with a mobile platform."""
+
+    def test_game_client_wording(self):
+        for plats in (["android", "ios"], ["desktop", "android", "ios"], ["android"]):
+            out = run(**{"project.type": "gaming", "project.platforms": plats, "team.languages": ["csharp", "go"],
+                         "project.description": "Online card battler with ranked matches."})
+            t = all_text(out)
+            self.assertNotIn("for the mobile app", t, plats)
+            self.assertIn("the game client is written in csharp", t.lower(), plats)
+
+    def test_mobile_app_keeps_wording(self):
+        for typ in ("social", "ecommerce", "healthtech"):
+            out = run(**{"project.type": typ, "project.platforms": ["android", "ios"], "team.languages": ["dart", "python"],
+                         "project.description": "Members book and pay for sessions."})
+            self.assertIn("already writes dart for the mobile app", all_text(out).lower(), typ)
+
+    # must-not-fire: no mobile platform, no mobile-app sentence
+    def test_no_mobile_platform(self):
+        for typ, plats in (("web_app", ["web"]), ("internal_tool", ["desktop"]), ("gaming", ["desktop"])):
+            out = run(**{"project.type": typ, "project.platforms": plats, "team.languages": ["csharp", "typescript"],
+                         "project.description": "Staff plan the week and share notes."})
+            self.assertNotIn("for the mobile app", all_text(out), typ)
+
+
 if __name__ == "__main__":
     unittest.main()

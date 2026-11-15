@@ -90,6 +90,8 @@ def lang_term(c, ctx, langs, weight, what, primary=()):
     if hit and primary and not set(langs) & set(primary):
         c.add("lang", weight * ctx["lf"] * 0.5, "project.description",
               f"team writes {', '.join(hit)}, but project.description names {'/'.join(sorted(primary))} as its server language")
+    elif hit and what == "the game client":  # q3 item 5a: no "for the mobile app" on a game; the team's language is the client's language
+        c.add("lang", weight * ctx["lf"], "team.languages", f"the game client is written in {', '.join(hit)}, which the team already writes")
     elif hit:
         c.add("lang", weight * ctx["lf"], "team.languages", f"team already writes {', '.join(hit)} for {what}")
     elif hire:
@@ -527,7 +529,7 @@ def mobile_candidates(ctx, web_choice):
             c.add("game", 8 if game else -4, "project.type",
                   "game engine: rendering, physics, input, audio and asset pipeline built in" if game else "an app UI toolkit, not a game engine")
         prio_terms(c, ctx, m["r"])
-        lang_term(c, ctx, m["langs"], 6, "the mobile app")
+        lang_term(c, ctx, m["langs"], 6, "the game client" if game and ctx["type"] == "gaming" else "the mobile app")
         framework_term(c, ctx, 6, "the mobile app")
         learn_term(c, ctx, m["learning"])
         if ctx["desc"]["low_end"]:
