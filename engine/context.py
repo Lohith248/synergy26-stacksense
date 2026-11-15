@@ -96,7 +96,10 @@ DESC_RULES = [
             # q5 (paraphrase twins): "text messages to customers", "reminders by text": the people-facing wording of SMS (chat between users is not it)
             r"|\btext[- ]messages? (?:to|for) (?:the |our |their |its )?(?:customers?|patients?|clients?|users?|members?|parents?|drivers?|guests?|staff|residents?|tenants?"
             r"|farmers?|operators?|technicians?|subscribers?|them)\b"
-            r"|\b(?:remind\w*|notif\w*|alert\w*|confirm\w*|updates?)\b[^.;!?]{0,40}?\b(?:by|via|through|over) text(?:[- ]messages?)?\b"),
+            r"|\b(?:remind\w*|notif\w*|alert\w*|confirm\w*|updates?)\b[^.;!?]{0,40}?\b(?:by|via|through|over) text(?:[- ]messages?)?\b"
+            # q10: "text messages sent through Twilio / via an SMS gateway" (sent through a provider, not through the product's own chat)
+            r"|\btext[- ]messages? (?:(?:are|is|get|gets) )?(?:sent|delivered|go(?:es)? out) (?:through|via|using|with) "
+            r"(?!(?:the |our |an? |its )?(?:in-app|app|chat|web ?socket|messenger))"),
     ("otp", r"\botps?\b|one[- ]time (?:pass(?:word|code)s?|codes?)"),
     ("email_out", r"newsletters?|mailing lists?|\be-?mail (?:lists?|campaigns?|receipts?|confirmations?|digests?|reminders?|notifications?)"
                   r"|transactional e-?mails?|\b(?:confirmation|receipt|welcome|reminder|invoice|booking) e-?mails?"

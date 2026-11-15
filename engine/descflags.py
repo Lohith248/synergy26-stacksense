@@ -315,6 +315,9 @@ ONSITE_NAMES_MAX = 8  # planning heuristic: components named in the WAN-outage a
 # priced, so the layer choices never move); an external channel on a self-hosted or air-gapped stack is a warning or a critical.
 # only messages the APPLICATION sends: "a WhatsApp link" or "orders come by WhatsApp" is a person using the WhatsApp app, not the Business Platform
 WHATSAPP_RX = (r"\bwhats ?app (?:reminders?|alerts?|notifications?|messages?|updates?|confirmations?|receipts?|otps?|codes?|bots?|chatbots?|business|api)\b"
+               # q10: one or two words between the channel and what is sent ("WhatsApp appointment reminders"); never across a link, group or number
+               r"|\bwhats ?app (?:(?!(?:links?|buttons?|groups?|numbers?|and|or|with|but|then|today|is|are|was|to|in|on)\b)[a-z-]+ ){1,2}"
+               r"(?:reminders?|alerts?|notifications?|confirmations?|otps?)\b"
                r"|\b(?:send|sends|sent|sending|notif\w+|remind\w*|alert\w*|messag\w+|confirm\w*|deliver\w*|push\w*)\b(?!\s+us\b)[^.;!?]{0,50}?"
                r"\b(?:via|by|on|over|through|to|in)\s+(?:their |a |the |our )?whats ?app\b(?! (?:link|button|group|number))")
 CRASH_RX = (r"\bcrash(?:es)?[- ](?:reports?|reporting|dumps?|logs?|analytics|telemetry)\b|\berror[- ](?:tracking|reporting|monitoring)\b|\bexception[- ](?:tracking|monitoring)\b"
