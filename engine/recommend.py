@@ -10,6 +10,7 @@ from . import consistency as cons
 from . import refresh as rf
 from . import descflags as dfl
 from . import compnotes as cn
+from . import restransfer as rt
 from . import costreal
 from . import rightsize as rs
 from . import select as sl
@@ -1158,6 +1159,8 @@ def _recommend(req, assumptions, sid):
                   + ("." if critical else " in the knowledge base: not a proven conflict. Confirm its region or data-processing terms before relying on it."), fields)
 
     for warn in cn.data_path_warnings(ctx, supporting, host):  # H2 (A4): a vendor in the data path with no data location in the knowledge base
+        W(*warn)
+    for warn in rt.apply(ctx, supporting):  # q3: a stated transfer of regulated data out of the residency area
         W(*warn)
 
     # ---- cost band
