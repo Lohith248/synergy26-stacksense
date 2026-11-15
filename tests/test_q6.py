@@ -154,3 +154,25 @@ class Sweep(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReviewFixes(unittest.TestCase):
+    """Review of q6: an extension only a third party sells is not 'supported'; one row per release; vendor-sold extension is named."""
+
+    def test_third_party_extension_is_end_of_life(self):
+        for raw, typ in (("Debian 9 servers", "internal_tool"), ("Kafka 3.9 cluster", "data_analytics"), ("Debian 11 VMs", "saas_b2b")):
+            with self.subTest(raw=raw):
+                out = run([raw], typ)
+                self.assertEqual(len(eol(out, raw)), 1, raw)
+                self.assertIn("paid or third-party add-on", eol(out, raw)[0]["message"])
+
+    def test_vendor_sold_extension_says_it_may_be_paid(self):
+        out = run(["Spring Framework 5.3 app"], "web_app")
+        info = [w for w in out["warnings"] if w["code"] == "EXISTING_SYSTEM_EXTENDED_SUPPORT"]
+        self.assertEqual(len(info), 1)
+        self.assertIn("paid add-on", info[0]["message"])
+
+    def test_one_warning_per_release(self):
+        for raw in ("Android 12 tablets", "Android 12.1 kiosks"):
+            with self.subTest(raw=raw):
+                self.assertEqual(len(eol(run([raw], "web_app"), raw)), 1, raw)

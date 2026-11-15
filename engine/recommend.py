@@ -1695,7 +1695,8 @@ def contradictions(ctx, W, assumptions, host, backend, db_self=False):
                   + (f" Upgrade or replacement options (knowledge-base suggestion): {life['successor']}." if life.get("successor") else ""), ["infrastructure.existing_systems"])
             elif life.get("mainstream_end") and life["mainstream_end"] <= AS_OF:
                 W("EXISTING_SYSTEM_EXTENDED_SUPPORT", "info",
-                  f"'{e['raw']}' is in extended (security-only) support until {life['eol']}; supported, but plan the upgrade path.",
+                  f"'{e['raw']}' ({life['name']}) is past standard support and in extended (security-only) support until {life['eol']}, "
+                  "which the vendor may sell as a paid add-on; plan the upgrade path.",
                   ["infrastructure.existing_systems"])
         oldv = e.get("old_ver")
         tok = None if life or oldv else cx.eol_token(e["raw"])
