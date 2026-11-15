@@ -113,7 +113,7 @@ class NewLifecycleEntries(unittest.TestCase):
     def test_supported_or_unrelated_names_do_not_fire(self):
         for raw in ("Java 17 service", "Java 21 LTS", "JDK 1.8 batch", "Tomcat 10.1", "Tomcat 9", "SharePoint Online", ".NET Framework 4.8",
                     ".NET Framework 4.6.2 service", ".NET Framework 4.8.1", "phpBB 3.3", "Mosquitto 2.0 broker", "ColdFusion 2023", "Struts 2.5 app",
-                    "Flash storage array", "flash sale module", "Classic rock catalogue", "Apache Airflow 2.x on EC2", "Kafka 3.x cluster"):
+                    "Flash storage array", "flash sale module", "Classic rock catalogue", "Apache Airflow 3.x on EC2", "Kafka 3.x cluster"):
             with self.subTest(raw=raw):
                 out = run(raw)
                 self.assertFalse(warns(out, "END_OF_LIFE_SYSTEM", raw) or warns(out, "END_OF_LIFE_SUSPECTED", raw), raw)

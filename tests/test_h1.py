@@ -122,9 +122,10 @@ class RetiredServicesAreNotIntegrated(unittest.TestCase):
 
 class OlderVersionOfAKnownProduct(unittest.TestCase):
     def test_versions_below_the_oldest_known_line_are_suspected(self):
-        cases = (("web_app", "MySQL 4.1 database", "MySQL 4.1"), ("fintech", "CentOS 5 box", "CentOS Linux 5"), ("internal_tool", "Ubuntu 12.04 server", "Ubuntu 12.04"),
-                 ("saas_b2b", "PostgreSQL 9.6", "PostgreSQL 9.6"), ("ecommerce", "PHP 4 scripts", "PHP 4"), ("healthtech", "vSphere 5.5 hosts", "VMware vSphere 5.5"),
-                 ("marketplace", "Windows Server 2003", "Windows Server 2003"))
+        # q6: MySQL 4.1, CentOS 5, Ubuntu 12.04, PostgreSQL 9.6, PHP 4, vSphere 5.5 and Windows Server 2003 now have dated lifecycle rows
+        # (END_OF_LIFE_SYSTEM, tests/test_q6.py); the fallback is exercised with releases older than any row
+        cases = (("web_app", "MySQL 3.22 database", "MySQL 3.22"), ("fintech", "CentOS 4 box", "CentOS Linux 4"),
+                 ("saas_b2b", "PostgreSQL 6.0", "PostgreSQL 6.0"), ("ecommerce", "PHP 3 scripts", "PHP 3"), ("healthtech", "vSphere 4.1 hosts", "VMware vSphere 4.1"))
         for typ, raw, fam in cases:
             with self.subTest(raw=raw):
                 out = run(project__type=typ, infrastructure__existing_systems=[raw])
