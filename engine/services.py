@@ -1998,6 +1998,16 @@ def build(ctx, host, backend, db, mobile, warn):
                            "library", "neutral", False, Z, pat["src"] + (["azure-hybrid-connections"] if p == "azure" and not cloud_sys and not mq_via else [])))
         elif pat and pat["kind"] in ("erp", "crm", "legacy_app", "payments", "record", "health", "api", "orchestrator", "storage"):
             retire = e["retire"] and pat["kind"] in ("erp", "crm", "legacy_app", "record", "storage", "api", "health", "orchestrator")
+            if pat.get("warehouse") and not retire and ctx["self_host_only"]:
+                # q7 review: these warehouses run only as the vendor's cloud service, so on a self-hosted stack they are an outside dependency
+                warn("EXTERNAL_EXISTING_SERVICE", "critical",
+                     f"'{e['raw']}' is a cloud data warehouse that runs only as its vendor's service. deployment_model '{ctx['deploy']}' "
+                     + ("has no route to the internet, so the stack cannot load data into it or query it; keep reporting on the "
+                        "self-hosted database or a self-hosted warehouse, or move the data across by an approved manual process."
+                        if ctx["no_internet"] else
+                        "keeps every component on your own servers, so loading data into it means data leaves your premises: it is kept as an "
+                        "integration with an existing system, not a new dependency, and only data your policy allows off-site may go there."),
+                     ["infrastructure.existing_systems", "infrastructure.deployment_model"])
             # q7: a system being replaced (or rebuilt by this project) is a migration with a cut-over, never integrated for good
             gone = (f"The new application takes over what it does (the description lists '{e['rebuilt']}' among the new application's "
                     "functions and says that work currently runs on it)" if e.get("rebuilt") else "The input says it is going away")

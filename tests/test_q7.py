@@ -260,6 +260,22 @@ class ReviewFixes(unittest.TestCase):
             self.assertNotIn("migrate what it holds", w[0], raw)
             self.assertNotIn("vendor, the input", w[0], raw)
 
+    def test_cloud_warehouse_on_a_self_hosted_stack_is_flagged(self):
+        for typ, raw, dep in (("data_analytics", "Snowflake account", "on_premise"),
+                              ("internal_tool", "Google BigQuery datasets", "on_premise"),
+                              ("healthtech", "Amazon Redshift cluster", "air_gapped")):
+            out = run(typ, "Reports for managers.", [raw], deployment=dep)
+            w = [x for x in out["warnings"] if x["code"] == "EXTERNAL_EXISTING_SERVICE" and raw in x["message"]]
+            self.assertTrue(w, (raw, dep))
+            self.assertEqual(w[0]["severity"], "critical")
+            self.assertIn("no route to the internet" if dep == "air_gapped" else "data leaves your premises", w[0]["message"])
+
+    def test_cloud_warehouse_on_cloud_or_retired_is_not_flagged(self):
+        for raw, dep in (("Snowflake account", "managed_cloud"), ("Snowflake account (being retired)", "on_premise"),
+                         ("Google BigQuery datasets", "self_hosted_cloud_vm")):
+            out = run("data_analytics", "Reports for managers.", [raw], deployment=dep)
+            self.assertFalse([x for x in out["warnings"] if x["code"] == "EXTERNAL_EXISTING_SERVICE" and "warehouse" in x["message"]], (raw, dep))
+
     def test_kept_end_of_life_system_keeps_the_isolation_wording(self):
         out = run("internal_tool", "A new system for the operations team.", ["Windows CE 6.0 handheld scanners"])
         w = [x["message"] for x in out["warnings"] if x["code"] == "END_OF_LIFE_SYSTEM"]
