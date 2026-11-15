@@ -33,6 +33,33 @@ NEEDS = [
      r"|\b(?:wi-?fi|network|connection|connectivity|internet|signal)\b" + _N + r"{0,3}?\W+(?:drops?|dropped|cuts? out|goes down|is down|is patchy|is unreliable|is spotty|fails)"
      r"|\bdropped (?:connection|signal)s?\b|\bwork(?:s|ing)? (?:fully )?offline\b|\bwithout (?:a |any )?(?:network|connection|internet|signal|connectivity)\b"
      r"|\b(?:keep|continue|carry on|still)\s+work\w*\s+(?:\w+\s+){0,2}(?:if|when|while|without)\s+(?:\w+\s+){0,6}?(?:down|offline|disconnected|unavailable|connection|internet|network|wan|link)\b"),
+    # q4: people sign in or hold accounts while requirements.auth is none
+    ("signin", "requirements.auth", "none", "warning",
+     r"\b(?:log|sign)(?:s|ged|ned)?[- ]?(?:in|on)\b(?:\W+\w+){0,3}?\W+(?:with|using|via|through)\W+(?:\w+\W+){0,3}?(?:google|apple|facebook|microsoft|github|linkedin|e-?mail|phone|passwords?|accounts?)\b"
+     r"|\b(?:google|apple|facebook|github|microsoft|social) (?:log-?ins?|sign[- ]?ins?)\b"
+     r"|\b(?:create|open|register)(?:s|d|ing)? (?:an? |their |his |her )?(?:own )?(?:accounts?|profiles?)\b"
+     r"|\b(?:members?|users?|students?|customers?|players?|volunteers?|parents?|teachers?)\b(?:\W+\w+){0,2}?\W+(?:log|sign)(?:s|ged|ned)?[- ]?in\b"
+     r"|\b(?:user|member|customer|student|player) (?:accounts?|log-?ins?)\b|\bpasswords?\b"),
+    # q4: a trained model or machine-learning feature while requirements.ml_features is none (an assistant / LLM is the 'assistant' row)
+    ("model", "requirements.ml_features", "none", "warning",
+     r"\b(?:train(?:s|ed|ing)?|fine[- ]?tun\w+|retrain\w*)\b(?:\W+\w+){0,5}?\W+(?:classifiers?|models?|neural networks?|recommenders?)\b"
+     r"|\b(?:trained|ml|machine[- ]learning|deep[- ]learning|predictive|forecasting|recommendation) (?:classifiers?|models?|engines?)\b"
+     r"|\bmachine[- ]learning\b|\b(?:image|speech|face|facial|object) (?:recognition|classification|detection)\b|\bcomputer vision\b"
+     r"|\bautomatically classif(?:y|ies|ied)\b|\bclassif(?:y|ies|ied|ying)\b(?:\W+\w+){0,4}?\W+(?:automatically|with (?:a|an|our) (?:\w+ )?model)\b"),
+]
+
+# q4: the reverse case. The flag is set and the description plainly says the product does not do it. Matched as written (the negation is
+# the point), quoted, and the flag still wins. (key, flag path, flag-is-set test, severity, regex). Planning heuristic wording lists.
+DENIES = [
+    ("payments", "requirements.payments", lambda v: bool(v), "warning",
+     r"\b(?:do not|don't|does not|doesn't|will not|won't|never|cannot|can't)\s+(?:take|accept|process|handle|collect|charge|do)\s+(?:any\s+|online\s+|in-app\s+)*payments?\b"
+     r"|\bno\s+(?:online\s+|in-app\s+)?payments?\b(?!\s+(?:gateway|provider|method))"
+     r"|\bpayments?\s+(?:are|is)\s+(?:not (?:needed|required|taken|handled|part\b)|out of scope|settled (?:offline|outside|in person|in cash)|handled (?:offline|outside|in person|in cash))"
+     r"|\bwithout\s+(?:any\s+)?(?:online\s+)?payments?\b|\bno money changes hands\b"),
+    ("signin", "requirements.auth", lambda v: v != "none", "warning",
+     r"\bno (?:log-?ins?|sign[- ]?ins?|accounts?|registration)\b(?: (?:is|are) (?:needed|required))?"
+     r"|\bwithout (?:any )?(?:log-?in|sign[- ]?in|signing in|logging in|an account|accounts|registration|registering)\b"
+     r"|\b(?:do|does) not (?:need|have) to (?:log|sign) in\b|\b(?:nobody|no one) (?:logs|signs) in\b"),
 ]
 
 _TEXT = {
@@ -52,6 +79,23 @@ _TEXT = {
                      "says the connection can drop ('{q}') but requirements.offline_support is false. The flag is a hard input, so no offline layer was added. Without "
                      "one a dropped connection loses whatever the user was doing: set offline_support to true for a local queue that keeps each action (a scan, a form) "
                      "on the device and sends it when the network returns, or make every action idempotent and retry it from the client."),
+    "signin": ("DESC_VS_FLAG_AUTH",
+               "has people signing in or holding accounts ('{q}') but requirements.auth is 'none'. The flag is a hard input, so no sign-in component and no user "
+               "store were added: nothing in this stack knows who a visitor is. Set requirements.auth (email_password, social, phone_otp or enterprise_sso) to add "
+               "sign-in, or take the account wording out of the description."),
+    "model": ("DESC_VS_FLAG_ML",
+              "describes a trained model or machine-learning feature ('{q}') but requirements.ml_features is 'none'. The flag is a hard input, so no model "
+              "training, model serving or ML cost was added. Set requirements.ml_features to training (you train and serve your own model) or inference_api "
+              "(you call a hosted model) to add it, or take the model wording out of the description."),
+}
+_DENY_TEXT = {
+    "payments": ("DESC_DENIES_FLAG_PAYMENTS",
+                 "says the product takes no payments ('{q}') but requirements.payments is true. The flag is a hard input, so a payments component was added and "
+                 "sized. If the description is right, set requirements.payments to false: the payments component, its card-data notes and its fees then leave the "
+                 "stack and the cost band."),
+    "signin": ("DESC_DENIES_FLAG_AUTH",
+               "says people use the product without signing in ('{q}') but requirements.auth is '{v}'. The flag is a hard input, so sign-in was added. If the "
+               "description is right, set requirements.auth to none: the sign-in component and the user store then leave the stack."),
 }
 
 
@@ -121,10 +165,18 @@ def mismatches(ctx):
             continue  # a static site's refreshed figures (A18) and a local app have no server to push from
         if key == "connectivity" and ctx["local_first"]:
             continue  # a local-first desktop app is offline by design
+        if key == "model" and first_live(dict((k, r) for k, _, _, _, r in NEEDS)["assistant"], desc, local_neg=True):
+            continue  # the assistant row already says it
         hit = first_live(rx, desc, local_neg=True)
         if hit:
             code, text = _TEXT[key]
             out.append((code, sev, "project.description " + text.format(q=hit[1]), [path, "project.description"]))
+    low = desc.lower().replace("\u2019", "'")
+    for key, path, is_set, sev, rx in DENIES:  # q4: the flag is set, the description says the product does not do it
+        m = re.search(rx, low) if is_set(req[path]) else None
+        if m and len(low) == len(desc):
+            code, text = _DENY_TEXT[key]
+            out.append((code, sev, "project.description " + text.format(q=_clause(desc, m.start(), m.end()), v=req[path]), [path, "project.description"]))
     return out
 
 
@@ -254,6 +306,20 @@ WAN_DOWN_RX = (r"\b(?:keep|continue|carry on|still|stay)\w*\s+(?:\w+\s+){0,4}?(?
                r"|\b(?:wan|uplink|internet) (?:link |connection )?(?:outages?|failures?|drops?)\b"
                r"|\b(?:keep|continue|carry on|still)\s+work\w*\s+(?:\w+\s+){0,3}(?:if|when|while|without)\s+(?:the |a |our )?(?:\w+\s+){0,3}?(?:wan|uplink|internet|head[- ]office)\b")
 ONSITE_NAMES_MAX = 8  # planning heuristic: components named in the WAN-outage assumption
+# q4: capabilities a description names that no hard flag or layer carries. Each becomes a quoted note with a plan (no product is selected or
+# priced, so the layer choices never move); an external channel on a self-hosted or air-gapped stack is a warning or a critical.
+# only messages the APPLICATION sends: "a WhatsApp link" or "orders come by WhatsApp" is a person using the WhatsApp app, not the Business Platform
+WHATSAPP_RX = (r"\bwhats ?app (?:reminders?|alerts?|notifications?|messages?|updates?|confirmations?|receipts?|otps?|codes?|bots?|chatbots?|business|api)\b"
+               r"|\b(?:send|sends|sent|sending|notif\w+|remind\w*|alert\w*|messag\w+|confirm\w*|deliver\w*|push\w*)\b[^.;!?]{0,50}?"
+               r"\b(?:via|by|on|over|through|to|in)\s+(?:their |a |the |our )?whats ?app\b(?! (?:link|button|group|number))")
+CRASH_RX = (r"\bcrash(?:es)?[- ](?:reports?|reporting|dumps?|logs?|analytics|telemetry)\b|\b(?:error|exception)[- ](?:tracking|reporting|monitoring)\b"
+            r"|\b(?:collect|gather|upload|send|receiv)\w*\b(?:\W+\w+){0,3}?\W+crash(?:es)?\b")
+DRM_RX = (r"\bdrm\b|\bwidevine\b|\bfairplay\b|\bplayready\b|\banti[- ]piracy\b|\b(?:against|prevent\w*|stop\w*|deter\w*) (?:\w+ )?piracy\b"
+          r"|\badaptive[- ]bitrate\b|\bhls\b|\bmpeg[- ]dash\b")
+OTA_RX = (r"\bota\b|\bover[- ]the[- ]air\b|\bfirmware (?:updates?|upgrades?|rollouts?|releases?|images?)\b|\b(?:updat|upgrad|flash|push)\w* (?:the |new |device )?firmware\b")
+INBOUND_MAIL_RX = (r"\b(?:read|reads|reading|ingest\w*|pars\w+|process\w*|import\w*|poll\w*|monitor\w*|triag\w+)\b(?:\W+\w+){0,2}?\W+"
+                   r"(?:(?:the|our|their|incoming|inbound|support|customer[- ]support|customer|shared)\W+)*(?:e-?mails?|mailbox(?:es)?|inbox(?:es)?)\b"
+                   r"|\b(?:incoming|inbound) (?:\w+ )?e-?mails?\b|\bshared (?:mailbox|inbox)\b")
 
 
 def _short(choice):
@@ -296,6 +362,54 @@ def component_notes(ctx, supporting, core):
                       "a CDN cuts it and the latency. The client needs a download manager (resumable, chunked downloads in the background, for example WorkManager on Android), "
                       "an integrity check, a storage-space check and a way to delete or expire downloaded packs; paid content should be encrypted on the device or served by "
                       "short-lived signed URLs (planning heuristic; no CDN product is priced into the band unless a CDN layer is listed).", ["project.description"]))
+    hit = first_live(WHATSAPP_RX, desc) if "whats" in low else None
+    if hit and not ctx["local_first"]:
+        base = (f"project.description sends or receives WhatsApp messages ('{hit[1]}'). No WhatsApp provider is selected or priced by the engine (none is in the "
+                "knowledge base). WhatsApp business messaging runs through Meta's WhatsApp Business Platform, an external service reached over the internet, directly "
+                "or through a messaging provider: plan a registered business number, message templates approved in advance for reminders and alerts, a stored opt-in "
+                "per recipient, a delivery-status webhook, and per-message or per-conversation fees (check the current price list).")
+        if ctx["no_internet"]:
+            notes.append(("WHATSAPP_NEEDS_NETWORK", "critical", base + " deployment_model air_gapped has no route to the internet, so this channel cannot work from "
+                          "inside the air gap: use a channel that stays on site (on-screen notices, printed slips, an internal mail server, or an on-site SMS modem if "
+                          "one is allowed), or run the messaging from a separate system outside the gap.", ["project.description", "infrastructure.deployment_model"]))
+        elif ctx["self_host_only"]:
+            notes.append(("WHATSAPP_EXTERNAL_SERVICE", "warning", base + " deployment_model on_premise keeps every component on your own servers; this channel is the "
+                          "exception: it needs an outbound-only HTTPS path from the application server to the provider, and message content (names, appointment times) "
+                          "leaves the site. If that is not permitted, send reminders by SMS through an on-site gateway or by e-mail through the internal mail server.",
+                          ["project.description", "infrastructure.deployment_model"]))
+        else:
+            notes.append(("DESC_WHATSAPP_CHANNEL", "info", base, ["project.description"]))
+    hit = first_live(CRASH_RX, desc) if ("crash" in low or "error" in low or "exception" in low) else None
+    if hit and not re.search(r"sentry|glitchtip|crashlytics|bugsnag|rollbar", " ".join(s["choice"].lower() for s in supporting)):
+        notes.append(("DESC_CRASH_REPORTING", "info",
+                      f"project.description collects crash or error reports ('{hit[1]}'). No error-tracking product is selected or priced by the engine (none is in the "
+                      "knowledge base). Plan a crash and error collector that receives stack traces or crash dumps from the client and the server, groups duplicates, "
+                      "keeps the release version with each report and alerts on new ones; upload debug symbols or source maps at build time and strip personal data "
+                      "before sending. " + ("With this deployment model pick one you can host yourself (open-source collectors exist)."
+                                             if ctx["self_host_only"] else "Hosted services and self-hostable open-source collectors both exist."), ["project.description"]))
+    hit = first_live(DRM_RX, desc) if ("drm" in low or "piracy" in low or "bitrate" in low or "hls" in low or "dash" in low or "widevine" in low
+                                       or "fairplay" in low or "playready" in low) else None
+    if hit:
+        notes.append(("DESC_STREAMING_PROTECTION", "warning",
+                      f"project.description asks for adaptive-bitrate or protected video playback ('{hit[1]}'). No packaging or DRM licence service is selected or priced by "
+                      "the engine (none is in the knowledge base), so this part is NOT covered by the stack above. Plan: transcode each title into a ladder of bitrates, "
+                      "package it as HLS and DASH with encrypted segments, issue playback licences from a multi-DRM licence service (Widevine for Android and Chrome, "
+                      "FairPlay for Apple devices, PlayReady for Windows), use a player that supports them on each platform, and expire downloaded licences for offline "
+                      "viewing. Video delivery (egress) and the licence service will be the largest lines of the real bill.", ["project.description"]))
+    hit = first_live(OTA_RX, desc) if ("ota" in low or "over-the-air" in low or "over the air" in low or "firmware" in low) else None
+    if hit:
+        notes.append(("DESC_FIRMWARE_UPDATES", "info",
+                      f"project.description updates device firmware remotely ('{hit[1]}'). No firmware-update service is selected or priced by the engine (none is in the "
+                      "knowledge base). Plan: signed firmware images in object storage, a manifest of the target version per device group, a staged rollout (a few devices, "
+                      "then the fleet) announced over the device channel, a device that verifies the signature and can roll back (two firmware slots), and a status report "
+                      "from each device so a failed rollout is stopped (planning heuristic).", ["project.description"]))
+    hit = first_live(INBOUND_MAIL_RX, desc) if ("mail" in low or "inbox" in low) else None
+    if hit and ctx["needs_backend"]:
+        notes.append(("DESC_INBOUND_EMAIL", "info",
+                      f"project.description reads incoming e-mail ('{hit[1]}'). The stack's e-mail service, where one is listed, only sends; nothing above receives mail. "
+                      "Plan an ingestion step: poll the mailbox over IMAP (or the mail provider's API) or take the provider's inbound webhook, put each message on the "
+                      "job queue, de-duplicate on the Message-ID header, keep the original message and its attachments in object storage, and scan attachments before "
+                      "anyone opens them (planning heuristic).", ["project.description"]))
     hit = first_live(WAN_DOWN_RX, desc) if ctx["self_host_only"] and ("wan" in low or "uplink" in low or "internet" in low or "head office" in low
                                                                         or "head-office" in low or "leased" in low) else None
     if hit:

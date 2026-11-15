@@ -315,7 +315,12 @@ STRONG_KEEP_RX = (r"(?:cannot|can't|can not|won't|will not|must not|may not|shou
                   r"(?:migrat|replac|decommission|retir|remov|switch|mov|chang)\w*")
 REMOVE_RX = (r"\breplac(?:e|ed|es|ing|ement)\b|\bmigrat\w* (?:off|away|out|from)\b|\bmov(?:e|ing) (?:off|away from)\b|decommission"
              r"|\bretir(?:e|ed|es|ing)\b|\bsunset|\bphas(?:e|ed|ing) out\b|\bretain no\b|\brewrit|\bend[- ]of[- ]life\b"
+             r"|\bmoderni[sz](?:e|ed|es|ing|ation)\b|\bre-?platform\w*"  # q4: the project is the system's replacement
              r"|\b(?:not|never|no longer|don't|won't|cannot|can't) (?:be )?(?:keep|kept|retain|reus|remain|stay|preserv)")
+# q4: the description forbids changes to what exists ("without touching the core", "read-only access", "must not modify"): write wording
+# elsewhere in the text ("batch jobs writing to Db2") then describes the existing estate, not the new application (planning heuristic)
+NO_TOUCH_RX = (r"\bwithout (?:touching|modifying|changing|altering|writing to)\b|\b(?:must|may|can|should|will|do|does)(?: not|n't|not) (?:touch|modify|change|alter|write to)\b"
+               r"|\bread[- ]only (?:access|copy|replica|connection|view)\b|\bno writes? (?:to|against|into)\b|\bnever writes? (?:to|into)\b")
 KEEP_RX = (r"must (?:stay|remain|be kept|be retained|be reused|be preserved)|\bstays?\b|\bremains?\b|system of record|source of truth"
            r"|\bkeep(?:s|ing)?\b|\bkept\b|\breus(?:e|ed|ing)\b|\bretain\w*|\bpreserv\w*|\bas[- ]is\b|" + STRONG_KEEP_RX)
 # words that may sit between a system's name and the keep wording without naming a different thing
@@ -1197,7 +1202,7 @@ def build(req):
             name_rx = r"(?<![a-z0-9])(?:" + "|".join(hit["match"] + ([re.escape(hit["product"].split()[0].lower())] if hit.get("product") and not hit.get("synthetic") else [])) + r")(?![a-z0-9])"
         keep = "infrastructure.existing_systems" if keep_in_entry(low) else "project.description" if hit and any(
             keep_in_text(name_rx, s) for s in sentences) else None
-        if (not keep and hit and hit["kind"] == "database" and not moved_in_text(name_rx, sentences)
+        if (not keep and hit and hit["kind"] == "database" and not moved_in_text(name_rx, sentences) and not re.search(NO_TOUCH_RX, desc.lower())
                 and (write_in_text(name_rx, low, entry=True) or any(write_in_text(name_rx, s) for s in sentences))):
             keep, keep_write = ("infrastructure.existing_systems" if write_in_text(name_rx, low, entry=True) else "project.description"), True
         else:
