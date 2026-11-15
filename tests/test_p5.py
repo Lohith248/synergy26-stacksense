@@ -34,6 +34,7 @@ class PaymentProviderItself(unittest.TestCase):
             self.assertNotIn("Razorpay (UPI", pay[0]["choice"])
             self.assertNotIn("can qualify for PCI DSS SAQ A", pay[0]["justification"])
             self.assertIn("part of this design", pay[0]["justification"])
+            self.assertNotRegex(text(out), r"official-unverified|not confirmed in the knowledge base|source mastercard-sdp", desc)  # item 0
 
     def test_scheme_link_is_in_scope(self):
         out = run(**{"project.type": "fintech", "requirements.payments": True, "infrastructure.existing_systems": ["Visa network link (legacy)"],

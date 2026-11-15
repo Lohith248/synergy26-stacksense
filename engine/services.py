@@ -1324,7 +1324,7 @@ def build(ctx, host, backend, db, mobile, warn):
                 why = (f"The description says this system is itself the payment provider ('{psp_hit[0]}'), so a merchant hosted checkout (Stripe Checkout, Razorpay checkout) "
                        "and the SAQ A shortcut do not apply. "
                        + ("Card data is in full PCI DSS scope as a service provider (a gateway or processor is normally "
-                          "Level 1: an annual Report on Compliance by a Qualified Security Assessor; source mastercard-sdp, official-unverified: not confirmed in the knowledge base), "
+                          "Level 1: an annual Report on Compliance by a Qualified Security Assessor, per card-scheme rules; confirm your level with your acquirer), "
                           "whether or not compliance lists pci_dss. Keep raw card numbers in one segmented cardholder-data environment with a tokenisation vault, keys in an HSM "
                           if cards else
                           "The description names no card data, so PCI DSS applies only if cards are added later (then in full scope as a service provider); account and "

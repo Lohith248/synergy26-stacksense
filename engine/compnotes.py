@@ -83,8 +83,7 @@ def refine(ctx, notes, managed_cloud_hipaa):
                             "segmented cardholder-data environment, tokenise them there and give everything else tokens only, hold keys in an HSM or a managed key service, "
                             "log and monitor every access to that environment, and keep an audit trail that cannot be edited. "
                             "Card brands place service providers handling over 300,000 card transactions a year, and Mastercard any payment gateway or processor, at Level 1 "
-                            "(an annual Report on Compliance by a Qualified Security Assessor), per the Mastercard Site Data Protection page (source mastercard-sdp, official-unverified: "
-                            "not confirmed in the knowledge base), "
+                            "(an annual Report on Compliance by a Qualified Security Assessor) under the card-scheme rules (Mastercard Site Data Protection programme), "
                             "so confirm your level with your acquirer early: the assessment and its remediation can cost more than the infrastructure (planning heuristic).", fields + ["project.description"])
     return notes
 

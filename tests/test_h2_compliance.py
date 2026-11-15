@@ -102,7 +102,8 @@ class PciServiceProvider(unittest.TestCase):
                 self.assertIn("does not apply", w["message"])
                 self.assertIn("segmented", w["message"])
                 self.assertIn("over 300,000 card transactions a year", w["message"])
-                self.assertIn("mastercard-sdp", w["message"])
+                self.assertIn("card-scheme rules", w["message"])
+                self.assertNotIn("official-unverified", w["message"])
                 self.assertNotIn("At this scale", w["message"])
 
     def test_ordinary_shop_keeps_saq_a(self):
