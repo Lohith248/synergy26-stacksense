@@ -92,5 +92,28 @@ class LiveQuizWording(unittest.TestCase):
         self.assertIn("turn-based", text(out))
 
 
+class GpuCount(unittest.TestCase):
+    """Item 4: more than ~730 GPU-hours a month is never priced on one GPU."""
+
+    def _basis(self, typ, gb):
+        out = run(**{"project.type": typ, "project.description": "Train a model on the collected data and retrain it every week.",
+                     "requirements.ml_features": "training", "scale.data_volume_gb_12_months": gb, "budget.monthly_infra_usd": 20000})
+        return text(out)
+
+    def test_many_hours_name_gpu_count(self):
+        for typ, gb in (("ai_ml_product", 60000), ("data_analytics", 40000), ("iot", 20000)):
+            t = self._basis(typ, gb)
+            self.assertIn("T4-class GPUs in parallel", t, typ)
+            self.assertNotRegex(t, r"\d,\d{3} GPU-hours a month on one ", typ)
+
+    def test_small_job_one_gpu(self):
+        self.assertIn("on one T4-class GPU", self._basis("ai_ml_product", 200))
+
+    def test_helper(self):
+        from engine import costreal
+        self.assertEqual(costreal.gpu_count_text(100, 700, "T4-class"), "on one T4-class GPU")
+        self.assertIn("across 2-7 T4-class GPUs", costreal.gpu_count_text(1200, 4800, "T4-class"))
+
+
 if __name__ == "__main__":
     unittest.main()

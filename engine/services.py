@@ -1602,7 +1602,7 @@ def build(ctx, host, backend, db, mobile, warn):
                            Z if ctx["self_host_only"] else tcost,
                            [] if cpu else ["aws-sagemaker"], loc))
             lo, hi = out[-1]["_cost"][ctx["tier"]]  # ml.g4dn.xlarge Training $0.736/h us-east-1, AWS price data 11 Nov 2026
-            basis = (f" Basis: about {lo / t4_rate:,.0f}-{hi / t4_rate:,.0f} GPU-hours a month on one T4-class GPU at ${t4_rate:g}/hour ("
+            basis = (f" Basis: about {lo / t4_rate:,.0f}-{hi / t4_rate:,.0f} GPU-hours a month {costreal.gpu_count_text(lo / t4_rate, hi / t4_rate, 'T4-class')} at ${t4_rate:g}/hour ("
                      + ("ml.g4dn.xlarge on-demand training, us-east-1, AWS price data 11 Nov 2026" if p == "aws"
                         else f"{t4['id']} VM rate, {t4['region'][t4_key]}, Azure Retail Prices API read {t4.get('read', '14 Nov 2026')}; a managed training "
                              "service may add its own fee, which the knowledge base does not hold" if t4

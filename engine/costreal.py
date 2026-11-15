@@ -87,6 +87,16 @@ IOT_HUB_TIERS = (("S1", 25, 400_000), ("S2", 250, 6_000_000), ("S3", 2500, 300_0
 
 # ---- (b) ML training: GPU-hours per stored GB per month. The managed table stays the lower bound.
 TRAIN_GPU_HOURS_PER_GB = (0.02, 0.08)  # planning heuristic: 20-80 GPU-hours per TB of stored data per month
+GPU_HOURS_PER_MONTH = 730  # planning heuristic (p5): one GPU running all month gives about 730 hours; more GPU-hours means several GPUs in parallel
+
+
+def gpu_count_text(hours_lo, hours_hi, gpu_class):
+    """p5: never price more than a month of hours on one GPU: '... on one T4-class GPU' or '... across 2-7 T4-class GPUs in parallel'."""
+    lo, hi = (max(1, -(-int(round(h)) // GPU_HOURS_PER_MONTH)) for h in (hours_lo, hours_hi))
+    if hi <= 1:
+        return f"on one {gpu_class} GPU"
+    return (f"across {lo if lo == hi else f'{lo}-{hi}'} {gpu_class} GPUs in parallel (one GPU gives about {GPU_HOURS_PER_MONTH} hours a month, "
+            "planning heuristic), each GPU billed")
 TRAIN_GPU_RATE = 0.736                 # $/h ml.g4dn.xlarge on-demand training, us-east-1 (kb source aws-sagemaker)
 TRAIN_FLOOR_GB = 100                   # below this volume training stays on the tier table
 # i2 (planning heuristic): a small, scheduled retrain of a classical model (tier 0-1, stored data under TRAIN_FLOOR_GB, no deep-learning or
