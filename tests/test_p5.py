@@ -242,5 +242,68 @@ class StaffOnlySignIn(unittest.TestCase):
         self.assertIn("no scope cut", costreal.over_multiple_note([(5000, 400, "CDN")], 300, band_min=900))
 
 
+class ReviewP5aFixes(unittest.TestCase):
+    """REVIEW-p5a MUST 1-5 and SHOULD items: a shop that uses a provider is not the provider; poker is not a quiz."""
+
+    def _pay(self, desc, typ="ecommerce"):
+        return sup(run(**{"project.type": typ, "project.description": desc, "requirements.payments": True}), "payments")[0]
+
+    def test_psp_regex_pos_neg(self):
+        from engine import descflags as dfl, compnotes as cn
+        hit = lambda d: dfl.first_live(cn.PSP_RX, d)
+        # MUST 1: connecting to Visa/Mastercard needs a provider word in the clause
+        self.assertIsNone(hit("Loyalty app that connects with Visa and Mastercard card-linked offers."))
+        self.assertTrue(hit("Payments API that connects small lenders to Visa and Mastercard and settles card repayments."))
+        self.assertTrue(hit("Acquirer platform that connects merchants with Mastercard."))
+        # MUST 2: a vendor named after 'payment processor' is the shop's provider
+        self.assertIsNone(hit("Payment processor Stripe handles cards for our candle shop."))
+        self.assertTrue(hit("Payment processor for regional banks and their merchants."))
+        # MUST 3: a vendor (or 'for us') storing card data is not this system storing it
+        self.assertIsNone(hit("Candle shop; Stripe stores card data for us."))
+        self.assertIsNone(hit("Online shop; the payment provider stores card data."))
+        self.assertTrue(hit("Billing engine for clinics: we store and process card data in our own vault."))
+
+    def test_shops_end_to_end(self):
+        for d in ("Loyalty app that connects with Visa and Mastercard card-linked offers.",
+                  "Payment processor Stripe handles cards for our candle shop.",
+                  "Candle shop; Stripe stores card data for us."):
+            self.assertNotIn("In-house payment core", self._pay(d, "web_app")["choice"], d)
+
+    def test_payfac_sponsor_acquirer(self):
+        p = self._pay("Payment facilitator that onboards small merchants and processes their card payments.", "fintech")
+        self.assertIn("In-house payment core", p["choice"])
+        self.assertIn("sponsor acquirer", p["choice"])
+        self.assertNotIn("direct connection", p["choice"])
+        self.assertIn("direct connection", self._pay("Card processor for regional banks that routes card transactions to card networks.", "fintech")["choice"])
+
+    def test_momo_shop_name(self):
+        from engine import descflags as dfl, compnotes as cn
+        self.assertIsNone(dfl.first_live(cn.MOBILE_MONEY_RX, "Toy shop called MoMo Kids, card payments."))
+        self.assertTrue(dfl.first_live(cn.MOBILE_MONEY_RX, "Parents pay with MoMo for school fees."))
+
+    def test_poker_not_quiz(self):
+        out = run(**{"project.type": "gaming", "project.description": "Live multiplayer card game (poker) with real-time tables.",
+                     "requirements.realtime": True, "requirements.p95_latency_ms": 150})
+        self.assertNotIn("live, timed quiz", text(out))
+        out = run(**{"project.type": "gaming", "project.description": "Live trivia night with timed questions.",
+                     "requirements.realtime": True, "requirements.p95_latency_ms": 150})
+        self.assertIn("live, timed quiz", text(out))
+
+    def test_no_status_jargon(self):
+        out = run(**{"project.type": "realtime_collab", "project.description": "Live collaborative whiteboard.", "requirements.realtime": True,
+                     "infrastructure.cloud_preference": "azure", "scale.users_12_months": 200000})
+        self.assertNotIn("official-unverified", text(out))
+        self.assertNotIn("official-unverified", text(run(**{"project.type": "fintech", "requirements.payments": True, "compliance": ["pci_dss"],
+                                                          "project.description": "Card processor for credit unions that routes card transactions to card networks."})))
+
+    def test_eastern_africa(self):
+        out = run(**{"project.type": "ecommerce", "project.description": "Grocery shop serving customers across eastern Africa, card payments.",
+                     "requirements.payments": True, "infrastructure.data_residency": "other"})
+        self.assertNotIn("South Africa", text(out))
+        out = run(**{"project.type": "ecommerce", "project.description": "Grocery shop serving customers across Africa, card payments.",
+                     "requirements.payments": True, "infrastructure.data_residency": "other"})
+        self.assertIn("South Africa", text(out))
+
+
 if __name__ == "__main__":
     unittest.main()

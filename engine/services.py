@@ -1142,7 +1142,7 @@ def build(ctx, host, backend, db, mobile, warn):
             if azure_rt:
                 out[-1]["_note"] = (f" Basis: billed per unit of {costreal.REALTIME_UNIT_CONNECTIONS:,} concurrent connections, ~{rt_units} unit{'s' if rt_units > 1 else ''} for "
                                     f"~{ctx['peak']:,} concurrent users; the knowledge base names the service but lists no price, so ${costreal.REALTIME_UNIT_USD_MONTH[0]}-"
-                                    f"{costreal.REALTIME_UNIT_USD_MONTH[1]} per unit-month is an official-unverified planning estimate.")
+                                    f"{costreal.REALTIME_UNIT_USD_MONTH[1]} per unit-month is a planning estimate: confirm it on the Azure pricing page.")
 
     # ---------------- cache
     read_hot = req["scale.workload"] == "read_heavy" and ctx["peak"] >= 1000
@@ -1341,17 +1341,17 @@ def build(ctx, host, backend, db, mobile, warn):
             psp_shape = bool(psp_hit)  # p5: the system itself is the gateway/processor/switch: no merchant checkout, full PCI scope (with or without pci_dss listed)
             if psp_shape:
                 low = (req["project.description"] or "").lower()
-                net = "NPCI (UPI/IMPS)" if re.search(r"\bnpci\b|\bupi\b|\bimps\b", low) else "the card schemes and acquiring banks"
+                net = "NPCI (UPI/IMPS)" if re.search(r"\bnpci\b|\bupi\b|\bimps\b", low) else "the card schemes through a sponsor acquirer" if re.search(r"payment (?:facilitator|aggregator)", low) else "the card schemes and acquiring banks"
                 if re.search(r"\bnpci\b|\bupi\b|\bimps\b", low) and re.search(r"\bcards?\b|\bvisa\b|\bmastercard\b|\brupay\b", low):
                     net = "NPCI (UPI/IMPS) and the card schemes"
                 cards = bool(re.search(r"\bcards?\b|\bcardholder\b|\bvisa\b|\bmastercard\b|\brupay\b", low))
-                name = f"In-house payment core: tokenisation vault + HSM/managed KMS, direct connection to {net} (in scope)"
+                name = f"In-house payment core: tokenisation vault + HSM/managed KMS, {'connection' if 'sponsor' in net else 'direct connection'} to {net} (in scope)"
                 feats, prov, src = [], "neutral", ["pci-v4", "mastercard-sdp"]
                 alts = [("Stripe Checkout / Razorpay hosted checkout", "a merchant checkout sits in front of a shop; this system is the payment provider itself, so it cannot hand its card data to another merchant's checkout"),
                         ("A third-party processor's white-label platform", "shrinks the build but makes that processor the system of record; choose it only if the business model allows reselling")]
                 why = (f"The description says this system is itself the payment provider ('{psp_hit[0]}'), so a merchant hosted checkout (Stripe Checkout, Razorpay checkout) "
                        "and the SAQ A shortcut do not apply. "
-                       + ("Card data is in full PCI DSS scope as a service provider (a gateway or processor is normally "
+                       + ("Card data is in full PCI DSS scope as a service provider (Level 1 above 300,000 card transactions a year, and Mastercard places every third-party processor at "
                           "Level 1: an annual Report on Compliance by a Qualified Security Assessor, per card-scheme rules; confirm your level with your acquirer), "
                           "whether or not compliance lists pci_dss. Keep raw card numbers in one segmented cardholder-data environment with a tokenisation vault, keys in an HSM "
                           if cards else

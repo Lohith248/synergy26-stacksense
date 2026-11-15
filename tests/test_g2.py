@@ -131,7 +131,7 @@ class ReviewFixes(unittest.TestCase):
         self.assertTrue(any("azure-web-pubsub/resource-faq" in u for u in rt["sources"]))
         cache = [s for s in sup(out) if s["layer"] == "cache"]
         self.assertTrue(not cache or "backplane" not in cache[0]["justification"])
-        self.assertTrue([a for a in out["estimated_monthly_cost_usd"]["assumptions"] if a.startswith("realtime:") and "official-unverified" in a])
+        self.assertTrue([a for a in out["estimated_monthly_cost_usd"]["assumptions"] if a.startswith("realtime:") and "planning estimate" in a and "official-unverified" not in a])
         # a self-run realtime library keeps the backplane reasons
         gcp = run("Live order board for a restaurant chain.", "saas_b2b", infrastructure__cloud_preference="gcp", team__languages=["go"],
                   scale__users_12_months=80000, scale__peak_concurrent_users=3000, requirements__realtime=True)

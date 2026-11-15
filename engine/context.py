@@ -517,7 +517,7 @@ AMBIGUOUS = [
     (r"south ?east asia|asean", "i", ["singapore", "indonesia"]),
     (r"SEA", "", ["singapore", "indonesia"]),
     (r"asia", "i", ["singapore", "japan", "south_korea", "indonesia"]),
-    (r"(?<!east )(?<!west )(?<!north )(?<!central )(?:sub-saharan )?africa", "i", ["south_africa"]),  # p5: East/West/North Africa never suggests South Africa
+    (r"(?<!east )(?<!west )(?<!north )(?<!central )(?<!eastern )(?<!western )(?<!northern )(?:sub-saharan )?africa", "i", ["south_africa"]),  # p5: East/West/North Africa never suggests South Africa
     (r"latam|latin america|south america", "i", ["brazil", "mexico"]),
     (r"north america", "i", ["canada", "mexico"]),
     (r"europe", "i", ["united_kingdom", "switzerland"]),

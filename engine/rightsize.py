@@ -46,7 +46,7 @@ def game_servers(ctx):
         add_when = (f"the match runs a server-side simulation loop at a fixed tick rate (fast-action play such as a shooter, racing or battle-royale mode); "
                     f"the {lat} ms p95 target here applies to delivering messages, so load-test WebSocket push from a region near the players against it")
     low = (ctx["req"]["project.description"] or "").lower()
-    if d["turn_based"] and re.search(LIVE_TIMED_RX, low) and not re.search(EXPLICIT_TURN_RX, low):
+    if d["turn_based"] and re.search(r"\btrivia\b|\bquiz", low) and re.search(LIVE_TIMED_RX, low) and not re.search(EXPLICIT_TURN_RX, low):
         return False, (f"project.description describes a live, timed quiz or trivia game ({lat_txt}): players answer the same question at the same time "
                        "within a time limit, one message per answer, so the backend scores answers as they arrive over WebSockets and no per-match "
                        "simulation loop is needed"), add_when, paths
