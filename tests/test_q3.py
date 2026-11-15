@@ -316,3 +316,31 @@ class StockSentenceMediaWording(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TransferOutReviewFixes(unittest.TestCase):
+    """Review of q3: data coming IN, people abroad and public CDN files are not a transfer out of the residency area."""
+
+    def test_transfer_into_the_area_is_silent(self):
+        nocode(self, {"project.type": "iot", "infrastructure.data_residency": "eu", "compliance": ["gdpr"],
+                      "project.description": "Machine telemetry readings are sent from devices in the US to our servers in Ireland."})
+
+    def test_customers_abroad_are_silent(self):
+        nocode(self, {"project.type": "ecommerce", "infrastructure.data_residency": "india",
+                      "project.description": "Handicraft store. We send order confirmation emails to customers in the US."})
+        nocode(self, {"project.type": "marketplace", "infrastructure.data_residency": "india",
+                      "project.description": "Sellers ship orders to customers in Japan; order records stay with us."})
+
+    def test_static_files_at_a_cdn_edge_are_silent(self):
+        nocode(self, {"project.type": "web_app", "infrastructure.data_residency": "india",
+                      "project.description": "Static files are pushed to the CDN edge in Europe for faster page loads."})
+
+    def test_clear_exports_still_fire(self):
+        for kw in ({"project.type": "saas_b2b", "infrastructure.data_residency": "india",
+                    "project.description": "Invoice records are exported nightly to our finance team's warehouse in London."},
+                   {"project.type": "healthtech", "infrastructure.data_residency": "eu", "compliance": ["gdpr"],
+                    "project.description": "Patient records are sent from our Dublin servers to the analytics cluster in us-west-2."},
+                   {"project.type": "web_app", "infrastructure.data_residency": "india",
+                    "project.description": "Customer records and uploaded documents are pushed to a CDN-fronted bucket in Frankfurt."}):
+            with self.subTest(d=kw["project.description"]):
+                self.assertIn("RESIDENCY_TRANSFER_OUT", codes(run(**kw)))
