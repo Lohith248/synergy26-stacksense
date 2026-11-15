@@ -729,15 +729,27 @@ def lifecycle_hits(norm):
     """Every knowledge-base lifecycle entry the (normalised) text names, one per product name, in knowledge-base order. An entry
     matches its literal pattern as a whole token, or its optional "rx" regular expression; a digit may not follow a literal pattern."""
     out = []
-    for lc in TECH["lifecycle"]:
-        if lc.get("rx"):
-            hit = re.search(r"(?<![a-z0-9])(?:" + lc["rx"] + r")", norm)
-        else:
-            lead = r"(?<![a-z0-9])" if lc["pattern"][0].isalnum() else ""
-            hit = re.search(lead + re.escape(lc["pattern"]) + r"(?!\d)", norm)
-        if hit and all(o["name"] != lc["name"] for o in out):
+    for lc, rx in _life_compiled():
+        if rx.search(norm) and all(o["name"] != lc["name"] for o in out):
             out.append(lc)
     return out
+
+
+_LIFE_RX = []
+
+
+def _life_compiled():
+    """The lifecycle rows with their match expressions, compiled once (the table holds over a thousand rows; re's own cache
+    holds 512, so per-call compilation would thrash it)."""
+    if len(_LIFE_RX) != len(TECH["lifecycle"]):
+        _LIFE_RX[:] = []
+        for lc in TECH["lifecycle"]:
+            if lc.get("rx"):
+                rx = r"(?<![a-z0-9])(?:" + lc["rx"] + r")"
+            else:
+                rx = (r"(?<![a-z0-9])" if lc["pattern"][0].isalnum() else "") + re.escape(lc["pattern"]) + r"(?!\d)"
+            _LIFE_RX.append((lc, re.compile(rx)))
+    return _LIFE_RX
 
 
 # A3 (blind8): a "Server" edition or a versioned release of a Microsoft collaboration product ('SharePoint Server 2013',
