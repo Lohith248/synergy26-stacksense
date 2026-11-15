@@ -39,12 +39,12 @@ NEEDS = [
      r"|\b(?:google|apple|facebook|github|microsoft|social) (?:log-?ins?|sign[- ]?ins?)\b"
      r"|\b(?:create|open|register)(?:s|d|ing)? (?:an? |their |his |her )?(?:own )?(?:accounts?|profiles?)\b"
      r"|\b(?:members?|users?|students?|customers?|players?|volunteers?|parents?|teachers?)\b(?:\W+\w+){0,2}?\W+(?:log|sign)(?:s|ged|ned)?[- ]?in\b"
-     r"|\b(?:user|member|customer|student|player) (?:accounts?|log-?ins?)\b|\bpasswords?\b"),
+     r"|\b(?:user|member|customer|student|player) (?:accounts?|log-?ins?)\b|(?<!wi-fi )(?<!wifi )(?<!router )(?<!network )(?<!door )\bpasswords?\b"),
     # q4: a trained model or machine-learning feature while requirements.ml_features is none (an assistant / LLM is the 'assistant' row)
     ("model", "requirements.ml_features", "none", "warning",
      r"\b(?:train(?:s|ed|ing)?|fine[- ]?tun\w+|retrain\w*)\b(?:\W+\w+){0,5}?\W+(?:classifiers?|models?|neural networks?|recommenders?)\b"
-     r"|\b(?:trained|ml|machine[- ]learning|deep[- ]learning|predictive|forecasting|recommendation) (?:classifiers?|models?|engines?)\b"
-     r"|\bmachine[- ]learning\b|\b(?:image|speech|face|facial|object) (?:recognition|classification|detection)\b|\bcomputer vision\b"
+     r"|\b(?:trained|ml|machine[- ]learning|deep[- ]learning|predictive|forecasting) (?:classifiers?|models?|engines?)\b|\brecommendation models?\b"
+     r"|(?<!rule-based )(?<!rules-based )\bmachine[- ]learning\b|\b(?:image|speech|face|facial|object) (?:recognition|classification|detection)\b|\bcomputer vision\b"
      r"|\bautomatically classif(?:y|ies|ied)\b|\bclassif(?:y|ies|ied|ying)\b(?:\W+\w+){0,4}?\W+(?:automatically|with (?:a|an|our) (?:\w+ )?model)\b"),
 ]
 
@@ -174,6 +174,11 @@ def mismatches(ctx):
     low = desc.lower().replace("\u2019", "'")
     for key, path, is_set, sev, rx in DENIES:  # q4: the flag is set, the description says the product does not do it
         m = re.search(rx, low) if is_set(req[path]) else None
+        if m and key == "payments" and re.search(r"ourselves|directly|\bstor\w*|\bkept\b|\bsaved?\b|\bhandle[sd]?\b|stripe|razorpay|paypal|checkout|gateway|"
+                                                 r"provider|third[- ]party|hosted", _clause(low, m.start(), m.end())):
+            m = None  # "we never process payments ourselves; Stripe Checkout handles it" still takes payments
+        if m and key == "signin" and re.search(r"\b(?:sign|log)(?:s|ged|ned)?[- ]?(?:in|on|up)\b|\bat checkout\b|\bcreate an account\b", low[m.end():]):
+            m = None  # "browse without an account and sign in only at checkout" still signs people in
         if m and len(low) == len(desc):
             code, text = _DENY_TEXT[key]
             out.append((code, sev, "project.description " + text.format(q=_clause(desc, m.start(), m.end()), v=req[path]), [path, "project.description"]))
@@ -310,15 +315,16 @@ ONSITE_NAMES_MAX = 8  # planning heuristic: components named in the WAN-outage a
 # priced, so the layer choices never move); an external channel on a self-hosted or air-gapped stack is a warning or a critical.
 # only messages the APPLICATION sends: "a WhatsApp link" or "orders come by WhatsApp" is a person using the WhatsApp app, not the Business Platform
 WHATSAPP_RX = (r"\bwhats ?app (?:reminders?|alerts?|notifications?|messages?|updates?|confirmations?|receipts?|otps?|codes?|bots?|chatbots?|business|api)\b"
-               r"|\b(?:send|sends|sent|sending|notif\w+|remind\w*|alert\w*|messag\w+|confirm\w*|deliver\w*|push\w*)\b[^.;!?]{0,50}?"
+               r"|\b(?:send|sends|sent|sending|notif\w+|remind\w*|alert\w*|messag\w+|confirm\w*|deliver\w*|push\w*)\b(?!\s+us\b)[^.;!?]{0,50}?"
                r"\b(?:via|by|on|over|through|to|in)\s+(?:their |a |the |our )?whats ?app\b(?! (?:link|button|group|number))")
-CRASH_RX = (r"\bcrash(?:es)?[- ](?:reports?|reporting|dumps?|logs?|analytics|telemetry)\b|\b(?:error|exception)[- ](?:tracking|reporting|monitoring)\b"
+CRASH_RX = (r"\bcrash(?:es)?[- ](?:reports?|reporting|dumps?|logs?|analytics|telemetry)\b|\berror[- ](?:tracking|reporting|monitoring)\b|\bexception[- ](?:tracking|monitoring)\b"
             r"|\b(?:collect|gather|upload|send|receiv)\w*\b(?:\W+\w+){0,3}?\W+crash(?:es)?\b")
 DRM_RX = (r"\bdrm\b|\bwidevine\b|\bfairplay\b|\bplayready\b|\banti[- ]piracy\b|\b(?:against|prevent\w*|stop\w*|deter\w*) (?:\w+ )?piracy\b"
           r"|\badaptive[- ]bitrate\b|\bhls\b|\bmpeg[- ]dash\b")
-OTA_RX = (r"\bota\b|\bover[- ]the[- ]air\b|\bfirmware (?:updates?|upgrades?|rollouts?|releases?|images?)\b|\b(?:updat|upgrad|flash|push)\w* (?:the |new |device )?firmware\b")
-INBOUND_MAIL_RX = (r"\b(?:read|reads|reading|ingest\w*|pars\w+|process\w*|import\w*|poll\w*|monitor\w*|triag\w+)\b(?:\W+\w+){0,2}?\W+"
+OTA_RX = (r"\bota (?:updates?|upgrades?|firmware|rollouts?|releases?)\b|\b(?:firmware|software|device) ota\b|\bover[- ]the[- ]air\b|\bfirmware (?:updates?|upgrades?|rollouts?|releases?|images?)\b|\b(?:updat|upgrad|flash|push)\w* (?:the |new |device )?firmware\b")
+INBOUND_MAIL_RX = (r"\b(?:read|reads|reading|ingest\w*|pars\w+|process\w*|import\w*|poll\w*|monitor\w*|triag\w+)\W+"
                    r"(?:(?:the|our|their|incoming|inbound|support|customer[- ]support|customer|shared)\W+)*(?:e-?mails?|mailbox(?:es)?|inbox(?:es)?)\b"
+                   r"(?!\W+(?:deliverability|receipts?|confirmations?|campaigns?|newsletters?|templates?|bounces?|open rates?|addresses))"
                    r"|\b(?:incoming|inbound) (?:\w+ )?e-?mails?\b|\bshared (?:mailbox|inbox)\b")
 
 

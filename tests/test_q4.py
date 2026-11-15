@@ -136,3 +136,52 @@ class NamedCapabilities(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReviewFalsePositives(unittest.TestCase):
+    """Review of q4: wording that only looks like a conflict or a capability stays silent; the real cases still fire."""
+
+    def quiet(self, code, **kw):
+        out = run(**kw)
+        self.assertNotEqual(out["status"], "invalid_input", out.get("validation_errors"))
+        self.assertFalse(warn(out, code), (code, kw.get("project.description")))
+
+    def test_payments_handled_by_a_provider_are_not_denied(self):
+        for d in ("We never process payments ourselves; Stripe Checkout handles card entry.",
+                  "No payments are stored on our servers."):
+            self.quiet("DESC_DENIES_FLAG_PAYMENTS", **{"project.type": "ecommerce", "requirements.payments": True, "project.description": d})
+        out = run(**{"project.type": "marketplace", "requirements.payments": True, "project.description": "We do not take payments; buyers pay sellers in cash."})
+        self.assertIn("DESC_DENIES_FLAG_PAYMENTS", codes(out))
+
+    def test_sign_in_later_is_not_no_sign_in(self):
+        out = run(**{"project.type": "ecommerce", "requirements.auth": "email_password",
+                     "project.description": "Shoppers browse without an account and sign in only at checkout."})
+        self.assertNotIn("DESC_DENIES_FLAG_AUTH", codes(out))
+
+    def test_wifi_password_and_rule_based_recommendations(self):
+        self.quiet("DESC_VS_FLAG_AUTH", **{"project.type": "content_site", "requirements.auth": "none",
+                                         "project.description": "Cafe menu site; the Wi-Fi password is printed on each table."})
+        out = run(**{"project.type": "ecommerce", "requirements.ml_features": "none",
+                     "project.description": "A simple rule-based recommendation engine shows bestsellers from the same category."})
+        self.assertNotIn("DESC_VS_FLAG_ML", codes(out))
+
+    def test_capability_notes_need_the_capability(self):
+        cases = (("marketplace", "Boutique hotel booking site; rooms are also listed on an OTA.", "DESC_FIRMWARE_UPDATES"),
+                 ("ecommerce", "Customers message us on WhatsApp with questions.", "DESC_WHATSAPP_CHANNEL"),
+                 ("ecommerce", "Checkout processing payments and email receipts.", "DESC_INBOUND_EMAIL"),
+                 ("saas_b2b", "We monitor email deliverability for campaigns.", "DESC_INBOUND_EMAIL"),
+                 ("fintech", "Daily exception reporting for unmatched ledger entries.", "DESC_CRASH_REPORTING"))
+        for typ, d, word in cases:  # word = the code that must not fire
+            with self.subTest(d=d):
+                out = run(**{"project.type": typ, "project.description": d})
+                self.assertNotEqual(out["status"], "invalid_input")
+                self.assertNotIn(word, codes(out))
+
+
+    def test_real_capabilities_still_noted(self):
+        for typ, d, code in (("iot", "Thermostats receive OTA firmware updates every month.", "DESC_FIRMWARE_UPDATES"),
+                             ("healthtech", "The clinic sends appointment reminders via WhatsApp.", "DESC_WHATSAPP_CHANNEL"),
+                             ("saas_b2b", "We parse incoming support emails into tickets.", "DESC_INBOUND_EMAIL"),
+                             ("gaming", "The game collects crash reports from users' phones.", "DESC_CRASH_REPORTING")):
+            with self.subTest(d=d):
+                self.assertIn(code, codes(run(**{"project.type": typ, "project.description": d})))
