@@ -1932,10 +1932,15 @@ def build(ctx, host, backend, db, mobile, warn):
                             "Credentials for the old database must live in a secret store until it is switched off"],
                            "library", "neutral", False, Z, pat["src"] + (["azure-hybrid-connections"] if p == "azure" and not cloud_sys and not mq_via else [])))
         elif pat and pat["kind"] in ("erp", "crm", "legacy_app", "payments", "record", "health", "api", "orchestrator", "storage"):
-            retire = e["retire"] and pat["kind"] in ("erp", "crm", "legacy_app", "record", "storage")
+            retire = e["retire"] and pat["kind"] in ("erp", "crm", "legacy_app", "record", "storage", "api", "health", "orchestrator")
+            # q7: a system being replaced (or rebuilt by this project) is a migration with a cut-over, never integrated for good
+            gone = (f"The new application takes over what it does (the description lists '{e['rebuilt']}' among the new application's "
+                    "functions and says that work currently runs on it)" if e.get("rebuilt") else "The input says it is going away")
             out.append(svc("other", f"Integration with existing {label}",
-                           "The input says it is going away: read its data once through an export or ETL job (or its own API), check row counts, "
-                           "and switch it off once its owners agree; the new application does not depend on it afterwards." if retire else pat["how"],
+                           f"{gone}: migrate its data once through an export or ETL job (or its own API) and check row counts, keep it "
+                           "read-only during the transition, then cut over with a rollback path (it stays available, read-only, until the "
+                           "cut-over is confirmed) and switch it off once its owners agree; the new application does not depend on it afterwards."
+                           if retire else pat["how"],
                            ["infrastructure.existing_systems"],
                            [("Keep integrating with it after launch", "keeps the system the input is retiring in service")] if retire else
                            [("Replacing it in the first release", "it is past end of support, so a replacement must be planned (see the end-of-life warning), but a rewrite "

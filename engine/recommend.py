@@ -16,6 +16,7 @@ from . import costreal
 from . import rightsize as rs
 from . import select as sl
 from . import services as sv
+from . import existing_intent as xi
 from .kb import AS_OF, TECH, cite
 
 # D24-p2: description words that name a non-Windows desktop OS (WPF is Windows-only)
@@ -590,6 +591,7 @@ def recommend(req, assumptions, sid, probe=False):
 
 def _recommend(req, assumptions, sid):
     ctx = cx.build(req)
+    xi.mark(ctx, req)  # q7: rebuilt / must-not-be-changed existing systems
     # A10: sizing availability. sreq is req with the availability the stack is built for; warnings keep reading req (the asked target)
     ctx["avail_relaxed"], ctx["scale_relaxed"] = availability_extreme(ctx), scale_extreme(ctx)
     sreq = dict(req, **{"requirements.availability": RELAX["availability"]}) if ctx["avail_relaxed"] else req
@@ -1702,7 +1704,9 @@ def contradictions(ctx, W, assumptions, host, backend, db_self=False, db_id=None
                          if life.get("successor") else
                          "no replacement named in the knowledge base, so choose one from the vendor's current guidance and plan the migration."))
                      if life.get("discontinued") else
-                     "keep it behind an isolated interface, do not build new features on it, and plan a migration."
+                     ("the input retires or replaces it, so build no new integration on it: migrate what it holds, keep it read-only until the "
+                      "cut-over, then switch it off." if e.get("retire") else
+                      "keep it behind an isolated interface, do not build new features on it, and plan a migration.")
                      + (f" Upgrade or replacement options (knowledge-base suggestion): {life['successor']}." if life.get("successor") else "")),
                   ["infrastructure.existing_systems"])
                 if life.get("discontinued"):  # h1: nothing can be integrated with a retired service, so no component is built for it
