@@ -54,7 +54,15 @@ _VISITOR = (r"(?:users?|members?|visitors?|customers?|readers?|listeners?|viewer
             r"|guests?|clients?|students?|contributors?|attendees?|participants?|applicants?|residents?|citizens?|volunteers?)")
 VISITOR_UPLOAD_RX = (r"\b" + _VISITOR + r"\b(?:\W+\w+){0,4}?\W+(?:upload|submit|post|share|send|attach|contribut|add)\w*\b"
                      r"|\buser[- ]generated\b|\bugc\b|\bprofile (?:pictures?|photos?|images?)\b|\bavatars?\b"
-                     r"|\b(?:upload|submission)s? (?:from|by) " + _VISITOR + r"\b")
+                     r"|\b(?:upload|submission)s? (?:from|by) " + _VISITOR + r"\b"
+                     # review of q5: any plural subject that is not the owner side ("artists upload", "people ... post screenshots"), or "upload your"
+                     r"|\b(?!(?:hosts|owners|editors|admins|episodes|posts|articles|pages|news|updates|series|this|has|was|is|its|us)\b)[a-z]{3,}s\b"
+                     r"(?:\W+\w+){0,6}?\W+(?:upload|submit|post|share|send|attach|contribut)\w*\b"
+                     r"|\b(?:upload|submit|post|share|send|attach)\w* (?:your|their own)\b|\bentry form\b|\bsubmissions?\b")
+# review of q5: media behind a login, a membership or a privacy promise is not public content
+PRIVATE_MEDIA_RX = (r"\b(?:log|sign)(?:s|ged)?[- ]?in\b|\blog-?ins?\b|\bmembers?[- ](?:only|area|log|sign|can|get|see|watch)\w*\b|\bmembership\b"
+                    r"|\bsubscri(?:bers?|ptions?)[- ](?:only|renew\w*|unlock\w*|get|see|watch)\w*\b|\bpaid subscri\w+\b|\bprivate\b|\bpaywall\w*\b"
+                    r"|\bpremium\b|\bpassword\w*\b|\bonly (?:our|their|the|registered|paying) \w+\b|\bpaid (?:courses?|content|lessons?|members?)\b")
 
 
 _NEG_INSIDE_RX = r"\b(?:cannot|can't|can not|do not|don't|does not|doesn't|never|not|no|won't|will not|must not|may not)\b"
@@ -79,6 +87,8 @@ def published_media(c):
     if set(c["compliance"]) & set(DYNAMIC_COMPLIANCE) or d["uploads"] or d["kyc"] or d["video_call"] or d["live_media"] or d["chat"]:
         return False
     low = (req["project.description"] or "").lower().replace("’", "'")
+    if re.search(PRIVATE_MEDIA_RX, low):
+        return False
     # a negation between the visitor word and the verb ("visitors cannot upload") sits inside the match, where negated_at does not look
     return not [m for m in _live_hits(low, VISITOR_UPLOAD_RX) if not re.search(_NEG_INSIDE_RX, m.group(0))]
 

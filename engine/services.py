@@ -974,7 +974,9 @@ def build(ctx, host, backend, db, mobile, warn):
             # q5: media the site owner publishes on a static site: a public bucket read through the CDN, nobody uploads from a browser
             name = {"aws": "Amazon S3", "azure": "Azure Blob Storage", "gcp": "Google Cloud Storage"}.get(p, "Cloudflare R2" if not loc else "Amazon S3")
             prov = p if hyper else ("cloudflare" if not loc else "aws")
-            reg = region or (host["regions"].get("india") if loc == "india" else None)
+            # the static host is often edge-only: take the residency region from a hosting row of the bucket's own provider
+            from .kb import TECH
+            reg = region or (next((h["regions"][loc] for h in TECH["hosting"] if h["provider"] == prov and h["regions"].get(loc)), None) if loc else None)
             low = (req["project.description"] or "").lower()
             what = ("audio files" if re.search(r"\baudio\b|\bpodcasts?\b|\bepisodes?\b|\bmp3\b|\bmusic\b", low) else "videos" if re.search(r"\bvideos?\b", low)
                     else "photos" if d["media"] else "images and downloads")

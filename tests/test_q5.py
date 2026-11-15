@@ -160,3 +160,30 @@ class Lexicon(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReviewFixes(unittest.TestCase):
+    """Review of q5: visitor uploads in any wording, and private or members-only media, keep the backend path."""
+
+    def test_visitor_uploads_keep_a_backend(self):
+        for d in ("Gallery site where artists upload their portfolios.", "Musicians share their tracks with fans.",
+                  "Authors submit manuscripts as PDF files.", "Photo contest: upload your best shot through the entry form.",
+                  "Job board where candidates send their CV.", "Podcast site where people discuss episodes in threads and post screenshots."):
+            with self.subTest(d=d):
+                self.assertNotEqual(core(site(d, **{"team.languages": ["javascript"]})), ("None", "None"))
+
+    def test_private_media_keeps_a_backend(self):
+        for d in ("Private family photo archive only our relatives should see.",
+                  "Video course library. Members log in to watch the lessons; subscriptions renew monthly."):
+            with self.subTest(d=d):
+                self.assertNotEqual(core(site(d, **{"team.languages": ["javascript"]})), ("None", "None"))
+
+    def test_owner_media_still_static_and_keeps_its_region(self):
+        for d in ("Weekly podcast with episode audio and show notes; subscribe on any podcast app.",
+                  "The hosts post new episodes every Friday; listeners stream the MP3 files."):
+            with self.subTest(d=d):
+                self.assertEqual(core(site(d, **{"team.languages": ["javascript"]})), ("None", "None"))
+        out = site("Weekly podcast with episode audio.", **{"team.languages": ["javascript"], "infrastructure.data_residency": "india",
+                                                            "infrastructure.cloud_preference": "aws"})
+        self.assertTrue(any("Mumbai" in s["choice"] or "ap-south-1" in s["choice"] for s in out["stack"]["supporting"] if s["layer"] == "storage"),
+                        [s["choice"] for s in out["stack"]["supporting"] if s["layer"] == "storage"])
