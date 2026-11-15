@@ -1477,15 +1477,20 @@ def contradictions(ctx, W, assumptions, host, backend, db_self=False):
         # statement 6 example (enterprise availability, solo beginner): critical when servers must be run; static sites need no on-call
         # D24-p2: one rule for every small team without DevOps (sizes 1..AVAIL_TEAM_NO_DEVOPS); a static site on a CDN has no server to staff
         extreme = ctx["avail_relaxed"]
-        # a 3..AVAIL_TEAM_NO_DEVOPS-person team can staff a rota for 99.95%: stated as info; 99.99% or one or two people: warning
-        avt_sev = "critical" if extreme else "warning" if (ctx["size"] <= 2 or avail == "99.99") else "info"
+        # q3 item 2: a team inside this rule (no DevOps, or one or two beginners) is never told it can staff a rota: at least a warning
+        avt_sev = "critical" if extreme else "warning"
         team = f"a {ctx['size']}-person {ctx['exp']} team{'' if ctx['devops'] else ' without DevOps'}"
+        self_run = req["infrastructure.deployment_model"] in ("self_hosted_cloud_vm", "on_premise", "air_gapped")
         W("AVAILABILITY_VS_TEAM", avt_sev,
           f"A {avail}% availability target (≈{ {'99.95': '22', '99.99': '4.4'}[avail]} min downtime/month) needs on-call and redundancy"
-          + (f": {team} can staff an on-call rota for it, but plan the rota and who handles failover. " if avt_sev == "info"
-             else f" that {team} rarely sustains. ")
-          + ("Plan on-call or relax the target." if extreme else "Managed multi-zone services were preferred; plan on-call or relax the target."
-             if avt_sev != "info" else "Managed multi-zone services were preferred.")
+          f" that {team} rarely sustains: "
+          + ("nobody in the inputs owns out-of-hours on-call or failover. " if not ctx["devops"] else
+             f"{ctx['size']} {'person' if ctx['size'] == 1 else 'people'} cannot cover a 24/7 rota alone. ")
+          + ("Name who is paged and who runs failover, or relax the target." if extreme else
+             (f"The servers are run by the team itself ({req['infrastructure.deployment_model']}), so failover is the team's job too; "
+              "name who is paged and who runs failover drills, or relax the target to 99.9%." if self_run else
+              "Managed multi-zone services were preferred to cut the failover work; "
+              "still name who is paged out of hours, or relax the target to 99.9%."))
           + (f" Relaxed: the stack is sized for {RELAX['availability']}%, not 99.99% (see assumptions for the dropped items), because a solo beginner cannot staff 24/7 on-call or failover drills; treat 99.99% as best effort until on-call cover exists." if extreme else ""),
           ["requirements.availability", "team.size", "team.experience", "team.has_devops"])
     dep = req["infrastructure.deployment_model"]

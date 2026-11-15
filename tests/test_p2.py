@@ -280,7 +280,7 @@ class TeamWarnings(unittest.TestCase):
     def test_availability_vs_team_consistent_for_small_no_devops(self):
         self.assertEqual(sev(ops_run("web_app", 3, False, "99.99"), "AVAILABILITY_VS_TEAM"), ["warning"])
         self.assertEqual(sev(ops_run("saas_b2b", 2, False, "99.95"), "AVAILABILITY_VS_TEAM"), ["warning"])
-        self.assertEqual(sev(ops_run("marketplace", 5, False, "99.95"), "AVAILABILITY_VS_TEAM"), ["info"])
+        self.assertEqual(sev(ops_run("marketplace", 5, False, "99.95"), "AVAILABILITY_VS_TEAM"), ["warning"])  # q3 item 2: was info
         self.assertEqual(sev(ops_run("fintech", 4, False, "99.99"), "AVAILABILITY_VS_TEAM"), ["warning"])
 
     def test_availability_vs_team_not_for_static_or_staffed(self):
@@ -304,12 +304,13 @@ class TeamWarnings(unittest.TestCase):
             self.assertIn(dep, m)
 
     def test_info_band_text_is_soft(self):
+        # q3 item 2: a team without DevOps is no longer told it "can staff an on-call rota"; the gap is stated as a warning
         for ptype, size in (("ecommerce", 5), ("marketplace", 4), ("saas_b2b", 3)):
             out = ops_run(ptype, size, False, "99.95")
-            self.assertEqual(sev(out, "AVAILABILITY_VS_TEAM"), ["info"], ptype)
+            self.assertEqual(sev(out, "AVAILABILITY_VS_TEAM"), ["warning"], ptype)
             m = next(w["message"] for w in out["warnings"] if w["code"] == "AVAILABILITY_VS_TEAM")
-            self.assertNotIn("rarely sustains", m)
-            self.assertIn("can staff an on-call rota", m)
+            self.assertIn("rarely sustains", m)
+            self.assertNotIn("can staff an on-call rota", m)
 
     def test_warning_band_keeps_strong_text(self):
         out = ops_run("web_app", 3, False, "99.99")
