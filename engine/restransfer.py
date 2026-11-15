@@ -32,8 +32,18 @@ AUDIENCE_AFTER = (r"\s*(?:'s\s+|-based\s+)?(?:customers?|users?|clients?|investo
 TRANSFER_RX = (r"\b(?:send|sends|sent|sending|stream(?:s|ed|ing)?|export(?:s|ed|ing)?|replicat\w+|sync(?:s|ed|ing|hroni[sz]\w+)?|"
                r"mirror(?:s|ed|ing)?|back(?:s|ed|ing)? up|backed-up|backups?\s+(?:to|in)|cop(?:y|ies|ied|ying)\s+(?:\w+\s+){0,4}?(?:to|into)|"
                r"push(?:es|ed|ing)?\s+(?:\w+\s+){0,4}?(?:to|into)|forward(?:s|ed|ing)?|upload(?:s|ed|ing)?\s+(?:\w+\s+){0,4}?(?:to|into)|"
-               r"ship(?:s|ped|ping)?\s+(?:\w+\s+){0,4}?(?:to|into)|transferr?(?:s|ed|ing)?|load(?:s|ed|ing)?\s+(?:\w+\s+){0,4}?into|"
+               r"transferr?(?:s|ed|ing)?|load(?:s|ed|ing)?\s+(?:\w+\s+){0,4}?into|"
                r"feed(?:s|ing)?\s+(?:\w+\s+){0,4}?into|pip(?:e|es|ed|ing)\s+(?:\w+\s+){0,4}?(?:to|into))")
+# a place right after one of these names where people are, not where data goes ("customers in Japan", "users across the US")
+AUDIENCE_BEFORE = (r"\b(?:customers?|users?|clients?|buyers?|shoppers?|subscribers?|visitors?|patients?|students?|players?|people|"
+                   r"members?|recipients?|readers?|guests?|travell?ers?|staff|employees?|teams?|offices?|devices?|sensors?)\s+"
+                   r"(?:\w+\s+){0,2}?(?:in|across|from|throughout|around|based in|located in)\s+(?:the\s+)?$")
+DIRECTION_RX = r"\b(?:to|into|onto|towards?|from)\b"
+# public, cacheable content (static files at a CDN edge) is not the regulated records a residency rule protects
+PUBLIC_RX = (r"\b(?:static|public)\s+(?:\w+\s+)?(?:files?|assets?|pages?|content|images?|site|website|media)\b|"
+             r"\bcdn\b|\bedge\s+(?:cache|caches|locations?|nodes?|network|servers?)\b")
+PERSONAL_RX = (r"\b(?:personal|pii|phi|patients?|health|medical|payments?|card|transactions?|financial|accounts?|customer data|"
+               r"user data|records?|identit\w+|kyc)\b")
 NEGATION_RX = r"\b(?:not|never|no|nothing|none|without|instead of|rather than)\b|n't\b"
 DATA_RX = (r"\b(?:data|records?|logs?|transactions?|events?|payments?|backups?|snapshots?|cop(?:y|ies)|tables?|rows?|readings?|"
            r"telemetry|files?|documents?|messages?|orders?|profiles?|details|information|pii|phi|datasets?|everything|all of it)\b")
@@ -96,12 +106,18 @@ def transfer_in_sentence(sent, area):
     """(verb, place text, place area) for the first named place outside the area that follows an un-negated transfer verb, else None."""
     if not re.search(DATA_RX, sent, re.I):
         return None
+    if re.search(PUBLIC_RX, sent, re.I) and not re.search(PERSONAL_RX, sent, re.I):
+        return None
     for v in re.finditer(TRANSFER_RX, sent, re.I):
         if re.search(NEGATION_RX, sent[:v.start()], re.I):
             continue
         for s, txt, loc in places(sent):
-            if s > v.start() and _outside(area, loc):
-                return v.group(0), txt, loc
+            if s <= v.start() or not _outside(area, loc) or re.search(AUDIENCE_BEFORE, sent[:s], re.I):
+                continue
+            dirs = re.findall(DIRECTION_RX, sent[v.start():s], re.I)
+            if dirs and dirs[-1].lower() == "from":
+                continue  # the place is where the data comes from ("sent from devices in the US to Ireland")
+            return v.group(0), txt, loc
     return None
 
 
