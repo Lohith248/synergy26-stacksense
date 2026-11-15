@@ -1722,6 +1722,11 @@ def contradictions(ctx, W, assumptions, host, backend, db_self=False):
               ["infrastructure.existing_systems"] + (["project.description"] if ad["from_desc"] else []))
             assumptions.append(f"'{e['raw']}' is not recognised by name; its integration is inferred from {ig.cite(ad)}: "
                                f"{ad['title']}. The interface details are assumptions to confirm.")
+        elif not e["pattern"] and not life and cn.psp(ctx) and re.search(cn.SCHEME_RX, e["raw"].lower()):  # p5: the provider's own network link
+            W("EXISTING_SYSTEM_UNRECOGNISED", "info", f"'{e['raw']}' is the card-scheme or NPCI connection this payment system operates itself: it is in scope of this design "
+              "(inside the segmented cardholder-data or switch environment, certified with the network), not an outside dependency.",
+              ["infrastructure.existing_systems", "project.description"])
+            assumptions.append(f"'{e['raw']}' is read as this payment system's own network connection, so it is designed and certified as part of the stack.")
         elif not e["pattern"] and not life:
             W("EXISTING_SYSTEM_UNRECOGNISED", "info", f"'{e['raw']}' is not in the knowledge base; integration must be designed manually.",
               ["infrastructure.existing_systems"])

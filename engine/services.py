@@ -1309,17 +1309,47 @@ def build(ctx, host, backend, db, mobile, warn):
             why = (f"Taking payments{for_noun(ctx)} (requirements.payments) through hosted checkout keeps card data off your servers, which can qualify for PCI DSS SAQ A "
                    "(your acquirer confirms; protect the checkout page from script attacks). "
                    "Payment confirmation is trusted only from signed server-side webhooks.")
-            psp_shape = pci and bool(cn.psp(ctx))  # the system itself routes card payments as a service provider: follow the PCI_SCOPE branch, no hosted-checkout shortcut
+            psp_hit = cn.psp(ctx)
+            psp_shape = bool(psp_hit)  # p5: the system itself is the gateway/processor/switch: no merchant checkout, full PCI scope (with or without pci_dss listed)
             if psp_shape:
-                why = (f"Taking payments{for_noun(ctx)} (requirements.payments): the description says this system itself accepts or routes card payments for merchants, "
-                       "so the hosted-checkout shortcut (SAQ A) does not apply and card data is in scope. The connection to the card processor or acquirer belongs inside one segmented "
-                       "cardholder-data environment (see the PCI_SCOPE warning: tokenise there, keys in an HSM or a managed key service, keep an audit trail). "
-                       "Payment confirmation is trusted only from signed server-side webhooks or acquirer callbacks.")
+                low = (req["project.description"] or "").lower()
+                net = "NPCI (UPI/IMPS)" if re.search(r"\bnpci\b|\bupi\b|\bimps\b", low) else "the card schemes and acquiring banks"
+                if re.search(r"\bnpci\b|\bupi\b|\bimps\b", low) and re.search(r"\bcards?\b|\bvisa\b|\bmastercard\b|\brupay\b", low):
+                    net = "NPCI (UPI/IMPS) and the card schemes"
+                cards = bool(re.search(r"\bcards?\b|\bcardholder\b|\bvisa\b|\bmastercard\b|\brupay\b", low))
+                name = f"In-house payment core: tokenisation vault + HSM/managed KMS, direct connection to {net} (in scope)"
+                feats, prov, src = [], "neutral", ["pci-v4", "mastercard-sdp"]
+                alts = [("Stripe Checkout / Razorpay hosted checkout", "a merchant checkout sits in front of a shop; this system is the payment provider itself, so it cannot hand its card data to another merchant's checkout"),
+                        ("A third-party processor's white-label platform", "shrinks the build but makes that processor the system of record; choose it only if the business model allows reselling")]
+                why = (f"The description says this system is itself the payment provider ('{psp_hit[0]}'), so a merchant hosted checkout (Stripe Checkout, Razorpay checkout) "
+                       "and the SAQ A shortcut do not apply. "
+                       + ("Card data is in full PCI DSS scope as a service provider (a gateway or processor is normally "
+                          "Level 1: an annual Report on Compliance by a Qualified Security Assessor; source mastercard-sdp, official-unverified: not confirmed in the knowledge base), "
+                          "whether or not compliance lists pci_dss. Keep raw card numbers in one segmented cardholder-data environment with a tokenisation vault, keys in an HSM "
+                          if cards else
+                          "The description names no card data, so PCI DSS applies only if cards are added later (then in full scope as a service provider); account and "
+                          "transaction data still belong in one segmented environment with a tokenisation vault for account identifiers, keys in an HSM ")
+                       + 
+                       f"or a managed key service, and an audit trail that cannot be edited. The connection to {net} is part of this design and is certified with them, "
+                       "not an outside dependency. Every payment state change is confirmed from the network's or acquirer's signed response, idempotently.")
+            mm = None if (psp_shape or india or (store and not mixed)) else dfl.first_live(cn.MOBILE_MONEY_RX, req["project.description"] or "")
+            if mm:  # p5: wallet payments go through the wallet operator's API or an aggregator; a card checkout does not reach them
+                mpesa = bool(re.search(r"m-?pesa", (req["project.description"] or "").lower()))
+                name = ("Mobile-money collections: Safaricom Daraja API for M-Pesa, or an aggregator such as Flutterwave for several wallets" if mpesa else
+                        "Mobile-money collections through an aggregator such as Flutterwave, or each wallet operator's own API (for example MTN MoMo or Airtel Money)")
+                feats, prov, src = [], "neutral", ["safaricom-daraja", "flutterwave-mobile-money"]
+                alts = [("Stripe (Checkout)", "a card checkout; mobile-money wallet payments need the wallet operator's API or an aggregator that supports them"),
+                        ("Each wallet operator's API directly", "fewer fees per wallet but one integration, contract and settlement account per operator")]
+                why = (f"The description says payments are made with mobile money ('{mm[0]}'): the customer approves a payment request on their phone wallet, so the app integrates "
+                       "a mobile-money API (Safaricom's Daraja API for M-Pesa) or an aggregator that covers several wallets and countries (Flutterwave). Which wallets and "
+                       "countries each provider covers, and its fees, must be confirmed with the provider for the countries you launch in. Payment status is trusted only "
+                       "from the provider's signed server-side callback, handled idempotently"
+                       + ("; a sale made offline is recorded as pending and the wallet payment is confirmed when the device is back online." if req["requirements.offline_support"] else "."))
             if mixed:
                 why = ("Orders for physical goods or services are paid here, not through the app stores (their billing rule covers digital goods and "
                        "subscriptions only; the digital item is billed by the stores, see above). ") + why
             hosted = ctx["static_rule"] == "hosted_payments" and not store
-            named = ov.named_provider(ctx) if hosted and not psp_shape else None
+            named = ov.named_provider(ctx) if hosted and not psp_shape and not mm else None
             if named:  # p4: keep the provider whose hosted page the description names (no second processor)
                 kind = "donation" if re.search(r"\bdonat", (req["project.description"] or "").lower()) else "payment"
                 name, prov = f"{named[1]} (hosted {kind} page, linked from the site)", named[0]
@@ -1331,7 +1361,7 @@ def build(ctx, host, backend, db, mobile, warn):
                         (("stripe", "Stripe Payment Links"), ("paypal", "PayPal Donate button"), ("razorpay", "Razorpay Payment Links"))
                         if k != named[0] and (k != "paypal" or donate_ok)][:2]
                 src = {"paypal": ["paypal-donate"], "stripe": ["stripe-billing-pricing"], "razorpay": ["razorpay-upi"]}[named[0]]
-            if hosted and not psp_shape:  # D16: a static site links to the provider's hosted page; there is no server to receive webhooks
+            if hosted and not psp_shape and not mm:  # D16: a static site links to the provider's hosted page; there is no server to receive webhooks
                 why = (f"Taking payments{for_noun(ctx)} (requirements.payments) through the provider's hosted checkout page or button, as the description says "
                        f"(\"{ov.quote(ctx, 'hosted_pay')}\"), keeps card data off the site entirely: the page only links to it, which can qualify for PCI DSS SAQ A "
                        "(your acquirer confirms; protect the page from script attacks). Receipts and payment records come from the provider's dashboard and e-mails, "
@@ -1349,7 +1379,7 @@ def build(ctx, host, backend, db, mobile, warn):
                 else:
                     why += " pci_dss: the gateway is PCI DSS Level 1; your scope still covers the pages that embed checkout."
                     src += ["pci-saq-a", "pci-v4"]
-            if ctx["self_host_only"]:
+            if ctx["self_host_only"] and not psp_shape:
                 warn("EXTERNAL_PAYMENT_GATEWAY", "critical",
                      f"Payments cannot be self-hosted: {name.split(' (')[0]} is the single external SaaS dependency kept on {ctx['deploy']} "
                      + ("(app-store billing and receipt validation run on Google/Apple servers)." if store and not mixed
@@ -1359,12 +1389,12 @@ def build(ctx, host, backend, db, mobile, warn):
             home_ok = bool(home and not ctx["country"] and ctx["res_key"] == home[0])
             if home_ok:
                 src = src + [home[1]]
-            if (not store or mixed) and not india and not home_ok and ((ctx["res_key"] in ("eu", "us") and (ctx["req"]["infrastructure.data_residency"] in ("eu", "us")
+            if (not store or mixed) and not psp_shape and not mm and not india and not home_ok and ((ctx["res_key"] in ("eu", "us") and (ctx["req"]["infrastructure.data_residency"] in ("eu", "us")
                                                                                        or (ctx["res_stated"] or {}).get("pin") in ("eu", "us"))) or ctx["country"]):
                 loc_msg, loc_src, ctx["payment_location_assumption"] = payment_location(name.split(' (')[0], prov, ctx)
                 src = src + loc_src
                 warn("PAYMENT_DATA_LOCATION", "warning", loc_msg, ["requirements.payments"] + ctx["res_paths"])
-            if (not store or mixed) and not india and ctx["country"] and not named:
+            if (not store or mixed) and not psp_shape and not mm and not india and ctx["country"] and not named:
                 warn("PAYMENT_LOCAL_ACQUIRING", "info",
                      f"{name.split(' (')[0]} is the knowledge base's default gateway outside India; whether it offers local acquiring and local payment "
                      f"methods in {ctx['res_label']} is not in the knowledge base — confirm with the gateway or choose a local acquirer.",
@@ -1375,7 +1405,8 @@ def build(ctx, host, backend, db, mobile, warn):
             if not store or mixed:
                 out.append(svc("payments", name + (" — " + "; ".join(feats) if feats else ""), why,
                                dp + (["project.description"] if (feats or d["upi"]) else []) + (["compliance"] if pci or via_compliance else []) + res_path,
-                               alts, [("Per-transaction fees (~2% on domestic cards at Razorpay's standard pricing) are charged on revenue, not in the infrastructure band" if india else
+                               alts, ["Scheme/NPCI certification, a PCI DSS assessment and HSM or key-service costs are not in the infrastructure band (planning heuristic: budget them separately)",
+                                      "Every network message and callback must be idempotent and reconciled daily against the scheme's settlement files"] if psp_shape else [("Per-transaction fees (~2% on domestic cards at Razorpay's standard pricing) are charged on revenue, not in the infrastructure band" if india else
                                        "Per-transaction fees (a percentage plus a fixed amount per charge, set by the gateway's price list for your country) are charged on revenue, not in the infrastructure band"),
                                       "Reconcile from the provider's reports; add a backend with signed webhooks when the site must react to a payment (accounts, entitlements, its own receipts)"
                                       if hosted else "Webhook handling must be idempotent"] + ([home[2]] if home_ok else []),

@@ -17,7 +17,17 @@ MINORS_WEAK_RX = r"\bpupils?\b|\bprimary schools?\b|\bsecondary schools?\b"
 PSP_RX = (r"\bpayment orchestrat\w*|\broutes? to acquirers?\b|\b(?:we are|we.re|become|becoming|building) an? (?:\w+ )?(?:payment service provider|psp|acquirer)\b|\bvault(?:s|ing)? cards?\b|\bpayment facilitators?\b|\bpayment aggregators?\b"
           r"|\bcard (?:vault|tokeni[sz]ation)\b|\bcardholder data (?:environment|vault)\b|\bmerchant acquiring\b"
           r"|\b(?:accepts?|processes?|routes?|authori[sz]es?|settles?)\b(?:\W+\w+){0,3}?\W+card (?:payments?|transactions?)\b(?:\W+\w+){0,4}?\W+(?:for|on behalf of) (?:\w+ )?merchants?\b"
-          r"|\bfor merchants\b(?:\W+\w+){0,6}?\W+(?:accepts?|processes?|routes?|authori[sz]es?)\b(?:\W+\w+){0,3}?\W+card")
+          r"|\bfor merchants\b(?:\W+\w+){0,6}?\W+(?:accepts?|processes?|routes?|authori[sz]es?)\b(?:\W+\w+){0,3}?\W+card"
+          # p5: the product itself is the gateway, processor or switch (named first, or connecting to the card schemes / NPCI), not a shop that uses one
+          r"|^\W*(?:an? |the |our )?(?:\w+[- ]){0,3}?(?:payment gateway|card processor|payment processor|payments? switch|card switch)\b(?! (?:integration|checkout|plugin))"
+          r"|\b(?:upi|imps|neft|rtgs|atm|card|interbank) switch(?:es|ing)?\b"
+          r"|\bconnects?\b(?:\W+\w+){0,5}?\W+(?:to|with) (?:the )?(?:npci|card networks?|card schemes?|visa|mastercard|rupay)\b"
+          r"|\b(?:stores?|storing|process(?:es)?|processing) (?:and (?:process(?:es)?|stores?) )?(?:raw )?card(?:holder)? data\b"
+          r"|\broutes?\b(?:\W+\w+){0,3}?\W+(?:payments?|transactions?) to (?:\w+ ){0,2}(?:acquir\w*|card networks?|card schemes?|npci)\b")
+# p5: mobile-money wallets (paid from a phone wallet, not a card): need a mobile-money provider API or aggregator, not a card gateway
+MOBILE_MONEY_RX = r"\bmobile[- ]money\b|\bm-?pesa\b|\bmtn (?:mobile money|momo)\b|\bmomo\b|\bairtel money\b|\borange money\b|\btigo pesa\b|\bwave (?:mobile )?money\b"
+# p5: an existing system that is the scheme / network link a payment provider operates itself
+SCHEME_RX = r"\bnpci\b|\bvisa\b|\bmastercard\b|\brupay\b|\bcard (?:network|scheme)s?\b|\bacquir\w+|\bupi\b|\bimps\b|\bswitch\b"
 # services whose end-user personal data passes through the vendor although the vendor holds no database for the project
 DATA_PATH_LAYERS = ("auth", "realtime", "email")
 # planning heuristic: a provider the engine picks because it is the in-region route for the stated residency (an Indian SMS route under India residency) is not flagged
