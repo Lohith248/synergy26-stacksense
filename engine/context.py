@@ -370,6 +370,55 @@ def removal_in_text(name_rx, text):
     return False
 
 
+# p5 item 8: the new app WRITES to the existing database ('must read and write the existing Oracle database'): that database stays
+# the system of record even without keep wording. A clause that removes it, or speaks of a read-only / reporting / replica copy, does not.
+WRITE_RX = (r"\bread(?:s|ing)?\s*(?:and|&|/)\s*writ\w*|\bread[- ]write\b|\bwrit(?:e|es|ing)\s+(?:\w+\s+){0,3}?(?:back\s+)?(?:to|into)\b"
+            r"|\bupdat(?:e|es|ing)\s+(?:records?|rows?|data)\s+in\b")
+_NOT_WRITE_RX = r"read[- ]only|\breport\w*|\breplica\b|\bcopy\b|\bsnapshot\b|\bexport\w*|\bwarehouse\b"
+
+
+ANON_READERS_RX = (r"\b(?:readers?|visitors?|viewers?|listeners?|the public|audience|citizens?)\s+(?:do not|don't|never|will not|won't|need not|needn't|does not|doesn't)"
+                   r"\s+(?:need to\s+|have to\s+)?(?:log ?in|sign ?in|sign up|register|create accounts?|have accounts?|need (?:an? )?accounts?)\b"
+                   r"|\banonymous (?:readers?|visitors?|viewers?|listeners?|browsing)\b|\bno (?:reader|visitor|public) (?:accounts?|logins?|sign-?ins?)\b")
+_STAFF = (r"(?:editors?|staff|admins?|administrators?|journalists?|authors?|moderators?|employees?|newsroom|curators?|producers?|officers?"
+          r"|reporters?|contributors?)")
+STAFF_LOGIN_RX = r"\b" + _STAFF + r"\b[^.;]{0,40}?\b(?:log ?in|logs ?in|sign ?in|signs ?in|logins?)\b"
+STAFF_COUNT_RX = r"\b(\d{1,5})\s+(?:\w+\s+)?" + _STAFF + r"\b"
+STAFF_LOGIN_DEFAULT = 100  # planning heuristic: sign-in users when only staff log in and the description gives no staff count
+
+
+def tier_for(users):
+    """Scale tier for a user count alone (the same user thresholds as build's tier; no peak or request-rate evidence)."""
+    return 0 if users <= 5000 else 1 if users <= 50000 else 2 if users <= 500000 else 3
+
+
+def staff_login_count(desc):
+    """The staff count (stated, else STAFF_LOGIN_DEFAULT) when the description says readers stay anonymous and staff log in; else None."""
+    if not (re.search(ANON_READERS_RX, desc) and re.search(STAFF_LOGIN_RX, desc)):
+        return None
+    m = re.search(STAFF_COUNT_RX, desc)
+    return int(m.group(1)) if m else STAFF_LOGIN_DEFAULT
+
+
+def login_users(ctx):
+    """Users who sign in, read at use time (a sized-down cost pass changes ctx['users'])."""
+    n = ctx.get("staff_login_n")
+    return min(ctx["users"], n) if n else ctx["users"]
+
+
+def staff_login_only(ctx):
+    return login_users(ctx) < ctx["users"]
+
+
+def write_in_text(name_rx, text):
+    """A clause (or existing_systems entry) that names the database and says the app reads and writes / writes to it."""
+    for clause in re.split(r"[,;:]\s*|\s+(?:but|while|whereas)\s+", text):
+        if (re.search(name_rx, clause) and re.search(WRITE_RX, clause) and not re.search(REMOVE_RX, clause)
+                and not re.search(_NOT_WRITE_RX, clause)):
+            return True
+    return False
+
+
 # Server-side language named by an existing system (frameworks and app servers included; front-end frameworks are not).
 # Node needs a version or an app noun ('Kubernetes node pool' is not Node.js).
 EXISTING_LANG = {"java": r"\bjava\b|\btomcat\b|\bspring\b|\bjboss\b|\bwildfly\b|\bweblogic\b|\bwebsphere\b",
@@ -468,7 +517,7 @@ AMBIGUOUS = [
     (r"south ?east asia|asean", "i", ["singapore", "indonesia"]),
     (r"SEA", "", ["singapore", "indonesia"]),
     (r"asia", "i", ["singapore", "japan", "south_korea", "indonesia"]),
-    (r"(?:sub-saharan )?africa", "i", ["south_africa"]),
+    (r"(?<!east )(?<!west )(?<!north )(?<!central )(?<!eastern )(?<!western )(?<!northern )(?:sub-saharan )?africa", "i", ["south_africa"]),  # p5: East/West/North Africa never suggests South Africa
     (r"latam|latin america|south america", "i", ["brazil", "mexico"]),
     (r"north america", "i", ["canada", "mexico"]),
     (r"europe", "i", ["united_kingdom", "switzerland"]),
@@ -1055,6 +1104,8 @@ def build(req):
                                                        "maintainability", "security")}
     flags, prim = desc_signals(req["project.description"] or "")
     desc = (req["project.description"] or "").lower()
+    # p5 item 5: readers are anonymous and only staff sign in: sign-in is sized for the staff, not the audience
+    c["staff_login_n"] = staff_login_count(desc)
     # the description only promotes a language team.languages already lists; it never adds one
     c["desc"], c["primary_langs"] = dict(flags), [x for x in prim if x in c["langs"]]
     # A1: a web3 word that only a stakeholder asks for ("the CTO wants blockchain receipts") or a hype word frames is not a requirement
@@ -1085,6 +1136,10 @@ def build(req):
             name_rx = r"(?<![a-z0-9])(?:" + "|".join(hit["match"] + ([re.escape(hit["product"].split()[0].lower())] if hit.get("product") and not hit.get("synthetic") else [])) + r")(?![a-z0-9])"
         keep = "infrastructure.existing_systems" if keep_in_entry(low) else "project.description" if hit and any(
             keep_in_text(name_rx, s) for s in sentences) else None
+        if not keep and hit and hit["kind"] == "database" and (write_in_text(name_rx, low) or any(write_in_text(name_rx, s) for s in sentences)):
+            keep, keep_write = ("infrastructure.existing_systems" if write_in_text(name_rx, low) else "project.description"), True
+        else:
+            keep_write = False
         # a tenant described only as workforce/staff identity is not a customer login directory
         workforce = bool(re.search(r"\b(?:workforce|employees?|staff)\b", low)) and not re.search(
             r"\b(?:customers?|consumers?|ciam|b2c|external|partners?|public)\b", low)
@@ -1102,7 +1157,7 @@ def build(req):
             else:
                 names = ([name_rx_plain(hit)] if hit else []) + ([life_rx(life)] if life else [])
                 retire = any(removal_in_text(n, lifecycle_text(s)) for n in names for s in sentences)
-        ex.append({"raw": raw, "pattern": hit, "life": life, "life_more": lifes[1:], "old_ver": old_ver, "keep": keep, "onprem": onprem, "workforce": workforce,
+        ex.append({"raw": raw, "pattern": hit, "life": life, "life_more": lifes[1:], "old_ver": old_ver, "keep": keep, "keep_write": keep_write, "onprem": onprem, "workforce": workforce,
                    "retire": retire, "adapter": adapter})
     # list-order invariance: knowledge-base pattern order (identity, databases, brokers, ...), then keyword categories
     # (knowledge-base order), then name; unrecognised last

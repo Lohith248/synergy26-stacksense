@@ -44,6 +44,23 @@ def cognito_usd(mau):
 MAU_SHARE = (0.3, 1.0)                 # monthly active users as a share of all users
 
 
+def cognito_band(users):
+    """(lo, hi) USD a month for Cognito Lite MAUs of `users` sign-in users (p5 item 6). Rates above COGNITO_TIER_READ_TO MAU were not
+    read, so the lower bound counts MAUs only up to that point (a true floor) and the upper bound keeps the last read rate above it."""
+    lo_mau, hi_mau = (users * x for x in MAU_SHARE)
+    return round(cognito_usd(min(lo_mau, COGNITO_TIER_READ_TO))), round(cognito_usd(hi_mau))
+
+
+def cognito_note(users, staff=False):
+    (t1, r1), (_, r2) = COGNITO_TIERS
+    mlo, mhi = (round(users * x) for x in MAU_SHARE)
+    return (f" Cognito Lite: {COGNITO_FREE_MAU:,} MAU free, then ${r1} per MAU up to {t1:,} MAU and ${r2} per MAU up to {COGNITO_TIER_READ_TO:,} "
+            f"(Amazon Cognito pricing); MAU taken as {MAU_SHARE[0]:.0%}-{MAU_SHARE[1]:.0%} of ~{users:,} {'staff who sign in' if staff else 'users'} = "
+            f"{mlo:,}-{mhi:,} MAU (planning heuristic)"
+            + (f"; rates above {COGNITO_TIER_READ_TO:,} MAU are not in the knowledge base, so the lower bound counts only the first "
+               f"{COGNITO_TIER_READ_TO:,} MAU and the upper bound keeps ${r2} above it." if mhi > COGNITO_TIER_READ_TO else "."))
+
+
 def india_sms_usd():
     return tuple(rs * (1 + SMS_GST) / INR_PER_USD for rs in INDIA_SMS_RS)
 
@@ -69,10 +86,32 @@ VIDEO_LOW_RATE = 0.02
 VIDEO_EGRESS_TIERS = ((10_000, 0.09), (150_000, 0.06), (500_000, 0.04), (float("inf"), 0.03))
 
 
-def tiered_egress(gb):
-    """USD for gb GB in a month, each slice at its tier's rate."""
+# p5 item 6: the chosen provider's own CDN transfer tiers (GB per month up to, USD per GB), official pages opened 15 Nov 2026.
+# Amazon CloudFront pay-as-you-go (aws-cloudfront-payg): first 1 TB free. Azure Front Door edge-to-client (azure-frontdoor-pricing): bands
+# above 150 TB are "Contact Us", so the 150 TB rate is kept there as an upper bound. Region: India rates under India residency, else the
+# North America rates (a reference for other regions).
+CDN_EGRESS_TIERS = {
+    ("aws", "us"): ((1_024, 0.0), (10_240, 0.085), (51_200, 0.080), (153_600, 0.060), (512_000, 0.040), (1_048_576, 0.030),
+                    (5_242_880, 0.025), (float("inf"), 0.020)),
+    ("aws", "india"): ((1_024, 0.0), (10_240, 0.109), (51_200, 0.085), (153_600, 0.082), (512_000, 0.080), (1_048_576, 0.078),
+                       (5_242_880, 0.075), (float("inf"), 0.072)),
+    ("azure", "us"): ((10_240, 0.083), (51_200, 0.066), (float("inf"), 0.057)),
+    ("azure", "india"): ((10_240, 0.109), (51_200, 0.085), (float("inf"), 0.083)),
+}
+CDN_EGRESS_NAME = {"aws": ("Amazon CloudFront pay-as-you-go transfer tiers, first 1 TB free", "aws-cloudfront-payg"),
+                   "azure": ("Azure Front Door edge-to-client transfer tiers; bands above 150 TB are quoted on request, so the 150 TB rate is kept there",
+                             "azure-frontdoor-pricing")}
+
+
+def provider_tiers(provider, residency):
+    """The provider's own CDN tier table, or None (another CDN: the caller keeps its reference rate)."""
+    return CDN_EGRESS_TIERS.get((provider, "india" if residency == "india" else "us"))
+
+
+def tiered_egress(gb, tiers=None):
+    """USD for gb GB in a month, each slice at its tier's rate (default: the video reference tiers)."""
     cost, prev = 0.0, 0
-    for cap, rate in VIDEO_EGRESS_TIERS:
+    for cap, rate in tiers or VIDEO_EGRESS_TIERS:
         if gb <= prev:
             break
         cost += (min(gb, cap) - prev) * rate
@@ -87,6 +126,16 @@ IOT_HUB_TIERS = (("S1", 25, 400_000), ("S2", 250, 6_000_000), ("S3", 2500, 300_0
 
 # ---- (b) ML training: GPU-hours per stored GB per month. The managed table stays the lower bound.
 TRAIN_GPU_HOURS_PER_GB = (0.02, 0.08)  # planning heuristic: 20-80 GPU-hours per TB of stored data per month
+GPU_HOURS_PER_MONTH = 730  # planning heuristic (p5): one GPU running all month gives about 730 hours; more GPU-hours means several GPUs in parallel
+
+
+def gpu_count_text(hours_lo, hours_hi, gpu_class):
+    """p5: never price more than a month of hours on one GPU: '... on one T4-class GPU' or '... across 2-7 T4-class GPUs in parallel'."""
+    lo, hi = (max(1, -(-int(round(h)) // GPU_HOURS_PER_MONTH)) for h in (hours_lo, hours_hi))
+    if hi <= 1:
+        return f"on one {gpu_class} GPU"
+    return (f"across {lo if lo == hi else f'{lo}-{hi}'} {gpu_class} GPUs in parallel (one GPU gives about {GPU_HOURS_PER_MONTH} hours a month, "
+            "planning heuristic), each GPU billed")
 TRAIN_GPU_RATE = 0.736                 # $/h ml.g4dn.xlarge on-demand training, us-east-1 (kb source aws-sagemaker)
 TRAIN_FLOOR_GB = 100                   # below this volume training stays on the tier table
 # i2 (planning heuristic): a small, scheduled retrain of a classical model (tier 0-1, stored data under TRAIN_FLOOR_GB, no deep-learning or
@@ -321,7 +370,7 @@ def dominant_text(items, budget, total_hi):
             "this only says where the money goes.")
 
 
-def over_multiple_note(items, budget):
+def over_multiple_note(items, budget, band_min=None):
     """Explicit note for each single line above SINGLE_LINE_BUDGET_MULTIPLE x budget (budget > 0), largest first; '' if none."""
     if budget <= 0:
         return ""
@@ -332,4 +381,12 @@ def over_multiple_note(items, budget):
             bits.append(f"{label} alone (${lo:,}-{hi:,} a month) is above {SINGLE_LINE_BUDGET_MULTIPLE}x the budget even at its lower bound")
         elif hi > cap:
             bits.append(f"{label} alone (up to ${hi:,} a month) is above {SINGLE_LINE_BUDGET_MULTIPLE}x the budget at its upper bound")
-    return (" Sanity check: " + "; ".join(bits[:2]) + ". The band keeps the figure as the estimate; no scope cut that keeps this feature fits the budget.") if bits else ""
+    if not bits:
+        return ""
+    # p5 item 5: 'no scope cut fits' only when a flagged line's own lower bound is above the whole budget
+    floor = max(lo for hi, lo, label in items if hi > cap)
+    tail = ("no scope cut that keeps this line fits the budget." if floor > budget else
+            "at its lower bound the line is within the budget, so the budget holds only while usage stays near the low end of the band."
+            if band_min is None or band_min <= budget else
+            "at its lower bound the line is within the budget, but the band minimum is not, so other lines must shrink as well.")
+    return " Sanity check: " + "; ".join(bits[:2]) + ". The band keeps the figure as the estimate; " + tail

@@ -1158,7 +1158,7 @@ def _recommend(req, assumptions, sid):
     # judge B2: name the largest lines of the band itself (derived ones too: stored data, OTP, extra instances), by upper bound
     items = cost.pop("_items")
     top = [(hi, name) for hi, _, name in items if hi > 0][:2]
-    over_txt = costreal.over_multiple_note(items, ctx["budget"])  # E8d: explicit note for a single line above 10x the budget
+    over_txt = costreal.over_multiple_note(items, ctx["budget"], cost["min"])  # E8d: explicit note for a single line above 10x the budget
     top_txt = f"; the largest upper-bound items are {' and '.join(f'{n} (up to ${v:,.0f})' for v, n in top)}" if top else ""
     if rf.applies(ctx) and rf.metered(host) and rf.egress_warning(ctx, ctx["budget"]):  # A18: the transfer line can exceed the budget
         W(*rf.egress_warning(ctx, ctx["budget"]))
@@ -1722,6 +1722,11 @@ def contradictions(ctx, W, assumptions, host, backend, db_self=False):
               ["infrastructure.existing_systems"] + (["project.description"] if ad["from_desc"] else []))
             assumptions.append(f"'{e['raw']}' is not recognised by name; its integration is inferred from {ig.cite(ad)}: "
                                f"{ad['title']}. The interface details are assumptions to confirm.")
+        elif not e["pattern"] and not life and cn.psp(ctx) and re.search(cn.SCHEME_RX, e["raw"].lower()):  # p5: the provider's own network link
+            W("EXISTING_SYSTEM_UNRECOGNISED", "info", f"'{e['raw']}' is the card-scheme or NPCI connection this payment system operates itself: it is in scope of this design "
+              "(inside the segmented cardholder-data or switch environment, certified with the network), not an outside dependency.",
+              ["infrastructure.existing_systems", "project.description"])
+            assumptions.append(f"'{e['raw']}' is read as this payment system's own network connection, so it is designed and certified as part of the stack.")
         elif not e["pattern"] and not life:
             W("EXISTING_SYSTEM_UNRECOGNISED", "info", f"'{e['raw']}' is not in the knowledge base; integration must be designed manually.",
               ["infrastructure.existing_systems"])
@@ -1820,13 +1825,16 @@ def kept_database(ctx, e, d_ok, loc):
     c.vkey, c.variant = "existing", label
     life = e["life"]
     eol = bool(life and life["eol"] <= AS_OF)
-    why = (f"'{e['raw']}' must stay ({e['keep']}): the new application reads and writes the existing {pat['product']} in place "
-           "instead of creating a second primary database, so existing consumers and batch jobs keep working. It is reached over a "
+    why = (f"'{e['raw']}' is the system of record the application must read and write ({e['keep']}), so it stays: the new application "
+           f"writes to the existing {pat['product']} in place " if e.get("keep_write") else
+           f"'{e['raw']}' must stay ({e['keep']}): the new application reads and writes the existing {pat['product']} in place ")
+    why += ("instead of creating a second primary database, so existing consumers and batch jobs keep working. It is reached over a "
            "private network path (VPN / private link) with credentials in a secret store; new tables or collections only with the owners' agreement.")
     if eol:
         why += (f" It is past end of support ({life['name']}): upgrade it in place to a supported release before building on it "
                 "(see END_OF_LIFE_SYSTEM).")
-    alts = [{"choice": f"Migrate to {a.variant}", "why_not": f"infrastructure.existing_systems=['{e['raw']}'] must remain, so the "
+    stays = ("is the system of record the application must write to" if e.get("keep_write") else "must remain")
+    alts = [{"choice": f"Migrate to {a.variant}", "why_not": f"infrastructure.existing_systems=['{e['raw']}'] {stays}, so the "
              f"{'best-scoring' if i == 0 else 'runner-up'} new database for these inputs is a later migration (change-data-capture or dual writes, then cut-over) once the new app is stable."}
             for i, a in enumerate([a for a in d_ok if not _licence_filler(a, ctx)][:2])]
     cmp = {"choice": label, "justification": why,
@@ -1967,13 +1975,19 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
     obj = any(s["layer"] == "storage" and s["deployment"] != "self_hosted" for s in supporting)
     extra_proc = []
     for s in supporting:
-        clo, chi = s["_cost"][t]
+        staff_auth = s["layer"] == "auth" and cx.staff_login_only(ctx)  # p5 item 5: sign-in sized for the staff who log in
+        clo, chi = s["_cost"][cx.tier_for(cx.login_users(ctx)) if staff_auth else t]
+        if s.get("_cognito"):  # p5 item 6: Cognito MAU tiers for the users this band is sized for (a pilot band has fewer)
+            clo, chi = costreal.cognito_band(cx.login_users(ctx))
+            s = {**s, "_note": costreal.cognito_note(cx.login_users(ctx), cx.staff_login_only(ctx))}
+            staff_auth = False  # the note already names the staff
         name = short(s["choice"])
         if chi and s["layer"] == "storage" and obj:
             # M1: the volume is priced once, in the "Stored data" line; the tier range of this line would charge the same files twice
             add(name, 0, 0, f"{s['layer']}: {name} {{r}} here: the files it holds are priced by volume in the 'Stored data' line, not charged twice.")
         elif chi:
-            add(s.get("_label", name), clo, chi, f"{s['layer']}: {name} {{r}}." + s.get("_note", ""))
+            add(s.get("_label", name), clo, chi, f"{s['layer']}: {name} {{r}}." + s.get("_note", "")
+                + (f" Sized for ~{cx.login_users(ctx):,} staff sign-ins (planning heuristic): the description says readers do not log in." if staff_auth else ""))
             if s.get("_extra_proc"):
                 extra_proc.append(name)
         elif s.get("_on_plan"):
@@ -2036,16 +2050,25 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         # ponytail: one reference rate table for every CDN and a fixed GB per user; a per-provider rate table would be finer
         u = ctx["users"]
         g_lo, g_hi = (u * x for x in costreal.VIDEO_GB_PER_USER)
-        add("Video egress", g_lo * costreal.VIDEO_LOW_RATE, costreal.tiered_egress(g_hi),
-            f"Video egress: {u:,} users x 0.05-0.5 GB per user per month (about 2-30 minutes of adaptive-bitrate video) = {cx.num(g_lo)}-{cx.num(g_hi)} GB a month, "
-            f"priced at a reference CDN rate of ${costreal.VIDEO_LOW_RATE}/GB at the low end and, at the high end, on tiers of $0.09/GB up to 10 TB a month, "
-            "$0.06 up to 150 TB, $0.04 up to 500 TB and $0.03 above (planning heuristic shaped on the Google Cloud CDN cache egress tiers, "
-            "12 Nov 2026) = {r}; streaming is usually the largest bill for video products.")
+        # p5 item 6: priced on the stack's own CDN tiers when that CDN is CloudFront or Front Door
+        cdn_p = next((s["provider"] for s in supporting if s["layer"] == "cdn"), host["provider"])
+        vt = costreal.provider_tiers(cdn_p, ctx.get("residency"))
+        if vt:
+            add("Video egress", costreal.tiered_egress(g_lo, vt), costreal.tiered_egress(g_hi, vt),
+                f"Video egress: {u:,} users x 0.05-0.5 GB per user per month (about 2-30 minutes of adaptive-bitrate video) = {cx.num(g_lo)}-{cx.num(g_hi)} GB a month, "
+                f"priced on the {costreal.CDN_EGRESS_NAME[cdn_p][0]} ({'India' if ctx.get('residency') == 'india' else 'North America rates as the reference'}) "
+                "= {r}; streaming is usually the largest bill for video products.")
+        else:
+            add("Video egress", g_lo * costreal.VIDEO_LOW_RATE, costreal.tiered_egress(g_hi),
+                f"Video egress: {u:,} users x 0.05-0.5 GB per user per month (about 2-30 minutes of adaptive-bitrate video) = {cx.num(g_lo)}-{cx.num(g_hi)} GB a month, "
+                f"priced at a reference CDN rate of ${costreal.VIDEO_LOW_RATE}/GB at the low end and, at the high end, on tiers of $0.09/GB up to 10 TB a month, "
+                "$0.06 up to 150 TB, $0.04 up to 500 TB and $0.03 above (planning heuristic shaped on the Google Cloud CDN cache egress tiers, "
+                "12 Nov 2026) = {r}; streaming is usually the largest bill for video products.")
     if any(s["choice"].startswith("Email delivery") for s in supporting):  # E8d: per-message line scales with recipients x sends
         elo, ehi, etxt = costreal.email_line(ctx)
         add("Email", elo, ehi, etxt)
     if ctx["req"]["requirements.auth"] == "phone_otp" and not ctx["no_internet"]:
-        logins = ctx["users"]
+        logins = cx.login_users(ctx)  # p5 item 5: anonymous readers send no OTPs
         auth_choice = next((s["choice"] for s in supporting if s["layer"] == "auth"), "")
         rl, rh = costreal.SMS_RETRY_FACTOR
         india_rate = "Rs %s-%s + %d%% GST, converted at Rs %d/USD (planning rate), i.e. $%.4f-%.4f per SMS" % (
@@ -2081,7 +2104,7 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         ll, lh = costreal.OTP_LOGINS_PER_USER
         olo, ohi = round(logins * ll * plo), round(logins * lh * phi)
         items.append((ohi, olo, "Phone OTP SMS fees"))
-        lines.append(f"Phone OTP: {logins:,} users x {ll:.1f}-{lh:.1f} OTP logins/month at {txt}: {_usd_range(olo, ohi)}/month (long-lived sessions keep OTPs rare).")
+        lines.append(f"Phone OTP: {logins:,} {'staff who sign in' if cx.staff_login_only(ctx) else 'users'} x {ll:.1f}-{lh:.1f} OTP logins/month at {txt}: {_usd_range(olo, ohi)}/month (long-lived sessions keep OTPs rare).")
     tp = ctx["req"]["scale.traffic_pattern"]
     if tp in ("spiky", "seasonal") and host.get("scaling") in ("request", "instances"):
         lines.append(f"{'Seasonal' if tp == 'seasonal' else 'Spiky'} traffic: the upper bound is a peak month; with autoscaling, "

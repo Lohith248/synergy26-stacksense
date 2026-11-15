@@ -59,7 +59,7 @@ MONEY = dict(requirements__payments=True)
 
 class SecurityLine(unittest.TestCase):
     def test_fires_on_each_hyperscaler(self):
-        for cloud, word in (("aws", "AWS WAF"), ("azure", "Front Door WAF"), ("gcp", "Cloud Armor")):
+        for cloud, word in (("aws", "AWS WAF"), ("azure", "Front Door "), ("gcp", "Cloud Armor")):
             for typ in ("fintech", "marketplace"):
                 with self.subTest(cloud=cloud, typ=typ):
                     out = run(project__type=typ, infrastructure__cloud_preference=cloud, priorities__security=5, **MONEY)

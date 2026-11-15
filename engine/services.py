@@ -367,6 +367,15 @@ SECURITY_PRIORITY = 4
 SECURITY_COMPLIANCE = ("pci_dss", "iso27001")
 # Azure: the Front Door profile's $35 base fee is already in the CDN line when one exists; otherwise AZURE_FRONT_DOOR_BASE is added here
 AZURE_FRONT_DOOR_BASE = 35
+# p5 item 7: the Microsoft-managed WAF rule set and bot protection are Premium-only (azure-frontdoor-tiers, verified 15 Nov 2026);
+# Premium's base fee is $330/month with WAF included (azure-frontdoor-pricing, read 15 Nov 2026). Planning heuristic: Premium is chosen
+# when its base fee is at most FRONT_DOOR_PREMIUM_BUDGET_SHARE of the budget; otherwise Standard with custom WAF rules.
+AZURE_FRONT_DOOR_PREMIUM_BASE = 330
+FRONT_DOOR_PREMIUM_BUDGET_SHARE = 0.15
+
+
+def front_door_premium(ctx):
+    return ctx["budget"] * FRONT_DOOR_PREMIUM_BUDGET_SHARE >= AZURE_FRONT_DOOR_PREMIUM_BASE
 # per provider: (choice, what each part does, alternative, cost per scale tier [lo, hi] USD/month (planning estimate), source ids)
 SECURITY_SET = {
     "aws": ("AWS WAF + AWS KMS + AWS Secrets Manager + AWS CloudTrail",
@@ -400,13 +409,31 @@ def security_line(ctx, host, rtxt, loc, svc_, front_door_paid=False):
     if not money or not (ctx["prio"]["security"] >= SECURITY_PRIORITY or comp):
         return None
     name, what, alt, cost, src = SECURITY_SET[p]
-    if p == "azure" and not front_door_paid:
-        cost = [[lo + AZURE_FRONT_DOOR_BASE, hi + AZURE_FRONT_DOOR_BASE] for lo, hi in cost]
+    if p == "azure":
+        prem = front_door_premium(ctx)
+        # the CDN line, when present, already pays the Standard base fee; Premium replaces it
+        base = (AZURE_FRONT_DOOR_PREMIUM_BASE if prem else AZURE_FRONT_DOOR_BASE) - (AZURE_FRONT_DOOR_BASE if front_door_paid else 0)
+        cost = [[lo + base, hi + base] for lo, hi in cost]
+        src = src + ["azure-frontdoor-tiers"]
+        if prem:
+            name = name.replace("Azure Front Door WAF", "Azure Front Door Premium WAF")
+            what = what.replace("Azure Front Door with its web application firewall (managed rule sets plus rate limits on login and payment routes)",
+                                "Azure Front Door Premium with its web application firewall (the Microsoft-managed rule set and bot protection, which "
+                                f"need the Premium tier, plus rate limits on login and payment routes; ${AZURE_FRONT_DOOR_PREMIUM_BASE}/month base fee with WAF included"
+                                + (", replacing the Standard profile in the CDN line" if front_door_paid else "") + ")")
+        else:
+            name = name.replace("Azure Front Door WAF", "Azure Front Door Standard WAF (custom rules)")
+            what = what.replace("Azure Front Door with its web application firewall (managed rule sets plus rate limits on login and payment routes)",
+                                "Azure Front Door Standard with custom web application firewall rules (rate limits on login and payment routes, "
+                                "geo-filtering and IP rules; the Microsoft-managed rule set and bot protection need Premium, "
+                                f"${AZURE_FRONT_DOOR_PREMIUM_BASE}/month base fee, more than {FRONT_DOOR_PREMIUM_BUDGET_SHARE:.0%} of this budget)")
     driven = (["requirements.payments"] if req["requirements.payments"] else ["project.type"]) + ["priorities.security"] + (["compliance"] if comp else [])
     why = (("Taking payments" if req["requirements.payments"] else f"Financial data (project.type={ctx['type']})") + f" with priorities.security={ctx['prio']['security']}" + (f" and compliance={','.join(comp)}" if comp else "")
            + f" needs protection in front of the app and control of keys, secrets and audit evidence: {what}{rtxt}. "
            "These are the building blocks an assessor asks to see; they do not make the system compliant on their own. "
-           "The cost line is a planning estimate (provider list prices for these services were not read), driven mainly by request volume.")
+           + ("The cost line is a planning estimate (the Front Door base fee is the list price; the other services' prices were not read), "
+              "driven mainly by request volume." if p == "azure" else
+              "The cost line is a planning estimate (provider list prices for these services were not read), driven mainly by request volume."))
     return svc_("other", name, why, driven, [alt], ["Rule tuning is ongoing work: start WAF rules in count mode, then block", "Key and secret rotation must be scheduled and tested"],
                 "managed", p, True, cost, src, loc)
 
@@ -821,15 +848,15 @@ def build(ctx, host, backend, db, mobile, warn):
                                "managed", "aws", True,
                                # judge B5: SMS is billed once, in the band's Phone OTP line; this line is Cognito MAUs only
                                # (verified: Lite 10,000 MAU free, then $0.0055/MAU to 100,000 and $0.0046 above; MAU = 30-100% of users, as for OTP logins)
-                               [[round(costreal.cognito_usd(ctx["users"] * costreal.MAU_SHARE[0])),
-                                 round(costreal.cognito_usd(ctx["users"] * costreal.MAU_SHARE[1]))]] * 4,
+                               [[round(costreal.cognito_usd(cx.login_users(ctx) * costreal.MAU_SHARE[0])),
+                                 round(costreal.cognito_usd(cx.login_users(ctx) * costreal.MAU_SHARE[1]))]] * 4,
                                ["aws-cognito-pricing", "aws-sns-sms"] + (["trai-dlt"] if india else []), loc))
                 out[-1]["_label"] = "Amazon Cognito monthly-active-user charges"  # J1: the budget warning names it apart from the SMS fees line
-                mlo, mhi = (round(ctx["users"] * x) for x in costreal.MAU_SHARE)
+                mlo, mhi = (round(cx.login_users(ctx) * x) for x in costreal.MAU_SHARE)
                 (t1, r1), (_, r2) = costreal.COGNITO_TIERS
                 out[-1]["_note"] = (f" Cognito Lite: {costreal.COGNITO_FREE_MAU:,} MAU free, then ${r1} per MAU up to {t1:,} MAU and ${r2} per MAU above "
                                     f"(Amazon Cognito pricing; tiers above {costreal.COGNITO_TIER_READ_TO:,} MAU are not in the knowledge base, so ${r2} is kept there as an upper bound). "
-                                    f"MAU is taken as {costreal.MAU_SHARE[0]:.0%}-{costreal.MAU_SHARE[1]:.0%} of ~{ctx['users']:,} users = {mlo:,}-{mhi:,} MAU (planning heuristic), "
+                                    f"MAU is taken as {costreal.MAU_SHARE[0]:.0%}-{costreal.MAU_SHARE[1]:.0%} of ~{cx.login_users(ctx):,} {'staff who sign in' if cx.staff_login_only(ctx) else 'users'} = {mlo:,}-{mhi:,} MAU (planning heuristic), "
                                     "each slice above the free tier priced at its tier's rate; SMS is counted once, in the Phone OTP line.")
             elif india:
                 in_res = loc == "india" or ctx["residency"] == "india"
@@ -869,7 +896,8 @@ def build(ctx, host, backend, db, mobile, warn):
                                dp + ["infrastructure.cloud_preference"],
                                [("Framework built-in auth", "you would own password storage, reset flows and MFA")],
                                ["Cognito customisation limits"], "managed", "aws", True,
-                               [[0, 0], [0, 30], [50, 300], [300, 2000]], ["aws-cognito-pricing"], loc))
+                               [list(costreal.cognito_band(cx.login_users(ctx)))] * 4, ["aws-cognito-pricing"], loc))
+                out[-1]["_cognito"] = True  # p5 item 6: per-MAU tiers, recomputed by the cost band for the users it sizes for
             else:
                 lib = {"python-django": "Django auth + django-allauth", "dotnet-aspnet": "ASP.NET Core Identity",
                        "java-spring": "Spring Security (+ OAuth2 client)", "php-laravel": "Laravel Fortify/Socialite",
@@ -1114,7 +1142,7 @@ def build(ctx, host, backend, db, mobile, warn):
             if azure_rt:
                 out[-1]["_note"] = (f" Basis: billed per unit of {costreal.REALTIME_UNIT_CONNECTIONS:,} concurrent connections, ~{rt_units} unit{'s' if rt_units > 1 else ''} for "
                                     f"~{ctx['peak']:,} concurrent users; the knowledge base names the service but lists no price, so ${costreal.REALTIME_UNIT_USD_MONTH[0]}-"
-                                    f"{costreal.REALTIME_UNIT_USD_MONTH[1]} per unit-month is an official-unverified planning estimate.")
+                                    f"{costreal.REALTIME_UNIT_USD_MONTH[1]} per unit-month is a planning estimate: confirm it on the Azure pricing page.")
 
     # ---------------- cache
     read_hot = req["scale.workload"] == "read_heavy" and ctx["peak"] >= 1000
@@ -1309,17 +1337,47 @@ def build(ctx, host, backend, db, mobile, warn):
             why = (f"Taking payments{for_noun(ctx)} (requirements.payments) through hosted checkout keeps card data off your servers, which can qualify for PCI DSS SAQ A "
                    "(your acquirer confirms; protect the checkout page from script attacks). "
                    "Payment confirmation is trusted only from signed server-side webhooks.")
-            psp_shape = pci and bool(cn.psp(ctx))  # the system itself routes card payments as a service provider: follow the PCI_SCOPE branch, no hosted-checkout shortcut
+            psp_hit = cn.psp(ctx)
+            psp_shape = bool(psp_hit)  # p5: the system itself is the gateway/processor/switch: no merchant checkout, full PCI scope (with or without pci_dss listed)
             if psp_shape:
-                why = (f"Taking payments{for_noun(ctx)} (requirements.payments): the description says this system itself accepts or routes card payments for merchants, "
-                       "so the hosted-checkout shortcut (SAQ A) does not apply and card data is in scope. The connection to the card processor or acquirer belongs inside one segmented "
-                       "cardholder-data environment (see the PCI_SCOPE warning: tokenise there, keys in an HSM or a managed key service, keep an audit trail). "
-                       "Payment confirmation is trusted only from signed server-side webhooks or acquirer callbacks.")
+                low = (req["project.description"] or "").lower()
+                net = "NPCI (UPI/IMPS)" if re.search(r"\bnpci\b|\bupi\b|\bimps\b", low) else "the card schemes through a sponsor acquirer" if re.search(r"payment (?:facilitator|aggregator)", low) else "the card schemes and acquiring banks"
+                if re.search(r"\bnpci\b|\bupi\b|\bimps\b", low) and re.search(r"\bcards?\b|\bvisa\b|\bmastercard\b|\brupay\b", low):
+                    net = "NPCI (UPI/IMPS) and the card schemes"
+                cards = bool(re.search(r"\bcards?\b|\bcardholder\b|\bvisa\b|\bmastercard\b|\brupay\b", low))
+                name = f"In-house payment core: tokenisation vault + HSM/managed KMS, {'connection' if 'sponsor' in net else 'direct connection'} to {net} (in scope)"
+                feats, prov, src = [], "neutral", ["pci-v4", "mastercard-sdp"]
+                alts = [("Stripe Checkout / Razorpay hosted checkout", "a merchant checkout sits in front of a shop; this system is the payment provider itself, so it cannot hand its card data to another merchant's checkout"),
+                        ("A third-party processor's white-label platform", "shrinks the build but makes that processor the system of record; choose it only if the business model allows reselling")]
+                why = (f"The description says this system is itself the payment provider ('{psp_hit[0]}'), so a merchant hosted checkout (Stripe Checkout, Razorpay checkout) "
+                       "and the SAQ A shortcut do not apply. "
+                       + ("Card data is in full PCI DSS scope as a service provider (Level 1 above 300,000 card transactions a year, and Mastercard places every third-party processor at "
+                          "Level 1: an annual Report on Compliance by a Qualified Security Assessor, per card-scheme rules; confirm your level with your acquirer), "
+                          "whether or not compliance lists pci_dss. Keep raw card numbers in one segmented cardholder-data environment with a tokenisation vault, keys in an HSM "
+                          if cards else
+                          "The description names no card data, so PCI DSS applies only if cards are added later (then in full scope as a service provider); account and "
+                          "transaction data still belong in one segmented environment with a tokenisation vault for account identifiers, keys in an HSM ")
+                       + 
+                       f"or a managed key service, and an audit trail that cannot be edited. The connection to {net} is part of this design and is certified with them, "
+                       "not an outside dependency. Every payment state change is confirmed from the network's or acquirer's signed response, idempotently.")
+            mm = None if (psp_shape or india or (store and not mixed)) else dfl.first_live(cn.MOBILE_MONEY_RX, req["project.description"] or "")
+            if mm:  # p5: wallet payments go through the wallet operator's API or an aggregator; a card checkout does not reach them
+                mpesa = bool(re.search(r"m-?pesa", (req["project.description"] or "").lower()))
+                name = ("Mobile-money collections: Safaricom Daraja API for M-Pesa, or an aggregator such as Flutterwave for several wallets" if mpesa else
+                        "Mobile-money collections through an aggregator such as Flutterwave, or each wallet operator's own API (for example MTN MoMo or Airtel Money)")
+                feats, prov, src = [], "neutral", ["safaricom-daraja", "flutterwave-mobile-money"]
+                alts = [("Stripe (Checkout)", "a card checkout; mobile-money wallet payments need the wallet operator's API or an aggregator that supports them"),
+                        ("Each wallet operator's API directly", "fewer fees per wallet but one integration, contract and settlement account per operator")]
+                why = (f"The description says payments are made with mobile money ('{mm[0]}'): the customer approves a payment request on their phone wallet, so the app integrates "
+                       "a mobile-money API (Safaricom's Daraja API for M-Pesa) or an aggregator that covers several wallets and countries (Flutterwave). Which wallets and "
+                       "countries each provider covers, and its fees, must be confirmed with the provider for the countries you launch in. Payment status is trusted only "
+                       "from the provider's signed server-side callback, handled idempotently"
+                       + ("; a sale made offline is recorded as pending and the wallet payment is confirmed when the device is back online." if req["requirements.offline_support"] else "."))
             if mixed:
                 why = ("Orders for physical goods or services are paid here, not through the app stores (their billing rule covers digital goods and "
                        "subscriptions only; the digital item is billed by the stores, see above). ") + why
             hosted = ctx["static_rule"] == "hosted_payments" and not store
-            named = ov.named_provider(ctx) if hosted and not psp_shape else None
+            named = ov.named_provider(ctx) if hosted and not psp_shape and not mm else None
             if named:  # p4: keep the provider whose hosted page the description names (no second processor)
                 kind = "donation" if re.search(r"\bdonat", (req["project.description"] or "").lower()) else "payment"
                 name, prov = f"{named[1]} (hosted {kind} page, linked from the site)", named[0]
@@ -1331,7 +1389,7 @@ def build(ctx, host, backend, db, mobile, warn):
                         (("stripe", "Stripe Payment Links"), ("paypal", "PayPal Donate button"), ("razorpay", "Razorpay Payment Links"))
                         if k != named[0] and (k != "paypal" or donate_ok)][:2]
                 src = {"paypal": ["paypal-donate"], "stripe": ["stripe-billing-pricing"], "razorpay": ["razorpay-upi"]}[named[0]]
-            if hosted and not psp_shape:  # D16: a static site links to the provider's hosted page; there is no server to receive webhooks
+            if hosted and not psp_shape and not mm:  # D16: a static site links to the provider's hosted page; there is no server to receive webhooks
                 why = (f"Taking payments{for_noun(ctx)} (requirements.payments) through the provider's hosted checkout page or button, as the description says "
                        f"(\"{ov.quote(ctx, 'hosted_pay')}\"), keeps card data off the site entirely: the page only links to it, which can qualify for PCI DSS SAQ A "
                        "(your acquirer confirms; protect the page from script attacks). Receipts and payment records come from the provider's dashboard and e-mails, "
@@ -1349,7 +1407,7 @@ def build(ctx, host, backend, db, mobile, warn):
                 else:
                     why += " pci_dss: the gateway is PCI DSS Level 1; your scope still covers the pages that embed checkout."
                     src += ["pci-saq-a", "pci-v4"]
-            if ctx["self_host_only"]:
+            if ctx["self_host_only"] and not psp_shape:
                 warn("EXTERNAL_PAYMENT_GATEWAY", "critical",
                      f"Payments cannot be self-hosted: {name.split(' (')[0]} is the single external SaaS dependency kept on {ctx['deploy']} "
                      + ("(app-store billing and receipt validation run on Google/Apple servers)." if store and not mixed
@@ -1359,12 +1417,12 @@ def build(ctx, host, backend, db, mobile, warn):
             home_ok = bool(home and not ctx["country"] and ctx["res_key"] == home[0])
             if home_ok:
                 src = src + [home[1]]
-            if (not store or mixed) and not india and not home_ok and ((ctx["res_key"] in ("eu", "us") and (ctx["req"]["infrastructure.data_residency"] in ("eu", "us")
+            if (not store or mixed) and not psp_shape and not mm and not india and not home_ok and ((ctx["res_key"] in ("eu", "us") and (ctx["req"]["infrastructure.data_residency"] in ("eu", "us")
                                                                                        or (ctx["res_stated"] or {}).get("pin") in ("eu", "us"))) or ctx["country"]):
                 loc_msg, loc_src, ctx["payment_location_assumption"] = payment_location(name.split(' (')[0], prov, ctx)
                 src = src + loc_src
                 warn("PAYMENT_DATA_LOCATION", "warning", loc_msg, ["requirements.payments"] + ctx["res_paths"])
-            if (not store or mixed) and not india and ctx["country"] and not named:
+            if (not store or mixed) and not psp_shape and not mm and not india and ctx["country"] and not named:
                 warn("PAYMENT_LOCAL_ACQUIRING", "info",
                      f"{name.split(' (')[0]} is the knowledge base's default gateway outside India; whether it offers local acquiring and local payment "
                      f"methods in {ctx['res_label']} is not in the knowledge base — confirm with the gateway or choose a local acquirer.",
@@ -1375,7 +1433,8 @@ def build(ctx, host, backend, db, mobile, warn):
             if not store or mixed:
                 out.append(svc("payments", name + (" — " + "; ".join(feats) if feats else ""), why,
                                dp + (["project.description"] if (feats or d["upi"]) else []) + (["compliance"] if pci or via_compliance else []) + res_path,
-                               alts, [("Per-transaction fees (~2% on domestic cards at Razorpay's standard pricing) are charged on revenue, not in the infrastructure band" if india else
+                               alts, ["Scheme/NPCI certification, a PCI DSS assessment and HSM or key-service costs are not in the infrastructure band (planning heuristic: budget them separately)",
+                                      "Every network message and callback must be idempotent and reconciled daily against the scheme's settlement files"] if psp_shape else [("Per-transaction fees (~2% on domestic cards at Razorpay's standard pricing) are charged on revenue, not in the infrastructure band" if india else
                                        "Per-transaction fees (a percentage plus a fixed amount per charge, set by the gateway's price list for your country) are charged on revenue, not in the infrastructure band"),
                                       "Reconcile from the provider's reports; add a backend with signed webhooks when the site must react to a payment (accounts, entitlements, its own receipts)"
                                       if hosted else "Webhook handling must be idempotent"] + ([home[2]] if home_ok else []),
@@ -1446,7 +1505,11 @@ def build(ctx, host, backend, db, mobile, warn):
                        ["azure-frontdoor-pricing"] if p == "azure" else ["aws-regional"]))
     elif cdn_wanted:  # blocked only by the audience gate: no replacement component, so the warning is the whole explanation
         _, fact, when, cpaths = rs.public_facing(ctx)
-        warn("SERVICE_NOT_ADDED", "info", rs.note("CDN", fact, when), cpaths)
+        if p == "azure" and security_line(ctx, host, "", None, svc):  # p5 item 7: Front Door (a CDN) is in the stack for its WAF
+            warn("SERVICE_NOT_ADDED", "info", f"Edge caching not switched on: {fact}. Azure Front Door is in the stack for its web application firewall "
+                 "(see supporting 'other'); turn on its caching for public files when " + when + ".", cpaths)
+        else:
+            warn("SERVICE_NOT_ADDED", "info", rs.note("CDN", fact, when), cpaths)
 
     # ---------------- ml
     ml = req["requirements.ml_features"]
@@ -1571,7 +1634,7 @@ def build(ctx, host, backend, db, mobile, warn):
                            Z if ctx["self_host_only"] else tcost,
                            [] if cpu else ["aws-sagemaker"], loc))
             lo, hi = out[-1]["_cost"][ctx["tier"]]  # ml.g4dn.xlarge Training $0.736/h us-east-1, AWS price data 11 Nov 2026
-            basis = (f" Basis: about {lo / t4_rate:,.0f}-{hi / t4_rate:,.0f} GPU-hours a month on one T4-class GPU at ${t4_rate:g}/hour ("
+            basis = (f" Basis: about {lo / t4_rate:,.0f}-{hi / t4_rate:,.0f} GPU-hours a month {costreal.gpu_count_text(lo / t4_rate, hi / t4_rate, 'T4-class')} at ${t4_rate:g}/hour ("
                      + ("ml.g4dn.xlarge on-demand training, us-east-1, AWS price data 11 Nov 2026" if p == "aws"
                         else f"{t4['id']} VM rate, {t4['region'][t4_key]}, Azure Retail Prices API read {t4.get('read', '14 Nov 2026')}; a managed training "
                              "service may add its own fee, which the knowledge base does not hold" if t4
