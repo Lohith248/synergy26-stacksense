@@ -107,6 +107,15 @@ CDN_EGRESS_NAME = {"aws": ("Amazon CloudFront pay-as-you-go transfer tiers, firs
                              "azure-frontdoor-pricing")}
 
 
+# q5: owner-published media on a static site (planning heuristics): GB downloaded and file reads per user per month. Cloudflare R2 list
+# prices from its pricing page read 15 Nov 2026 (source cloudflare-r2-pricing): no egress fee, Class B (read) operations $0.36 per
+# million after 10 million free a month.
+MEDIA_GB_PER_USER = (0.01, 0.1)
+MEDIA_READS_PER_USER = (5, 50)
+R2_READ_PER_M = 0.36
+R2_FREE_READS_M = 10
+
+
 def provider_tiers(provider, residency):
     """The provider's own CDN tier table, or None (another CDN: the caller keeps its reference rate)."""
     return CDN_EGRESS_TIERS.get((provider, "india" if residency == "india" else "us"))

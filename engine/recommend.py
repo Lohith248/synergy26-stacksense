@@ -804,6 +804,11 @@ def _recommend(req, assumptions, sid):
         assumptions.append(f"Static site, no backend or database (over-engineering guard D16): {ov.static_facts(ctx)}"
                            + (f"; the content is editorial (\"{ov.quote(ctx, 'editorial')}\")" if ctx["static_rule"] == "editorial" else "")
                            + ". High traffic alone does not justify a backend or database: the CDN serves pre-built pages.")
+    if ctx["published_media"] and not ctx["needs_backend"]:  # q5: say how file_media_storage was read, and what would bring a backend back
+        assumptions.append("requirements.file_media_storage is true on a content site with no sign-in (requirements.auth is none) and no visitor uploads in "
+                           "project.description: read as media the site owner publishes (audio, images, video, downloads), kept in a public object-storage "
+                           "bucket and served through the CDN, so no backend or database is added (over-engineering guard). If visitors upload files, say so "
+                           "in project.description or set requirements.auth: a backend that issues signed upload URLs is then added.")
     if ctx["local_first"]:  # A2: say which inputs made this a local-first desktop app rather than a static site or a server product
         assumptions.append("Local-first desktop app, no backend and no hosting: project.platforms is desktop only, and auth is none with no payments, "
                            "realtime, file/media storage, multi-tenancy or ML requested. Data lives in an embedded database on the device"
@@ -852,13 +857,18 @@ def _recommend(req, assumptions, sid):
     else:
         facts = ov.static_facts(ctx)
         add_when = "add a backend when accounts, stored user data or server-side payments appear"
+        pub = ctx["published_media"]  # q5: owner-published media is static content; say so where the text says "no uploads"
+        up = "visitor uploads" if pub else "uploads"
         backend_cmp = none_component("backend",
                                      (rf.backend_why(ctx, rf.quote(ctx)) if rf.applies(ctx) else
-                                      "No application server is needed: there are no accounts, payments, uploads or dynamic data; pages are pre-built at deploy time."
+                                      f"No application server is needed: there are no accounts, payments, {up} or dynamic data; pages are pre-built at deploy time."
                                       if not req["requirements.payments"] else
-                                      "No application server is needed: there are no accounts, uploads or dynamic data, and payments go through the provider's hosted "
-                                      "button or link, so the site never handles card data; pages are pre-built at deploy time.") + ov.traffic_clause(ctx),
-                                     ["project.type", "requirements.auth", "requirements.payments"]
+                                      f"No application server is needed: there are no accounts, {up} or dynamic data, and payments go through the provider's hosted "
+                                      "button or link, so the site never handles card data; pages are pre-built at deploy time.")
+                                     + (" requirements.file_media_storage is true: on a content site with no sign-in that is media the site owner publishes, "
+                                        "which is stored in object storage and served as static files through the CDN, so it needs no server either." if pub else "")
+                                     + ov.traffic_clause(ctx),
+                                     ["project.type", "requirements.auth", "requirements.payments"] + (["requirements.file_media_storage"] if pub else [])
                                      + (["project.description"] if ctx["static_rule"] or rf.applies(ctx) else []) + (["scale.users_12_months"] if ctx["tier"] >= 2 else []),
                                      [("Netlify/Cloudflare serverless functions", f"nothing to compute at request time ({facts}); {add_when}"),
                                       ("Node.js + Express", "a server to run and pay for with no feature that needs it" + (
@@ -2072,6 +2082,30 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
                 f"priced at a reference CDN rate of ${costreal.VIDEO_LOW_RATE}/GB at the low end and, at the high end, on tiers of $0.09/GB up to 10 TB a month, "
                 "$0.06 up to 150 TB, $0.04 up to 500 TB and $0.03 above (planning heuristic shaped on the Google Cloud CDN cache egress tiers, "
                 "12 Nov 2026) = {r}; streaming is usually the largest bill for video products.")
+    if ctx["published_media"] and not ctx["needs_backend"]:
+        # q5: delivery of owner-published media is the cost that grows with the audience; price it or say why it is zero
+        u = ctx["users"]
+        g_lo, g_hi = (u * x for x in costreal.MEDIA_GB_PER_USER)
+        sto = next((s for s in supporting if s["layer"] == "storage"), None)
+        vol = (f"{u:,} users x 10-100 MB per user per month (planning heuristic: a few image-heavy pages up to one or two audio episodes; video is more) "
+               f"= {cx.num(g_lo)}-{cx.num(g_hi)} GB a month")
+        if sto and sto["choice"].startswith("Cloudflare R2"):
+            m_lo, m_hi = (u * x / 1e6 for x in costreal.MEDIA_READS_PER_USER)
+            add("Media delivery", max(0.0, m_lo - costreal.R2_FREE_READS_M) * costreal.R2_READ_PER_M, max(0.0, m_hi - costreal.R2_FREE_READS_M) * costreal.R2_READ_PER_M,
+                f"Media delivery: {vol}. Cloudflare R2 charges no egress fee (R2 pricing page, read 15 Nov 2026), so that volume adds no per-gigabyte charge; "
+                f"read requests cost ${costreal.R2_READ_PER_M} per million after {costreal.R2_FREE_READS_M} million free a month, and {u:,} users x 5-50 file reads a month "
+                "= {r}.")
+        else:
+            vt = costreal.provider_tiers(sto["provider"], ctx.get("residency")) if sto and sto["provider"] == "aws" and "CloudFront" in host["name"] else None
+            if vt:
+                add("Media delivery", costreal.tiered_egress(g_lo, vt), costreal.tiered_egress(g_hi, vt),
+                    f"Media delivery: {vol}, priced on the {costreal.CDN_EGRESS_NAME['aws'][0]} "
+                    f"({'India' if ctx.get('residency') == 'india' else 'North America rates as the reference'}) " "= {r}. Delivery, not storage, is the main cost of popular media.")
+            else:
+                add("Media delivery", g_lo * costreal.VIDEO_LOW_RATE, costreal.tiered_egress(g_hi),
+                    f"Media delivery: {vol}, priced at a reference CDN rate of ${costreal.VIDEO_LOW_RATE}/GB at the low end and, at the high end, on tiers of "
+                    "$0.09/GB up to 10 TB a month, $0.06 up to 150 TB, $0.04 up to 500 TB and $0.03 above (planning heuristic shaped on the Google Cloud CDN cache "
+                    "egress tiers, 12 Nov 2026) = {r}. Delivery, not storage, is the main cost of popular media.")
     if any(s["choice"].startswith("Email delivery") for s in supporting):  # E8d: per-message line scales with recipients x sends
         elo, ehi, etxt = costreal.email_line(ctx)
         add("Email", elo, ehi, etxt)

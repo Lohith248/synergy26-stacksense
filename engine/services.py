@@ -970,7 +970,31 @@ def build(ctx, host, backend, db, mobile, warn):
         extra = " Private bucket, server-generated signed URLs, encryption with managed keys." if (d["kyc"] or ctx["compliance"]) else " Private bucket with signed upload/download URLs."
         gb_given = req["scale.data_volume_gb_12_months"] is not None
         gb_lead = f"~{cx.num(ctx['data_gb'])} GB of files in 12 months: " if gb_given else ""  # E9: the scenario's own volume opens the text
-        if selfh:
+        if ctx["published_media"] and not ctx["needs_backend"]:
+            # q5: media the site owner publishes on a static site: a public bucket read through the CDN, nobody uploads from a browser
+            name = {"aws": "Amazon S3", "azure": "Azure Blob Storage", "gcp": "Google Cloud Storage"}.get(p, "Cloudflare R2" if not loc else "Amazon S3")
+            prov = p if hyper else ("cloudflare" if not loc else "aws")
+            reg = region or (host["regions"].get("india") if loc == "india" else None)
+            low = (req["project.description"] or "").lower()
+            what = ("audio files" if re.search(r"\baudio\b|\bpodcasts?\b|\bepisodes?\b|\bmp3\b|\bmusic\b", low) else "videos" if re.search(r"\bvideos?\b", low)
+                    else "photos" if d["media"] else "images and downloads")
+            r2 = name == "Cloudflare R2"
+            egress = ("Cloudflare R2 charges no egress fee for any storage class (R2 pricing page, read 15 Nov 2026), so a popular file does not raise the bill by the gigabyte."
+                      if r2 else "Delivery (egress) is charged per gigabyte and is the main cost of popular media: the cost assumptions carry a 'Media delivery' line for it.")
+            out.append(svc("storage", f"{name}{(' (' + reg + ')') if reg else ''}",
+                           f"{gb_lead}{'m' if gb_lead else 'M'}edia the site owner publishes ({what}) is uploaded when content is published and read by visitors through the CDN. "
+                           "Public-read bucket for published files only: no signed upload URLs and no application server, because nobody but the owner adds files "
+                           f"(requirements.auth is none and project.description has no visitor uploads). {egress}",
+                           dp + ["requirements.auth"] + (["project.description"] if req["project.description"] else []),
+                           [("Keeping the media files in the site repository", (f"~{cx.num(ctx['data_gb'])} GB of binary files (scale.data_volume_gb_12_months) " if gb_given else "large binary files ")
+                             + "would slow every clone and build; object storage keeps the repository to text and the deploys small"),
+                            ("A dedicated podcast, video or image hosting service", "a further vendor and monthly plan; worth it when its analytics, feeds or adaptive streaming are needed")]
+                           + ([("Cloudflare R2", f"no egress fee (R2 pricing page, read 15 Nov 2026), but a second vendor outside {CLOUD_NAME[p]}")] if hyper else []),
+                           ["Anything placed in this bucket is public: keep private files out of it"]
+                           + ([] if r2 else ["Egress is billed per gigabyte: one popular file can outweigh storage and hosting"]),
+                           "managed", prov, True, [[0, 2], [1, 10], [10, 80], [80, 600]],
+                           ["cloudflare-r2-pricing"] if r2 else ["aws-india-data", "gcp-storage-locations", "azure-regions"] + (["cloudflare-r2-pricing"] if hyper else []), loc))
+        elif selfh:
             out.append(svc("storage", "SeaweedFS (self-hosted S3-compatible object store)",
                            f"deployment_model {ctx['deploy']}: user files must stay on your own servers; SeaweedFS exposes the S3 API so the app code stays portable." + extra,
                            dp + ["infrastructure.deployment_model"],
@@ -997,7 +1021,7 @@ def build(ctx, host, backend, db, mobile, warn):
                        "signed URLs behind the CDN, with HTTP range requests so an interrupted download resumes, and never through the application server.")
                 trade = ["Data egress is the main cost of large downloads: a single multi-GB file downloaded thousands of times can outweigh storage and hosting; "
                          "put a per-month egress figure next to the budget before launch, and check the egress price of the CDN or of a store with no egress fees "
-                         "(Cloudflare R2 is advertised that way; its pricing page is not confirmed in the knowledge base)"]
+                         "(Cloudflare R2 charges none for any storage class: R2 pricing page, read 15 Nov 2026)"]
                 sto_dp = sto_dp + ["project.description"]
                 sto_src = sto_src + ["cloudflare-r2-pricing"]
             out.append(svc("storage", f"{name}{(' (' + reg + ')') if reg else ''}",

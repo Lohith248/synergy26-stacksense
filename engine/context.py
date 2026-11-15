@@ -92,7 +92,11 @@ DESC_RULES = [
     ("seat_plan", r"per[- ]seats?|\bseats?\b|\bteam (?:plans?|subscriptions?|licen[cs]es?)|per[- ](?:user|member|agent|employee)\b"
                   r"|\b(?:organi[sz]ation|workspace|company|enterprise)[- ](?:plans?|subscriptions?|licen[cs]es?)|licen[cs]es? per"),
     # E11-3: facts the description states that no enum field carries (each reads as a service or a named assumption)
-    ("sms", r"\bsms\b|\btext[- ]messages? (?:reminders?|alerts?|notifications?|codes?)|\btexts? reminders?|\bwhatsapp (?:reminders?|alerts?|notifications?)"),
+    ("sms", r"\bsms\b|\btext[- ]messages? (?:reminders?|alerts?|notifications?|codes?)|\btexts? reminders?|\bwhatsapp (?:reminders?|alerts?|notifications?)"
+            # q5 (paraphrase twins): "text messages to customers", "reminders by text": the people-facing wording of SMS (chat between users is not it)
+            r"|\btext[- ]messages? (?:to|for) (?:the |our |their |its )?(?:customers?|patients?|clients?|users?|members?|parents?|drivers?|guests?|staff|residents?|tenants?"
+            r"|farmers?|operators?|technicians?|subscribers?|them)\b"
+            r"|\b(?:remind\w*|notif\w*|alert\w*|confirm\w*|updates?)\b[^.;!?]{0,40}?\b(?:by|via|through|over) text(?:[- ]messages?)?\b"),
     ("otp", r"\botps?\b|one[- ]time (?:pass(?:word|code)s?|codes?)"),
     ("email_out", r"newsletters?|mailing lists?|\be-?mail (?:lists?|campaigns?|receipts?|confirmations?|digests?|reminders?|notifications?)"
                   r"|transactional e-?mails?|\b(?:confirmation|receipt|welcome|reminder|invoice|booking) e-?mails?"
@@ -107,6 +111,8 @@ DESC_RULES = [
                  r"|\btele-?(?:medicine|health|therapy|psychiatry)\b|\bvideo[- ](?:visits?|appointments?|consultations?)\b"
                  # recorded "video sessions/interviews" (an editing or import tool) are not a call: only live ones count
                  r"|\blive video (?:sessions?|interviews?)\b"
+                 # q5 (paraphrase twins): "live video therapy sessions", "video therapy", "live video lessons"
+                 r"|\blive video (?:\w+ )?(?:sessions?|therapy|counsell?ing|coaching|tutoring|lessons?|classes)\b|\bvideo (?:therapy|counsell?ing)\b"
                  r"|\bvirtual (?:visits?|appointments?|consultations?)\b"),
     # A6 (blind8): live media that is not a call (live streaming, karaoke, duets, a named WebRTC need) still needs a media server, not the API;
     # large_downloads = single downloads of gigabytes (signed URLs, range requests and egress cost matter)
@@ -129,7 +135,7 @@ DESC_RULES = [
     ("analytics", r"dashboards?|\breports?\b|analysts?|\bbi\b|ad-hoc (?:sql|quer)|data warehouse"),
     # h1 (blind9 A8): wording that the data is a time-ordered stream (readings, metrics, logs, events, ledger rows); with write_heavy and a
     # large volume it adds the time-series storage item (domains.py). write_heavy alone (a social feed, a chat) is not evidence.
-    ("time_series", r"time[- ]?series|\btelemetry\b|\bmetrics?\b|\bsensors?\b|\bmeasurements?\b|\bclick-?streams?\b|\bticks?\b|\bevent (?:logs?|streams?|stor\w+)"
+    ("time_series", r"time[- ]?series|\btelemetry\b|\bmetrics?\b|\bsensors?\b|\bmeasurements?\b|\bclick-?streams?\b|\bticks?\b(?! per second| a second|/s\b)(?<!\bserver tick)(?<!\bserver ticks)|\bevent (?:logs?|streams?|stor\w+)"
                     r"|\b(?:audit|access|application|server|transaction) (?:logs?|trail)s?\b|\bledgers?\b|\bhistorical (?:prices?|rates?|data)\b|\bquotes? feeds?\b|\blog (?:ingest\w*|aggregat\w*|analy\w*)\b"
                     r"|\blive location\b|\blocation (?:pings?|updates|history|tracks?|tracking)\b|\bgps\b|\btelematics\b"
                     r"|\breadings?\b|\bstats\b|\bobservability\b|\bmonitoring\b|\bperformance data\b|\bover time\b|\btrend\w*\b"
@@ -984,6 +990,12 @@ def _walk_langs(clause, pos, out, need_noun, words=None):
 
 NO_VIDEO_RX = r"\b(?:no|without|not)\s+(?:any\s+)?video\b(?![- ](?:recordings?|recorded|storage|files?|uploads?|archives?))|\bvideo[- ]free\b"
 TEXT_ONLY_RX = r"\btext[- ]only\b"  # rules video out only when the description names no video at all ("reminders are text only")
+# q5: "newsletter signup link", "mailing-list sign-up form", "link to our newsletter", "subscribe box for the newsletter" (planning heuristic)
+_NL = r"(?:newsletters?|mailing[- ]lists?)"
+_NL_UI = r"(?:links?|forms?|box(?:es)?|widgets?|buttons?|embeds?|pop-?ups?|pages?|fields?)"
+NEWSLETTER_SIGNUP_RX = (r"\b" + _NL + r"\s+(?:sign[- ]?ups?|subscri\w+|opt[- ]?ins?)(?:\s+" + _NL_UI + r")?\b"
+                        r"|\b(?:sign[- ]?up|subscri\w+|opt[- ]?in|join)\s+(?:" + _NL_UI + r"\s+)?(?:to|for)\s+(?:the |our |a |my |their )?" + _NL + r"\b"
+                        r"|\b" + _NL_UI + r"\s+to\s+(?:the |our |a |my |their )?" + _NL + r"\b")
 
 
 @functools.lru_cache(maxsize=8)
@@ -997,6 +1009,11 @@ def desc_signals(desc):
     # a description that rules video out ("no video", "without video", "text only") gets no video-call service from a telehealth word
     if flags["video_call"] and (re.search(NO_VIDEO_RX, low) or (re.search(TEXT_ONLY_RX, low) and "video" not in low)):
         flags["video_call"] = False
+    # q5: a newsletter (or mailing-list) sign-up link, form or box points at a newsletter service; it is not this application sending mail.
+    # With those mentions blanked out, email_out must still fire on sending wording of its own to stay set.
+    if flags["email_out"] and re.search(NEWSLETTER_SIGNUP_RX, low):
+        rest = re.sub(NEWSLETTER_SIGNUP_RX, lambda m: " " * len(m.group()), low)
+        flags["email_out"] = live_hit(DESC_RX["email_out"], rest, rest, clause_breaks(rest))
     firm = re.sub(r"[^.!?;\n]+", lambda m: " " * len(m.group()) if OPTIONAL_STEP_RX.search(m.group()) else m.group(), low)
     fb = clause_breaks(firm)
     flags.update({flag: live_hit(rx, firm, firm, fb) for flag, rx in SERVER_NEED_RULES})
@@ -1236,9 +1253,12 @@ def build(req):
     c["type"] = typ
     # D16: payments that are a hosted button/link, or editorial content under a generic type, do not need a backend
     c["static_rule"] = ov.static_override(c)
+    # q5: media the site owner publishes (audio, images, video, downloads on a content site with no sign-in) is static content behind the
+    # CDN, not a reason for a backend; media that visitors upload still is (ov.published_media reads the fields and the description)
+    c["published_media"] = ov.published_media(c)
     dynamic_need = (r["requirements.auth"] != "none" or (r["requirements.payments"] and c["static_rule"] != "hosted_payments")
                     or r["requirements.realtime"]
-                    or r["requirements.file_media_storage"] or r["requirements.multi_tenant"]
+                    or (r["requirements.file_media_storage"] and not c["published_media"]) or r["requirements.multi_tenant"]
                     or r["requirements.ml_features"] != "none"  # offline alone: a static site precaches (services.py)
                     or c["api_only"] or bool(c["mobile"]))
     # A2: a desktop-only app with no server need is local-first (embedded database on the device), never a static site

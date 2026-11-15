@@ -49,6 +49,40 @@ def dynamic_fields(req, api_only, mobile):
             or req["scale.workload"] == "write_heavy")
 
 
+# q5: wording that says VISITORS put files on the site (then a server must issue upload URLs and store who sent what). Planning heuristic.
+_VISITOR = (r"(?:users?|members?|visitors?|customers?|readers?|listeners?|viewers?|fans?|followers?|people|anyone|everyone|the public|community"
+            r"|guests?|clients?|students?|contributors?|attendees?|participants?|applicants?|residents?|citizens?|volunteers?)")
+VISITOR_UPLOAD_RX = (r"\b" + _VISITOR + r"\b(?:\W+\w+){0,4}?\W+(?:upload|submit|post|share|send|attach|contribut|add)\w*\b"
+                     r"|\buser[- ]generated\b|\bugc\b|\bprofile (?:pictures?|photos?|images?)\b|\bavatars?\b"
+                     r"|\b(?:upload|submission)s? (?:from|by) " + _VISITOR + r"\b")
+
+
+_NEG_INSIDE_RX = r"\b(?:cannot|can't|can not|do not|don't|does not|doesn't|never|not|no|won't|will not|must not|may not)\b"
+
+
+def published_media(c):
+    """True when requirements.file_media_storage on this input means media the site OWNER publishes (episode audio, article images, a
+    promo video, PDF downloads), which is static content served from object storage behind the CDN and needs no backend. Planning
+    heuristic: a content site with no sign-in has nobody who could own an upload; a description that has visitors upload files, a team
+    that lists no JavaScript or TypeScript, or any other field that asks for server-side behaviour, keeps the current (backend) path. c: the context under construction."""
+    req, d = c["req"], c["desc"]
+    if not req["requirements.file_media_storage"] or req["project.type"] != "content_site":
+        return False
+    if (req["requirements.auth"] != "none" or req["requirements.realtime"] or req["requirements.multi_tenant"]
+            or req["requirements.ml_features"] != "none" or c["api_only"] or c["mobile"] or (c["desktop"] and not c["web"])
+            or req["scale.workload"] == "write_heavy" or c["deploy"] != "managed_cloud" or c["existing"]):
+        return False
+    if req["requirements.payments"] and not d["hosted_pay"]:
+        return False
+    if c["langs"] and not {"javascript", "typescript"} & set(c["langs"]):
+        return False  # the generator is JavaScript: a team that lists only server languages keeps the server-rendered site it can build
+    if set(c["compliance"]) & set(DYNAMIC_COMPLIANCE) or d["uploads"] or d["kyc"] or d["video_call"] or d["live_media"] or d["chat"]:
+        return False
+    low = (req["project.description"] or "").lower().replace("’", "'")
+    # a negation between the visitor word and the verb ("visitors cannot upload") sits inside the match, where negated_at does not look
+    return not [m for m in _live_hits(low, VISITOR_UPLOAD_RX) if not re.search(_NEG_INSIDE_RX, m.group(0))]
+
+
 def web_form(c):
     """The named web form (FORM_RX match, lower-case) on a site whose payments are a hosted page or link, else ''."""
     d, low = c["desc"], (c["req"]["project.description"] or "").lower().replace("’", "'")
@@ -136,6 +170,9 @@ def static_facts(c):
     """Sentence fragment quoting the inputs behind a static stack, shared by the backend and database explanations."""
     req = c["req"]
     bits = ["requirements.auth is none", "no realtime, uploads, multi-tenancy or ML features are requested"]
+    if c.get("published_media"):  # q5: file_media_storage is set, so "no uploads" is said precisely
+        bits[1] = ("no realtime, visitor uploads, multi-tenancy or ML features are requested (requirements.file_media_storage is media the owner "
+                   "publishes, served as static files)")
     if req["requirements.payments"]:
         q = quote(c, "hosted_pay")
         bits.append(f"requirements.payments is true but the description names a hosted payment button or link (\"{q}\"), "
