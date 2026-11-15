@@ -145,6 +145,9 @@ textarea{resize:vertical}
 #actMsg{font-size:var(--t-xs);color:var(--muted)}
 h3.sh{font-size:var(--t-lg);margin:var(--s5) 0 var(--s3);display:flex;gap:var(--s2);align-items:baseline}
 h3.sh small{font-size:var(--t-xs);color:var(--muted);font-weight:400}
+h3.sh .btn{margin-left:auto;align-self:center}
+h3.sh{flex-wrap:wrap}
+#resH:focus,#resH:focus-visible{outline:none}
 .banner{border:1px solid;border-left-width:6px;border-radius:var(--r2);padding:var(--s3) var(--s4)}
 .banner .brow{display:flex;gap:var(--s3);align-items:center;flex-wrap:wrap}
 .banner .st{font-weight:800;letter-spacing:.03em;text-transform:uppercase;font-size:var(--t-sm)}
@@ -172,6 +175,7 @@ h3.sh small{font-size:var(--t-xs);color:var(--muted);font-weight:400}
 .cbar .mk::after{content:attr(data-l);position:absolute;top:100%;left:50%;transform:translateX(-50%);font-size:10px;color:var(--muted);white-space:nowrap;margin-top:2px}
 .cbar .mk.l::after{left:0;transform:none}.cbar .mk.r::after{left:auto;right:0;transform:none}
 .cbar-wrap{padding:0 6px 22px}
+.costwhy{font-size:var(--t-xs);margin-top:var(--s1);text-align:left}
 .sevs{display:flex;gap:var(--s3);flex-wrap:wrap;margin:2px 0}
 .sevs span{font-size:var(--t-md);font-weight:700}
 .sevs .critical{color:var(--crit)}.sevs .warning{color:var(--warn)}.sevs .info{color:var(--info)}.sevs .zero{color:var(--muted);font-weight:500}
@@ -250,11 +254,14 @@ details.mini{margin-top:2px}
 @media print{
   html,body{height:auto!important;overflow:visible!important;background:#fff}
   body{display:block!important;color:#000}
-  .inpane,.badges,.actions,.skip,.sw,.swhead,.btn,.gcard .go,.tryit,.busybar,.m-only{display:none!important}
+  .inpane,.badges,.actions,.skip,.sw,.swhead,.btn,.gcard .go,.tryit,.busybar,.m-only,.costwhy{display:none!important}
   main{display:block!important;padding:0}
   .respane{border:0;box-shadow:none;overflow:visible!important;padding:0}
   .top{border:0;padding:0 0 var(--s3)}
-  .panel,.gcard,.kpi,.warn,.sup,.banner{break-inside:avoid}
+  .gcard,.kpi,.warn,.sup,.banner,.alt,.wwc .item,.pbody li{break-inside:avoid}
+  .panel{break-inside:auto}
+  h3.sh,.panel>summary,.pbody h4{break-after:avoid}
+  :focus,:focus-visible{outline:none!important}
   .panel>summary::before{display:none}
   .chip{border-color:#999}
   button.chip{color:#000;border-color:#999}
@@ -401,6 +408,8 @@ function leafKeys(o, pre = "") { return Object.entries(o).flatMap(([k, v]) => is
 const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
 const human = s => cap(String(s || "").replace(/_/g, " "));
 const usd = n => "$" + Number(n).toLocaleString("en-US");
+const INR_PER_USD = 90;  // display only; same planning rate as engine/costreal.py INR_PER_USD (keep in sync)
+const inrFmt = n => "₹" + Math.round(Number(n) * INR_PER_USD).toLocaleString("en-IN");
 const fmtDefault = d => d === null || d === undefined ? null : Array.isArray(d) ? (d.length ? d.join(", ") : "none") : String(d);
 function say(msg) { $("announce").textContent = ""; setTimeout(() => { $("announce").textContent = msg; }, 30); }
 function flashMsg(msg) { $("actMsg").textContent = msg; clearTimeout(flashMsg.t); flashMsg.t = setTimeout(() => { $("actMsg").textContent = ""; }, 3000); }
@@ -649,7 +658,11 @@ function costBlock(c, budget, warns) {
     h("div", {class: "rng " + cls}), hasB ? h("div", {class: "mk" + (bp < 16 ? " l" : bp > 84 ? " r" : ""), "data-l": "Budget " + usd(budget)}) : null);
   bar.firstChild.style.left = pct(c.min) + "%"; bar.firstChild.style.width = Math.max(0.8, pct(c.max) - pct(c.min)) + "%";
   if (hasB) bar.lastChild.style.left = bp + "%";
-  k.append(h("div", {class: "v", text: `${usd(c.min)} - ${usd(c.max)}`}), h("div", {class: hasB ? "cbar-wrap" : ""}, bar), h("div", {class: "sub", text: verdict + ". Order-of-magnitude estimate in " + (c.currency || "USD") + "."}));
+  const inr = (c.currency || "USD") === "USD" ? h("div", {class: "sub", text: `About ${inrFmt(c.min)} - ${inrFmt(c.max)} per month at the engine's planning rate of ₹${INR_PER_USD} per USD (not a quote).`}) : null;
+  const nA = (c.assumptions || []).length;
+  const why = nA ? h("button", {type: "button", class: "linkbtn costwhy", onclick: () => { const d = $("costAssump"); if (!d) return; d.open = true; d.scrollIntoView({behavior: REDUCED ? "auto" : "smooth", block: "start"}); d.querySelector("summary").focus({preventScroll: true}); },
+    text: `How this range is built: ${nA} cost assumption${nA === 1 ? "" : "s"}`}) : null;
+  k.append(h("div", {class: "v", text: `${usd(c.min)} - ${usd(c.max)}`}), inr, h("div", {class: hasB ? "cbar-wrap" : ""}, bar), h("div", {class: "sub", text: verdict + ". Order-of-magnitude estimate in " + (c.currency || "USD") + "."}), why);
   return k;
 }
 
@@ -682,7 +695,7 @@ function tryIt(doc, w) {
 
 function layerPanel(doc, key, label, c, chg) {
   const wc = (c.what_would_change || []);
-  const d = h("details", {class: "panel", id: "layer-" + key},
+  const d = h("details", {class: "panel", id: "layer-" + key, open: true},  // open: the reasoning is the point, so show it without a click
     h("summary", {}, h("span", {class: "lay", text: label}), h("span", {class: "ch", text: c.choice}), confBadge(c.confidence),
       chg ? h("span", {class: "chg", text: "Changed: was " + chg}) : null),
     h("div", {class: "pbody"},
@@ -768,7 +781,7 @@ function renderDoc(i) {
   const assumptions = () => {
     const c = d.estimated_monthly_cost_usd;
     root.append(h("h3", {class: "sh", text: "Assumptions"}));
-    if (c && c.assumptions && c.assumptions.length) root.append(sec(`Cost assumptions (${c.assumptions.length})`, bullets(c.assumptions)));
+    if (c && c.assumptions && c.assumptions.length) { const ca = sec(`Cost assumptions (${c.assumptions.length})`, bullets(c.assumptions)); ca.id = "costAssump"; root.append(ca); }
     root.append(sec(`Assumptions (${(d.assumptions || []).length})`, bullets(d.assumptions || [])));
   };
 
@@ -809,7 +822,9 @@ function renderDoc(i) {
 
   if (warns.length) { root.append(h("h3", {class: "sh"}, "Warnings ", h("small", {text: `(${warns.length})`}))); warns.forEach(w => root.append(warnCard(w))); }
 
-  root.append(h("h3", {class: "sh", text: "Layer details"}));
+  const allBtn = h("button", {type: "button", class: "btn sm", "aria-controls": "resPanel", text: "Expand all details",
+    onclick: () => { const ds = [...root.querySelectorAll("details")], open = ds.some(x => !x.open); ds.forEach(x => { x.open = open; }); allBtn.textContent = open ? "Collapse all details" : "Expand all details"; }});
+  root.append(h("h3", {class: "sh"}, "Layer details ", h("small", {text: "justification, alternatives and why not, trade-offs"}), allBtn));
   LAYERS.forEach(([k, n]) => { if (d.stack[k]) root.append(layerPanel(d, k, n, d.stack[k], chg && (chg.changes.find(x => x.layer === k) || {}).was)); });
   const sup = d.stack.supporting || [];
   if (sup.length) { root.append(h("h3", {class: "sh"}, "Supporting services ", h("small", {text: `(${sup.length})`}))); root.append(h("div", {class: "supgrid"}, sup.map(supportCard))); }
@@ -855,6 +870,12 @@ function selectDoc(i) {  // swap only the panel and the tab state; the switcher 
 function markInvalid(d) {
   clearInvalidAll();
   for (const e of d.validation_errors || []) { const f = resolveField(e.field); if (f) f.setInvalid(e.message); }
+  if (d.status === "infeasible") {  // show the hard conflict beside each field it names; the full text stays in the result
+    for (const w of d.warnings || []) {
+      if (w.severity !== "critical") continue;
+      for (const p of w.fields || []) { const f = resolveField(p); if (f && !f.row.classList.contains("invalid")) f.setInvalid(`Conflict (${w.code}): ${String(w.message).split(". ")[0].replace(/\.$/, "")}. Change this or the other named field.`); }
+    }
+  }
 }
 
 function emptyState() {
