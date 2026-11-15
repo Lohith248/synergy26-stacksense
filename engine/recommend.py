@@ -1977,6 +1977,10 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
     for s in supporting:
         staff_auth = s["layer"] == "auth" and cx.staff_login_only(ctx)  # p5 item 5: sign-in sized for the staff who log in
         clo, chi = s["_cost"][cx.tier_for(cx.login_users(ctx)) if staff_auth else t]
+        if s.get("_cognito"):  # p5 item 6: Cognito MAU tiers for the users this band is sized for (a pilot band has fewer)
+            clo, chi = costreal.cognito_band(cx.login_users(ctx))
+            s = {**s, "_note": costreal.cognito_note(cx.login_users(ctx), cx.staff_login_only(ctx))}
+            staff_auth = False  # the note already names the staff
         name = short(s["choice"])
         if chi and s["layer"] == "storage" and obj:
             # M1: the volume is priced once, in the "Stored data" line; the tier range of this line would charge the same files twice
@@ -2046,11 +2050,20 @@ def cost_band(ctx, host, db_item, db_c, supporting, assumptions):
         # ponytail: one reference rate table for every CDN and a fixed GB per user; a per-provider rate table would be finer
         u = ctx["users"]
         g_lo, g_hi = (u * x for x in costreal.VIDEO_GB_PER_USER)
-        add("Video egress", g_lo * costreal.VIDEO_LOW_RATE, costreal.tiered_egress(g_hi),
-            f"Video egress: {u:,} users x 0.05-0.5 GB per user per month (about 2-30 minutes of adaptive-bitrate video) = {cx.num(g_lo)}-{cx.num(g_hi)} GB a month, "
-            f"priced at a reference CDN rate of ${costreal.VIDEO_LOW_RATE}/GB at the low end and, at the high end, on tiers of $0.09/GB up to 10 TB a month, "
-            "$0.06 up to 150 TB, $0.04 up to 500 TB and $0.03 above (planning heuristic shaped on the Google Cloud CDN cache egress tiers, "
-            "12 Nov 2026) = {r}; streaming is usually the largest bill for video products.")
+        # p5 item 6: priced on the stack's own CDN tiers when that CDN is CloudFront or Front Door
+        cdn_p = next((s["provider"] for s in supporting if s["layer"] == "cdn"), host["provider"])
+        vt = costreal.provider_tiers(cdn_p, ctx.get("residency"))
+        if vt:
+            add("Video egress", costreal.tiered_egress(g_lo, vt), costreal.tiered_egress(g_hi, vt),
+                f"Video egress: {u:,} users x 0.05-0.5 GB per user per month (about 2-30 minutes of adaptive-bitrate video) = {cx.num(g_lo)}-{cx.num(g_hi)} GB a month, "
+                f"priced on the {costreal.CDN_EGRESS_NAME[cdn_p][0]} ({'India' if ctx.get('residency') == 'india' else 'North America rates as the reference'}) "
+                "= {r}; streaming is usually the largest bill for video products.")
+        else:
+            add("Video egress", g_lo * costreal.VIDEO_LOW_RATE, costreal.tiered_egress(g_hi),
+                f"Video egress: {u:,} users x 0.05-0.5 GB per user per month (about 2-30 minutes of adaptive-bitrate video) = {cx.num(g_lo)}-{cx.num(g_hi)} GB a month, "
+                f"priced at a reference CDN rate of ${costreal.VIDEO_LOW_RATE}/GB at the low end and, at the high end, on tiers of $0.09/GB up to 10 TB a month, "
+                "$0.06 up to 150 TB, $0.04 up to 500 TB and $0.03 above (planning heuristic shaped on the Google Cloud CDN cache egress tiers, "
+                "12 Nov 2026) = {r}; streaming is usually the largest bill for video products.")
     if any(s["choice"].startswith("Email delivery") for s in supporting):  # E8d: per-message line scales with recipients x sends
         elo, ehi, etxt = costreal.email_line(ctx)
         add("Email", elo, ehi, etxt)

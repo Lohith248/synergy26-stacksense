@@ -896,7 +896,8 @@ def build(ctx, host, backend, db, mobile, warn):
                                dp + ["infrastructure.cloud_preference"],
                                [("Framework built-in auth", "you would own password storage, reset flows and MFA")],
                                ["Cognito customisation limits"], "managed", "aws", True,
-                               [[0, 0], [0, 30], [50, 300], [300, 2000]], ["aws-cognito-pricing"], loc))
+                               [list(costreal.cognito_band(cx.login_users(ctx)))] * 4, ["aws-cognito-pricing"], loc))
+                out[-1]["_cognito"] = True  # p5 item 6: per-MAU tiers, recomputed by the cost band for the users it sizes for
             else:
                 lib = {"python-django": "Django auth + django-allauth", "dotnet-aspnet": "ASP.NET Core Identity",
                        "java-spring": "Spring Security (+ OAuth2 client)", "php-laravel": "Laravel Fortify/Socialite",

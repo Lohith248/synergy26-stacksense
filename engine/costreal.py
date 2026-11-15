@@ -44,6 +44,23 @@ def cognito_usd(mau):
 MAU_SHARE = (0.3, 1.0)                 # monthly active users as a share of all users
 
 
+def cognito_band(users):
+    """(lo, hi) USD a month for Cognito Lite MAUs of `users` sign-in users (p5 item 6). Rates above COGNITO_TIER_READ_TO MAU were not
+    read, so the lower bound counts MAUs only up to that point (a true floor) and the upper bound keeps the last read rate above it."""
+    lo_mau, hi_mau = (users * x for x in MAU_SHARE)
+    return round(cognito_usd(min(lo_mau, COGNITO_TIER_READ_TO))), round(cognito_usd(hi_mau))
+
+
+def cognito_note(users, staff=False):
+    (t1, r1), (_, r2) = COGNITO_TIERS
+    mlo, mhi = (round(users * x) for x in MAU_SHARE)
+    return (f" Cognito Lite: {COGNITO_FREE_MAU:,} MAU free, then ${r1} per MAU up to {t1:,} MAU and ${r2} per MAU up to {COGNITO_TIER_READ_TO:,} "
+            f"(Amazon Cognito pricing); MAU taken as {MAU_SHARE[0]:.0%}-{MAU_SHARE[1]:.0%} of ~{users:,} {'staff who sign in' if staff else 'users'} = "
+            f"{mlo:,}-{mhi:,} MAU (planning heuristic)"
+            + (f"; rates above {COGNITO_TIER_READ_TO:,} MAU are not in the knowledge base, so the lower bound counts only the first "
+               f"{COGNITO_TIER_READ_TO:,} MAU and the upper bound keeps ${r2} above it." if mhi > COGNITO_TIER_READ_TO else "."))
+
+
 def india_sms_usd():
     return tuple(rs * (1 + SMS_GST) / INR_PER_USD for rs in INDIA_SMS_RS)
 
@@ -69,10 +86,32 @@ VIDEO_LOW_RATE = 0.02
 VIDEO_EGRESS_TIERS = ((10_000, 0.09), (150_000, 0.06), (500_000, 0.04), (float("inf"), 0.03))
 
 
-def tiered_egress(gb):
-    """USD for gb GB in a month, each slice at its tier's rate."""
+# p5 item 6: the chosen provider's own CDN transfer tiers (GB per month up to, USD per GB), official pages opened 15 Nov 2026.
+# Amazon CloudFront pay-as-you-go (aws-cloudfront-payg): first 1 TB free. Azure Front Door edge-to-client (azure-frontdoor-pricing): bands
+# above 150 TB are "Contact Us", so the 150 TB rate is kept there as an upper bound. Region: India rates under India residency, else the
+# North America rates (a reference for other regions).
+CDN_EGRESS_TIERS = {
+    ("aws", "us"): ((1_024, 0.0), (10_240, 0.085), (51_200, 0.080), (153_600, 0.060), (512_000, 0.040), (1_048_576, 0.030),
+                    (5_242_880, 0.025), (float("inf"), 0.020)),
+    ("aws", "india"): ((1_024, 0.0), (10_240, 0.109), (51_200, 0.085), (153_600, 0.082), (512_000, 0.080), (1_048_576, 0.078),
+                       (5_242_880, 0.075), (float("inf"), 0.072)),
+    ("azure", "us"): ((10_240, 0.083), (51_200, 0.066), (float("inf"), 0.057)),
+    ("azure", "india"): ((10_240, 0.109), (51_200, 0.085), (float("inf"), 0.083)),
+}
+CDN_EGRESS_NAME = {"aws": ("Amazon CloudFront pay-as-you-go transfer tiers, first 1 TB free", "aws-cloudfront-payg"),
+                   "azure": ("Azure Front Door edge-to-client transfer tiers; bands above 150 TB are quoted on request, so the 150 TB rate is kept there",
+                             "azure-frontdoor-pricing")}
+
+
+def provider_tiers(provider, residency):
+    """The provider's own CDN tier table, or None (another CDN: the caller keeps its reference rate)."""
+    return CDN_EGRESS_TIERS.get((provider, "india" if residency == "india" else "us"))
+
+
+def tiered_egress(gb, tiers=None):
+    """USD for gb GB in a month, each slice at its tier's rate (default: the video reference tiers)."""
     cost, prev = 0.0, 0
-    for cap, rate in VIDEO_EGRESS_TIERS:
+    for cap, rate in tiers or VIDEO_EGRESS_TIERS:
         if gb <= prev:
             break
         cost += (min(gb, cap) - prev) * rate

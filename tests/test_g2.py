@@ -120,7 +120,7 @@ class ReviewFixes(unittest.TestCase):
         out = run("Video platform where creators upload videos.", "social", scale__users_12_months=5_000_000, scale__peak_concurrent_users=50000)
         line = [a for a in out["estimated_monthly_cost_usd"]["assumptions"] if a.startswith("Video egress")][0]
         self.assertIn("2-30 minutes of adaptive-bitrate video", line)
-        self.assertIn("$0.03 above", line)
+        self.assertRegex(line, r"\$0\.03 above|CloudFront pay-as-you-go transfer tiers|Front Door edge-to-client transfer tiers")  # p5 item 6
 
     def test_managed_realtime_service_drops_the_backplane_and_is_a_priced_azure_entry(self):
         out = run("Live order board for a restaurant chain.", "saas_b2b", infrastructure__cloud_preference="azure", team__languages=["go"],

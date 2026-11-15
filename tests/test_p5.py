@@ -146,6 +146,39 @@ class WrittenDatabaseIsKept(unittest.TestCase):
             self.assertNotIn("reused", self._db(typ, desc, systems)["choice"], desc)
 
 
+class ProviderCdnAndCognitoTiers(unittest.TestCase):
+    """Item 6: CDN egress priced on the chosen provider's own CDN tiers; Cognito per-MAU tiers at very large user counts."""
+
+    def _video(self, typ, cloud, res, users=20000000):
+        out = run(**{"project.type": typ, "project.description": "Users upload and watch short videos.", "infrastructure.cloud_preference": cloud,
+                     "infrastructure.data_residency": res, "scale.users_12_months": users, "requirements.file_media_storage": True,
+                     "budget.monthly_infra_usd": 50000})
+        return next(a for a in out["estimated_monthly_cost_usd"]["assumptions"] if a.startswith("Video egress"))
+
+    def test_own_cdn_tiers(self):
+        self.assertIn("Amazon CloudFront pay-as-you-go", self._video("social", "aws", "us"))
+        self.assertIn("Azure Front Door edge-to-client", self._video("content_site", "azure", "india"))
+        self.assertIn("Amazon CloudFront pay-as-you-go", self._video("ai_ml_product", "aws", "india", 5000000))
+
+    def test_gcp_keeps_reference(self):
+        self.assertIn("Google Cloud CDN cache egress tiers", self._video("social", "gcp", "us"))
+
+    def test_tier_math(self):
+        from engine import costreal
+        t = costreal.provider_tiers("aws", "us")
+        self.assertAlmostEqual(costreal.tiered_egress(1024, t), 0.0)
+        self.assertAlmostEqual(costreal.tiered_egress(2048, t), 1024 * 0.085)
+        self.assertEqual(costreal.provider_tiers("cloudflare", "us"), None)
+
+    def test_cognito_large(self):
+        for typ in ("social", "ecommerce", "saas_b2b"):
+            out = run(**{"project.type": typ, "project.description": "Members sign in.", "infrastructure.cloud_preference": "aws",
+                         "scale.users_12_months": 20000000, "requirements.auth": "email_password", "budget.monthly_infra_usd": 100000})
+            line = next(a for a in out["estimated_monthly_cost_usd"]["assumptions"] if "Cognito" in a)
+            self.assertIn("lower bound counts only the first 1,000,000 MAU", line, typ)
+            self.assertNotIn("$300-2,000", line)
+
+
 class FrontDoorWafTier(unittest.TestCase):
     """Item 7: managed WAF rule sets need Front Door Premium; Standard gets custom rules; no 'CDN not added' beside Front Door."""
 
