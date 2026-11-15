@@ -298,7 +298,11 @@ class OnPremisesComplianceAndAvailability(unittest.TestCase):
 
     def test_cloud_availability_text_is_unchanged(self):
         out = run(requirements__availability="99.95")
-        self.assertIn("second app instance in another zone", " ".join(out["estimated_monthly_cost_usd"]["assumptions"]))
+        text = " ".join(out["estimated_monthly_cost_usd"]["assumptions"])
+        # q3 item 4: a host whose plan already runs two instances across zones prices them once, in the hosting line; the cloud
+        # wording is still about zones and instances, never the on-premises hardware / standby-server wording
+        self.assertIn("two instances across availability zones", text)
+        self.assertNotIn("hardware", text)
         self.assertNotIn("standby database server", out["stack"]["database"]["justification"])
 
 
