@@ -146,6 +146,34 @@ class WrittenDatabaseIsKept(unittest.TestCase):
             self.assertNotIn("reused", self._db(typ, desc, systems)["choice"], desc)
 
 
+class FrontDoorWafTier(unittest.TestCase):
+    """Item 7: managed WAF rule sets need Front Door Premium; Standard gets custom rules; no 'CDN not added' beside Front Door."""
+
+    def _run(self, typ, desc, budget, users=2000):
+        return run(**{"project.type": typ, "project.description": desc, "requirements.payments": True, "compliance": ["pci_dss"],
+                      "infrastructure.cloud_preference": "azure", "budget.monthly_infra_usd": budget, "scale.users_12_months": users})
+
+    def _sec(self, out):
+        return next(s for s in out["stack"]["supporting"] if "Front Door" in s["choice"] and s["layer"] == "other")
+
+    def test_premium_when_budget_allows(self):
+        for typ, desc in (("fintech", "Wallet app for small merchants."), ("ecommerce", "Online store for handmade goods."),
+                          ("saas_b2b", "Invoicing SaaS that takes card payments.")):
+            sec = self._sec(self._run(typ, desc, 5000))
+            self.assertIn("Premium", sec["choice"], desc)
+            self.assertIn("$330/month", sec["justification"])
+
+    def test_standard_custom_rules_on_small_budget(self):
+        sec = self._sec(self._run("ecommerce", "Online store for handmade goods.", 500))
+        self.assertIn("Standard WAF (custom rules)", sec["choice"])
+        self.assertNotIn("managed rule sets plus", sec["justification"])
+
+    def test_no_cdn_not_added_beside_front_door(self):
+        out = self._run("fintech", "Internal treasury tool for the finance staff of one company; staff sign in, no public pages.", 5000, users=20000)
+        self.assertTrue(any("Front Door" in s["choice"] for s in out["stack"]["supporting"]))
+        self.assertFalse([w for w in out["warnings"] if w["code"] == "SERVICE_NOT_ADDED" and w["message"].startswith("CDN not added")])
+
+
 class StaffOnlySignIn(unittest.TestCase):
     """Item 5: anonymous readers, staff-only sign-in: auth is sized for the staff; the scope-cut sentence agrees with the band."""
 

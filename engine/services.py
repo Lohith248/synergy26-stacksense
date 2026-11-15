@@ -367,6 +367,15 @@ SECURITY_PRIORITY = 4
 SECURITY_COMPLIANCE = ("pci_dss", "iso27001")
 # Azure: the Front Door profile's $35 base fee is already in the CDN line when one exists; otherwise AZURE_FRONT_DOOR_BASE is added here
 AZURE_FRONT_DOOR_BASE = 35
+# p5 item 7: the Microsoft-managed WAF rule set and bot protection are Premium-only (azure-frontdoor-tiers, verified 15 Nov 2026);
+# Premium's base fee is $330/month with WAF included (azure-frontdoor-pricing, read 15 Nov 2026). Planning heuristic: Premium is chosen
+# when its base fee is at most FRONT_DOOR_PREMIUM_BUDGET_SHARE of the budget; otherwise Standard with custom WAF rules.
+AZURE_FRONT_DOOR_PREMIUM_BASE = 330
+FRONT_DOOR_PREMIUM_BUDGET_SHARE = 0.15
+
+
+def front_door_premium(ctx):
+    return ctx["budget"] * FRONT_DOOR_PREMIUM_BUDGET_SHARE >= AZURE_FRONT_DOOR_PREMIUM_BASE
 # per provider: (choice, what each part does, alternative, cost per scale tier [lo, hi] USD/month (planning estimate), source ids)
 SECURITY_SET = {
     "aws": ("AWS WAF + AWS KMS + AWS Secrets Manager + AWS CloudTrail",
@@ -400,13 +409,31 @@ def security_line(ctx, host, rtxt, loc, svc_, front_door_paid=False):
     if not money or not (ctx["prio"]["security"] >= SECURITY_PRIORITY or comp):
         return None
     name, what, alt, cost, src = SECURITY_SET[p]
-    if p == "azure" and not front_door_paid:
-        cost = [[lo + AZURE_FRONT_DOOR_BASE, hi + AZURE_FRONT_DOOR_BASE] for lo, hi in cost]
+    if p == "azure":
+        prem = front_door_premium(ctx)
+        # the CDN line, when present, already pays the Standard base fee; Premium replaces it
+        base = (AZURE_FRONT_DOOR_PREMIUM_BASE if prem else AZURE_FRONT_DOOR_BASE) - (AZURE_FRONT_DOOR_BASE if front_door_paid else 0)
+        cost = [[lo + base, hi + base] for lo, hi in cost]
+        src = src + ["azure-frontdoor-tiers"]
+        if prem:
+            name = name.replace("Azure Front Door WAF", "Azure Front Door Premium WAF")
+            what = what.replace("Azure Front Door with its web application firewall (managed rule sets plus rate limits on login and payment routes)",
+                                "Azure Front Door Premium with its web application firewall (the Microsoft-managed rule set and bot protection, which "
+                                f"need the Premium tier, plus rate limits on login and payment routes; ${AZURE_FRONT_DOOR_PREMIUM_BASE}/month base fee with WAF included"
+                                + (", replacing the Standard profile in the CDN line" if front_door_paid else "") + ")")
+        else:
+            name = name.replace("Azure Front Door WAF", "Azure Front Door Standard WAF (custom rules)")
+            what = what.replace("Azure Front Door with its web application firewall (managed rule sets plus rate limits on login and payment routes)",
+                                "Azure Front Door Standard with custom web application firewall rules (rate limits on login and payment routes, "
+                                "geo-filtering and IP rules; the Microsoft-managed rule set and bot protection need Premium, "
+                                f"${AZURE_FRONT_DOOR_PREMIUM_BASE}/month base fee, more than {FRONT_DOOR_PREMIUM_BUDGET_SHARE:.0%} of this budget)")
     driven = (["requirements.payments"] if req["requirements.payments"] else ["project.type"]) + ["priorities.security"] + (["compliance"] if comp else [])
     why = (("Taking payments" if req["requirements.payments"] else f"Financial data (project.type={ctx['type']})") + f" with priorities.security={ctx['prio']['security']}" + (f" and compliance={','.join(comp)}" if comp else "")
            + f" needs protection in front of the app and control of keys, secrets and audit evidence: {what}{rtxt}. "
            "These are the building blocks an assessor asks to see; they do not make the system compliant on their own. "
-           "The cost line is a planning estimate (provider list prices for these services were not read), driven mainly by request volume.")
+           + ("The cost line is a planning estimate (the Front Door base fee is the list price; the other services' prices were not read), "
+              "driven mainly by request volume." if p == "azure" else
+              "The cost line is a planning estimate (provider list prices for these services were not read), driven mainly by request volume."))
     return svc_("other", name, why, driven, [alt], ["Rule tuning is ongoing work: start WAF rules in count mode, then block", "Key and secret rotation must be scheduled and tested"],
                 "managed", p, True, cost, src, loc)
 
@@ -1477,7 +1504,11 @@ def build(ctx, host, backend, db, mobile, warn):
                        ["azure-frontdoor-pricing"] if p == "azure" else ["aws-regional"]))
     elif cdn_wanted:  # blocked only by the audience gate: no replacement component, so the warning is the whole explanation
         _, fact, when, cpaths = rs.public_facing(ctx)
-        warn("SERVICE_NOT_ADDED", "info", rs.note("CDN", fact, when), cpaths)
+        if p == "azure" and security_line(ctx, host, "", None, svc):  # p5 item 7: Front Door (a CDN) is in the stack for its WAF
+            warn("SERVICE_NOT_ADDED", "info", f"Edge caching not switched on: {fact}. Azure Front Door is in the stack for its web application firewall "
+                 "(see supporting 'other'); turn on its caching for public files when " + when + ".", cpaths)
+        else:
+            warn("SERVICE_NOT_ADDED", "info", rs.note("CDN", fact, when), cpaths)
 
     # ---------------- ml
     ml = req["requirements.ml_features"]
